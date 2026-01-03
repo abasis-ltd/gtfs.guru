@@ -1,0 +1,2 @@
+booking_rule_id,booking_type,prior_notice_duration_min,prior_notice_last_day,prior_notice_last_time,phone_number,info_url,booking_url
+booking1,2,60,1,17:00:00,+1-555-123-4567,https://example.com/info,https://example.com/book

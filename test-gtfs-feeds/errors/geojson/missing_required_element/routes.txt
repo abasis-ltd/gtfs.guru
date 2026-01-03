@@ -1,0 +1,3 @@
+route_id,agency_id,route_short_name,route_long_name,route_type,route_color,route_text_color,route_url
+route1,agency1,R1,Route One,3,FF0000,FFFFFF,https://example.com/route1
+route2,agency1,R2,Route Two,3,00FF00,000000,https://example.com/route2

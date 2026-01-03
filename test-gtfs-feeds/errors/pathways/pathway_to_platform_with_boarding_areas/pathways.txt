@@ -1,0 +1,3 @@
+pathway_id,from_stop_id,to_stop_id,pathway_mode,is_bidirectional
+pathway1,entrance1,node1,1,1
+pathway2,node1,platform1,1,1

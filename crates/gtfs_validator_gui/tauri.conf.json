@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "GTFS Validator",
+  "version": "0.1.0",
+  "identifier": "org.mobilitydata.gtfs-validator",
+  "build": {
+    "frontendDist": "frontend"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "GTFS Validator",
+        "width": 800,
+        "height": 700,
+        "resizable": true,
+        "center": true,
+        "minWidth": 600,
+        "minHeight": 500
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "copyright": "© 2024 MobilityData. Licensed under Apache-2.0.",
+    "category": "DeveloperTool",
+    "shortDescription": "GTFS feed validation tool",
+    "longDescription": "A fast, reliable GTFS validator that checks your transit feed data against the official GTFS specification. Supports both local files and remote URLs.",
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "deb": {
+        "depends": []
+      },
+      "rpm": {
+        "epoch": 0,
+        "release": "1"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "allowDowngrades": true,
+      "nsis": {
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico",
+        "languages": ["English", "Russian", "French", "German", "Spanish"]
+      }
+    }
+  },
+  "plugins": {
+    "dialog": {},
+    "shell": {
+      "open": true
+    }
+  }
+}

@@ -1,0 +1,76 @@
+# ============================================================================
+# GTFS Validator - Docker Compose for Hetzner Deployment
+# Usage: docker compose up -d
+# ============================================================================
+
+services:
+  gtfs-validator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gtfs-validator-web:latest
+    container_name: gtfs-validator
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      # Base directory for storing validation jobs
+      - GTFS_VALIDATOR_WEB_BASE_DIR=/data/jobs
+      # Public URL (change this to your domain!)
+      - GTFS_VALIDATOR_WEB_PUBLIC_BASE_URL=https://gtfs.yourdomain.com
+      # Job TTL in seconds (default: 24 hours)
+      - GTFS_VALIDATOR_WEB_JOB_TTL_SECONDS=86400
+      # Logging level
+      - RUST_LOG=info
+
+    volumes:
+      # Persist job data across container restarts
+      - gtfs-data:/data/jobs
+
+    # Resource limits for stability
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+    healthcheck:
+      test: [ "CMD", "curl", "-sf", "http://localhost:3000/healthz" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Caddy for automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - gtfs-validator
+    profiles:
+      - https
+
+volumes:
+  gtfs-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local

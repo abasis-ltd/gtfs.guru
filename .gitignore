@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+.DS_Store
+/golden_actual/
+/scripts/golden_manifest.tsv
+google-transitfeed/

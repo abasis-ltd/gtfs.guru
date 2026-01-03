@@ -1,0 +1,4 @@
+# feed_path<TAB>expected_dir<TAB>case_name(optional)<TAB>extra_json(optional, space-separated)<TAB>html_name(optional)<TAB>validator_args(optional)<TAB>compare_flags(optional)
+# Use tabs for empty columns to preserve positions.
+/path/to/feed-a.zip	/path/to/expected/feed-a	feed-a	notice_schema.json	report.html	--date 2024-01-01 --country_code US	--strip-runtime-fields
+/path/to/feed-b.zip	/path/to/expected/feed-b			custom_report.html	--date 2024-02-01	--skip-html

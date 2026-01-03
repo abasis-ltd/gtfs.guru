@@ -1,0 +1,234 @@
+use std::fmt;
+use std::io::{BufRead, BufReader, Read};
+
+use csv::{ReaderBuilder, StringRecord, Trim};
+use serde::de::DeserializeOwned;
+
+#[derive(Debug)]
+pub struct CsvParseError {
+    pub file: String,
+    pub row: Option<u64>,
+    pub field: Option<String>,
+    pub message: String,
+    pub char_index: Option<u64>,
+    pub column_index: Option<u64>,
+    pub line_index: Option<u64>,
+    pub parsed_content: Option<String>,
+}
+
+impl fmt::Display for CsvParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "csv error in {}", self.file)?;
+        if let Some(row) = self.row {
+            write!(f, " at row {}", row)?;
+        }
+        if let Some(field) = &self.field {
+            write!(f, " field {}", field)?;
+        }
+        write!(f, ": {}", self.message)
+    }
+}
+
+impl std::error::Error for CsvParseError {}
+
+#[derive(Debug, Clone)]
+pub struct CsvTable<T> {
+    pub headers: Vec<String>,
+    pub rows: Vec<T>,
+    pub row_numbers: Vec<u64>,
+}
+
+impl<T> Default for CsvTable<T> {
+    fn default() -> Self {
+        Self {
+            headers: Vec::new(),
+            rows: Vec::new(),
+            row_numbers: Vec::new(),
+        }
+    }
+}
+
+impl<T> CsvTable<T> {
+    pub fn row_number(&self, index: usize) -> u64 {
+        self.row_numbers
+            .get(index)
+            .copied()
+            .unwrap_or(index as u64 + 2)
+    }
+}
+
+pub fn read_csv_from_reader<T, R>(
+    reader: R,
+    file_name: impl Into<String>,
+) -> Result<CsvTable<T>, CsvParseError>
+where
+    T: DeserializeOwned,
+    R: Read,
+{
+    let (table, errors) = read_csv_from_reader_with_errors(reader, file_name)?;
+    if let Some(error) = errors.into_iter().next() {
+        return Err(error);
+    }
+    Ok(table)
+}
+
+pub fn read_csv_from_reader_with_errors<T, R>(
+    reader: R,
+    file_name: impl Into<String>,
+) -> Result<(CsvTable<T>, Vec<CsvParseError>), CsvParseError>
+where
+    T: DeserializeOwned,
+    R: Read,
+{
+    let file = file_name.into();
+    let mut reader = BufReader::new(reader);
+    if let Err(err) = skip_utf8_bom(&mut reader) {
+        return Err(CsvParseError {
+            file,
+            row: None,
+            field: None,
+            message: err.to_string(),
+            char_index: None,
+            column_index: None,
+            line_index: None,
+            parsed_content: None,
+        });
+    }
+
+    let mut csv_reader = ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .trim(Trim::All)
+        .from_reader(reader);
+
+    let headers_record = csv_reader
+        .headers()
+        .map_err(|err| map_csv_error(&file, None, err))?
+        .clone();
+    let headers = headers_record
+        .iter()
+        .map(|value| value.trim().to_string())
+        .collect();
+
+    let mut rows = Vec::new();
+    let mut row_numbers = Vec::new();
+    let mut errors = Vec::new();
+    let mut iter = csv_reader.deserialize();
+    while let Some(result) = iter.next() {
+        match result {
+            Ok(record) => {
+                let row_number = iter.reader().position().line().saturating_sub(1);
+                rows.push(record);
+                row_numbers.push(row_number);
+            }
+            Err(err) => errors.push(map_csv_error(&file, Some(&headers_record), err)),
+        }
+    }
+
+    Ok((
+        CsvTable {
+            headers,
+            rows,
+            row_numbers,
+        },
+        errors,
+    ))
+}
+
+fn map_csv_error(file: &str, headers: Option<&StringRecord>, err: csv::Error) -> CsvParseError {
+    let position = err.position();
+    let row = position.map(|pos| pos.line());
+    let field_index = match err.kind() {
+        csv::ErrorKind::Deserialize { err, .. } => err.field(),
+        csv::ErrorKind::Utf8 { err, .. } => Some(err.field() as u64),
+        _ => None,
+    };
+    let column_index = field_index.map(|index| index as u64);
+    let field = field_index.and_then(|index| {
+        headers.and_then(|record| {
+            let idx = index as usize;
+            record.get(idx).map(|value| value.trim().to_string())
+        })
+    });
+
+    CsvParseError {
+        file: file.to_string(),
+        row,
+        field,
+        message: err.to_string(),
+        char_index: position.map(|pos| pos.byte()),
+        column_index,
+        line_index: position.map(|pos| pos.line()),
+        parsed_content: position.map(|pos| pos.record().to_string()),
+    }
+}
+
+fn skip_utf8_bom<R: BufRead>(reader: &mut R) -> std::io::Result<()> {
+    let buf = reader.fill_buf()?;
+    if buf.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        reader.consume(3);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize)]
+    struct ExampleRow {
+        a: i32,
+        b: i32,
+    }
+
+    #[test]
+    fn reads_headers_and_rows() {
+        let data = "a,b\n1,2\n3,4\n";
+        let table =
+            read_csv_from_reader::<ExampleRow, _>(data.as_bytes(), "test.csv").expect("parse csv");
+
+        assert_eq!(table.headers, vec!["a", "b"]);
+        assert_eq!(table.rows.len(), 2);
+        assert_eq!(table.rows[0].a, 1);
+        assert_eq!(table.rows[1].b, 4);
+        assert_eq!(table.row_numbers, vec![2, 3]);
+    }
+
+    #[test]
+    fn reports_field_on_parse_error() {
+        let data = "a, b \n1,boom\n";
+        let err = read_csv_from_reader::<ExampleRow, _>(data.as_bytes(), "bad.csv")
+            .expect_err("expected parse error");
+
+        assert_eq!(err.file, "bad.csv");
+        assert!(err.row.is_some());
+        assert_eq!(err.field.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn collects_row_errors_without_aborting() {
+        let data = "a,b\n1,2\n3,boom\n4,5\n";
+        let (table, errors) =
+            read_csv_from_reader_with_errors::<ExampleRow, _>(data.as_bytes(), "rows.csv")
+                .expect("parse csv");
+
+        assert_eq!(table.rows.len(), 2);
+        assert_eq!(table.rows[0].a, 1);
+        assert_eq!(table.rows[1].b, 5);
+        assert_eq!(table.row_numbers, vec![2, 4]);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].field.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn strips_utf8_bom_from_headers() {
+        let data = b"\xEF\xBB\xBFa,b\n9,10\n";
+        let table =
+            read_csv_from_reader::<ExampleRow, _>(data.as_slice(), "bom.csv").expect("parse csv");
+
+        assert_eq!(table.headers, vec!["a", "b"]);
+        assert_eq!(table.rows.len(), 1);
+        assert_eq!(table.rows[0].a, 9);
+    }
+}

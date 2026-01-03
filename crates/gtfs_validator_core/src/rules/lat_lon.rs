@@ -1,0 +1,178 @@
+use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+
+const CODE_POINT_NEAR_ORIGIN: &str = "point_near_origin";
+const CODE_POINT_NEAR_POLE: &str = "point_near_pole";
+
+#[derive(Debug, Default)]
+pub struct StopLatLonValidator;
+
+impl Validator for StopLatLonValidator {
+    fn name(&self) -> &'static str {
+        "stop_lat_lon"
+    }
+
+    fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        for (index, stop) in feed.stops.rows.iter().enumerate() {
+            let row_number = feed.stops.row_number(index);
+            if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
+                check_point(
+                    notices,
+                    "stops.txt",
+                    "stop_lat",
+                    "stop_lon",
+                    lat,
+                    lon,
+                    row_number,
+                    Some(stop.stop_id.as_str()),
+                );
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ShapeLatLonValidator;
+
+impl Validator for ShapeLatLonValidator {
+    fn name(&self) -> &'static str {
+        "shape_lat_lon"
+    }
+
+    fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if let Some(shapes) = &feed.shapes {
+            for (index, shape) in shapes.rows.iter().enumerate() {
+                let row_number = shapes.row_number(index);
+                check_point(
+                    notices,
+                    "shapes.txt",
+                    "shape_pt_lat",
+                    "shape_pt_lon",
+                    shape.shape_pt_lat,
+                    shape.shape_pt_lon,
+                    row_number,
+                    None,
+                );
+            }
+        }
+    }
+}
+
+const CODE_NUMBER_OUT_OF_RANGE: &str = "number_out_of_range";
+
+fn check_point(
+    notices: &mut NoticeContainer,
+    file: &str,
+    lat_field: &str,
+    lon_field: &str,
+    lat: f64,
+    lon: f64,
+    row_number: u64,
+    entity_id: Option<&str>,
+) {
+    if lat < -90.0 || lat > 90.0 {
+        let mut notice = ValidationNotice::new(
+            CODE_NUMBER_OUT_OF_RANGE,
+            NoticeSeverity::Error,
+            "latitude out of range [-90, 90]",
+        );
+        notice.insert_context_field("filename", file);
+        notice.insert_context_field("csvRowNumber", row_number);
+        notice.insert_context_field("fieldName", lat_field);
+        notice.insert_context_field("fieldValue", lat);
+        notice.insert_context_field("fieldType", "float");
+        if let Some(entity_id) = entity_id {
+            notice.insert_context_field("entityId", entity_id);
+        }
+        notice.field_order = vec![
+            "csvRowNumber".to_string(),
+            "entityId".to_string(),
+            "fieldName".to_string(),
+            "fieldType".to_string(),
+            "fieldValue".to_string(),
+            "filename".to_string(),
+        ];
+        notices.push(notice);
+    }
+
+    if lon < -180.0 || lon > 180.0 {
+        let mut notice = ValidationNotice::new(
+            CODE_NUMBER_OUT_OF_RANGE,
+            NoticeSeverity::Error,
+            "longitude out of range [-180, 180]",
+        );
+        notice.insert_context_field("filename", file);
+        notice.insert_context_field("csvRowNumber", row_number);
+        notice.insert_context_field("fieldName", lon_field);
+        notice.insert_context_field("fieldValue", lon);
+        notice.insert_context_field("fieldType", "float");
+        if let Some(entity_id) = entity_id {
+            notice.insert_context_field("entityId", entity_id);
+        }
+        notice.field_order = vec![
+            "csvRowNumber".to_string(),
+            "entityId".to_string(),
+            "fieldName".to_string(),
+            "fieldType".to_string(),
+            "fieldValue".to_string(),
+            "filename".to_string(),
+        ];
+        notices.push(notice);
+    }
+
+    if lat.abs() <= 1.0 && lon.abs() <= 1.0 {
+        let mut notice = ValidationNotice::new(
+            CODE_POINT_NEAR_ORIGIN,
+            NoticeSeverity::Error,
+            "point near origin",
+        );
+        notice.insert_context_field("filename", file);
+        notice.insert_context_field("csvRowNumber", row_number);
+        if let Some(entity_id) = entity_id {
+            notice.insert_context_field("entityId", entity_id);
+        }
+        notice.insert_context_field("latFieldName", lat_field);
+        notice.insert_context_field("latFieldValue", lat);
+        notice.insert_context_field("lonFieldName", lon_field);
+        notice.insert_context_field("lonFieldValue", lon);
+        notice.field_order = vec![
+            "csvRowNumber".to_string(),
+            "entityId".to_string(),
+            "featureIndex".to_string(),
+            "filename".to_string(),
+            "latFieldName".to_string(),
+            "latFieldValue".to_string(),
+            "lonFieldName".to_string(),
+            "lonFieldValue".to_string(),
+        ];
+        notices.push(notice);
+    }
+
+    if lat.abs() >= 89.0 {
+        let mut notice = ValidationNotice::new(
+            CODE_POINT_NEAR_POLE,
+            NoticeSeverity::Error,
+            "point near pole",
+        );
+        notice.insert_context_field("filename", file);
+        notice.insert_context_field("csvRowNumber", row_number);
+        if let Some(entity_id) = entity_id {
+            notice.insert_context_field("entityId", entity_id);
+        }
+        notice.insert_context_field("latFieldName", lat_field);
+        notice.insert_context_field("latFieldValue", lat);
+        notice.insert_context_field("lonFieldName", lon_field);
+        notice.insert_context_field("lonFieldValue", lon);
+        notice.field_order = vec![
+            "csvRowNumber".to_string(),
+            "entityId".to_string(),
+            "featureIndex".to_string(),
+            "filename".to_string(),
+            "latFieldName".to_string(),
+            "latFieldValue".to_string(),
+            "lonFieldName".to_string(),
+            "lonFieldValue".to_string(),
+        ];
+        notices.push(notice);
+    }
+}
+

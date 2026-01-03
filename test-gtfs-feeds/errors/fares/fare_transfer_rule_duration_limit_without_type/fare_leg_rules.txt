@@ -1,0 +1,2 @@
+fare_leg_rule_id,network_id,from_area_id,to_area_id,fare_product_id,leg_group_id
+leg1,,,,,leg_group1

@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTFS Validator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-top: 1rem;
+        }
+
+        .logo {
+            color: #4f46e5;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .logo svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #4f46e5;
+            margin-bottom: 0.75rem;
+        }
+
+        .subtitle {
+            color: #64748b;
+            font-size: 1rem;
+        }
+
+        .version {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #e2e8f0;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f8fafc;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: #4f46e5;
+            background: #eef2ff;
+        }
+
+        .drop-zone.has-file {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+
+        .drop-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone-text {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .drop-zone-file {
+            color: #1e293b;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .select-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #1e293b;
+            cursor: pointer;
+            transition: all 0.15s;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+        }
+
+        .select-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            border: none;
+            color: #fff;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #4338ca;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #fff;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }
+
+        .progress-section {
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .progress-title {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .progress-status {
+            font-size: 0.875rem;
+            color: #4f46e5;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .results-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #059669;
+        }
+
+        .results-title.has-errors {
+            color: #dc2626;
+        }
+
+        .results-time {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .result-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+
+        .result-count {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .result-count.errors {
+            color: #dc2626;
+        }
+
+        .result-count.warnings {
+            color: #d97706;
+        }
+
+        .result-count.infos {
+            color: #2563eb;
+        }
+
+        .result-label {
+            color: #64748b;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        .report-links {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .report-link {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            color: #374151;
+            text-decoration: none;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+
+        .report-link:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .error-message {
+            display: none;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: #dc2626;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 2rem;
+        }
+
+        .footer-text {
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+
+        .footer-text a {
+            color: #4f46e5;
+            text-decoration: none;
+        }
+
+        .footer-text a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+            .report-links {
+                flex-direction: column;
+            }
+        }
+
+        /* Map styles */
+        .map-section {
+            margin-top: 1.5rem;
+            display: none;
+        }
+
+        .map-section.active {
+            display: block;
+        }
+
+        .map-section h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #error-map {
+            height: 300px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .map-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .legend-dot.stop {
+            background: #e74c3c;
+        }
+
+        .legend-dot.match {
+            background: #3498db;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                GTFS Validator
+            </div>
+            <h1>Desktop Validator</h1>
+            <p class="subtitle">
+                Validate GTFS feeds against the official specification
+            </p>
+            <p class="version" id="versionText">v0.1.0</p>
+        </header>
+
+        <div class="card" id="uploadCard">
+            <div class="form-group">
+                <label class="form-label">Select a GTFS ZIP file</label>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-icon">📁</div>
+                    <div class="drop-zone-text" id="dropZoneText">
+                        Drop a file here or click to browse
+                    </div>
+                </div>
+                <input type="file" id="fileInput" accept=".zip" style="display: none;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Or load from a URL</label>
+                <input type="url" class="select-input" id="urlInput" placeholder="https://example.com/feed.zip"
+                    style="background-image: none; cursor: text;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Region (optional)</label>
+                <select class="select-input" id="regionSelect">
+                    <option value="">Choose a region</option>
+                    <option value="AU">Australia</option>
+                    <option value="AT">Austria</option>
+                    <option value="BE">Belgium</option>
+                    <option value="BR">Brazil</option>
+                    <option value="CA">Canada</option>
+                    <option value="CL">Chile</option>
+                    <option value="CN">China</option>
+                    <option value="CZ">Czech Republic</option>
+                    <option value="DK">Denmark</option>
+                    <option value="FI">Finland</option>
+                    <option value="FR">France</option>
+                    <option value="DE">Germany</option>
+                    <option value="HK">Hong Kong</option>
+                    <option value="IN">India</option>
+                    <option value="IE">Ireland</option>
+                    <option value="IL">Israel</option>
+                    <option value="IT">Italy</option>
+                    <option value="JP">Japan</option>
+                    <option value="KR">Korea, Republic of</option>
+                    <option value="MX">Mexico</option>
+                    <option value="NL">Netherlands</option>
+                    <option value="NZ">New Zealand</option>
+                    <option value="NO">Norway</option>
+                    <option value="PL">Poland</option>
+                    <option value="PT">Portugal</option>
+                    <option value="RU">Russia</option>
+                    <option value="SG">Singapore</option>
+                    <option value="ES">Spain</option>
+                    <option value="SE">Sweden</option>
+                    <option value="CH">Switzerland</option>
+                    <option value="TW">Taiwan</option>
+                    <option value="GB">United Kingdom</option>
+                    <option value="US">United States</option>
+                    <option value="UA">Ukraine</option>
+                </select>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" id="validateBtn" disabled>
+                    ▶ Validate
+                </button>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+
+        <div class="card progress-section" id="progressSection">
+            <div class="progress-header">
+                <div class="progress-title">Validating your GTFS feed...</div>
+                <div class="progress-status" id="progressStatus">Processing</div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 50%"></div>
+            </div>
+        </div>
+
+        <div class="card results-section" id="resultsSection">
+            <div class="results-header">
+                <div class="results-title" id="resultsTitle">✓ Validation Complete</div>
+                <div class="results-time" id="resultsTime"></div>
+            </div>
+
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="result-count errors" id="errorCount">0</div>
+                    <div class="result-label">Errors</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-count warnings" id="warningCount">0</div>
+                    <div class="result-label">Warnings</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-count infos" id="infoCount">0</div>
+                    <div class="result-label">Info</div>
+                </div>
+            </div>
+
+            <div class="report-links">
+                <button class="report-link" id="htmlReportBtn">📊 Open HTML Report</button>
+                <button class="report-link" id="jsonReportBtn">📋 Open JSON Report</button>
+            </div>
+
+            <!-- Map Section for Geographic Errors -->
+            <div class="map-section" id="mapSection">
+                <h4>📍 Geographic Errors Map</h4>
+                <div id="error-map"></div>
+                <div class="map-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot stop"></div>
+                        <span>Stop location</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot match"></div>
+                        <span>Closest point on shape</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-group" style="margin-top: 1.5rem;">
+                <button class="btn btn-secondary" id="resetBtn">New Validation</button>
+            </div>
+        </div>
+
+        <footer>
+            <p class="footer-text">
+                Made with ♥ using Rust & Tauri
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        const { invoke } = window.__TAURI__.core;
+        const { open } = window.__TAURI__.dialog;
+        const { open: shellOpen } = window.__TAURI__.shell;
+
+        const dropZone = document.getElementById('dropZone');
+        const dropZoneText = document.getElementById('dropZoneText');
+        const fileInput = document.getElementById('fileInput');
+
+        // New elements
+        const urlInput = document.getElementById('urlInput');
+
+        const regionSelect = document.getElementById('regionSelect');
+        const validateBtn = document.getElementById('validateBtn');
+        const uploadCard = document.getElementById('uploadCard');
+        const progressSection = document.getElementById('progressSection');
+        const resultsSection = document.getElementById('resultsSection');
+        const errorMessage = document.getElementById('errorMessage');
+        const resetBtn = document.getElementById('resetBtn');
+        const htmlReportBtn = document.getElementById('htmlReportBtn');
+        const jsonReportBtn = document.getElementById('jsonReportBtn');
+
+        let selectedFilePath = null;
+        let lastResult = null;
+
+        // Initialize
+        async function init() {
+            try {
+                const version = await invoke('get_version');
+                document.getElementById('versionText').textContent = 'v' + version;
+            } catch (e) {
+                console.error('Failed to get version:', e);
+            }
+        }
+
+        init();
+
+        // Drop zone handlers
+        dropZone.addEventListener('click', async () => {
+            try {
+                const selected = await open({
+                    multiple: false,
+                    filters: [{ name: 'GTFS', extensions: ['zip'] }]
+                });
+                if (selected) {
+                    handleFileSelect(selected);
+                }
+            } catch (e) {
+                console.error('File dialog error:', e);
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            // Note: Tauri handles file drops differently, this is visual only
+        });
+
+        // URL Input handler
+        urlInput.addEventListener('input', () => {
+            if (urlInput.value.trim()) {
+                // Clear file selection if URL is typed
+                selectedFilePath = null;
+                dropZoneText.innerHTML = 'Drop a file here or click to browse';
+                dropZone.classList.remove('has-file');
+                validateBtn.disabled = false;
+                hideError();
+            } else if (!selectedFilePath) {
+                validateBtn.disabled = true;
+            }
+        });
+
+        function handleFileSelect(path) {
+            selectedFilePath = path;
+            urlInput.value = ''; // Clear URL if file selected
+            const fileName = path.split(/[/\\]/).pop();
+            dropZoneText.innerHTML = `<span class="drop-zone-file">📁 ${fileName}</span>`;
+            dropZone.classList.add('has-file');
+            validateBtn.disabled = false;
+            hideError();
+        }
+
+        validateBtn.addEventListener('click', startValidation);
+        resetBtn.addEventListener('click', resetUI);
+
+        htmlReportBtn.addEventListener('click', async () => {
+            if (lastResult && lastResult.htmlReportPath) {
+                await shellOpen(lastResult.htmlReportPath);
+            }
+        });
+
+        jsonReportBtn.addEventListener('click', async () => {
+            if (lastResult && lastResult.jsonReportPath) {
+                await shellOpen(lastResult.jsonReportPath);
+            }
+        });
+
+        async function startValidation() {
+            if (!selectedFilePath && !urlInput.value.trim()) {
+                showError('Please select a file or enter a URL');
+                return;
+            }
+
+            hideError();
+            showProgress();
+
+            try {
+                const countryCode = regionSelect.value || null;
+
+                // Invoke backend with optional parameters
+                const result = await invoke('validate_gtfs', {
+                    path: selectedFilePath, // can be null
+                    url: urlInput.value.trim() || null,
+                    countryCode: countryCode
+                });
+
+                lastResult = result;
+                showResults(result);
+            } catch (error) {
+                showError(error.toString());
+                resetUI();
+            }
+        }
+
+        function showProgress() {
+            uploadCard.style.display = 'none';
+            progressSection.classList.add('active');
+            resultsSection.classList.remove('active');
+        }
+
+        function showResults(result) {
+            document.getElementById('errorCount').textContent = result.errorCount;
+            document.getElementById('warningCount').textContent = result.warningCount;
+            document.getElementById('infoCount').textContent = result.infoCount;
+
+            const resultsTitle = document.getElementById('resultsTitle');
+            if (result.errorCount > 0) {
+                resultsTitle.textContent = '⚠ Validation Complete';
+                resultsTitle.classList.add('has-errors');
+            } else {
+                resultsTitle.textContent = '✓ Validation Complete';
+                resultsTitle.classList.remove('has-errors');
+            }
+
+            document.getElementById('resultsTime').textContent =
+                `Completed in ${result.validationTimeSecs.toFixed(2)}s`;
+
+            progressSection.classList.remove('active');
+            resultsSection.classList.add('active');
+
+            // Show map if there are geographic errors
+            if (result.geoErrors && result.geoErrors.length > 0) {
+                showMap(result.geoErrors);
+            } else {
+                document.getElementById('mapSection').classList.remove('active');
+            }
+        }
+
+        // Map functionality
+        var errorMap = null;
+
+        function showMap(geoErrors) {
+            const mapSection = document.getElementById('mapSection');
+            mapSection.classList.add('active');
+
+            if (!errorMap) {
+                errorMap = L.map('error-map');
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                }).addTo(errorMap);
+            } else {
+                errorMap.eachLayer(function (layer) {
+                    if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                        errorMap.removeLayer(layer);
+                    }
+                });
+            }
+
+            const stopIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div style="background: #e74c3c; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>',
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+            });
+            const matchIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div style="background: #3498db; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>',
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+            });
+
+            const bounds = [];
+            geoErrors.forEach(function (err) {
+                if (err.stopLat && err.stopLon && err.matchLat && err.matchLon) {
+                    // Draw shape path if available (blue background line)
+                    if (err.shapePath && err.shapePath.length > 0) {
+                        L.polyline(err.shapePath, {
+                            color: '#3498db',
+                            weight: 4,
+                            opacity: 0.7
+                        }).addTo(errorMap);
+                        err.shapePath.forEach(function(pt) {
+                            bounds.push(pt);
+                        });
+                    }
+                    
+                    L.marker([err.stopLat, err.stopLon], { icon: stopIcon })
+                        .bindPopup('<b>' + (err.stopName || 'Stop') + '</b>')
+                        .addTo(errorMap);
+                    L.marker([err.matchLat, err.matchLon], { icon: matchIcon })
+                        .bindPopup('<b>Closest point on shape</b>')
+                        .addTo(errorMap);
+                    L.polyline([[err.stopLat, err.stopLon], [err.matchLat, err.matchLon]], {
+                        color: '#e74c3c',
+                        weight: 2,
+                        dashArray: '4, 4'
+                    }).addTo(errorMap);
+                    bounds.push([err.stopLat, err.stopLon]);
+                    bounds.push([err.matchLat, err.matchLon]);
+                }
+            });
+
+            if (bounds.length > 0) {
+                errorMap.fitBounds(bounds, { padding: [20, 20] });
+            }
+
+            setTimeout(function () { errorMap.invalidateSize(); }, 100);
+        }
+
+        function resetUI() {
+            selectedFilePath = null;
+            lastResult = null;
+            urlInput.value = '';
+            dropZoneText.innerHTML = 'Drop a file here or click to browse';
+            dropZone.classList.remove('has-file');
+            validateBtn.disabled = true;
+            uploadCard.style.display = 'block';
+            progressSection.classList.remove('active');
+            resultsSection.classList.remove('active');
+            document.getElementById('mapSection').classList.remove('active');
+            hideError();
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('active');
+        }
+    </script>
+</body>
+
+</html>

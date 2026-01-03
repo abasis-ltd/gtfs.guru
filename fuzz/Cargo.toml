@@ -1,0 +1,36 @@
+[package]
+name = "gtfs-validator-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1.3", features = ["derive"] }
+gtfs_validator_core = { path = "../crates/gtfs_validator_core" }
+gtfs_model = { path = "../crates/gtfs_model" }
+chrono = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+
+[[bin]]
+name = "csv_parser"
+path = "fuzz_targets/csv_parser.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "date_trips"
+path = "fuzz_targets/date_trips.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "timeframe_overlap"
+path = "fuzz_targets/timeframe_overlap.rs"
+test = false
+doc = false

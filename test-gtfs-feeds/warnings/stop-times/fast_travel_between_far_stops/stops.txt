@@ -1,0 +1,3 @@
+stop_id,stop_name,stop_lat,stop_lon
+stop1,New York Stop,40.7128,-74.0060
+stop2,Boston Stop,42.3601,-71.0589

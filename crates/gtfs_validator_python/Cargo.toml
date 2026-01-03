@@ -1,0 +1,19 @@
+[package]
+name = "gtfs_validator_python"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Python bindings for GTFS Validator"
+
+[lib]
+name = "gtfs_validator"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38", "generate-import-lib"] }
+pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+gtfs_validator_core = { path = "../gtfs_validator_core" }
+gtfs_validator_report = { path = "../gtfs_validator_report" }
+serde_json = "1.0"
+chrono = "0.4"

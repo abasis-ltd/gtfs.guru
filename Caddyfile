@@ -1,0 +1,42 @@
+# ============================================================================
+# Caddy Configuration for GTFS Validator
+# Automatic HTTPS with Let's Encrypt
+# ============================================================================
+
+# Replace with your actual domain
+gtfs.yourdomain.com {
+    # Reverse proxy to GTFS Validator
+    reverse_proxy gtfs-validator:3000
+
+    # Compression for faster responses
+    encode gzip zstd
+
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent clickjacking
+        X-Frame-Options "SAMEORIGIN"
+        # XSS protection
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        # Remove server header
+        -Server
+    }
+
+    # Request body size limit for GTFS uploads (500MB)
+    request_body {
+        max_size 500MB
+    }
+
+    # Access logs
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
+
+# Health check endpoint (optional, for monitoring)
+:8080 {
+    respond /health "OK" 200
+}

@@ -1,0 +1,20 @@
+[package]
+name = "gtfs_validator_cli"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dependencies.gtfs_validator_core]
+path = "../gtfs_validator_core"
+
+[dependencies.gtfs_validator_report]
+path = "../gtfs_validator_report"

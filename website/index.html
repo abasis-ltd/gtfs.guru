@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTFS.Guru | The Gold Standard for GTFS Validation</title>
+    <meta name="description"
+        content="Ensure your transit data is accurate, compliant, and ready for the world. Powered by Abasis.AI.">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <!-- Background Elements -->
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="bg-gradient-orb orb-2"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="#" class="logo">
+                <span class="logo-text">GTFS<span class="highlight">.Guru</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Solutions</a>
+                <a href="#agencies">For Agencies</a>
+                <a href="#tech">Developers</a>
+                <a href="https://github.com/user/gtfs-validator-rust" target="_blank">GitHub</a>
+            </div>
+            <a href="#download" class="btn btn-primary">Start Validating</a>
+        </div>
+    </nav>
+
+    <header class="hero-section">
+        <div class="container hero-container">
+            <div class="hero-content fade-up">
+                <div class="badge">Powered by Abasis.AI</div>
+                <h1>The Gold Standard for <br><span class="gradient-text">GTFS Validation</span></h1>
+                <p class="hero-sub">
+                    Ensure your transit data is accurate, compliant, and ready for the world.
+                    Validate entire countries in seconds with the precision of Rust.
+                </p>
+                <div class="hero-actions">
+                    <a href="#download" class="btn btn-primary btn-lg">
+                        <i data-lucide="download"></i> Download Now
+                    </a>
+                    <a href="https://github.com/user/gtfs-validator-rust" class="btn btn-secondary btn-lg">
+                        <i data-lucide="book-open"></i> Read Documentation
+                    </a>
+                </div>
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <span class="stat-number" data-target="88">0</span>
+                        <span class="stat-label">Rules Checked</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number" data-target="50">0</span>
+                        <span class="stat-suffix">x</span>
+                        <span class="stat-label">Faster than Java</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number" data-target="100">0</span>
+                        <span class="stat-suffix">%</span>
+                        <span class="stat-label">Compliant</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual fade-up delay-200">
+                <div class="code-window glass-card">
+                    <div class="window-header">
+                        <div class="dots">
+                            <span class="dot red"></span>
+                            <span class="dot yellow"></span>
+                            <span class="dot green"></span>
+                        </div>
+                        <span class="window-title">terminal — zsh</span>
+                    </div>
+                    <div class="window-body">
+                        <div class="command-line">
+                            <span class="prompt">➜</span> <span class="cmd">gtfs-validator</span> <span
+                                class="arg">--url</span> value_feed.zip
+                        </div>
+                        <div class="output">
+                            <div class="line">Validating value_feed.zip...</div>
+                            <div class="line success">✔ Feed structure valid</div>
+                            <div class="line success">✔ Agency check passed</div>
+                            <div class="line success">✔ Routes check passed</div>
+                            <div class="line success">✔ Schedule consistency verified</div>
+                            <div class="line dim">----------------------------------------</div>
+                            <div class="line result">Validation successful (0.42s)</div>
+                            <div class="line">Report generated: <a href="#">./report.html</a></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Abstract "Transit Lines" element behind code window -->
+                <div class="transit-lines-deco"></div>
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features-section">
+        <div class="container">
+            <div class="section-header fade-up">
+                <h2>Why Global Transport Leaders <br>Choose <span class="highlight">GTFS.Guru</span></h2>
+                <p>Built for scale. Designed for accuracy. Trusted by data teams.</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card glass-card fade-up">
+                    <div class="icon-box">
+                        <i data-lucide="shield-check"></i>
+                    </div>
+                    <h3>100% Reliability</h3>
+                    <p>Fully compliant with official MobilityData standards. We catch edge cases others miss, ensuring
+                        your feed is accepted everywhere.</p>
+                </div>
+                <div class="feature-card glass-card fade-up delay-100">
+                    <div class="icon-box">
+                        <i data-lucide="zap"></i>
+                    </div>
+                    <h3>Blazing Fast</h3>
+                    <p>Powered by Rust, our engine processes complex feeds 50x faster. Save hours of CI/CD time and
+                        iterate instantly.</p>
+                </div>
+                <div class="feature-card glass-card fade-up delay-200">
+                    <div class="icon-box">
+                        <i data-lucide="file-json"></i>
+                    </div>
+                    <h3>Clear Insights</h3>
+                    <p>No more cryptic error logs. Get beautiful HTML reports and detailed JSON output that pinpoint
+                        exactly what to fix.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="agencies" class="agency-section">
+        <div class="container">
+            <div class="agency-content fade-up">
+                <div class="agency-text">
+                    <h2>For Transit Agencies</h2>
+                    <p class="lead">Your data is the foundation of the passenger experience.</p>
+                    <p>Bad data means missed buses and frustrated riders. GTFS.Guru acts as your automated quality
+                        assurance team, verifying schedules, fares, and connections before they reach the public.</p>
+                    <ul class="check-list">
+                        <li><i data-lucide="check-circle"></i> Validate changes before publishing</li>
+                        <li><i data-lucide="check-circle"></i> Ensure compatibility with Google Maps & Apple Maps</li>
+                        <li><i data-lucide="check-circle"></i> Automated regression testing</li>
+                    </ul>
+                </div>
+                <div class="agency-visual glass-card">
+                    <div class="report-preview">
+                        <div class="report-header">Validation Report</div>
+                        <div class="report-row error">
+                            <span class="badge error">ERROR</span>
+                            <span>Stop <code>S_123</code> is too far from shape</span>
+                        </div>
+                        <div class="report-row warning">
+                            <span class="badge warning">WARN</span>
+                            <span>Route color contrast issues</span>
+                        </div>
+                        <div class="report-row info">
+                            <span class="badge info">INFO</span>
+                            <span>Found 1,240 trips</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="tech" class="tech-section">
+        <div class="container">
+            <div class="section-header fade-up">
+                <h2>Developer First</h2>
+                <p>Integrate validation directly into your pipelines with our robust CLI and Python bindings.</p>
+            </div>
+            <div class="tech-grid">
+                <div class="tech-col">
+                    <h3>Python API</h3>
+                    <div class="code-block glass-card">
+                        <pre><code>import gtfs_validator
+
+result = gtfs_validator.validate("feed.zip")
+
+if result.is_valid:
+    print(f"Success in {result.time}s")
+else:
+    print(f"{result.error_count} errors found")</code></pre>
+                        <button class="copy-btn"><i data-lucide="copy"></i></button>
+                    </div>
+                </div>
+                <div class="tech-col">
+                    <h3>Rust CLI</h3>
+                    <div class="code-block glass-card">
+                        <pre><code>cargo run --release -- \
+  --input ./gtfs.zip \
+  --output ./report \
+  --json</code></pre>
+                        <button class="copy-btn"><i data-lucide="copy"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="cta-section">
+        <div class="container">
+            <div class="cta-box glass-card fade-up">
+                <h2>Ready to upgrade your workflow?</h2>
+                <p>Join the future of transit data validation today.</p>
+                <div class="install-options">
+                    <div class="install-cmd">
+                        <code>pip install gtfs-validator</code>
+                        <button class="copy-tiny" data-text="pip install gtfs-validator">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+                <a href="#">Contact</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>

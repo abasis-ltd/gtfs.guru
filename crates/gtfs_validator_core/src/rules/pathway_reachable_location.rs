@@ -1,0 +1,242 @@
+use std::collections::{HashMap, HashSet, VecDeque};
+
+use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_model::{Bidirectional, LocationType};
+
+const CODE_PATHWAY_UNREACHABLE_LOCATION: &str = "pathway_unreachable_location";
+
+#[derive(Debug, Default)]
+pub struct PathwayReachableLocationValidator;
+
+impl Validator for PathwayReachableLocationValidator {
+    fn name(&self) -> &'static str {
+        "pathway_reachable_location"
+    }
+
+    fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        let Some(pathways) = &feed.pathways else {
+            return;
+        };
+
+        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stop_rows: HashMap<String, u64> = HashMap::new();
+        let mut children_by_parent: HashMap<&str, Vec<&gtfs_model::Stop>> = HashMap::new();
+        for (index, stop) in feed.stops.rows.iter().enumerate() {
+            let row_number = feed.stops.row_number(index);
+            let stop_id = stop.stop_id.trim();
+            if stop_id.is_empty() {
+                continue;
+            }
+            stops_by_id.insert(stop_id, stop);
+            stop_rows.insert(stop_id.to_string(), row_number);
+            if let Some(parent_id) = stop.parent_station.as_deref() {
+                let parent_id = parent_id.trim();
+                if !parent_id.is_empty() {
+                    children_by_parent.entry(parent_id).or_default().push(stop);
+                }
+            }
+        }
+
+        let mut by_from: HashMap<&str, Vec<&gtfs_model::Pathway>> = HashMap::new();
+        let mut by_to: HashMap<&str, Vec<&gtfs_model::Pathway>> = HashMap::new();
+        for pathway in &pathways.rows {
+            let from_id = pathway.from_stop_id.trim();
+            if !from_id.is_empty() {
+                by_from.entry(from_id).or_default().push(pathway);
+            }
+            let to_id = pathway.to_stop_id.trim();
+            if !to_id.is_empty() {
+                by_to.entry(to_id).or_default().push(pathway);
+            }
+        }
+
+        let mut pathway_endpoints: HashSet<&str> = HashSet::new();
+        pathway_endpoints.extend(by_from.keys().copied());
+        pathway_endpoints.extend(by_to.keys().copied());
+
+        let stations_with_pathways = find_stations_with_pathways(&pathway_endpoints, &stops_by_id);
+        if stations_with_pathways.is_empty() {
+            return;
+        }
+
+        let locations_having_entrances = traverse_pathways(
+            SearchDirection::FromEntrances,
+            &feed.stops.rows,
+            &by_from,
+            &by_to,
+        );
+        let locations_having_exits =
+            traverse_pathways(SearchDirection::ToExits, &feed.stops.rows, &by_from, &by_to);
+
+        for location in &feed.stops.rows {
+            let stop_id = location.stop_id.trim();
+            if stop_id.is_empty() {
+                continue;
+            }
+
+            let Some(station) = including_station(stop_id, &stops_by_id) else {
+                continue;
+            };
+            let station_id = station.stop_id.trim();
+            if station_id.is_empty() || !stations_with_pathways.contains(station_id) {
+                continue;
+            }
+
+            let location_type = location
+                .location_type
+                .unwrap_or(LocationType::StopOrPlatform);
+            let is_platform_without_boarding_areas = location_type == LocationType::StopOrPlatform
+                && children_by_parent.get(stop_id).is_none();
+            let should_check = location_type == LocationType::GenericNode
+                || location_type == LocationType::BoardingArea
+                || is_platform_without_boarding_areas;
+            if !should_check {
+                continue;
+            }
+
+            let has_entrance = locations_having_entrances.contains(stop_id);
+            let has_exit = locations_having_exits.contains(stop_id);
+            if !(has_entrance && has_exit) {
+                let mut notice = ValidationNotice::new(
+                    CODE_PATHWAY_UNREACHABLE_LOCATION,
+                    NoticeSeverity::Error,
+                    "location is not reachable from entrances or to exits",
+                );
+                let row_number = stop_rows.get(stop_id).copied().unwrap_or(2);
+                notice.insert_context_field("csvRowNumber", row_number);
+                notice.insert_context_field("hasEntrance", has_entrance);
+                notice.insert_context_field("hasExit", has_exit);
+                notice.insert_context_field("locationType", location_type_value(location_type));
+                notice.insert_context_field(
+                    "parentStation",
+                    location.parent_station.as_deref().unwrap_or(""),
+                );
+                notice.insert_context_field("stopId", stop_id);
+                notice
+                    .insert_context_field("stopName", location.stop_name.as_deref().unwrap_or(""));
+                notice.field_order = vec![
+                    "csvRowNumber".to_string(),
+                    "hasEntrance".to_string(),
+                    "hasExit".to_string(),
+                    "locationType".to_string(),
+                    "parentStation".to_string(),
+                    "stopId".to_string(),
+                    "stopName".to_string(),
+                ];
+                notices.push(notice);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SearchDirection {
+    FromEntrances,
+    ToExits,
+}
+
+fn including_station<'a>(
+    stop_id: &str,
+    stops_by_id: &HashMap<&str, &'a gtfs_model::Stop>,
+) -> Option<&'a gtfs_model::Stop> {
+    let mut current = stop_id;
+    for _ in 0..3 {
+        let stop = *stops_by_id.get(current)?;
+        if stop.location_type == Some(LocationType::Station) {
+            return Some(stop);
+        }
+        let parent = stop
+            .parent_station
+            .as_deref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty());
+        current = match parent {
+            Some(parent_id) => parent_id,
+            None => break,
+        };
+    }
+    None
+}
+
+fn find_stations_with_pathways(
+    pathway_endpoints: &HashSet<&str>,
+    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+) -> HashSet<String> {
+    let mut stations_with_pathways = HashSet::new();
+    for stop_id in pathway_endpoints {
+        if let Some(station) = including_station(stop_id, stops_by_id) {
+            let station_id = station.stop_id.trim();
+            if !station_id.is_empty() {
+                stations_with_pathways.insert(station_id.to_string());
+            }
+        }
+    }
+    stations_with_pathways
+}
+
+fn traverse_pathways(
+    direction: SearchDirection,
+    stops: &[gtfs_model::Stop],
+    by_from: &HashMap<&str, Vec<&gtfs_model::Pathway>>,
+    by_to: &HashMap<&str, Vec<&gtfs_model::Pathway>>,
+) -> HashSet<String> {
+    let mut visited: HashSet<String> = HashSet::new();
+    let mut queue: VecDeque<String> = VecDeque::new();
+
+    for stop in stops {
+        if stop.location_type == Some(LocationType::EntranceOrExit) {
+            let stop_id = stop.stop_id.trim();
+            if stop_id.is_empty() {
+                continue;
+            }
+            if visited.insert(stop_id.to_string()) {
+                queue.push_back(stop_id.to_string());
+            }
+        }
+    }
+
+    while let Some(curr) = queue.pop_front() {
+        if let Some(pathways) = by_from.get(curr.as_str()) {
+            for pathway in pathways {
+                if direction == SearchDirection::FromEntrances
+                    || pathway.is_bidirectional == Bidirectional::Bidirectional
+                {
+                    maybe_visit(&pathway.to_stop_id, &mut visited, &mut queue);
+                }
+            }
+        }
+        if let Some(pathways) = by_to.get(curr.as_str()) {
+            for pathway in pathways {
+                if direction == SearchDirection::ToExits
+                    || pathway.is_bidirectional == Bidirectional::Bidirectional
+                {
+                    maybe_visit(&pathway.from_stop_id, &mut visited, &mut queue);
+                }
+            }
+        }
+    }
+
+    visited
+}
+
+fn location_type_value(location_type: LocationType) -> i32 {
+    match location_type {
+        LocationType::StopOrPlatform => 0,
+        LocationType::Station => 1,
+        LocationType::EntranceOrExit => 2,
+        LocationType::GenericNode => 3,
+        LocationType::BoardingArea => 4,
+        LocationType::Other => -1,
+    }
+}
+
+fn maybe_visit(stop_id: &str, visited: &mut HashSet<String>, queue: &mut VecDeque<String>) {
+    let stop_id = stop_id.trim();
+    if stop_id.is_empty() {
+        return;
+    }
+    if visited.insert(stop_id.to_string()) {
+        queue.push_back(stop_id.to_string());
+    }
+}
+

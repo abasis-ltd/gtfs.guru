@@ -1,0 +1,3 @@
+level_id,level_index,level_name
+level1,0,Ground Floor
+level2,-1,Underground

@@ -1,0 +1,15 @@
+[package]
+name = "gtfs_validator_report"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+gtfs_model = { path = "../gtfs_model" }
+
+[dependencies.gtfs_validator_core]
+path = "../gtfs_validator_core"

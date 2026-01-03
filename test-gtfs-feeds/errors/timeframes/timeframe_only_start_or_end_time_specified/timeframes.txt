@@ -1,0 +1,2 @@
+timeframe_group_id,start_time,end_time,service_id
+tf_group1,08:00:00,,service1

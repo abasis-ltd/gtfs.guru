@@ -1,0 +1,7 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station
+station1,Main Station,40.7128,-74.0060,1,
+platform1,Platform 1,40.7128,-74.0060,0,station1
+boarding1,Boarding Area A,40.7128,-74.0059,4,platform1
+boarding2,Boarding Area B,40.7128,-74.0061,4,platform1
+entrance1,Main Entrance,40.7129,-74.0061,2,station1
+node1,Generic Node,40.7128,-74.0060,3,station1

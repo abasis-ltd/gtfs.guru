@@ -1,0 +1,555 @@
+use crate::feed::TRANSLATIONS_FILE;
+use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_model::{GtfsDate, GtfsTime};
+
+const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
+const CODE_TRANSLATION_UNEXPECTED_VALUE: &str = "translation_unexpected_value";
+const CODE_TRANSLATION_UNKNOWN_TABLE_NAME: &str = "translation_unknown_table_name";
+const CODE_TRANSLATION_FOREIGN_KEY_VIOLATION: &str = "translation_foreign_key_violation";
+
+#[derive(Debug, Default)]
+pub struct TranslationFieldAndReferenceValidator;
+
+impl Validator for TranslationFieldAndReferenceValidator {
+    fn name(&self) -> &'static str {
+        "translation_field_and_reference"
+    }
+
+    fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        let Some(translations) = &feed.translations else {
+            return;
+        };
+
+        if !translations
+            .headers
+            .iter()
+            .any(|header| header.eq_ignore_ascii_case("table_name"))
+        {
+            return;
+        }
+
+        if !validate_standard_required_fields(translations, notices) {
+            return;
+        }
+
+        for (index, translation) in translations.rows.iter().enumerate() {
+            let row_number = translations.row_number(index);
+            validate_translation(translation, feed, row_number, notices);
+        }
+    }
+}
+
+fn validate_standard_required_fields(
+    translations: &crate::CsvTable<gtfs_model::Translation>,
+    notices: &mut NoticeContainer,
+) -> bool {
+    let mut is_valid = true;
+    for (index, translation) in translations.rows.iter().enumerate() {
+        let row_number = translations.row_number(index);
+        if is_blank(&translation.table_name) {
+            notices.push(missing_required_field_notice("table_name", row_number));
+            is_valid = false;
+        }
+        if is_blank(&translation.field_name) {
+            notices.push(missing_required_field_notice("field_name", row_number));
+            is_valid = false;
+        }
+        if is_blank(&translation.language) {
+            notices.push(missing_required_field_notice("language", row_number));
+            is_valid = false;
+        }
+    }
+    is_valid
+}
+
+fn validate_translation(
+    translation: &gtfs_model::Translation,
+    feed: &GtfsFeed,
+    row_number: u64,
+    notices: &mut NoticeContainer,
+) {
+    let table_name = translation.table_name.trim();
+    let record_id = normalized_optional(translation.record_id.as_deref());
+    let record_sub_id = normalized_optional(translation.record_sub_id.as_deref());
+    let field_value = normalized_optional(translation.field_value.as_deref());
+
+    if field_value.is_some() {
+        if let Some(value) = record_id {
+            notices.push(translation_unexpected_value_notice(
+                "record_id",
+                value,
+                row_number,
+            ));
+        }
+        if let Some(value) = record_sub_id {
+            notices.push(translation_unexpected_value_notice(
+                "record_sub_id",
+                value,
+                row_number,
+            ));
+        }
+    }
+
+    let Some(table_spec) = table_spec(table_name, feed) else {
+        notices.push(translation_unknown_table_notice(table_name, row_number));
+        return;
+    };
+
+    if field_value.is_some() {
+        return;
+    }
+
+    match table_spec {
+        TableSpec::None => {
+            if let Some(value) = record_id {
+                notices.push(translation_unexpected_value_notice(
+                    "record_id",
+                    value,
+                    row_number,
+                ));
+            }
+            if let Some(value) = record_sub_id {
+                notices.push(translation_unexpected_value_notice(
+                    "record_sub_id",
+                    value,
+                    row_number,
+                ));
+            }
+        }
+        TableSpec::One { exists } => {
+            let Some(record_id) = record_id else {
+                notices.push(missing_required_field_notice("record_id", row_number));
+                return;
+            };
+            if let Some(value) = record_sub_id {
+                notices.push(translation_unexpected_value_notice(
+                    "record_sub_id",
+                    value,
+                    row_number,
+                ));
+                return;
+            }
+            if !exists(feed, record_id) {
+                notices.push(translation_foreign_key_violation_notice(
+                    table_name, record_id, None, row_number,
+                ));
+            }
+        }
+        TableSpec::Two { exists } => {
+            let Some(record_id) = record_id else {
+                notices.push(missing_required_field_notice("record_id", row_number));
+                return;
+            };
+            let Some(record_sub_id) = record_sub_id else {
+                notices.push(missing_required_field_notice("record_sub_id", row_number));
+                return;
+            };
+            if !exists(feed, record_id, record_sub_id) {
+                notices.push(translation_foreign_key_violation_notice(
+                    table_name,
+                    record_id,
+                    Some(record_sub_id),
+                    row_number,
+                ));
+            }
+        }
+    }
+}
+
+fn normalized_optional(value: Option<&str>) -> Option<&str> {
+    value.map(|val| val.trim()).filter(|val| !val.is_empty())
+}
+
+fn is_blank(value: &str) -> bool {
+    value.trim().is_empty()
+}
+
+fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        CODE_MISSING_REQUIRED_FIELD,
+        NoticeSeverity::Error,
+        "missing required field",
+    );
+    notice.insert_context_field("csvRowNumber", row_number);
+    notice.insert_context_field("fieldName", field);
+    notice.insert_context_field("filename", TRANSLATIONS_FILE);
+    notice.field_order = vec![
+        "csvRowNumber".to_string(),
+        "fieldName".to_string(),
+        "filename".to_string(),
+    ];
+    notice
+}
+
+fn translation_unexpected_value_notice(
+    field: &str,
+    value: &str,
+    row_number: u64,
+) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        CODE_TRANSLATION_UNEXPECTED_VALUE,
+        NoticeSeverity::Error,
+        format!("field {} must be empty (value={})", field, value),
+    );
+    notice.insert_context_field("csvRowNumber", row_number);
+    notice.insert_context_field("fieldName", field);
+    notice.insert_context_field("fieldValue", value);
+    notice.field_order = vec![
+        "csvRowNumber".to_string(),
+        "fieldName".to_string(),
+        "fieldValue".to_string(),
+    ];
+    notice
+}
+
+fn translation_unknown_table_notice(table_name: &str, row_number: u64) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        CODE_TRANSLATION_UNKNOWN_TABLE_NAME,
+        NoticeSeverity::Warning,
+        "translation references unknown table",
+    );
+    notice.insert_context_field("csvRowNumber", row_number);
+    notice.insert_context_field("tableName", table_name);
+    notice.field_order = vec!["csvRowNumber".to_string(), "tableName".to_string()];
+    notice
+}
+
+fn translation_foreign_key_violation_notice(
+    table_name: &str,
+    record_id: &str,
+    record_sub_id: Option<&str>,
+    row_number: u64,
+) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        CODE_TRANSLATION_FOREIGN_KEY_VIOLATION,
+        NoticeSeverity::Error,
+        "translation references missing record",
+    );
+    notice.insert_context_field("csvRowNumber", row_number);
+    notice.insert_context_field("recordId", record_id);
+    notice.insert_context_field("recordSubId", record_sub_id.unwrap_or(""));
+    notice.insert_context_field("tableName", table_name);
+    notice.field_order = vec![
+        "csvRowNumber".to_string(),
+        "recordId".to_string(),
+        "recordSubId".to_string(),
+        "tableName".to_string(),
+    ];
+    notice
+}
+
+enum TableSpec {
+    None,
+    One {
+        exists: fn(&GtfsFeed, &str) -> bool,
+    },
+    Two {
+        exists: fn(&GtfsFeed, &str, &str) -> bool,
+    },
+}
+
+fn table_spec(table_name: &str, feed: &GtfsFeed) -> Option<TableSpec> {
+    match table_name {
+        "agency" => Some(TableSpec::One {
+            exists: agency_exists,
+        }),
+        "stops" => Some(TableSpec::One {
+            exists: stop_exists,
+        }),
+        "routes" => Some(TableSpec::One {
+            exists: route_exists,
+        }),
+        "trips" => Some(TableSpec::One {
+            exists: trip_exists,
+        }),
+        "stop_times" => Some(TableSpec::Two {
+            exists: stop_time_exists,
+        }),
+        "calendar" => feed.calendar.as_ref().map(|_| TableSpec::One {
+            exists: calendar_exists,
+        }),
+        "calendar_dates" => feed.calendar_dates.as_ref().map(|_| TableSpec::Two {
+            exists: calendar_date_exists,
+        }),
+        "shapes" => feed.shapes.as_ref().map(|_| TableSpec::Two {
+            exists: shape_exists,
+        }),
+        "frequencies" => feed.frequencies.as_ref().map(|_| TableSpec::Two {
+            exists: frequency_exists,
+        }),
+        "transfers" => feed.transfers.as_ref().map(|_| TableSpec::Two {
+            exists: transfer_exists,
+        }),
+        "fare_attributes" => feed.fare_attributes.as_ref().map(|_| TableSpec::One {
+            exists: fare_attribute_exists,
+        }),
+        "levels" => feed.levels.as_ref().map(|_| TableSpec::One {
+            exists: level_exists,
+        }),
+        "pathways" => feed.pathways.as_ref().map(|_| TableSpec::One {
+            exists: pathway_exists,
+        }),
+        "attributions" => feed.attributions.as_ref().map(|_| TableSpec::One {
+            exists: attribution_exists,
+        }),
+        "areas" => feed.areas.as_ref().map(|_| TableSpec::One {
+            exists: area_exists,
+        }),
+        "fare_media" => feed.fare_media.as_ref().map(|_| TableSpec::One {
+            exists: fare_media_exists,
+        }),
+        "rider_categories" => feed.rider_categories.as_ref().map(|_| TableSpec::One {
+            exists: rider_category_exists,
+        }),
+        "location_groups" => feed.location_groups.as_ref().map(|_| TableSpec::One {
+            exists: location_group_exists,
+        }),
+        "networks" => feed.networks.as_ref().map(|_| TableSpec::One {
+            exists: network_exists,
+        }),
+        "route_networks" => feed.route_networks.as_ref().map(|_| TableSpec::One {
+            exists: route_network_exists,
+        }),
+        "feed_info" => feed.feed_info.as_ref().map(|_| TableSpec::None),
+        _ => None,
+    }
+}
+
+fn agency_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.agency
+        .rows
+        .iter()
+        .filter_map(|agency| agency.agency_id.as_deref())
+        .any(|value| value.trim() == record_id)
+}
+
+fn stop_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.stops
+        .rows
+        .iter()
+        .any(|stop| stop.stop_id.trim() == record_id)
+}
+
+fn route_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.routes
+        .rows
+        .iter()
+        .any(|route| route.route_id.trim() == record_id)
+}
+
+fn trip_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.trips
+        .rows
+        .iter()
+        .any(|trip| trip.trip_id.trim() == record_id)
+}
+
+fn stop_time_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+    let Ok(sequence) = record_sub_id.parse::<u32>() else {
+        return false;
+    };
+    feed.stop_times.rows.iter().any(|stop_time| {
+        stop_time.trip_id.trim() == record_id && stop_time.stop_sequence == sequence
+    })
+}
+
+fn calendar_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.calendar
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|calendar| calendar.service_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn calendar_date_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+    let Ok(date) = GtfsDate::parse(record_sub_id) else {
+        return false;
+    };
+    feed.calendar_dates
+        .as_ref()
+        .map(|table| {
+            table.rows.iter().any(|calendar_date| {
+                calendar_date.service_id.trim() == record_id && calendar_date.date == date
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn shape_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+    let Ok(sequence) = record_sub_id.parse::<u32>() else {
+        return false;
+    };
+    feed.shapes
+        .as_ref()
+        .map(|table| {
+            table.rows.iter().any(|shape| {
+                shape.shape_id.trim() == record_id && shape.shape_pt_sequence == sequence
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn frequency_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+    let Ok(start_time) = GtfsTime::parse(record_sub_id) else {
+        return false;
+    };
+    feed.frequencies
+        .as_ref()
+        .map(|table| {
+            table.rows.iter().any(|frequency| {
+                frequency.trip_id.trim() == record_id && frequency.start_time == start_time
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn transfer_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+    feed.transfers
+        .as_ref()
+        .map(|table| {
+            table.rows.iter().any(|transfer| {
+                transfer
+                    .from_stop_id
+                    .as_deref()
+                    .map(|value| value.trim())
+                    .filter(|value| !value.is_empty())
+                    == Some(record_id)
+                    && transfer
+                        .to_stop_id
+                        .as_deref()
+                        .map(|value| value.trim())
+                        .filter(|value| !value.is_empty())
+                        == Some(record_sub_id)
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn fare_attribute_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.fare_attributes
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|fare_attribute| fare_attribute.fare_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn level_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.levels
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|level| level.level_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn pathway_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.pathways
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|pathway| pathway.pathway_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn attribution_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.attributions
+        .as_ref()
+        .map(|table| {
+            table.rows.iter().any(|attribution| {
+                attribution
+                    .attribution_id
+                    .as_deref()
+                    .map(|value| value.trim())
+                    .filter(|value| !value.is_empty())
+                    == Some(record_id)
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn area_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.areas
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|area| area.area_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn fare_media_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.fare_media
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|media| media.fare_media_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn rider_category_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.rider_categories
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|category| category.rider_category_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn location_group_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.location_groups
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|group| group.location_group_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.networks
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|network| network.network_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+
+fn route_network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
+    feed.route_networks
+        .as_ref()
+        .map(|table| {
+            table
+                .rows
+                .iter()
+                .any(|route_network| route_network.route_id.trim() == record_id)
+        })
+        .unwrap_or(false)
+}
+

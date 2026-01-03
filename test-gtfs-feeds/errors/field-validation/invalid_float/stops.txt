@@ -1,0 +1,3 @@
+stop_id,stop_name,stop_lat,stop_lon
+stop1,First Stop,not-a-number,-74.0060
+stop2,Second Stop,40.7138,-74.0050

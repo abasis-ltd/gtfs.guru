@@ -1,0 +1,73 @@
+use crate::feed::FREQUENCIES_FILE;
+use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+
+const CODE_START_AND_END_RANGE_OUT_OF_ORDER: &str = "start_and_end_range_out_of_order";
+const CODE_START_AND_END_RANGE_EQUAL: &str = "start_and_end_range_equal";
+
+#[derive(Debug, Default)]
+pub struct FrequenciesValidator;
+
+impl Validator for FrequenciesValidator {
+    fn name(&self) -> &'static str {
+        "frequencies_basic"
+    }
+
+    fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if let Some(frequencies) = &feed.frequencies {
+            for (index, freq) in frequencies.rows.iter().enumerate() {
+                let row_number = frequencies.row_number(index);
+                let trip_id = freq.trip_id.trim();
+                let start_value = freq.start_time.to_string();
+                let end_value = freq.end_time.to_string();
+                let start = freq.start_time.total_seconds();
+                let end = freq.end_time.total_seconds();
+                if start > end {
+                    let mut notice = ValidationNotice::new(
+                        CODE_START_AND_END_RANGE_OUT_OF_ORDER,
+                        NoticeSeverity::Error,
+                        "start_time must be < end_time",
+                    );
+                    notice.insert_context_field("csvRowNumber", row_number);
+                    notice.insert_context_field("endFieldName", "end_time");
+                    notice.insert_context_field("endValue", end_value);
+                    notice.insert_context_field("entityId", trip_id);
+                    notice.insert_context_field("filename", FREQUENCIES_FILE);
+                    notice.insert_context_field("startFieldName", "start_time");
+                    notice.insert_context_field("startValue", start_value);
+                    notice.field_order = vec![
+                        "csvRowNumber".to_string(),
+                        "endFieldName".to_string(),
+                        "endValue".to_string(),
+                        "entityId".to_string(),
+                        "filename".to_string(),
+                        "startFieldName".to_string(),
+                        "startValue".to_string(),
+                    ];
+                    notices.push(notice);
+                } else if start == end {
+                    let mut notice = ValidationNotice::new(
+                        CODE_START_AND_END_RANGE_EQUAL,
+                        NoticeSeverity::Error,
+                        "start_time must be different from end_time",
+                    );
+                    notice.insert_context_field("csvRowNumber", row_number);
+                    notice.insert_context_field("endFieldName", "end_time");
+                    notice.insert_context_field("entityId", trip_id);
+                    notice.insert_context_field("filename", FREQUENCIES_FILE);
+                    notice.insert_context_field("startFieldName", "start_time");
+                    notice.insert_context_field("value", start_value);
+                    notice.field_order = vec![
+                        "csvRowNumber".to_string(),
+                        "endFieldName".to_string(),
+                        "entityId".to_string(),
+                        "filename".to_string(),
+                        "startFieldName".to_string(),
+                        "value".to_string(),
+                    ];
+                    notices.push(notice);
+                }
+            }
+        }
+    }
+}
+

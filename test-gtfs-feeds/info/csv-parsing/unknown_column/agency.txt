@@ -1,0 +1,2 @@
+agency_id,agency_name,agency_url,agency_timezone,unknown_custom_column
+agency1,Test Transit Agency,https://example.com,America/New_York,custom_value

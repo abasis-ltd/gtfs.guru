@@ -1,0 +1,2 @@
+table_name,field_name,language,translation,record_id
+unknown_table,stop_name,es,Primera Parada,stop1

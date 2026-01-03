@@ -1,0 +1,776 @@
+use std::collections::HashSet;
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+
+use serde::de::DeserializeOwned;
+use zip::ZipArchive;
+
+use crate::csv_reader::{
+    read_csv_from_reader, read_csv_from_reader_with_errors, CsvParseError, CsvTable,
+};
+use crate::csv_validation::{is_value_validated_field, validate_csv_data};
+use crate::feed::GTFS_FILE_NAMES;
+use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GtfsInputSource {
+    Zip,
+    Directory,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GtfsInputError {
+    #[error("input path does not exist: {0}")]
+    MissingPath(PathBuf),
+    #[error("input path is neither a file nor a directory: {0}")]
+    InvalidPath(PathBuf),
+    #[error("zip input is not a .zip file: {0}")]
+    InvalidZip(PathBuf),
+    #[error("missing file in input: {0}")]
+    MissingFile(String),
+    #[error("expected file but found directory: {0}")]
+    NotAFile(PathBuf),
+    #[error("io error for {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("zip archive error for {path}: {source}")]
+    ZipArchive {
+        path: PathBuf,
+        #[source]
+        source: zip::result::ZipError,
+    },
+    #[error("zip error for {file}: {source}")]
+    ZipFile {
+        file: String,
+        #[source]
+        source: zip::result::ZipError,
+    },
+    #[error("io error while reading {file} from {path}: {source}")]
+    ZipFileIo {
+        path: PathBuf,
+        file: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("csv parse error: {0}")]
+    Csv(#[from] CsvParseError),
+    #[error("json parse error for {file}: {source}")]
+    Json {
+        file: String,
+        #[source]
+        source: serde_json::Error,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct GtfsInput {
+    path: PathBuf,
+    source: GtfsInputSource,
+}
+
+impl GtfsInput {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, GtfsInputError> {
+        let path = path.as_ref().to_path_buf();
+        if !path.exists() {
+            return Err(GtfsInputError::MissingPath(path));
+        }
+
+        if path.is_dir() {
+            return Ok(Self {
+                path,
+                source: GtfsInputSource::Directory,
+            });
+        }
+
+        if path.is_file() {
+            let is_zip = path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| ext.eq_ignore_ascii_case("zip") || ext.eq_ignore_ascii_case("gtfs"))
+                .unwrap_or(false);
+
+            if !is_zip {
+                return Err(GtfsInputError::InvalidZip(path));
+            }
+
+            return Ok(Self {
+                path,
+                source: GtfsInputSource::Zip,
+            });
+        }
+
+        Err(GtfsInputError::InvalidPath(path))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn source(&self) -> GtfsInputSource {
+        self.source
+    }
+
+    pub fn reader(&self) -> GtfsInputReader {
+        GtfsInputReader {
+            path: self.path.clone(),
+            source: self.source,
+        }
+    }
+}
+
+pub fn collect_input_notices(input: &GtfsInput) -> Result<Vec<ValidationNotice>, GtfsInputError> {
+    let reader = input.reader();
+    let files = reader.list_files()?;
+    let known: HashSet<String> = GTFS_FILE_NAMES
+        .iter()
+        .map(|name| name.to_ascii_lowercase())
+        .collect();
+    let mut notices = Vec::new();
+    let mut has_nested = false;
+
+    for path in files {
+        let normalized = path.replace('\\', "/");
+        let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+        let is_known = known.contains(&file_name.to_ascii_lowercase());
+        if is_known {
+            if normalized.contains('/') {
+                has_nested = true;
+            }
+        } else {
+            notices.push(unknown_file_notice(&normalized));
+        }
+    }
+
+    if has_nested {
+        notices.push(invalid_input_files_notice());
+    }
+
+    Ok(notices)
+}
+
+#[derive(Debug, Clone)]
+pub struct GtfsInputReader {
+    path: PathBuf,
+    source: GtfsInputSource,
+}
+
+impl GtfsInputReader {
+    pub fn read_file(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
+        match self.source {
+            GtfsInputSource::Directory => self.read_from_directory(file_name),
+            GtfsInputSource::Zip => self.read_from_zip(file_name),
+        }
+    }
+
+    pub fn read_csv<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+    ) -> Result<CsvTable<T>, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        read_csv_from_reader(data.as_slice(), file_name).map_err(GtfsInputError::Csv)
+    }
+
+    pub fn read_csv_with_notices<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<CsvTable<T>, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        validate_csv_data(file_name, &data, notices);
+        let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+            .map_err(GtfsInputError::Csv)?;
+        for error in errors {
+            if skip_csv_parse_error(&table, &error) {
+                continue;
+            }
+            notices.push_csv_error(&error);
+        }
+        Ok(table)
+    }
+
+    pub fn read_optional_csv<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => read_csv_from_reader(data.as_slice(), file_name)
+                .map(Some)
+                .map_err(GtfsInputError::Csv),
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn read_optional_csv_with_notices<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => {
+                validate_csv_data(file_name, &data, notices);
+                let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+                    .map_err(GtfsInputError::Csv)?;
+                for error in errors {
+                    if skip_csv_parse_error(&table, &error) {
+                        continue;
+                    }
+                    notices.push_csv_error(&error);
+                }
+                Ok(Some(table))
+            }
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn read_json<T: DeserializeOwned>(&self, file_name: &str) -> Result<T, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        let data = strip_utf8_bom(&data);
+        serde_json::from_slice(data).map_err(|err| GtfsInputError::Json {
+            file: file_name.to_string(),
+            source: err,
+        })
+    }
+
+    pub fn read_optional_json<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+    ) -> Result<Option<T>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => serde_json::from_slice(strip_utf8_bom(&data))
+                .map(Some)
+                .map_err(|err| GtfsInputError::Json {
+                    file: file_name.to_string(),
+                    source: err,
+                }),
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    fn read_from_directory(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
+        let path = self.path.join(file_name);
+        if path.exists() {
+            if !path.is_file() {
+                return Err(GtfsInputError::NotAFile(path));
+            }
+            let mut file = File::open(&path).map_err(|err| GtfsInputError::Io {
+                path: path.clone(),
+                source: err,
+            })?;
+            let mut buffer = Vec::new();
+            file.read_to_end(&mut buffer)
+                .map_err(|err| GtfsInputError::Io { path, source: err })?;
+            return Ok(buffer);
+        }
+
+        let Some(found_path) = find_case_insensitive_file(&self.path, file_name)? else {
+            return Err(GtfsInputError::MissingFile(file_name.to_string()));
+        };
+        if !found_path.is_file() {
+            return Err(GtfsInputError::NotAFile(found_path));
+        }
+
+        let mut file = File::open(&found_path).map_err(|err| GtfsInputError::Io {
+            path: found_path.clone(),
+            source: err,
+        })?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)
+            .map_err(|err| GtfsInputError::Io {
+                path: found_path,
+                source: err,
+            })?;
+        Ok(buffer)
+    }
+
+    fn read_from_zip(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
+        let file = File::open(&self.path).map_err(|err| GtfsInputError::Io {
+            path: self.path.clone(),
+            source: err,
+        })?;
+        let mut archive = ZipArchive::new(file).map_err(|err| GtfsInputError::ZipArchive {
+            path: self.path.clone(),
+            source: err,
+        })?;
+
+        match archive.by_name(file_name) {
+            Ok(mut zipped) => {
+                let mut buffer = Vec::new();
+                zipped
+                    .read_to_end(&mut buffer)
+                    .map_err(|err| GtfsInputError::ZipFileIo {
+                        path: self.path.clone(),
+                        file: file_name.to_string(),
+                        source: err,
+                    })?;
+                return Ok(buffer);
+            }
+            Err(zip::result::ZipError::FileNotFound) => {}
+            Err(err) => {
+                return Err(GtfsInputError::ZipFile {
+                    file: file_name.to_string(),
+                    source: err,
+                });
+            }
+        }
+
+        let target = file_name.to_ascii_lowercase();
+        let mut matched_index = None;
+        let mut matched_depth = None;
+        let mut matched_name = None;
+        for index in 0..archive.len() {
+            let (name, is_dir) = {
+                let file = archive
+                    .by_index(index)
+                    .map_err(|err| GtfsInputError::ZipFile {
+                        file: file_name.to_string(),
+                        source: err,
+                    })?;
+                (file.name().to_string(), file.is_dir())
+            };
+            if is_dir {
+                continue;
+            }
+            let lower = name.to_ascii_lowercase();
+            let tail = lower
+                .rsplit(|ch| ch == '/' || ch == '\\')
+                .next()
+                .unwrap_or(lower.as_str());
+            if tail != target {
+                continue;
+            }
+            let depth = name.matches(|ch| ch == '/' || ch == '\\').count();
+            match matched_depth {
+                None => {
+                    matched_index = Some(index);
+                    matched_depth = Some(depth);
+                    matched_name = Some(lower);
+                }
+                Some(current_depth) if depth < current_depth => {
+                    matched_index = Some(index);
+                    matched_depth = Some(depth);
+                    matched_name = Some(lower);
+                }
+                Some(current_depth) if depth == current_depth => {
+                    let should_replace = matched_name
+                        .as_ref()
+                        .map(|best| lower < *best)
+                        .unwrap_or(true);
+                    if should_replace {
+                        matched_index = Some(index);
+                        matched_name = Some(lower);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let Some(index) = matched_index else {
+            return Err(GtfsInputError::MissingFile(file_name.to_string()));
+        };
+        let mut zipped = archive
+            .by_index(index)
+            .map_err(|err| GtfsInputError::ZipFile {
+                file: file_name.to_string(),
+                source: err,
+            })?;
+        let mut buffer = Vec::new();
+        zipped
+            .read_to_end(&mut buffer)
+            .map_err(|err| GtfsInputError::ZipFileIo {
+                path: self.path.clone(),
+                file: file_name.to_string(),
+                source: err,
+            })?;
+        Ok(buffer)
+    }
+
+    pub fn list_files(&self) -> Result<Vec<String>, GtfsInputError> {
+        match self.source {
+            GtfsInputSource::Directory => list_files_in_directory(&self.path),
+            GtfsInputSource::Zip => list_files_in_zip(&self.path),
+        }
+    }
+}
+
+fn skip_csv_parse_error<T>(table: &CsvTable<T>, error: &CsvParseError) -> bool {
+    let field = error.field.as_deref().or_else(|| {
+        error
+            .column_index
+            .and_then(|index| table.headers.get(index as usize))
+            .map(String::as_str)
+    });
+    if field.map(is_value_validated_field).unwrap_or(false) {
+        return true;
+    }
+
+    let message = error.message.to_ascii_lowercase();
+    message.contains("invalid date")
+        || message.contains("invalid time")
+        || message.contains("invalid color")
+        || message.contains("invalid digit")
+        || message.contains("invalid float")
+}
+
+fn strip_utf8_bom(data: &[u8]) -> &[u8] {
+    if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        &data[3..]
+    } else {
+        data
+    }
+}
+
+fn list_files_in_directory(path: &Path) -> Result<Vec<String>, GtfsInputError> {
+    let mut files = Vec::new();
+    collect_files(path, path, &mut files)?;
+    Ok(files)
+}
+
+fn collect_files(
+    root: &Path,
+    current: &Path,
+    files: &mut Vec<String>,
+) -> Result<(), GtfsInputError> {
+    for entry in std::fs::read_dir(current).map_err(|err| GtfsInputError::Io {
+        path: current.to_path_buf(),
+        source: err,
+    })? {
+        let entry = entry.map_err(|err| GtfsInputError::Io {
+            path: current.to_path_buf(),
+            source: err,
+        })?;
+        let entry_path = entry.path();
+        if entry_path.is_dir() {
+            collect_files(root, &entry_path, files)?;
+        } else if entry_path.is_file() {
+            let rel = entry_path
+                .strip_prefix(root)
+                .unwrap_or(&entry_path)
+                .to_string_lossy()
+                .to_string();
+            files.push(rel);
+        }
+    }
+    Ok(())
+}
+
+fn list_files_in_zip(path: &Path) -> Result<Vec<String>, GtfsInputError> {
+    let file = File::open(path).map_err(|err| GtfsInputError::Io {
+        path: path.to_path_buf(),
+        source: err,
+    })?;
+    let mut archive = ZipArchive::new(file).map_err(|err| GtfsInputError::ZipArchive {
+        path: path.to_path_buf(),
+        source: err,
+    })?;
+
+    let mut files = Vec::new();
+    for index in 0..archive.len() {
+        let file = archive
+            .by_index(index)
+            .map_err(|err| GtfsInputError::ZipFile {
+                file: path.to_string_lossy().to_string(),
+                source: err,
+            })?;
+        if file.is_dir() {
+            continue;
+        }
+        files.push(file.name().to_string());
+    }
+    Ok(files)
+}
+
+fn unknown_file_notice(file_name: &str) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        "unknown_file",
+        NoticeSeverity::Info,
+        "unknown file in input",
+    );
+    notice.insert_context_field("filename", file_name);
+    notice.field_order = vec!["filename".to_string()];
+    notice
+}
+
+fn invalid_input_files_notice() -> ValidationNotice {
+    ValidationNotice::new(
+        "invalid_input_files_in_subfolder",
+        NoticeSeverity::Error,
+        "GTFS file found in subfolder",
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::NoticeContainer;
+    use std::fs;
+    use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use serde::Deserialize;
+    use zip::write::FileOptions;
+    use zip::ZipWriter;
+
+    #[derive(Debug, Deserialize)]
+    struct ExampleRow {
+        a: i32,
+        b: i32,
+    }
+
+    fn temp_path(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("{}_{}_{}", prefix, std::process::id(), nanos))
+    }
+
+    #[test]
+    fn reads_file_from_directory() {
+        let dir = temp_path("gtfs_dir");
+        fs::create_dir_all(&dir).expect("create dir");
+        let file_path = dir.join("stops.txt");
+        fs::write(&file_path, b"a,b\n1,2\n").expect("write file");
+
+        let input = GtfsInput::from_path(&dir).expect("input");
+        let reader = input.reader();
+        let data = reader.read_file("stops.txt").expect("read file");
+        assert_eq!(data, b"a,b\n1,2\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reads_csv_from_zip() {
+        let dir = temp_path("gtfs_zip");
+        fs::create_dir_all(&dir).expect("create dir");
+        let zip_path = dir.join("feed.zip");
+
+        let zip_file = File::create(&zip_path).expect("create zip");
+        let mut zip = ZipWriter::new(zip_file);
+        let options = FileOptions::default();
+        zip.start_file("stops.txt", options).expect("zip file");
+        zip.write_all(b"a,b\n3,4\n").expect("zip data");
+        zip.finish().expect("finish zip");
+
+        let input = GtfsInput::from_path(&zip_path).expect("input");
+        let reader = input.reader();
+        let table = reader
+            .read_csv::<ExampleRow>("stops.txt")
+            .expect("read csv");
+        assert_eq!(table.rows.len(), 1);
+        assert_eq!(table.rows[0].a, 3);
+        assert_eq!(table.rows[0].b, 4);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reads_file_from_directory_case_insensitive() {
+        let dir = temp_path("gtfs_dir_case");
+        fs::create_dir_all(&dir).expect("create dir");
+        let file_path = dir.join("Stops.TXT");
+        fs::write(&file_path, b"a,b\n7,8\n").expect("write file");
+
+        let input = GtfsInput::from_path(&dir).expect("input");
+        let reader = input.reader();
+        let data = reader.read_file("stops.txt").expect("read file");
+        assert_eq!(data, b"a,b\n7,8\n");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reads_file_from_directory_prefers_root_file() {
+        let dir = temp_path("gtfs_dir_prefer_root");
+        fs::create_dir_all(&dir).expect("create dir");
+        let nested = dir.join("nested");
+        fs::create_dir_all(&nested).expect("create nested dir");
+        fs::write(nested.join("stops.txt"), b"a,b\n1,2\n").expect("write file");
+        fs::write(dir.join("Stops.TXT"), b"a,b\n3,4\n").expect("write file");
+
+        let input = GtfsInput::from_path(&dir).expect("input");
+        let reader = input.reader();
+        let table = reader
+            .read_csv::<ExampleRow>("stops.txt")
+            .expect("read csv");
+        assert_eq!(table.rows.len(), 1);
+        assert_eq!(table.rows[0].a, 3);
+        assert_eq!(table.rows[0].b, 4);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reads_json_with_utf8_bom() {
+        let dir = temp_path("gtfs_json_bom");
+        fs::create_dir_all(&dir).expect("create dir");
+        let file_path = dir.join("data.json");
+        fs::write(&file_path, b"\xEF\xBB\xBF{\"value\": 1}").expect("write json");
+
+        let input = GtfsInput::from_path(&dir).expect("input");
+        let reader = input.reader();
+        let value: serde_json::Value = reader.read_json("data.json").expect("read json");
+        assert_eq!(value["value"], 1);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn skips_csv_parse_errors_for_validated_fields() {
+        let dir = temp_path("gtfs_invalid_enum");
+        fs::create_dir_all(&dir).expect("create dir");
+        fs::write(dir.join("routes.txt"), b"route_id,route_type\nR1,bad\n").expect("write routes");
+
+        let input = GtfsInput::from_path(&dir).expect("input");
+        let reader = input.reader();
+        let mut notices = NoticeContainer::new();
+        let table = reader
+            .read_csv_with_notices::<gtfs_model::Route>("routes.txt", &mut notices)
+            .expect("read csv");
+
+        assert!(table.rows.is_empty());
+        assert!(notices
+            .iter()
+            .any(|notice| notice.code == "invalid_integer"));
+        assert!(!notices
+            .iter()
+            .any(|notice| notice.code == "csv_parsing_failed"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reads_csv_from_nested_zip_file_case_insensitive() {
+        let dir = temp_path("gtfs_zip_nested");
+        fs::create_dir_all(&dir).expect("create dir");
+        let zip_path = dir.join("feed.zip");
+
+        let zip_file = File::create(&zip_path).expect("create zip");
+        let mut zip = ZipWriter::new(zip_file);
+        let options = FileOptions::default();
+        zip.start_file("Feed/Stops.TXT", options).expect("zip file");
+        zip.write_all(b"a,b\n5,6\n").expect("zip data");
+        zip.finish().expect("finish zip");
+
+        let input = GtfsInput::from_path(&zip_path).expect("input");
+        let reader = input.reader();
+        let table = reader
+            .read_csv::<ExampleRow>("stops.txt")
+            .expect("read csv");
+        assert_eq!(table.rows.len(), 1);
+        assert_eq!(table.rows[0].a, 5);
+        assert_eq!(table.rows[0].b, 6);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reads_csv_from_zip_prefers_root_file() {
+        let dir = temp_path("gtfs_zip_root_prefer");
+        fs::create_dir_all(&dir).expect("create dir");
+        let zip_path = dir.join("feed.zip");
+
+        let zip_file = File::create(&zip_path).expect("create zip");
+        let mut zip = ZipWriter::new(zip_file);
+        let options = FileOptions::default();
+        zip.start_file("nested/stops.txt", options)
+            .expect("zip file");
+        zip.write_all(b"a,b\n1,2\n").expect("zip data");
+        zip.start_file("Stops.TXT", options).expect("zip file");
+        zip.write_all(b"a,b\n9,10\n").expect("zip data");
+        zip.finish().expect("finish zip");
+
+        let input = GtfsInput::from_path(&zip_path).expect("input");
+        let reader = input.reader();
+        let table = reader
+            .read_csv::<ExampleRow>("stops.txt")
+            .expect("read csv");
+        assert_eq!(table.rows.len(), 1);
+        assert_eq!(table.rows[0].a, 9);
+        assert_eq!(table.rows[0].b, 10);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+}
+
+fn find_case_insensitive_file(dir: &Path, target: &str) -> Result<Option<PathBuf>, GtfsInputError> {
+    let target_lower = target.to_ascii_lowercase();
+    let entries = std::fs::read_dir(dir).map_err(|err| GtfsInputError::Io {
+        path: dir.to_path_buf(),
+        source: err,
+    })?;
+    let mut entries = entries
+        .map(|entry| {
+            entry.map_err(|err| GtfsInputError::Io {
+                path: dir.to_path_buf(),
+                source: err,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    entries.sort_by(|a, b| {
+        let a_name = a.file_name().to_string_lossy().into_owned();
+        let b_name = b.file_name().to_string_lossy().into_owned();
+        let a_lower = a_name.to_ascii_lowercase();
+        let b_lower = b_name.to_ascii_lowercase();
+        match a_lower.cmp(&b_lower) {
+            std::cmp::Ordering::Equal => a_name.cmp(&b_name),
+            other => other,
+        }
+    });
+
+    let mut nested_dirs = Vec::new();
+    for entry in entries {
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|err| GtfsInputError::Io {
+            path: dir.to_path_buf(),
+            source: err,
+        })?;
+
+        if file_type.is_dir() {
+            nested_dirs.push(path);
+            continue;
+        }
+
+        if !file_type.is_file() {
+            continue;
+        }
+
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if name.to_ascii_lowercase() == target_lower {
+            return Ok(Some(path));
+        }
+    }
+
+    nested_dirs.sort_by(|a, b| {
+        let a_name = a
+            .file_name()
+            .map(|name| name.to_string_lossy())
+            .unwrap_or_default();
+        let b_name = b
+            .file_name()
+            .map(|name| name.to_string_lossy())
+            .unwrap_or_default();
+        let a_lower = a_name.to_ascii_lowercase();
+        let b_lower = b_name.to_ascii_lowercase();
+        match a_lower.cmp(&b_lower) {
+            std::cmp::Ordering::Equal => a_name.cmp(&b_name),
+            other => other,
+        }
+    });
+    for dir in nested_dirs {
+        if let Some(found) = find_case_insensitive_file(&dir, target)? {
+            return Ok(Some(found));
+        }
+    }
+
+    Ok(None)
+}

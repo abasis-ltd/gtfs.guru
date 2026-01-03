@@ -1,0 +1,31 @@
+[package]
+name = "gtfs_validator_core"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+csv = { workspace = true }
+zip = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+url = { workspace = true }
+rayon = "1.11.0"
+
+[dependencies.gtfs_model]
+path = "../gtfs_model"
+
+[build-dependencies]
+regex = { workspace = true }
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "benchmark_shape_matching"
+harness = false
+
+

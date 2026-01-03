@@ -1,0 +1,2 @@
+booking_rule_id,booking_type,prior_notice_last_day,prior_notice_last_time,prior_notice_start_day,prior_notice_start_time,phone_number
+booking1,2,3,17:00:00,1,08:00:00,+1-555-123-4567

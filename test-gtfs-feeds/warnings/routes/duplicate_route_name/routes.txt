@@ -1,0 +1,3 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+route1,agency1,R1,Main Street,3
+route2,agency1,R1,Main Street,3

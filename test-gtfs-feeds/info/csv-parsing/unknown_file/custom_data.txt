@@ -1,0 +1,2 @@
+custom_id,custom_name,custom_value
+custom1,Custom Item,value1

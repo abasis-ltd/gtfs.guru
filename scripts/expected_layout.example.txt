@@ -1,0 +1,10 @@
+expected/
+  feed-a/
+    report.json
+    report.html
+    system_errors.json
+    notice_schema.json
+  feed-b/
+    report.json
+    report.html
+    system_errors.json

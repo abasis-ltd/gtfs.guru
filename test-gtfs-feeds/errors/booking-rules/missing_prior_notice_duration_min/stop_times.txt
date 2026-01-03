@@ -1,0 +1,4 @@
+trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type,start_pickup_drop_off_window,end_pickup_drop_off_window,pickup_booking_rule_id,drop_off_booking_rule_id
+trip1,08:00:00,08:00:00,stop1,1,2,2,08:00:00,09:00:00,booking1,booking1
+trip1,09:00:00,09:00:00,stop2,2,2,2,09:00:00,10:00:00,booking1,booking1
+trip1,10:00:00,10:00:00,stop3,3,2,2,10:00:00,11:00:00,booking1,booking1

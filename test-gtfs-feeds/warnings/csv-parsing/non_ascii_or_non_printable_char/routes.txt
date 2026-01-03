@@ -1,0 +1,2 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+route1,агенство1,R1,Route One,3

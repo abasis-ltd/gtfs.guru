@@ -1,0 +1,43 @@
+[package]
+name = "gtfs_validator_gui"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Desktop GUI for GTFS Validator"
+
+[lib]
+name = "gtfs_validator_gui_lib"
+path = "src/lib.rs"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "gtfs-validator-gui"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+gtfs_validator_core = { path = "../gtfs_validator_core" }
+gtfs_validator_report = { path = "../gtfs_validator_report" }
+
+# Tauri
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Networking
+reqwest = { version = "0.11", features = ["blocking", "rustls-tls"] }
+uuid = { version = "1.0", features = ["v4"] }
+
+# Utils
+anyhow = { workspace = true }
+chrono = { workspace = true }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

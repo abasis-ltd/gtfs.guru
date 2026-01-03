@@ -1,0 +1,5 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station,level_id
+station1,Main Station,40.7128,-74.0060,1,,,
+stop1,Platform 1,40.7128,-74.0060,0,station1,
+entrance1,Main Entrance,40.7129,-74.0061,2,station1,
+node1,Generic Node,40.7128,-74.0060,3,station1,

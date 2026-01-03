@@ -1,0 +1,8 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+*.swp
+*.ds_store
+.env

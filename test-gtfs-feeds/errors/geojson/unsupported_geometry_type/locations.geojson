@@ -1,0 +1,19 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "id": "location_zone1",
+            "properties": {
+                "stop_name": "Zone One"
+            },
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -74.00,
+                    40.71
+                ]
+            }
+        }
+    ]
+}

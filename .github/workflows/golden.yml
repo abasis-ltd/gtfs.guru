@@ -1,0 +1,38 @@
+name: Golden Parity
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: "Path to golden manifest (default scripts/golden_manifest.tsv; example: scripts/golden_manifest.example.tsv)"
+        required: false
+        default: "scripts/golden_manifest.tsv"
+  push:
+    paths:
+      - "scripts/**"
+      - "docs/golden.md"
+      - ".github/workflows/golden.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "docs/golden.md"
+      - ".github/workflows/golden.yml"
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Golden suite
+        env:
+          COMPARE_FLAGS: --strip-runtime-fields --skip-html
+          GOLDEN_MANIFEST: ${{ github.event.inputs.manifest || 'scripts/golden_manifest.tsv' }}
+        run: scripts/ci_golden.sh

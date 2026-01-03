@@ -1,0 +1,2 @@
+attribution_id,organization_name,is_producer,is_operator,is_authority
+attr1,Data Provider,0,0,0

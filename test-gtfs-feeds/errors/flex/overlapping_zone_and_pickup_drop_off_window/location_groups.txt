@@ -1,0 +1,2 @@
+location_group_id,location_group_name
+zone1,Service Zone 1
