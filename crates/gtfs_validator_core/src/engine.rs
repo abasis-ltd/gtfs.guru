@@ -1,8 +1,9 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use crate::{
-    input::collect_input_notices, GtfsFeed, GtfsInput, GtfsInputError, NoticeContainer,
-    NoticeSeverity, ValidationNotice, ValidatorRunner,
+    input::{collect_input_notices, GtfsBytesReader},
+    GtfsFeed, GtfsInput, GtfsInputError, NoticeContainer, NoticeSeverity, ValidationNotice,
+    ValidatorRunner,
 };
 
 pub struct ValidationOutcome {
@@ -49,6 +50,77 @@ pub fn validate_input(input: &GtfsInput, runner: &ValidatorRunner) -> Validation
             }
         }
     }
+}
+
+/// Validate GTFS feed from in-memory ZIP bytes (for WASM compatibility)
+pub fn validate_bytes(zip_bytes: &[u8], runner: &ValidatorRunner) -> ValidationOutcome {
+    let reader = GtfsBytesReader::from_slice(zip_bytes);
+    validate_bytes_reader(&reader, runner)
+}
+
+/// Validate GTFS feed from a bytes reader
+pub fn validate_bytes_reader(
+    reader: &GtfsBytesReader,
+    runner: &ValidatorRunner,
+) -> ValidationOutcome {
+    let mut notices = NoticeContainer::new();
+
+    // Collect input notices (unknown files, etc.)
+    if let Ok(files) = reader.list_files() {
+        let known: std::collections::HashSet<String> = crate::feed::GTFS_FILE_NAMES
+            .iter()
+            .map(|name| name.to_ascii_lowercase())
+            .collect();
+        for path in files {
+            let normalized = path.replace('\\', "/");
+            let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+            if !known.contains(&file_name.to_ascii_lowercase()) {
+                notices.push(unknown_file_notice(&normalized));
+            }
+        }
+    }
+
+    let load_result = catch_unwind(AssertUnwindSafe(|| {
+        GtfsFeed::from_bytes_reader_with_notices(reader, &mut notices)
+    }));
+
+    match load_result {
+        Ok(Ok(feed)) => {
+            runner.run_with(&feed, &mut notices);
+            ValidationOutcome {
+                feed: Some(feed),
+                notices,
+            }
+        }
+        Ok(Err(err)) => {
+            push_input_error_notice(&mut notices, err);
+            ValidationOutcome {
+                feed: None,
+                notices,
+            }
+        }
+        Err(panic) => {
+            notices.push(runtime_exception_in_loader_error_notice(
+                "<memory>".to_string(),
+                panic_payload_message(&*panic),
+            ));
+            ValidationOutcome {
+                feed: None,
+                notices,
+            }
+        }
+    }
+}
+
+fn unknown_file_notice(file_name: &str) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        "unknown_file",
+        NoticeSeverity::Info,
+        "unknown file in input",
+    );
+    notice.insert_context_field("filename", file_name);
+    notice.field_order = vec!["filename".to_string()];
+    notice
 }
 
 fn push_input_error_notice(notices: &mut NoticeContainer, err: GtfsInputError) {
@@ -202,11 +274,17 @@ mod tests {
         let runner = ValidatorRunner::new();
         let outcome = validate_input(&input, &runner);
 
-        assert!(outcome.feed.is_none());
-        assert_eq!(outcome.notices.len(), 1);
-        assert_eq!(
-            outcome.notices.iter().next().unwrap().code,
-            "missing_required_file"
+        // Feed loading now creates partial feeds with empty tables for missing files
+        // The missing_required_file notice is still emitted
+        assert!(outcome.feed.is_some());
+        let missing_file_notices: Vec<_> = outcome
+            .notices
+            .iter()
+            .filter(|n| n.code == "missing_required_file")
+            .collect();
+        assert!(
+            !missing_file_notices.is_empty(),
+            "Expected at least one missing_required_file notice"
         );
 
         fs::remove_dir_all(&dir).ok();

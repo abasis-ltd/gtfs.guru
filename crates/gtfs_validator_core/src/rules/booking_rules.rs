@@ -503,3 +503,54 @@ fn missing_prior_day_booking_field_value_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+
+    #[test]
+    fn test_forbidden_realtime_fields() {
+        let mut feed = GtfsFeed::default();
+        feed.booking_rules = Some(CsvTable {
+            rows: vec![BookingRules {
+                booking_rule_id: "R1".to_string(),
+                booking_type: BookingType::Realtime,
+                prior_notice_duration_min: Some(10), // Forbidden
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+
+        let mut notices = NoticeContainer::new();
+        BookingRulesEntityValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FORBIDDEN_REALTIME_FIELDS
+        );
+    }
+
+    #[test]
+    fn test_missing_prior_notice_duration_min() {
+        let mut feed = GtfsFeed::default();
+        feed.booking_rules = Some(CsvTable {
+            rows: vec![BookingRules {
+                booking_rule_id: "R1".to_string(),
+                booking_type: BookingType::SameDay,
+                prior_notice_duration_min: None, // Required
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+
+        let mut notices = NoticeContainer::new();
+        BookingRulesEntityValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_PRIOR_NOTICE_DURATION_MIN
+        );
+    }
+}

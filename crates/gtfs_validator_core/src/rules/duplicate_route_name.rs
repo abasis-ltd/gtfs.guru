@@ -130,3 +130,39 @@ fn route_type_value(route_type: RouteType) -> i32 {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+
+    #[test]
+    fn test_duplicate_route_name() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![],
+            rows: vec![
+                gtfs_model::Route {
+                    route_id: "R1".to_string(),
+                    route_short_name: Some("1".to_string()),
+                    route_long_name: Some("Route One".to_string()),
+                    route_type: RouteType::Bus,
+                    ..Default::default()
+                },
+                gtfs_model::Route {
+                    route_id: "R2".to_string(),
+                    route_short_name: Some("1".to_string()),
+                    route_long_name: Some("Route One".to_string()),
+                    route_type: RouteType::Bus,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![1, 2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateRouteNameValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, "duplicate_route_name");
+    }
+}

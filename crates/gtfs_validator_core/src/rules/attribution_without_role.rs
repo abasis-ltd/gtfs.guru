@@ -63,7 +63,7 @@ fn attribution_without_role_notice(attribution_id: &str, row_number: u64) -> Val
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{RouteType, StopTime};
+    use gtfs_model::RouteType;
 
     #[test]
     fn emits_notice_when_no_roles_set() {

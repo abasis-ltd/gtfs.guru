@@ -84,4 +84,32 @@ impl Validator for CalendarValidator {
         }
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::GtfsDate;
 
+    #[test]
+    fn test_calendar_start_after_end() {
+        let mut feed = GtfsFeed::default();
+        feed.calendar = Some(CsvTable {
+            rows: vec![gtfs_model::Calendar {
+                service_id: "S1".to_string(),
+                start_date: GtfsDate::parse("20240102").unwrap(),
+                end_date: GtfsDate::parse("20240101").unwrap(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+
+        let mut notices = NoticeContainer::new();
+        CalendarValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_START_AND_END_RANGE_OUT_OF_ORDER
+        );
+    }
+}

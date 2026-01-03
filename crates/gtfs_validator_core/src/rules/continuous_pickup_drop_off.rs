@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::ContinuousPickupDropOff;
 
 const CODE_FORBIDDEN_CONTINUOUS_PICKUP_DROP_OFF: &str = "forbidden_continuous_pickup_drop_off";
 
@@ -40,8 +39,7 @@ impl Validator for ContinuousPickupDropOffValidator {
             if route_id.is_empty() {
                 continue;
             }
-            if route.continuous_pickup.is_none() && route.continuous_drop_off.is_none()
-            {
+            if route.continuous_pickup.is_none() && route.continuous_drop_off.is_none() {
                 continue;
             }
             for trip in feed
@@ -110,16 +108,6 @@ fn has_stop_time_headers(headers: &[String]) -> bool {
             .any(|header| header.eq_ignore_ascii_case("end_pickup_drop_off_window"))
 }
 
-fn is_continuous(value: Option<ContinuousPickupDropOff>) -> bool {
-    matches!(
-        value,
-        Some(ContinuousPickupDropOff::Continuous)
-            | Some(ContinuousPickupDropOff::MustPhone)
-            | Some(ContinuousPickupDropOff::MustCoordinateWithDriver)
-    )
-}
-
 fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
     value.map(|time| time.to_string()).unwrap_or_default()
 }
-

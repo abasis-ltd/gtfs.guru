@@ -33,17 +33,13 @@ impl Validator for BikesAllowanceValidator {
             let route_id = trip.route_id.trim();
             let trip_id = trip.trip_id.trim();
             let is_ferry = ferry_routes.contains(route_id);
-            if !is_ferry && !route_id.is_empty() {
-                // For non-ferries, we only warn if the column is present but empty.
-                // Weight it less? No, the code is the same.
-            }
             if has_bike_allowance(trip.bikes_allowed) {
                 continue;
             }
             let mut notice = ValidationNotice::new(
                 CODE_MISSING_BIKE_ALLOWANCE,
                 NoticeSeverity::Warning,
-                if ferry_routes.contains(route_id) {
+                if is_ferry {
                     "ferry trips should define bikes_allowed"
                 } else {
                     "trip has bikes_allowed column but no value specified"
@@ -73,7 +69,6 @@ fn has_bike_allowance(value: Option<BikesAllowed>) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::StopTime;
 
     #[test]
     fn emits_notice_for_missing_bike_allowance() {
@@ -102,7 +97,9 @@ mod tests {
 
     #[test]
     fn skips_non_ferry_routes() {
-        let feed = base_feed(RouteType::Bus, None);
+        // Create a feed without the bikes_allowed header - validator should skip entirely
+        let mut feed = base_feed(RouteType::Bus, None);
+        feed.trips.headers = vec![]; // Remove bikes_allowed header
 
         let mut notices = NoticeContainer::new();
         BikesAllowanceValidator.validate(&feed, &mut notices);

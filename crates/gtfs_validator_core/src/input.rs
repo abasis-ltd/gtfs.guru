@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
@@ -484,6 +484,221 @@ fn list_files_in_zip(path: &Path) -> Result<Vec<String>, GtfsInputError> {
         files.push(file.name().to_string());
     }
     Ok(files)
+}
+
+/// Reader for GTFS data from in-memory bytes (for WASM compatibility)
+#[derive(Clone)]
+pub struct GtfsBytesReader {
+    data: Vec<u8>,
+}
+
+impl GtfsBytesReader {
+    /// Create a new reader from ZIP file bytes
+    pub fn from_zip_bytes(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+
+    /// Create a new reader from a byte slice (copies the data)
+    pub fn from_slice(data: &[u8]) -> Self {
+        Self { data: data.to_vec() }
+    }
+
+    pub fn read_file(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
+        let cursor = Cursor::new(&self.data);
+        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
+            path: PathBuf::from("<memory>"),
+            source: err,
+        })?;
+
+        // Try exact match first
+        match archive.by_name(file_name) {
+            Ok(mut zipped) => {
+                let mut buffer = Vec::new();
+                zipped.read_to_end(&mut buffer).map_err(|err| GtfsInputError::ZipFileIo {
+                    path: PathBuf::from("<memory>"),
+                    file: file_name.to_string(),
+                    source: err,
+                })?;
+                return Ok(buffer);
+            }
+            Err(zip::result::ZipError::FileNotFound) => {}
+            Err(err) => {
+                return Err(GtfsInputError::ZipFile {
+                    file: file_name.to_string(),
+                    source: err,
+                });
+            }
+        }
+
+        // Case-insensitive search with preference for root-level files
+        let target = file_name.to_ascii_lowercase();
+        let mut matched_index = None;
+        let mut matched_depth = None;
+        let mut matched_name = None;
+
+        for index in 0..archive.len() {
+            let (name, is_dir) = {
+                let file = archive.by_index(index).map_err(|err| GtfsInputError::ZipFile {
+                    file: file_name.to_string(),
+                    source: err,
+                })?;
+                (file.name().to_string(), file.is_dir())
+            };
+            if is_dir {
+                continue;
+            }
+            let lower = name.to_ascii_lowercase();
+            let tail = lower
+                .rsplit(|ch| ch == '/' || ch == '\\')
+                .next()
+                .unwrap_or(lower.as_str());
+            if tail != target {
+                continue;
+            }
+            let depth = name.matches(|ch| ch == '/' || ch == '\\').count();
+            match matched_depth {
+                None => {
+                    matched_index = Some(index);
+                    matched_depth = Some(depth);
+                    matched_name = Some(lower);
+                }
+                Some(current_depth) if depth < current_depth => {
+                    matched_index = Some(index);
+                    matched_depth = Some(depth);
+                    matched_name = Some(lower);
+                }
+                Some(current_depth) if depth == current_depth => {
+                    let should_replace = matched_name.as_ref().map(|best| lower < *best).unwrap_or(true);
+                    if should_replace {
+                        matched_index = Some(index);
+                        matched_name = Some(lower);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let Some(index) = matched_index else {
+            return Err(GtfsInputError::MissingFile(file_name.to_string()));
+        };
+
+        let mut zipped = archive.by_index(index).map_err(|err| GtfsInputError::ZipFile {
+            file: file_name.to_string(),
+            source: err,
+        })?;
+        let mut buffer = Vec::new();
+        zipped.read_to_end(&mut buffer).map_err(|err| GtfsInputError::ZipFileIo {
+            path: PathBuf::from("<memory>"),
+            file: file_name.to_string(),
+            source: err,
+        })?;
+        Ok(buffer)
+    }
+
+    pub fn read_csv<T: DeserializeOwned>(&self, file_name: &str) -> Result<CsvTable<T>, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        read_csv_from_reader(data.as_slice(), file_name).map_err(GtfsInputError::Csv)
+    }
+
+    pub fn read_csv_with_notices<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<CsvTable<T>, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        validate_csv_data(file_name, &data, notices);
+        let (table, errors) =
+            read_csv_from_reader_with_errors(data.as_slice(), file_name).map_err(GtfsInputError::Csv)?;
+        for error in errors {
+            if skip_csv_parse_error(&table, &error) {
+                continue;
+            }
+            notices.push_csv_error(&error);
+        }
+        Ok(table)
+    }
+
+    pub fn read_optional_csv<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => read_csv_from_reader(data.as_slice(), file_name)
+                .map(Some)
+                .map_err(GtfsInputError::Csv),
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn read_optional_csv_with_notices<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => {
+                validate_csv_data(file_name, &data, notices);
+                let (table, errors) =
+                    read_csv_from_reader_with_errors(data.as_slice(), file_name).map_err(GtfsInputError::Csv)?;
+                for error in errors {
+                    if skip_csv_parse_error(&table, &error) {
+                        continue;
+                    }
+                    notices.push_csv_error(&error);
+                }
+                Ok(Some(table))
+            }
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn read_json<T: DeserializeOwned>(&self, file_name: &str) -> Result<T, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        let data = strip_utf8_bom(&data);
+        serde_json::from_slice(data).map_err(|err| GtfsInputError::Json {
+            file: file_name.to_string(),
+            source: err,
+        })
+    }
+
+    pub fn read_optional_json<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+    ) -> Result<Option<T>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => serde_json::from_slice(strip_utf8_bom(&data))
+                .map(Some)
+                .map_err(|err| GtfsInputError::Json {
+                    file: file_name.to_string(),
+                    source: err,
+                }),
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn list_files(&self) -> Result<Vec<String>, GtfsInputError> {
+        let cursor = Cursor::new(&self.data);
+        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
+            path: PathBuf::from("<memory>"),
+            source: err,
+        })?;
+
+        let mut files = Vec::new();
+        for index in 0..archive.len() {
+            let file = archive.by_index(index).map_err(|err| GtfsInputError::ZipFile {
+                file: "<memory>".to_string(),
+                source: err,
+            })?;
+            if file.is_dir() {
+                continue;
+            }
+            files.push(file.name().to_string());
+        }
+        Ok(files)
+    }
 }
 
 fn unknown_file_notice(file_name: &str) -> ValidationNotice {

@@ -176,3 +176,59 @@ fn check_point(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+
+    #[test]
+    fn test_stop_lat_lon_out_of_range() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![],
+            rows: vec![gtfs_model::Stop {
+                stop_id: "S1".to_string(),
+                stop_lat: Some(95.0),  // Too high
+                stop_lon: Some(200.0), // Too high
+                ..Default::default()
+            }],
+            row_numbers: vec![1],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopLatLonValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 3);
+        let mut codes: Vec<_> = notices.iter().map(|n| n.code.as_str()).collect();
+        codes.sort();
+        assert_eq!(
+            codes,
+            vec![
+                "number_out_of_range",
+                "number_out_of_range",
+                "point_near_pole"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_stop_lat_lon_near_origin() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![],
+            rows: vec![gtfs_model::Stop {
+                stop_id: "S1".to_string(),
+                stop_lat: Some(0.5),
+                stop_lon: Some(0.5),
+                ..Default::default()
+            }],
+            row_numbers: vec![1],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopLatLonValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, "point_near_origin");
+    }
+}

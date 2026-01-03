@@ -818,6 +818,28 @@ pub struct BookingRules {
     pub booking_url: Option<String>,
 }
 
+impl Default for BookingRules {
+    fn default() -> Self {
+        Self {
+            booking_rule_id: String::new(),
+            booking_type: BookingType::Other,
+            prior_notice_duration_min: None,
+            prior_notice_duration_max: None,
+            prior_notice_start_day: None,
+            prior_notice_start_time: None,
+            prior_notice_last_day: None,
+            prior_notice_last_time: None,
+            prior_notice_service_id: None,
+            message: None,
+            pickup_message: None,
+            drop_off_message: None,
+            phone_number: None,
+            info_url: None,
+            booking_url: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Calendar {
     pub service_id: String,
@@ -830,6 +852,31 @@ pub struct Calendar {
     pub sunday: ServiceAvailability,
     pub start_date: GtfsDate,
     pub end_date: GtfsDate,
+}
+
+impl Default for Calendar {
+    fn default() -> Self {
+        Self {
+            service_id: String::new(),
+            monday: ServiceAvailability::Unavailable,
+            tuesday: ServiceAvailability::Unavailable,
+            wednesday: ServiceAvailability::Unavailable,
+            thursday: ServiceAvailability::Unavailable,
+            friday: ServiceAvailability::Unavailable,
+            saturday: ServiceAvailability::Unavailable,
+            sunday: ServiceAvailability::Unavailable,
+            start_date: GtfsDate {
+                year: 0,
+                month: 1,
+                day: 1,
+            },
+            end_date: GtfsDate {
+                year: 0,
+                month: 1,
+                day: 1,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

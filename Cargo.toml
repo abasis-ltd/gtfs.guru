@@ -7,6 +7,7 @@ members = [
   "crates/gtfs_validator_web",
   "crates/gtfs_validator_gui",
   "crates/gtfs_validator_python",
+  "crates/gtfs_validator_wasm",
 ]
 resolver = "2"
 

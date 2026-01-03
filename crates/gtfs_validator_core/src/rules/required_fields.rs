@@ -503,3 +503,59 @@ fn check_non_empty(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+
+    #[test]
+    fn test_required_fields_empty() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![gtfs_model::Agency {
+                agency_name: "".to_string(), // Empty
+                agency_url: "https://example.com".to_string(),
+                agency_timezone: "UTC".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![1],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RequiredFieldsNonEmptyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_EMPTY_REQUIRED_FIELD);
+        assert_eq!(notice.field, Some("agency_name".to_string()));
+    }
+
+    #[test]
+    fn test_required_fields_present() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![gtfs_model::Agency {
+                agency_name: "Test".to_string(),
+                agency_url: "https://example.com".to_string(),
+                agency_timezone: "UTC".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![1],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RequiredFieldsNonEmptyValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

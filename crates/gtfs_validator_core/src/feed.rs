@@ -6,6 +6,7 @@ use gtfs_model::{
 };
 
 use crate::geojson::{GeoJsonFeatureCollection, LocationsGeoJson};
+use crate::input::GtfsBytesReader;
 use crate::{CsvTable, GtfsInput, GtfsInputError, GtfsInputReader, NoticeContainer};
 
 pub const AGENCY_FILE: &str = "agency.txt";
@@ -137,19 +138,153 @@ impl GtfsFeed {
     ) -> Result<Self, GtfsInputError> {
         let agency = reader
             .read_optional_csv_with_notices(AGENCY_FILE, notices)?
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                notices.push_missing_file(AGENCY_FILE);
+                CsvTable::default()
+            });
         let stops = reader
             .read_optional_csv_with_notices(STOPS_FILE, notices)?
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                notices.push_missing_file(STOPS_FILE);
+                CsvTable::default()
+            });
         let routes = reader
             .read_optional_csv_with_notices(ROUTES_FILE, notices)?
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                notices.push_missing_file(ROUTES_FILE);
+                CsvTable::default()
+            });
         let trips = reader
             .read_optional_csv_with_notices(TRIPS_FILE, notices)?
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                notices.push_missing_file(TRIPS_FILE);
+                CsvTable::default()
+            });
         let stop_times = reader
             .read_optional_csv_with_notices(STOP_TIMES_FILE, notices)?
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                notices.push_missing_file(STOP_TIMES_FILE);
+                CsvTable::default()
+            });
+
+        let calendar = reader.read_optional_csv_with_notices(CALENDAR_FILE, notices)?;
+        let calendar_dates = reader.read_optional_csv_with_notices(CALENDAR_DATES_FILE, notices)?;
+        let fare_attributes =
+            reader.read_optional_csv_with_notices(FARE_ATTRIBUTES_FILE, notices)?;
+        let fare_rules = reader.read_optional_csv_with_notices(FARE_RULES_FILE, notices)?;
+        let fare_media = reader.read_optional_csv_with_notices(FARE_MEDIA_FILE, notices)?;
+        let fare_products = reader.read_optional_csv_with_notices(FARE_PRODUCTS_FILE, notices)?;
+        let fare_leg_rules = reader.read_optional_csv_with_notices(FARE_LEG_RULES_FILE, notices)?;
+        let fare_transfer_rules =
+            reader.read_optional_csv_with_notices(FARE_TRANSFER_RULES_FILE, notices)?;
+        let fare_leg_join_rules =
+            reader.read_optional_csv_with_notices(FARE_LEG_JOIN_RULES_FILE, notices)?;
+        let areas = reader.read_optional_csv_with_notices(AREAS_FILE, notices)?;
+        let stop_areas = reader.read_optional_csv_with_notices(STOP_AREAS_FILE, notices)?;
+        let timeframes = reader.read_optional_csv_with_notices(TIMEFRAMES_FILE, notices)?;
+        let rider_categories =
+            reader.read_optional_csv_with_notices(RIDER_CATEGORIES_FILE, notices)?;
+        let shapes = reader.read_optional_csv_with_notices(SHAPES_FILE, notices)?;
+        let frequencies = reader.read_optional_csv_with_notices(FREQUENCIES_FILE, notices)?;
+        let transfers = reader.read_optional_csv_with_notices(TRANSFERS_FILE, notices)?;
+        let location_groups =
+            reader.read_optional_csv_with_notices(LOCATION_GROUPS_FILE, notices)?;
+        let location_group_stops =
+            reader.read_optional_csv_with_notices(LOCATION_GROUP_STOPS_FILE, notices)?;
+        let locations =
+            match reader.read_optional_json::<GeoJsonFeatureCollection>(LOCATIONS_GEOJSON_FILE) {
+                Ok(data) => data.map(LocationsGeoJson::from),
+                Err(GtfsInputError::Json { file, source }) if file == LOCATIONS_GEOJSON_FILE => {
+                    Some(LocationsGeoJson::malformed_json(source.to_string()))
+                }
+                Err(err) => return Err(err),
+            };
+        let booking_rules = reader.read_optional_csv_with_notices(BOOKING_RULES_FILE, notices)?;
+        let networks = reader.read_optional_csv_with_notices(NETWORKS_FILE, notices)?;
+        let route_networks = reader.read_optional_csv_with_notices(ROUTE_NETWORKS_FILE, notices)?;
+        let feed_info = reader.read_optional_csv_with_notices(FEED_INFO_FILE, notices)?;
+        let attributions = reader.read_optional_csv_with_notices(ATTRIBUTIONS_FILE, notices)?;
+        let levels = reader.read_optional_csv_with_notices(LEVELS_FILE, notices)?;
+        let pathways = reader.read_optional_csv_with_notices(PATHWAYS_FILE, notices)?;
+        let translations = reader.read_optional_csv_with_notices(TRANSLATIONS_FILE, notices)?;
+
+        Ok(Self {
+            agency,
+            stops,
+            routes,
+            trips,
+            stop_times,
+            calendar,
+            calendar_dates,
+            fare_attributes,
+            fare_rules,
+            fare_media,
+            fare_products,
+            fare_leg_rules,
+            fare_transfer_rules,
+            fare_leg_join_rules,
+            areas,
+            stop_areas,
+            timeframes,
+            rider_categories,
+            shapes,
+            frequencies,
+            transfers,
+            location_groups,
+            location_group_stops,
+            locations,
+            booking_rules,
+            networks,
+            route_networks,
+            feed_info,
+            attributions,
+            levels,
+            pathways,
+            translations,
+        })
+    }
+
+    /// Load GTFS feed from in-memory bytes (for WASM compatibility)
+    pub fn from_bytes_reader(reader: &GtfsBytesReader) -> Result<Self, GtfsInputError> {
+        let mut notices = NoticeContainer::new();
+        Self::from_bytes_reader_with_notices(reader, &mut notices)
+    }
+
+    /// Load GTFS feed from in-memory bytes with notice collection
+    pub fn from_bytes_reader_with_notices(
+        reader: &GtfsBytesReader,
+        notices: &mut NoticeContainer,
+    ) -> Result<Self, GtfsInputError> {
+        let agency = reader
+            .read_optional_csv_with_notices(AGENCY_FILE, notices)?
+            .unwrap_or_else(|| {
+                notices.push_missing_file(AGENCY_FILE);
+                CsvTable::default()
+            });
+        let stops = reader
+            .read_optional_csv_with_notices(STOPS_FILE, notices)?
+            .unwrap_or_else(|| {
+                notices.push_missing_file(STOPS_FILE);
+                CsvTable::default()
+            });
+        let routes = reader
+            .read_optional_csv_with_notices(ROUTES_FILE, notices)?
+            .unwrap_or_else(|| {
+                notices.push_missing_file(ROUTES_FILE);
+                CsvTable::default()
+            });
+        let trips = reader
+            .read_optional_csv_with_notices(TRIPS_FILE, notices)?
+            .unwrap_or_else(|| {
+                notices.push_missing_file(TRIPS_FILE);
+                CsvTable::default()
+            });
+        let stop_times = reader
+            .read_optional_csv_with_notices(STOP_TIMES_FILE, notices)?
+            .unwrap_or_else(|| {
+                notices.push_missing_file(STOP_TIMES_FILE);
+                CsvTable::default()
+            });
 
         let calendar = reader.read_optional_csv_with_notices(CALENDAR_FILE, notices)?;
         let calendar_dates = reader.read_optional_csv_with_notices(CALENDAR_DATES_FILE, notices)?;

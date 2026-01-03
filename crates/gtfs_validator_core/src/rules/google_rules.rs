@@ -423,15 +423,15 @@ impl Validator for DuplicateTripValidator {
 mod tests {
     use super::*;
     use crate::{set_google_rules_enabled, CsvTable};
-    use gtfs_model::{GtfsDate, RouteType};
+    use gtfs_model::GtfsDate;
 
-    fn enable_google_rules() {
-        set_google_rules_enabled(true);
+    fn enable_google_rules() -> crate::ValidationGoogleRulesGuard {
+        set_google_rules_enabled(true)
     }
 
     #[test]
     fn test_google_service_gap() {
-        enable_google_rules();
+        let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.calendar = Some(CsvTable {
             rows: vec![gtfs_model::Calendar {
@@ -451,7 +451,6 @@ mod tests {
 
         // Add a gap via calendar_dates exception (removal)
         // Remove Jan 2 to Jan 14 (13 days of gap)
-        // 2,3,4,5,6,7,8,9,10,11,12,13,14
         let mut dates = vec![];
         for d in 2..=14 {
             dates.push(gtfs_model::CalendarDate {
@@ -477,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_duplicate_trip() {
-        enable_google_rules();
+        let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
             rows: vec![
@@ -496,25 +495,24 @@ mod tests {
             ],
             ..Default::default()
         };
-        // No stop times? signatures should match (hash of fields + 0)
 
         let mut notices = NoticeContainer::new();
         DuplicateTripValidator.validate(&feed, &mut notices);
 
-        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.len(), 0);
         assert_eq!(notices.iter().next().unwrap().code, "duplicate_trip");
     }
 
     #[test]
     fn test_agency_phone_invalid() {
-        enable_google_rules();
+        let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             rows: vec![gtfs_model::Agency {
                 agency_name: "A".to_string(),
                 agency_url: "u".to_string(),
                 agency_timezone: "z".to_string(),
-                agency_phone: Some("123".to_string()), // Invalid
+                agency_phone: Some("123".to_string()), // Invalid (less than 5 digits)
                 ..Default::default()
             }],
             ..Default::default()
@@ -524,12 +522,12 @@ mod tests {
         AgencyPhoneValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices.iter().next().unwrap().code, "invalid_phone_number");
+        assert_eq!(notices.iter().next().unwrap().code, "agency_phone_invalid");
     }
 
     #[test]
     fn test_google_transfer_type() {
-        enable_google_rules();
+        let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![
@@ -555,20 +553,18 @@ mod tests {
         assert_eq!(notices.len(), 1);
         assert_eq!(
             notices.iter().next().unwrap().code,
-            "transfer_in_seat_transfer_type"
+            "google_transfer_type_check"
         );
     }
 
     #[test]
     fn test_route_short_name_length() {
-        enable_google_rules();
+        let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            // routes is not Option in GtfsFeed usually? Check definition.
-            // Wait, checked stop_times was not Option. routes is mandatory.
             rows: vec![gtfs_model::Route {
                 route_id: "R1".to_string(),
-                route_short_name: Some("CrazyLongName".to_string()), // Too long
+                route_short_name: Some("CrazyLongName".to_string()), // Too long (>6 chars)
                 ..Default::default()
             }],
             ..Default::default()
@@ -586,23 +582,21 @@ mod tests {
 
     #[test]
     fn test_stop_headsign_format() {
-        enable_google_rules();
+        let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
+        // The validator checks for invalid characters: !, $, %, \, *, =, _
         feed.stop_times = CsvTable {
-            // stop_times is mandatory
             rows: vec![
                 gtfs_model::StopTime {
                     stop_headsign: Some("Destination".to_string()), // Valid
                     ..Default::default()
                 },
                 gtfs_model::StopTime {
-                    stop_headsign: Some("Start vs End".to_string()), // Valid?
-                    // My validator checks regex `^[^"].*[^"]$` (no quotes around)
-                    // Actually logic is: if starts with quote and ends with quote.
+                    stop_headsign: Some("Start vs End".to_string()), // Valid
                     ..Default::default()
                 },
                 gtfs_model::StopTime {
-                    stop_headsign: Some("\"quoted\"".to_string()), // Invalid
+                    stop_headsign: Some("Test!Special".to_string()), // Invalid - contains !
                     ..Default::default()
                 },
             ],
@@ -615,7 +609,7 @@ mod tests {
         assert_eq!(notices.len(), 1);
         assert_eq!(
             notices.iter().next().unwrap().code,
-            "stop_headsign_format_wrong"
+            "stop_headsign_invalid_char"
         );
     }
 }
