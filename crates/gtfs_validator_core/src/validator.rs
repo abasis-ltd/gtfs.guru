@@ -1,3 +1,4 @@
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -34,13 +35,29 @@ impl ValidatorRunner {
     }
 
     pub fn run_with(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        // Capture thread-local context before parallel execution
+        // Capture thread-local context before execution
         let captured_date = crate::validation_date();
         let captured_country = crate::validation_country_code();
         let captured_google_rules = crate::google_rules_enabled();
 
-        let new_notices = self
-            .validators
+        #[cfg(feature = "parallel")]
+        let new_notices = self.run_parallel(feed, captured_date, captured_country, captured_google_rules);
+
+        #[cfg(not(feature = "parallel"))]
+        let new_notices = self.run_sequential(feed, captured_date, captured_country, captured_google_rules);
+
+        notices.merge(new_notices);
+    }
+
+    #[cfg(feature = "parallel")]
+    fn run_parallel(
+        &self,
+        feed: &GtfsFeed,
+        captured_date: chrono::NaiveDate,
+        captured_country: Option<String>,
+        captured_google_rules: bool,
+    ) -> NoticeContainer {
+        self.validators
             .par_iter()
             .map(|validator| {
                 // Propagate thread-local context to worker thread
@@ -48,25 +65,49 @@ impl ValidatorRunner {
                 let _country_guard = crate::set_validation_country_code(captured_country.clone());
                 let _google_rules_guard = crate::set_google_rules_enabled(captured_google_rules);
 
-                let mut local_notices = NoticeContainer::new();
-                let result = catch_unwind(AssertUnwindSafe(|| {
-                    validator.validate(feed, &mut local_notices)
-                }));
-
-                if let Err(panic) = result {
-                    local_notices.push(runtime_exception_in_validator_error_notice(
-                        validator.name(),
-                        panic_payload_message(&*panic),
-                    ));
-                }
-                local_notices
+                self.run_single_validator(validator.as_ref(), feed)
             })
             .reduce(NoticeContainer::new, |mut a, b| {
                 a.merge(b);
                 a
-            });
+            })
+    }
 
-        notices.merge(new_notices);
+    #[cfg(not(feature = "parallel"))]
+    fn run_sequential(
+        &self,
+        feed: &GtfsFeed,
+        captured_date: chrono::NaiveDate,
+        captured_country: Option<String>,
+        captured_google_rules: bool,
+    ) -> NoticeContainer {
+        // Set context once for sequential execution
+        let _date_guard = crate::set_validation_date(Some(captured_date));
+        let _country_guard = crate::set_validation_country_code(captured_country);
+        let _google_rules_guard = crate::set_google_rules_enabled(captured_google_rules);
+
+        self.validators
+            .iter()
+            .map(|validator| self.run_single_validator(validator.as_ref(), feed))
+            .fold(NoticeContainer::new(), |mut a, b| {
+                a.merge(b);
+                a
+            })
+    }
+
+    fn run_single_validator(&self, validator: &dyn Validator, feed: &GtfsFeed) -> NoticeContainer {
+        let mut local_notices = NoticeContainer::new();
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            validator.validate(feed, &mut local_notices)
+        }));
+
+        if let Err(panic) = result {
+            local_notices.push(runtime_exception_in_validator_error_notice(
+                validator.name(),
+                panic_payload_message(&*panic),
+            ));
+        }
+        local_notices
     }
 
     pub fn is_empty(&self) -> bool {

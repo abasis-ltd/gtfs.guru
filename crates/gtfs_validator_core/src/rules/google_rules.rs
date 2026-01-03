@@ -469,7 +469,10 @@ mod tests {
         GoogleServiceGapValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices[0].code, CODE_TOO_MANY_DAYS_WITHOUT_SERVICE);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_TOO_MANY_DAYS_WITHOUT_SERVICE
+        );
     }
 
     #[test]
@@ -499,7 +502,7 @@ mod tests {
         DuplicateTripValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices[0].code, "duplicate_trip");
+        assert_eq!(notices.iter().next().unwrap().code, "duplicate_trip");
     }
 
     #[test]
@@ -521,7 +524,7 @@ mod tests {
         AgencyPhoneValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices[0].code, "invalid_phone_number");
+        assert_eq!(notices.iter().next().unwrap().code, "invalid_phone_number");
     }
 
     #[test]
@@ -533,7 +536,7 @@ mod tests {
                 gtfs_model::Transfer {
                     from_stop_id: Some("S1".to_string()),
                     to_stop_id: Some("S2".to_string()),
-                    transfer_type: Some(gtfs_model::TransferType::Extension(4)), // Invalid for Google
+                    transfer_type: Some(gtfs_model::TransferType::InSeat), // Invalid for Google
                     ..Default::default()
                 },
                 gtfs_model::Transfer {
@@ -550,7 +553,10 @@ mod tests {
         GoogleTransferTypeValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices[0].code, "transfer_in_seat_transfer_type");
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            "transfer_in_seat_transfer_type"
+        );
     }
 
     #[test]
@@ -572,7 +578,10 @@ mod tests {
         RouteShortNameLengthValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices[0].code, "route_short_name_too_long");
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            "route_short_name_too_long"
+        );
     }
 
     #[test]
@@ -604,7 +613,10 @@ mod tests {
         StopHeadsignFormatValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices[0].code, "stop_headsign_format_wrong");
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            "stop_headsign_format_wrong"
+        );
     }
 }
 
