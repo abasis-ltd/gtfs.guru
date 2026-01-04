@@ -43,3 +43,57 @@ impl Validator for RouteColorContrastValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsColor, Route};
+
+    #[test]
+    fn detects_poor_contrast() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "route_color".to_string(),
+                "route_text_color".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_color: Some(GtfsColor::new(255, 255, 255)), // White
+                route_text_color: Some(GtfsColor::new(200, 200, 200)), // Light Grey (poor contrast)
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RouteColorContrastValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_ROUTE_COLOR_CONTRAST));
+    }
+
+    #[test]
+    fn passes_good_contrast() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "route_color".to_string(),
+                "route_text_color".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_color: Some(GtfsColor::new(255, 255, 255)), // White
+                route_text_color: Some(GtfsColor::new(0, 0, 0)),  // Black (good contrast)
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RouteColorContrastValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

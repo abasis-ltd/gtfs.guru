@@ -79,3 +79,76 @@ impl Validator for StopTimesRecordValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, PickupDropOffType, StopTime};
+
+    #[test]
+    fn detects_single_record_with_window() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "end_pickup_drop_off_window".to_string(),
+                "pickup_type".to_string(),
+                "drop_off_type".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
+                pickup_type: Some(PickupDropOffType::MustPhone),
+                drop_off_type: Some(PickupDropOffType::MustPhone),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimesRecordValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_STOP_TIMES_RECORD
+        );
+    }
+
+    #[test]
+    fn passes_multiple_records() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "end_pickup_drop_off_window".to_string(),
+                "pickup_type".to_string(),
+                "drop_off_type".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                    end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
+                    pickup_type: Some(PickupDropOffType::MustPhone),
+                    drop_off_type: Some(PickupDropOffType::MustPhone),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimesRecordValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

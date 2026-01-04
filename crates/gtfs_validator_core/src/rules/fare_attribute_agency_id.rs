@@ -57,3 +57,105 @@ fn has_value(value: Option<&str>) -> bool {
     value.map(|val| !val.trim().is_empty()).unwrap_or(false)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Agency, FareAttribute};
+
+    #[test]
+    fn emits_warning_when_single_agency_missing_id() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_name".to_string()],
+            rows: vec![Agency {
+                agency_name: "Agency".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.fare_attributes = Some(CsvTable {
+            headers: vec!["fare_id".to_string()],
+            rows: vec![FareAttribute {
+                fare_id: "F1".to_string(),
+                agency_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareAttributeAgencyIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_RECOMMENDED_FIELD
+        );
+    }
+
+    #[test]
+    fn emits_error_when_multiple_agencies_missing_id() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_name".to_string()],
+            rows: vec![
+                Agency {
+                    agency_name: "Agency1".to_string(),
+                    ..Default::default()
+                },
+                Agency {
+                    agency_name: "Agency2".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.fare_attributes = Some(CsvTable {
+            headers: vec!["fare_id".to_string()],
+            rows: vec![FareAttribute {
+                fare_id: "F1".to_string(),
+                agency_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareAttributeAgencyIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_REQUIRED_FIELD
+        );
+    }
+
+    #[test]
+    fn passes_when_agency_id_present() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_id".to_string(), "agency_name".to_string()],
+            rows: vec![Agency {
+                agency_id: Some("A1".to_string()),
+                agency_name: "Agency".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.fare_attributes = Some(CsvTable {
+            headers: vec!["fare_id".to_string(), "agency_id".to_string()],
+            rows: vec![FareAttribute {
+                fare_id: "F1".to_string(),
+                agency_id: Some("A1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareAttributeAgencyIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

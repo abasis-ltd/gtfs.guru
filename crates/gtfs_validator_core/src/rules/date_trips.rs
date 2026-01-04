@@ -237,3 +237,27 @@ fn gtfs_date_to_naive(date: GtfsDate) -> Option<NaiveDate> {
     NaiveDate::from_ymd_opt(date.year(), date.month() as u32, date.day() as u32)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+
+    #[test]
+    fn test_date_trips_no_coverage() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            rows: vec![gtfs_model::Trip {
+                trip_id: "T1".to_string(),
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let _guard = crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap()));
+
+        let mut notices = NoticeContainer::new();
+        DateTripsValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

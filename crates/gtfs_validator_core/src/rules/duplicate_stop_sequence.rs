@@ -52,3 +52,90 @@ impl Validator for DuplicateStopSequenceValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::StopTime;
+
+    #[test]
+    fn detects_duplicate_stop_sequence() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateStopSequenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_DUPLICATE_KEY);
+    }
+
+    #[test]
+    fn passes_with_unique_sequences() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateStopSequenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn allows_same_sequence_different_trips() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T2".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateStopSequenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+

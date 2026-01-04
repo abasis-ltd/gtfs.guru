@@ -76,3 +76,80 @@ impl Validator for TimeframeOverlapValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::Timeframe;
+
+    #[test]
+    fn detects_timeframe_overlap() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec![
+                "timeframe_group_id".to_string(),
+                "start_time".to_string(),
+                "end_time".to_string(),
+                "service_id".to_string(),
+            ],
+            rows: vec![
+                Timeframe {
+                    timeframe_group_id: Some("G1".to_string()),
+                    start_time: Some(GtfsTime::from_seconds(3600)),
+                    end_time: Some(GtfsTime::from_seconds(7200)),
+                    service_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Timeframe {
+                    timeframe_group_id: Some("G1".to_string()),
+                    start_time: Some(GtfsTime::from_seconds(7000)), // Overlaps
+                    end_time: Some(GtfsTime::from_seconds(10000)),
+                    service_id: "S1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeOverlapValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_TIMEFRAME_OVERLAP);
+    }
+
+    #[test]
+    fn passes_no_overlap() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec![
+                "timeframe_group_id".to_string(),
+                "start_time".to_string(),
+                "end_time".to_string(),
+                "service_id".to_string(),
+            ],
+            rows: vec![
+                Timeframe {
+                    timeframe_group_id: Some("G1".to_string()),
+                    start_time: Some(GtfsTime::from_seconds(3600)),
+                    end_time: Some(GtfsTime::from_seconds(7200)),
+                    service_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Timeframe {
+                    timeframe_group_id: Some("G1".to_string()),
+                    start_time: Some(GtfsTime::from_seconds(7200)), // Starts at end of previous
+                    end_time: Some(GtfsTime::from_seconds(10000)),
+                    service_id: "S1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeOverlapValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

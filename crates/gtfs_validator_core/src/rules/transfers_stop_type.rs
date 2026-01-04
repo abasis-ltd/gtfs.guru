@@ -118,3 +118,81 @@ fn location_type_name(location_type: LocationType) -> &'static str {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{LocationType, Stop, Transfer};
+
+    #[test]
+    fn detects_invalid_stop_type_in_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    location_type: Some(LocationType::EntranceOrExit), // Invalid for transfer
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    location_type: Some(LocationType::StopOrPlatform),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransfersStopTypeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSFER_WITH_INVALID_STOP_LOCATION_TYPE));
+    }
+
+    #[test]
+    fn passes_valid_stop_types_in_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    location_type: Some(LocationType::StopOrPlatform),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    location_type: Some(LocationType::Station),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransfersStopTypeValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

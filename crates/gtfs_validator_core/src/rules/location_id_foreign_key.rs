@@ -70,3 +70,79 @@ fn missing_ref_notice(location_id: &str, row_number: u64) -> ValidationNotice {
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geojson::LocationsGeoJson;
+    use crate::{CsvTable, GtfsFeed, NoticeContainer};
+    use gtfs_model::StopTime;
+    use std::collections::HashSet;
+
+    #[test]
+    fn detects_missing_location_id() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                location_id: Some("L1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        let mut locations = LocationsGeoJson::default();
+        locations.location_ids = HashSet::from(["L2".to_string()]);
+        feed.locations = Some(locations);
+
+        let mut notices = NoticeContainer::new();
+        LocationIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FOREIGN_KEY_VIOLATION
+        );
+    }
+
+    #[test]
+    fn passes_valid_location_id() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                location_id: Some("L1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        let mut locations = LocationsGeoJson::default();
+        locations.location_ids = HashSet::from(["L1".to_string()]);
+        feed.locations = Some(locations);
+
+        let mut notices = NoticeContainer::new();
+        LocationIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_missing_header() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                location_id: Some("L1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.locations = Some(LocationsGeoJson::default());
+
+        let mut notices = NoticeContainer::new();
+        LocationIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

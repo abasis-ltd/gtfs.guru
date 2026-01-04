@@ -88,3 +88,82 @@ impl Validator for StopTimesGeographyIdPresenceValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::StopTime;
+
+    #[test]
+    fn detects_missing_geography_id() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                stop_id: "".to_string(), // Empty
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // Add one of relevant headers to trigger validation
+        feed.stop_times.headers.push("stop_id".to_string());
+
+        let mut notices = NoticeContainer::new();
+        StopTimesGeographyIdPresenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_REQUIRED_FIELD
+        );
+    }
+
+    #[test]
+    fn detects_forbidden_geography_id() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "location_id".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                location_id: Some("L1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimesGeographyIdPresenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FORBIDDEN_GEOGRAPHY_ID
+        );
+    }
+
+    #[test]
+    fn passes_valid_geography_id() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimesGeographyIdPresenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

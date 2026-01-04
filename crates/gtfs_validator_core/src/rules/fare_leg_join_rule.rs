@@ -111,3 +111,94 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{FareLegJoinRule, Network, Route};
+
+    #[test]
+    fn detects_missing_network_id() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "network_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                network_id: Some("N1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.fare_leg_join_rules = Some(CsvTable {
+            headers: vec!["from_network_id".to_string()],
+            rows: vec![FareLegJoinRule {
+                from_network_id: "UNKNOWN".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareLegJoinRuleValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FOREIGN_KEY_VIOLATION
+        );
+    }
+
+    #[test]
+    fn detects_missing_required_stop_id() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_leg_join_rules = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string()],
+            rows: vec![FareLegJoinRule {
+                from_stop_id: Some("S1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareLegJoinRuleValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_REQUIRED_FIELD
+        );
+    }
+
+    #[test]
+    fn passes_valid_rule() {
+        let mut feed = GtfsFeed::default();
+        feed.networks = Some(CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![Network {
+                network_id: "N1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.fare_leg_join_rules = Some(CsvTable {
+            headers: vec![
+                "from_network_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![FareLegJoinRule {
+                from_network_id: "N1".to_string(),
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareLegJoinRuleValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

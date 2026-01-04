@@ -45,3 +45,77 @@ impl Validator for FareTransferRuleDurationLimitTypeValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{DurationLimitType, FareTransferRule};
+
+    #[test]
+    fn detects_duration_limit_without_type() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec!["duration_limit".to_string()],
+            rows: vec![FareTransferRule {
+                duration_limit: Some(3600),
+                duration_limit_type: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleDurationLimitTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_DURATION_LIMIT_WITHOUT_TYPE
+        );
+    }
+
+    #[test]
+    fn detects_type_without_duration_limit() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec!["duration_limit_type".to_string()],
+            rows: vec![FareTransferRule {
+                duration_limit: None,
+                duration_limit_type: Some(DurationLimitType::DepartureToArrival),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleDurationLimitTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_TYPE_WITHOUT_DURATION_LIMIT
+        );
+    }
+
+    #[test]
+    fn passes_valid_combination() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec![
+                "duration_limit".to_string(),
+                "duration_limit_type".to_string(),
+            ],
+            rows: vec![FareTransferRule {
+                duration_limit: Some(3600),
+                duration_limit_type: Some(DurationLimitType::DepartureToArrival),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleDurationLimitTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

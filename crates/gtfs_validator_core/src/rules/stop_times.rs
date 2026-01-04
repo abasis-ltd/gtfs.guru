@@ -43,3 +43,94 @@ impl Validator for TripUsageValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{StopTime, Trip};
+
+    #[test]
+    fn detects_unused_trip() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![],
+            row_numbers: vec![],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripUsageValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_UNUSED_TRIP);
+        assert_eq!(
+            notice.context.get("tripId").unwrap().as_str().unwrap(),
+            "T1"
+        );
+    }
+
+    #[test]
+    fn passes_when_trip_is_used() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripUsageValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn reports_each_unused_trip_once() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![
+                Trip {
+                    trip_id: "T1".to_string(),
+                    ..Default::default()
+                },
+                Trip {
+                    trip_id: "T1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![],
+            row_numbers: vec![],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripUsageValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+    }
+}
+

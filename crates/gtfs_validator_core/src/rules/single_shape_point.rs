@@ -45,3 +45,51 @@ impl Validator for SingleShapePointValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::Shape;
+
+    #[test]
+    fn detects_single_shape_point() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![Shape {
+                shape_id: "SH1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        SingleShapePointValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_SINGLE_SHAPE_POINT));
+    }
+
+    #[test]
+    fn passes_multiple_shape_points() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![
+                Shape {
+                    shape_id: "SH1".to_string(),
+                    ..Default::default()
+                },
+                Shape {
+                    shape_id: "SH1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        SingleShapePointValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

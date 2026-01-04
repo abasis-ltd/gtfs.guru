@@ -415,3 +415,253 @@ fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     radius_km * c
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, Route, RouteType, Stop, StopTime, Trip};
+
+    #[test]
+    fn detects_fast_travel_consecutive() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_lat: Some(0.0),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_lat: Some(0.1),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "departure_time".to_string(),
+                "arrival_time".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    departure_time: Some(GtfsTime::from_seconds(0)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(120)), // 2 minutes, very fast
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_FAST_TRAVEL_CONSECUTIVE));
+    }
+
+    #[test]
+    fn detects_fast_travel_far() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_lat: Some(0.0),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_lat: Some(0.05),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S3".to_string(),
+                    stop_lat: Some(0.1),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3, 4],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "departure_time".to_string(),
+                "arrival_time".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    departure_time: Some(GtfsTime::from_seconds(0)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(300)),
+                    departure_time: Some(GtfsTime::from_seconds(300)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S3".to_string(),
+                    stop_sequence: 3,
+                    arrival_time: Some(GtfsTime::from_seconds(200)), // < 266s is fast (> 150 kph) for 11.1km
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3, 4],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_FAST_TRAVEL_FAR));
+    }
+
+    #[test]
+    fn passes_normal_speed() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_lat: Some(0.0),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_lat: Some(0.1),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "departure_time".to_string(),
+                "arrival_time".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    departure_time: Some(GtfsTime::from_seconds(0)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(600)), // 10 minutes, normal speed
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

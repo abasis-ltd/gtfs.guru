@@ -141,3 +141,63 @@ fn duplicate_id_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{LocationGroupStop, Stop};
+
+    #[test]
+    fn detects_duplicate_id_between_stops_and_location_groups() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "ID1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.location_group_stops = Some(CsvTable {
+            headers: vec!["location_group_id".to_string()],
+            rows: vec![LocationGroupStop {
+                location_group_id: "ID1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        UniqueGeographyIdValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_DUPLICATE_GEOGRAPHY_ID));
+    }
+
+    #[test]
+    fn passes_unique_ids() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.location_group_stops = Some(CsvTable {
+            headers: vec!["location_group_id".to_string()],
+            rows: vec![LocationGroupStop {
+                location_group_id: "LG1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        UniqueGeographyIdValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

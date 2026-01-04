@@ -114,3 +114,98 @@ impl Validator for LocationHasStopTimesValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{LocationType, Stop, StopTime};
+
+    #[test]
+    fn detects_stop_without_stop_time() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                location_type: Some(LocationType::StopOrPlatform),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // stop_times is empty
+
+        let mut notices = NoticeContainer::new();
+        LocationHasStopTimesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_STOP_WITHOUT_STOP_TIME
+        );
+    }
+
+    #[test]
+    fn detects_location_with_unexpected_stop_time() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                location_type: Some(LocationType::Station),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        LocationHasStopTimesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_LOCATION_WITH_UNEXPECTED_STOP_TIME
+        );
+    }
+
+    #[test]
+    fn passes_valid_cases() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    location_type: Some(LocationType::StopOrPlatform),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "P1".to_string(),
+                    location_type: Some(LocationType::Station),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        LocationHasStopTimesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

@@ -345,3 +345,180 @@ fn duplicate_key_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Route, RouteType, Stop, Trip};
+
+    #[test]
+    fn detects_duplicate_stop_id() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_DUPLICATE_KEY);
+        assert_eq!(
+            notice.context.get("fieldName").unwrap().as_str().unwrap(),
+            "stop_id"
+        );
+        assert_eq!(
+            notice.context.get("fieldValue").unwrap().as_str().unwrap(),
+            "S1"
+        );
+        assert_eq!(notice.context.get("csvRowNumber").unwrap().as_u64().unwrap(), 3);
+        assert_eq!(
+            notice
+                .context
+                .get("prevCsvRowNumber")
+                .unwrap()
+                .as_u64()
+                .unwrap(),
+            2
+        );
+    }
+
+    #[test]
+    fn detects_duplicate_route_id() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            rows: vec![
+                Route {
+                    route_id: "R1".to_string(),
+                    route_type: RouteType::Bus,
+                    ..Default::default()
+                },
+                Route {
+                    route_id: "R1".to_string(),
+                    route_type: RouteType::Bus,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_DUPLICATE_KEY);
+        assert_eq!(
+            notice.context.get("fieldName").unwrap().as_str().unwrap(),
+            "route_id"
+        );
+    }
+
+    #[test]
+    fn detects_duplicate_trip_id() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![
+                Trip {
+                    trip_id: "T1".to_string(),
+                    ..Default::default()
+                },
+                Trip {
+                    trip_id: "T1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_DUPLICATE_KEY);
+        assert_eq!(
+            notice.context.get("fieldName").unwrap().as_str().unwrap(),
+            "trip_id"
+        );
+    }
+
+    #[test]
+    fn passes_with_unique_ids() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![
+                Route {
+                    route_id: "R1".to_string(),
+                    route_type: RouteType::Bus,
+                    ..Default::default()
+                },
+                Route {
+                    route_id: "R2".to_string(),
+                    route_type: RouteType::Bus,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn ignores_empty_ids() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        DuplicateKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+

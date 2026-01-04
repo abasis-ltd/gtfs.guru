@@ -89,3 +89,101 @@ fn number_out_of_range_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Pathway, PathwayMode};
+
+    #[test]
+    fn detects_missing_length_for_non_exit_gate() {
+        let mut feed = GtfsFeed::default();
+        feed.pathways = Some(CsvTable {
+            headers: vec!["pathway_id".to_string(), "pathway_mode".to_string()],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                pathway_mode: PathwayMode::Walkway,
+                length: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwaysValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MISSING_RECOMMENDED_FIELD && n.message.contains("length")));
+    }
+
+    #[test]
+    fn detects_zero_traversal_time() {
+        let mut feed = GtfsFeed::default();
+        feed.pathways = Some(CsvTable {
+            headers: vec!["pathway_id".to_string(), "traversal_time".to_string()],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                traversal_time: Some(0),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwaysValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_NUMBER_OUT_OF_RANGE));
+    }
+
+    #[test]
+    fn detects_missing_stair_count_for_stairs() {
+        let mut feed = GtfsFeed::default();
+        feed.pathways = Some(CsvTable {
+            headers: vec!["pathway_id".to_string(), "pathway_mode".to_string()],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                pathway_mode: PathwayMode::Stairs,
+                stair_count: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwaysValidator.validate(&feed, &mut notices);
+
+        assert!(
+            notices
+                .iter()
+                .any(|n| n.code == CODE_MISSING_RECOMMENDED_FIELD
+                    && n.message.contains("stair_count"))
+        );
+    }
+
+    #[test]
+    fn passes_valid_pathway() {
+        let mut feed = GtfsFeed::default();
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "pathway_mode".to_string(),
+                "length".to_string(),
+                "traversal_time".to_string(),
+            ],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                pathway_mode: PathwayMode::Walkway,
+                length: Some(10.0),
+                traversal_time: Some(5),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwaysValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

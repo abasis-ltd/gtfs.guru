@@ -51,3 +51,74 @@ fn should_have_name(media_type: FareMediaType) -> bool {
     )
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::FareMedia;
+
+    #[test]
+    fn emits_warning_when_name_missing_for_transit_card() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_media = Some(CsvTable {
+            headers: vec!["fare_media_id".to_string(), "fare_media_type".to_string()],
+            rows: vec![FareMedia {
+                fare_media_id: "M1".to_string(),
+                fare_media_type: FareMediaType::TransitCard,
+                fare_media_name: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareMediaNameValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_RECOMMENDED_FIELD
+        );
+    }
+
+    #[test]
+    fn passes_when_name_present_for_transit_card() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_media = Some(CsvTable {
+            headers: vec![
+                "fare_media_id".to_string(),
+                "fare_media_type".to_string(),
+                "fare_media_name".to_string(),
+            ],
+            rows: vec![FareMedia {
+                fare_media_id: "M1".to_string(),
+                fare_media_type: FareMediaType::TransitCard,
+                fare_media_name: Some("Pass".to_string()),
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareMediaNameValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn passes_when_name_missing_for_other_type() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_media = Some(CsvTable {
+            headers: vec!["fare_media_id".to_string(), "fare_media_type".to_string()],
+            rows: vec![FareMedia {
+                fare_media_id: "M1".to_string(),
+                fare_media_type: FareMediaType::NoneType,
+                fare_media_name: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareMediaNameValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

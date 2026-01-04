@@ -103,3 +103,128 @@ fn location_type_label(location_type: Option<LocationType>) -> &'static str {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::Stop;
+
+    #[test]
+    fn detects_missing_stop_name() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_name: None,
+                stop_lat: Some(40.0),
+                stop_lon: Some(-74.0),
+                location_type: Some(LocationType::StopOrPlatform),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopsValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_MISSING_STOP_NAME);
+    }
+
+    #[test]
+    fn detects_stop_without_location() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_name: Some("Main St".to_string()),
+                stop_lat: None,
+                stop_lon: None,
+                location_type: Some(LocationType::StopOrPlatform),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopsValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_STOP_WITHOUT_LOCATION
+        );
+    }
+
+    #[test]
+    fn detects_same_name_and_description() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_name: Some("Main St".to_string()),
+                stop_desc: Some("Main St".to_string()),
+                stop_lat: Some(40.0),
+                stop_lon: Some(-74.0),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopsValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_SAME_NAME_AND_DESCRIPTION
+        );
+    }
+
+    #[test]
+    fn passes_with_valid_stop() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_name: Some("Main St".to_string()),
+                stop_lat: Some(40.0),
+                stop_lon: Some(-74.0),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopsValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn generic_node_does_not_require_name() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_name: None,
+                stop_lat: None,
+                stop_lon: None,
+                location_type: Some(LocationType::GenericNode),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopsValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+

@@ -499,7 +499,7 @@ mod tests {
         let mut notices = NoticeContainer::new();
         DuplicateTripValidator.validate(&feed, &mut notices);
 
-        assert_eq!(notices.len(), 0);
+        assert_eq!(notices.len(), 1);
         assert_eq!(notices.iter().next().unwrap().code, "duplicate_trip");
     }
 

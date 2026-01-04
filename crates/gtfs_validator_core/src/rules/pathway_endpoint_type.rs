@@ -124,3 +124,148 @@ fn check_endpoint(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{LocationType, Pathway, Stop};
+
+    #[test]
+    fn detects_pathway_to_station() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                location_type: Some(LocationType::Station),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                from_stop_id: "S1".to_string(),
+                to_stop_id: "N1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayEndpointTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_PATHWAY_TO_WRONG_LOCATION_TYPE
+        );
+    }
+
+    #[test]
+    fn detects_pathway_to_platform_with_boarding_areas() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "location_type".to_string(),
+                "parent_station".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "P1".to_string(),
+                    location_type: Some(LocationType::StopOrPlatform),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "BA1".to_string(),
+                    location_type: Some(LocationType::BoardingArea),
+                    parent_station: Some("P1".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![Pathway {
+                pathway_id: "PW1".to_string(),
+                from_stop_id: "P1".to_string(),
+                to_stop_id: "N1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayEndpointTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_PATHWAY_TO_PLATFORM_WITH_BOARDING_AREAS
+        );
+    }
+
+    #[test]
+    fn passes_valid_endpoints() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "E1".to_string(),
+                    location_type: Some(LocationType::EntranceOrExit),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "N1".to_string(),
+                    location_type: Some(LocationType::GenericNode),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "P1".to_string(),
+                    location_type: Some(LocationType::StopOrPlatform),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3, 4],
+        };
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![
+                Pathway {
+                    pathway_id: "PW1".to_string(),
+                    from_stop_id: "E1".to_string(),
+                    to_stop_id: "N1".to_string(),
+                    ..Default::default()
+                },
+                Pathway {
+                    pathway_id: "PW2".to_string(),
+                    from_stop_id: "N1".to_string(),
+                    to_stop_id: "P1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayEndpointTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

@@ -71,3 +71,83 @@ impl Validator for OverlappingFrequencyValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Frequency, GtfsTime};
+
+    #[test]
+    fn detects_overlapping_frequency() {
+        let mut feed = GtfsFeed::default();
+        feed.frequencies = Some(CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "start_time".to_string(),
+                "end_time".to_string(),
+                "headway_secs".to_string(),
+            ],
+            rows: vec![
+                Frequency {
+                    trip_id: "T1".to_string(),
+                    start_time: GtfsTime::from_seconds(3600),
+                    end_time: GtfsTime::from_seconds(7200),
+                    headway_secs: 300,
+                    ..Default::default()
+                },
+                Frequency {
+                    trip_id: "T1".to_string(),
+                    start_time: GtfsTime::from_seconds(7000), // Overlaps
+                    end_time: GtfsTime::from_seconds(10000),
+                    headway_secs: 300,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        OverlappingFrequencyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_OVERLAPPING_FREQUENCY
+        );
+    }
+
+    #[test]
+    fn passes_when_frequencies_dont_overlap() {
+        let mut feed = GtfsFeed::default();
+        feed.frequencies = Some(CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "start_time".to_string(),
+                "end_time".to_string(),
+                "headway_secs".to_string(),
+            ],
+            rows: vec![
+                Frequency {
+                    trip_id: "T1".to_string(),
+                    start_time: GtfsTime::from_seconds(3600),
+                    end_time: GtfsTime::from_seconds(7200),
+                    headway_secs: 300,
+                    ..Default::default()
+                },
+                Frequency {
+                    trip_id: "T1".to_string(),
+                    start_time: GtfsTime::from_seconds(7200), // Starts at end of previous
+                    end_time: GtfsTime::from_seconds(10000),
+                    headway_secs: 300,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        OverlappingFrequencyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

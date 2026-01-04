@@ -111,3 +111,118 @@ fn has_stop_time_headers(headers: &[String]) -> bool {
 fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
     value.map(|time| time.to_string()).unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{ContinuousPickupDropOff, GtfsTime, Route, StopTime, Trip};
+
+    #[test]
+    fn detects_forbidden_windows() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "continuous_pickup".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                continuous_pickup: Some(ContinuousPickupDropOff::Continuous),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["route_id".to_string(), "trip_id".to_string()],
+            rows: vec![Trip {
+                route_id: "R1".to_string(),
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                start_pickup_drop_off_window: Some(GtfsTime::parse("08:00:00").unwrap()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ContinuousPickupDropOffValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FORBIDDEN_CONTINUOUS_PICKUP_DROP_OFF
+        );
+    }
+
+    #[test]
+    fn passes_without_windows() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "continuous_pickup".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                continuous_pickup: Some(ContinuousPickupDropOff::Continuous),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["route_id".to_string(), "trip_id".to_string()],
+            rows: vec![Trip {
+                route_id: "R1".to_string(),
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ContinuousPickupDropOffValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_without_headers() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // stop_times missing window headers, validator should skip
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                start_pickup_drop_off_window: Some(GtfsTime::parse("08:00:00").unwrap()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ContinuousPickupDropOffValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

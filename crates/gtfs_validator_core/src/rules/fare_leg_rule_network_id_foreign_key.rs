@@ -71,3 +71,84 @@ impl Validator for FareLegRuleNetworkIdForeignKeyValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{FareLegRule, Network, Route};
+
+    #[test]
+    fn detects_missing_network_id() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "network_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                network_id: Some("N1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.fare_leg_rules = Some(CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![FareLegRule {
+                network_id: Some("UNKNOWN".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareLegRuleNetworkIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FOREIGN_KEY_VIOLATION
+        );
+    }
+
+    #[test]
+    fn passes_valid_network_id() {
+        let mut feed = GtfsFeed::default();
+        feed.networks = Some(CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![Network {
+                network_id: "N1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.fare_leg_rules = Some(CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![FareLegRule {
+                network_id: Some("N1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareLegRuleNetworkIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_empty_network_id() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_leg_rules = Some(CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![FareLegRule {
+                network_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareLegRuleNetworkIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

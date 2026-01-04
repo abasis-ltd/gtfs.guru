@@ -62,3 +62,123 @@ impl Validator for UnusedAgencyValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Agency, Route};
+
+    #[test]
+    fn detects_unused_agency() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_id".to_string(),
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![
+                Agency {
+                    agency_id: Some("A1".to_string()),
+                    agency_name: "Agency1".to_string(),
+                    ..Default::default()
+                },
+                Agency {
+                    agency_id: Some("A2".to_string()),
+                    agency_name: "Agency2".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "agency_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                agency_id: Some("A1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UnusedAgencyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(
+            notices
+                .iter()
+                .filter(|n| n.code == CODE_UNUSED_AGENCY)
+                .count(),
+            1
+        );
+        let notice = notices
+            .iter()
+            .find(|n| n.code == CODE_UNUSED_AGENCY)
+            .unwrap();
+        assert_eq!(
+            notice.context.get("agencyId").unwrap().as_str().unwrap(),
+            "A2"
+        );
+    }
+
+    #[test]
+    fn passes_when_all_agencies_used() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_id".to_string()],
+            rows: vec![
+                Agency {
+                    agency_id: Some("A1".to_string()),
+                    ..Default::default()
+                },
+                Agency {
+                    agency_id: Some("A2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "agency_id".to_string()],
+            rows: vec![
+                Route {
+                    route_id: "R1".to_string(),
+                    agency_id: Some("A1".to_string()),
+                    ..Default::default()
+                },
+                Route {
+                    route_id: "R2".to_string(),
+                    agency_id: Some("A2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UnusedAgencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+
+    #[test]
+    fn passes_single_agency_feed() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_id".to_string()],
+            rows: vec![Agency {
+                agency_id: Some("A1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // Even if no routes reference it, single agency is usually implicitly linked or allowed.
+        // The validator logic returns early if rows.len() <= 1.
+
+        let mut notices = NoticeContainer::new();
+        UnusedAgencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

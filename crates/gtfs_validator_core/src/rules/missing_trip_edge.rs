@@ -91,3 +91,137 @@ fn missing_trip_edge_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, StopTime};
+
+    #[test]
+    fn detects_missing_arrival_at_start() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "departure_time".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    arrival_time: None,
+                    departure_time: Some(GtfsTime::from_seconds(3600)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(4000)),
+                    departure_time: Some(GtfsTime::from_seconds(4100)),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        MissingTripEdgeValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_MISSING_TRIP_EDGE
+            && n.message.contains("missing arrival_time or departure_time")));
+    }
+
+    #[test]
+    fn detects_missing_departure_at_end() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "arrival_time".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    arrival_time: Some(GtfsTime::from_seconds(3600)),
+                    departure_time: Some(GtfsTime::from_seconds(3700)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(4000)),
+                    departure_time: None,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        MissingTripEdgeValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_MISSING_TRIP_EDGE));
+    }
+
+    #[test]
+    fn passes_valid_trip_edges() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "arrival_time".to_string(),
+                "departure_time".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    arrival_time: Some(GtfsTime::from_seconds(3600)),
+                    departure_time: Some(GtfsTime::from_seconds(3700)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(4000)),
+                    departure_time: Some(GtfsTime::from_seconds(4100)),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        MissingTripEdgeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_flex_windows() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        MissingTripEdgeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

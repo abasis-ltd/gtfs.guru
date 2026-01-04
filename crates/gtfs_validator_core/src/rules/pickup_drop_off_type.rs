@@ -108,3 +108,91 @@ fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
     value.map(|time| time.to_string()).unwrap_or_default()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, PickupDropOffType, StopTime};
+
+    #[test]
+    fn detects_forbidden_pickup_type() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "pickup_type".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                pickup_type: Some(PickupDropOffType::Regular), // Forbidden for windows
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupDropOffTypeValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_FORBIDDEN_PICKUP_TYPE));
+    }
+
+    #[test]
+    fn detects_forbidden_drop_off_type() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "drop_off_type".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                drop_off_type: Some(PickupDropOffType::Regular), // Forbidden for windows
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupDropOffTypeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_FORBIDDEN_DROP_OFF_TYPE));
+    }
+
+    #[test]
+    fn passes_valid_types_for_windows() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "pickup_type".to_string(),
+                "drop_off_type".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                pickup_type: Some(PickupDropOffType::MustPhone),
+                drop_off_type: Some(PickupDropOffType::NoPickup),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupDropOffTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

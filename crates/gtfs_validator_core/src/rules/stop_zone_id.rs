@@ -116,3 +116,115 @@ fn has_value(value: Option<&str>) -> bool {
     value.map(|val| !val.trim().is_empty()).unwrap_or(false)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{FareRule, Stop, StopTime, Trip};
+
+    #[test]
+    fn detects_missing_zone_id() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_rules = Some(CsvTable {
+            headers: vec![
+                "fare_id".to_string(),
+                "route_id".to_string(),
+                "origin_id".to_string(),
+            ],
+            rows: vec![FareRule {
+                fare_id: "F1".to_string(),
+                route_id: Some("R1".to_string()),
+                origin_id: Some("Z1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "zone_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                zone_id: None, // Missing
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopZoneIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_STOP_WITHOUT_ZONE_ID
+        );
+    }
+
+    #[test]
+    fn passes_when_zone_id_present() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_rules = Some(CsvTable {
+            headers: vec![
+                "fare_id".to_string(),
+                "route_id".to_string(),
+                "origin_id".to_string(),
+            ],
+            rows: vec![FareRule {
+                fare_id: "F1".to_string(),
+                route_id: Some("R1".to_string()),
+                origin_id: Some("Z1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "zone_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                zone_id: Some("Z1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopZoneIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

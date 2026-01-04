@@ -53,3 +53,106 @@ fn has_value(value: Option<&str>) -> bool {
     value.map(|val| !val.trim().is_empty()).unwrap_or(false)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Agency, Route};
+
+    #[test]
+    fn detects_missing_required_agency_id() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_id".to_string()],
+            rows: vec![
+                Agency {
+                    agency_id: Some("A1".to_string()),
+                    ..Default::default()
+                },
+                Agency {
+                    agency_id: Some("A2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                agency_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RouteAgencyIdValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MISSING_REQUIRED_FIELD));
+    }
+
+    #[test]
+    fn detects_missing_recommended_agency_id() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_id".to_string()],
+            rows: vec![Agency {
+                agency_id: Some("A1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                agency_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RouteAgencyIdValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MISSING_RECOMMENDED_FIELD));
+    }
+
+    #[test]
+    fn passes_when_agency_id_present() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec!["agency_id".to_string()],
+            rows: vec![
+                Agency {
+                    agency_id: Some("A1".to_string()),
+                    ..Default::default()
+                },
+                Agency {
+                    agency_id: Some("A2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "agency_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                agency_id: Some("A1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RouteAgencyIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

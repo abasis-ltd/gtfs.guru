@@ -154,3 +154,136 @@ fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     radius_meters * c
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Stop, Transfer};
+
+    #[test]
+    fn detects_distance_too_large() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_lat: Some(45.0),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_lat: Some(45.1), // Approx 11km north
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransferDistanceValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSFER_DISTANCE_TOO_LARGE));
+    }
+
+    #[test]
+    fn detects_distance_above_2_km() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_lat: Some(45.0),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_lat: Some(45.02), // Approx 2.2km north
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransferDistanceValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSFER_DISTANCE_ABOVE_2_KM));
+    }
+
+    #[test]
+    fn passes_when_short_distance() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_lat: Some(45.0),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_lat: Some(45.001), // Approx 111m north
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransferDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

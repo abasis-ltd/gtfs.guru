@@ -181,3 +181,138 @@ fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     radius_meters * c
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::Shape;
+
+    #[test]
+    fn detects_decreasing_shape_distance() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.0,
+                    shape_pt_lon: -74.0,
+                    shape_pt_sequence: 1,
+                    shape_dist_traveled: Some(100.0),
+                },
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.01,
+                    shape_pt_lon: -74.01,
+                    shape_pt_sequence: 2,
+                    shape_dist_traveled: Some(50.0),
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        ShapeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_DECREASING_SHAPE_DISTANCE
+        );
+    }
+
+    #[test]
+    fn detects_equal_distance_same_coords() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.0,
+                    shape_pt_lon: -74.0,
+                    shape_pt_sequence: 1,
+                    shape_dist_traveled: Some(100.0),
+                },
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.0,
+                    shape_pt_lon: -74.0,
+                    shape_pt_sequence: 2,
+                    shape_dist_traveled: Some(100.0),
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        ShapeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_EQUAL_SHAPE_DISTANCE_SAME_COORDS
+        );
+    }
+
+    #[test]
+    fn passes_with_increasing_distance() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.0,
+                    shape_pt_lon: -74.0,
+                    shape_pt_sequence: 1,
+                    shape_dist_traveled: Some(0.0),
+                },
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.01,
+                    shape_pt_lon: -74.01,
+                    shape_pt_sequence: 2,
+                    shape_dist_traveled: Some(100.0),
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        ShapeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn passes_without_shape_dist_traveled() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.0,
+                    shape_pt_lon: -74.0,
+                    shape_pt_sequence: 1,
+                    shape_dist_traveled: None,
+                },
+                Shape {
+                    shape_id: "S1".to_string(),
+                    shape_pt_lat: 40.01,
+                    shape_pt_lon: -74.01,
+                    shape_pt_sequence: 2,
+                    shape_dist_traveled: None,
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        ShapeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+

@@ -105,3 +105,92 @@ fn pickup_drop_off_value(value: Option<PickupDropOffType>) -> Option<i32> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, StopTime};
+
+    #[test]
+    fn detects_missing_pickup_booking_rule_id() {
+        let mut feed = GtfsFeed::default();
+        feed.booking_rules = Some(CsvTable::default());
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                pickup_booking_rule_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupBookingRuleIdValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MISSING_BOOKING_RULE_ID));
+    }
+
+    #[test]
+    fn detects_missing_drop_off_booking_rule_id() {
+        let mut feed = GtfsFeed::default();
+        feed.booking_rules = Some(CsvTable::default());
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "end_pickup_drop_off_window".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                end_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                drop_off_booking_rule_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupBookingRuleIdValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MISSING_BOOKING_RULE_ID));
+    }
+
+    #[test]
+    fn passes_when_booking_rule_ids_present() {
+        let mut feed = GtfsFeed::default();
+        feed.booking_rules = Some(CsvTable::default());
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "pickup_booking_rule_id".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                pickup_booking_rule_id: Some("B1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupBookingRuleIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

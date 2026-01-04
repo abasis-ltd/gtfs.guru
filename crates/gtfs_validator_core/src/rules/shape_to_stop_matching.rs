@@ -430,14 +430,14 @@ fn populate_stop_too_far_notice(
         "geoDistanceToShape",
         problem.match_result.geo_distance_to_shape,
     );
-    
+
     // Extract shape path segment around the error for visualization
     let shape_path = extract_shape_path_segment(shape_points, problem.match_result.index);
     if !shape_path.is_empty() {
         notice.insert_context_field("shapePath", shape_path);
         notice.insert_context_field("matchIndex", problem.match_result.index);
     }
-    
+
     notice.field_order = vec![
         "tripCsvRowNumber".to_string(),
         "shapeId".to_string(),
@@ -457,16 +457,18 @@ fn populate_stop_too_far_notice(
 fn extract_shape_path_segment(shape_points: &ShapePoints, match_index: usize) -> Vec<[f64; 2]> {
     const MAX_POINTS_EACH_SIDE: usize = 10;
     const MAX_DISTANCE_METERS: f64 = 500.0;
-    
+
     if shape_points.points.is_empty() {
         return Vec::new();
     }
-    
+
     let match_index = match_index.min(shape_points.points.len().saturating_sub(1));
-    let match_geo_distance = shape_points.points.get(match_index)
+    let match_geo_distance = shape_points
+        .points
+        .get(match_index)
         .map(|p| p.geo_distance)
         .unwrap_or(0.0);
-    
+
     // Find start index (go back up to MAX_POINTS_EACH_SIDE or MAX_DISTANCE_METERS)
     let mut start_index = match_index;
     for i in (0..match_index).rev() {
@@ -476,7 +478,7 @@ fn extract_shape_path_segment(shape_points: &ShapePoints, match_index: usize) ->
         }
         start_index = i;
     }
-    
+
     // Find end index (go forward up to MAX_POINTS_EACH_SIDE or MAX_DISTANCE_METERS)
     let mut end_index = match_index;
     for i in (match_index + 1)..shape_points.points.len() {
@@ -486,7 +488,7 @@ fn extract_shape_path_segment(shape_points: &ShapePoints, match_index: usize) ->
         }
         end_index = i;
     }
-    
+
     // Extract coordinates
     shape_points.points[start_index..=end_index]
         .iter()
@@ -900,7 +902,8 @@ impl ShapePoints {
             if geo_distance_to_shape <= max_distance_from_shape {
                 if local_match.has_best_match()
                     && (previous_segment_getting_further_away
-                        || (geo_distance_to_shape == 0.0 && distance_to_end_previous_segment == 0.0))
+                        || (geo_distance_to_shape == 0.0
+                            && distance_to_end_previous_segment == 0.0))
                 {
                     matches.push(local_match.clone());
                     local_match.clear_best_match();
@@ -1465,3 +1468,239 @@ fn near_by_fraction_or_margin(x: f64, y: f64) -> bool {
     (x - y).abs() <= margin.max(relative_margin)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Route, Shape, Stop, StopTime, Trip};
+
+    #[test]
+    fn detects_stop_too_far_from_shape() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_id".to_string(),
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![Default::default()],
+            ..Default::default()
+        };
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "route_short_name".to_string(),
+                "route_type".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_name".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_name: Some("Stop 1".to_string()),
+                    stop_lat: Some(37.7749),
+                    stop_lon: Some(-122.4194),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(), // Far from shape
+                    stop_name: Some("Stop 2".to_string()),
+                    stop_lat: Some(38.0),
+                    stop_lon: Some(-122.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.shapes = Some(CsvTable {
+            headers: vec![
+                "shape_id".to_string(),
+                "shape_pt_lat".to_string(),
+                "shape_pt_lon".to_string(),
+                "shape_pt_sequence".to_string(),
+            ],
+            rows: vec![
+                Shape {
+                    shape_id: "SH1".to_string(),
+                    shape_pt_lat: 37.7749,
+                    shape_pt_lon: -122.4194,
+                    shape_pt_sequence: 1,
+                    ..Default::default()
+                },
+                Shape {
+                    shape_id: "SH1".to_string(),
+                    shape_pt_lat: 37.7750,
+                    shape_pt_lon: -122.4195,
+                    shape_pt_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+        feed.trips = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "trip_id".to_string(),
+                "shape_id".to_string(),
+            ],
+            rows: vec![Trip {
+                route_id: "R1".to_string(),
+                trip_id: "T1".to_string(),
+                shape_id: Some("SH1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ShapeToStopMatchingValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_STOP_TOO_FAR_FROM_SHAPE));
+    }
+
+    #[test]
+    fn passes_when_stops_match_shape() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "route_short_name".to_string(),
+                "route_type".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_name".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_name: Some("Stop 1".to_string()),
+                    stop_lat: Some(37.7749),
+                    stop_lon: Some(-122.4194),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_name: Some("Stop 2".to_string()),
+                    stop_lat: Some(37.7750),
+                    stop_lon: Some(-122.4195),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.shapes = Some(CsvTable {
+            headers: vec![
+                "shape_id".to_string(),
+                "shape_pt_lat".to_string(),
+                "shape_pt_lon".to_string(),
+                "shape_pt_sequence".to_string(),
+            ],
+            rows: vec![
+                Shape {
+                    shape_id: "SH1".to_string(),
+                    shape_pt_lat: 37.7749,
+                    shape_pt_lon: -122.4194,
+                    shape_pt_sequence: 1,
+                    ..Default::default()
+                },
+                Shape {
+                    shape_id: "SH1".to_string(),
+                    shape_pt_lat: 37.7750,
+                    shape_pt_lon: -122.4195,
+                    shape_pt_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+        feed.trips = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "trip_id".to_string(),
+                "shape_id".to_string(),
+            ],
+            rows: vec![Trip {
+                route_id: "R1".to_string(),
+                trip_id: "T1".to_string(),
+                shape_id: Some("SH1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ShapeToStopMatchingValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

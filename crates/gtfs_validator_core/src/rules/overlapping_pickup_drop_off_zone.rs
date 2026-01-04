@@ -56,22 +56,43 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
                         continue;
                     }
 
-                    let location_id_a = stop_time_a.location_id.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
-                    let location_id_b = stop_time_b.location_id.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
-                    let group_id_a = stop_time_a.location_group_id.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
-                    let group_id_b = stop_time_b.location_group_id.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+                    let location_id_a = stop_time_a
+                        .location_id
+                        .as_deref()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    let location_id_b = stop_time_b
+                        .location_id
+                        .as_deref()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    let group_id_a = stop_time_a
+                        .location_group_id
+                        .as_deref()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
+                    let group_id_b = stop_time_b
+                        .location_group_id
+                        .as_deref()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty());
 
                     let mut overlap = false;
 
                     // Case 1: Same location_id or location_group_id
-                    if (location_id_a.is_some() && location_id_a == location_id_b) ||
-                       (group_id_a.is_some() && group_id_a == group_id_b) {
+                    if (location_id_a.is_some() && location_id_a == location_id_b)
+                        || (group_id_a.is_some() && group_id_a == group_id_b)
+                    {
                         overlap = true;
-                    } 
+                    }
                     // Case 2: Geospatial overlap of different location_ids
-                    else if let (Some(loc_a), Some(loc_b), Some(locs)) = (location_id_a, location_id_b, locations) {
+                    else if let (Some(loc_a), Some(loc_b), Some(locs)) =
+                        (location_id_a, location_id_b, locations)
+                    {
                         if loc_a != loc_b {
-                            if let (Some(bounds_a), Some(bounds_b)) = (locs.bounds_by_id.get(loc_a), locs.bounds_by_id.get(loc_b)) {
+                            if let (Some(bounds_a), Some(bounds_b)) =
+                                (locs.bounds_by_id.get(loc_a), locs.bounds_by_id.get(loc_b))
+                            {
                                 if bounds_a.overlaps(bounds_b) {
                                     overlap = true;
                                 }
@@ -87,8 +108,14 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
                         );
                         notice.insert_context_field("endPickupDropOffWindow1", time_value(end_a));
                         notice.insert_context_field("endPickupDropOffWindow2", time_value(end_b));
-                        notice.insert_context_field("locationId1", location_id_a.or(group_id_a).unwrap_or(""));
-                        notice.insert_context_field("locationId2", location_id_b.or(group_id_b).unwrap_or(""));
+                        notice.insert_context_field(
+                            "locationId1",
+                            location_id_a.or(group_id_a).unwrap_or(""),
+                        );
+                        notice.insert_context_field(
+                            "locationId2",
+                            location_id_b.or(group_id_b).unwrap_or(""),
+                        );
                         notice
                             .insert_context_field("startPickupDropOffWindow1", time_value(start_a));
                         notice
@@ -144,3 +171,101 @@ fn time_value(value: gtfs_model::GtfsTime) -> String {
     value.to_string()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, PickupDropOffType, StopTime};
+
+    #[test]
+    fn detects_overlapping_windows_for_same_location() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "location_id".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "end_pickup_drop_off_window".to_string(),
+                "pickup_type".to_string(),
+                "drop_off_type".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    location_id: Some("L1".to_string()),
+                    start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                    end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
+                    pickup_type: Some(PickupDropOffType::Regular),
+                    drop_off_type: Some(PickupDropOffType::Regular),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    location_id: Some("L1".to_string()),
+                    start_pickup_drop_off_window: Some(GtfsTime::from_seconds(7000)), // Overlaps
+                    end_pickup_drop_off_window: Some(GtfsTime::from_seconds(10000)),
+                    pickup_type: Some(PickupDropOffType::Regular),
+                    drop_off_type: Some(PickupDropOffType::Regular),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        OverlappingPickupDropOffZoneValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_OVERLAPPING_ZONE_AND_WINDOW
+        );
+    }
+
+    #[test]
+    fn passes_when_no_temporal_overlap() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "location_id".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "end_pickup_drop_off_window".to_string(),
+                "pickup_type".to_string(),
+                "drop_off_type".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    location_id: Some("L1".to_string()),
+                    start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                    end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
+                    pickup_type: Some(PickupDropOffType::Regular),
+                    drop_off_type: Some(PickupDropOffType::Regular),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    location_id: Some("L1".to_string()),
+                    start_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)), // Starts at end
+                    end_pickup_drop_off_window: Some(GtfsTime::from_seconds(10000)),
+                    pickup_type: Some(PickupDropOffType::Regular),
+                    drop_off_type: Some(PickupDropOffType::Regular),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        OverlappingPickupDropOffZoneValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

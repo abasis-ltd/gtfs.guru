@@ -159,3 +159,164 @@ struct RouteEntry {
     route_id: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Agency, Route, Stop};
+
+    #[test]
+    fn detects_identical_route_and_agency_url() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_id".to_string(),
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![Agency {
+                agency_id: Some("A1".to_string()),
+                agency_name: "Agency A".to_string(),
+                agency_url: "http://example.com/agency".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "agency_id".to_string(),
+                "route_url".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                agency_id: Some("A1".to_string()),
+                route_url: Some("http://example.com/agency".to_string()), // Same as agency
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UrlConsistencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_SAME_ROUTE_AND_AGENCY_URL));
+    }
+
+    #[test]
+    fn detects_identical_stop_and_agency_url() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_id".to_string(),
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![Agency {
+                agency_id: Some("A1".to_string()),
+                agency_name: "Agency A".to_string(),
+                agency_url: "http://example.com/agency".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "stop_url".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_url: Some("http://example.com/agency".to_string()), // Same as agency
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UrlConsistencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_SAME_STOP_AND_AGENCY_URL));
+    }
+
+    #[test]
+    fn detects_identical_stop_and_route_url() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_url".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_url: Some("http://example.com/route".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "stop_url".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_url: Some("http://example.com/route".to_string()), // Same as route
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UrlConsistencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_SAME_STOP_AND_ROUTE_URL));
+    }
+
+    #[test]
+    fn passes_distinct_urls() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_id".to_string(),
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![Agency {
+                agency_id: Some("A1".to_string()),
+                agency_name: "Agency A".to_string(),
+                agency_url: "http://example.com/agency".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "agency_id".to_string(),
+                "route_url".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                agency_id: Some("A1".to_string()),
+                route_url: Some("http://example.com/route".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "stop_url".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_url: Some("http://example.com/stop".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UrlConsistencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

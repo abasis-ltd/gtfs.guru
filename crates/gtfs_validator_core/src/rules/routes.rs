@@ -5,6 +5,136 @@ const CODE_ROUTE_SHORT_NAME_TOO_LONG: &str = "route_short_name_too_long";
 const CODE_ROUTE_LONG_NAME_CONTAINS_SHORT: &str = "route_long_name_contains_short_name";
 const CODE_ROUTE_DESC_SAME_AS_NAME: &str = "same_name_and_description_for_route";
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Route, RouteType};
+
+    #[test]
+    fn detects_both_names_missing() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                route_short_name: None,
+                route_long_name: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RoutesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_ROUTE_BOTH_NAMES_MISSING);
+    }
+
+    #[test]
+    fn detects_short_name_too_long() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_short_name".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                route_short_name: Some("VeryLongRouteName".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RoutesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_ROUTE_SHORT_NAME_TOO_LONG);
+    }
+
+    #[test]
+    fn detects_long_name_contains_short() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "route_short_name".to_string(),
+                "route_long_name".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                route_short_name: Some("42".to_string()),
+                route_long_name: Some("42 Downtown Express".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RoutesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_ROUTE_LONG_NAME_CONTAINS_SHORT
+        );
+    }
+
+    #[test]
+    fn detects_desc_same_as_short_name() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "route_short_name".to_string(),
+                "route_desc".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                route_short_name: Some("42".to_string()),
+                route_desc: Some("42".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RoutesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_ROUTE_DESC_SAME_AS_NAME);
+    }
+
+    #[test]
+    fn passes_with_valid_route() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".to_string(),
+                "route_short_name".to_string(),
+                "route_long_name".to_string(),
+            ],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                route_short_name: Some("42".to_string()),
+                route_long_name: Some("Downtown Express".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        RoutesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct RoutesValidator;
 

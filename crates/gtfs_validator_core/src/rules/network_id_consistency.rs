@@ -48,3 +48,59 @@ fn route_networks_specified_notice(file_name_b: &str) -> ValidationNotice {
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+
+    #[test]
+    fn detects_network_id_in_routes_and_route_networks() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![Default::default()],
+            ..Default::default()
+        };
+        feed.route_networks = Some(CsvTable::default());
+
+        let mut notices = NoticeContainer::new();
+        NetworkIdConsistencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_ROUTE_NETWORKS_SPECIFIED_IN_MORE_THAN_ONE_FILE));
+    }
+
+    #[test]
+    fn detects_network_id_in_routes_and_networks() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![Default::default()],
+            ..Default::default()
+        };
+        feed.networks = Some(CsvTable::default());
+
+        let mut notices = NoticeContainer::new();
+        NetworkIdConsistencyValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_ROUTE_NETWORKS_SPECIFIED_IN_MORE_THAN_ONE_FILE));
+    }
+
+    #[test]
+    fn passes_when_only_in_routes() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["network_id".to_string()],
+            rows: vec![Default::default()],
+            ..Default::default()
+        };
+
+        let mut notices = NoticeContainer::new();
+        NetworkIdConsistencyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

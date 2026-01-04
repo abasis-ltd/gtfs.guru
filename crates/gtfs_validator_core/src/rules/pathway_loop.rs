@@ -42,3 +42,58 @@ impl Validator for PathwayLoopValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::Pathway;
+
+    #[test]
+    fn detects_pathway_loop() {
+        let mut feed = GtfsFeed::default();
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                from_stop_id: "S1".to_string(),
+                to_stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayLoopValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_PATHWAY_LOOP);
+    }
+
+    #[test]
+    fn passes_normal_pathway() {
+        let mut feed = GtfsFeed::default();
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                from_stop_id: "S1".to_string(),
+                to_stop_id: "S2".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayLoopValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

@@ -106,3 +106,102 @@ fn foreign_key_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{FareAttribute, FareRule, Route};
+
+    #[test]
+    fn detects_missing_fare_id() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_attributes = Some(CsvTable {
+            headers: vec!["fare_id".to_string()],
+            rows: vec![FareAttribute {
+                fare_id: "F1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.fare_rules = Some(CsvTable {
+            headers: vec!["fare_id".to_string()],
+            rows: vec![FareRule {
+                fare_id: "UNKNOWN".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareRulesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FOREIGN_KEY_VIOLATION
+        );
+    }
+
+    #[test]
+    fn detects_missing_route_id() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.fare_rules = Some(CsvTable {
+            headers: vec!["fare_id".to_string(), "route_id".to_string()],
+            rows: vec![FareRule {
+                fare_id: "F1".to_string(),
+                route_id: Some("UNKNOWN".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareRulesValidator.validate(&feed, &mut notices);
+
+        assert!(notices.len() >= 1);
+        assert!(notices.iter().any(|n| n.code == CODE_FOREIGN_KEY_VIOLATION));
+    }
+
+    #[test]
+    fn passes_valid_rule() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_attributes = Some(CsvTable {
+            headers: vec!["fare_id".to_string()],
+            rows: vec![FareAttribute {
+                fare_id: "F1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.fare_rules = Some(CsvTable {
+            headers: vec!["fare_id".to_string(), "route_id".to_string()],
+            rows: vec![FareRule {
+                fare_id: "F1".to_string(),
+                route_id: Some("R1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareRulesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

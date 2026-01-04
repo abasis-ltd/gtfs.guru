@@ -65,3 +65,82 @@ impl Validator for TripServiceIdForeignKeyValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Calendar, CalendarDate, Trip};
+
+    #[test]
+    fn detects_missing_service_id() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "service_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                service_id: "missing_service".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripServiceIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_FOREIGN_KEY_VIOLATION));
+    }
+
+    #[test]
+    fn passes_service_id_in_calendar() {
+        let mut feed = GtfsFeed::default();
+        feed.calendar = Some(CsvTable {
+            headers: vec!["service_id".to_string()],
+            rows: vec![Calendar {
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "service_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripServiceIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+
+    #[test]
+    fn passes_service_id_in_calendar_dates() {
+        let mut feed = GtfsFeed::default();
+        feed.calendar_dates = Some(CsvTable {
+            headers: vec!["service_id".to_string()],
+            rows: vec![CalendarDate {
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "service_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripServiceIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

@@ -38,3 +38,75 @@ impl Validator for LocationsGeoJsonPresenceValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geojson::LocationsGeoJson;
+    use crate::{CsvTable, NoticeContainer};
+    use gtfs_model::StopTime;
+
+    #[test]
+    fn detects_missing_locations_geojson() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                location_id: Some("L1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.locations = None;
+
+        let mut notices = NoticeContainer::new();
+        LocationsGeoJsonPresenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, "missing_required_file");
+        assert_eq!(
+            notices.iter().next().unwrap().message,
+            "missing required GTFS file"
+        );
+    }
+
+    #[test]
+    fn passes_when_locations_geojson_present() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                location_id: Some("L1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.locations = Some(LocationsGeoJson::default());
+
+        let mut notices = NoticeContainer::new();
+        LocationsGeoJsonPresenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn passes_when_no_location_id_used() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            rows: vec![StopTime {
+                stop_id: "S1".to_string(),
+                location_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.locations = None;
+
+        let mut notices = NoticeContainer::new();
+        LocationsGeoJsonPresenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

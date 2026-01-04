@@ -65,3 +65,84 @@ impl Validator for TimeframeServiceIdForeignKeyValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Calendar, CalendarDate, Timeframe};
+
+    #[test]
+    fn detects_missing_service_id() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec!["service_id".to_string()],
+            rows: vec![Timeframe {
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        // No calendar or calendar_dates
+
+        let mut notices = NoticeContainer::new();
+        TimeframeServiceIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FOREIGN_KEY_VIOLATION
+        );
+    }
+
+    #[test]
+    fn passes_when_service_id_in_calendar() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec!["service_id".to_string()],
+            rows: vec![Timeframe {
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.calendar = Some(CsvTable {
+            headers: vec!["service_id".to_string()],
+            rows: vec![Calendar {
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeServiceIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn passes_when_service_id_in_calendar_dates() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec!["service_id".to_string()],
+            rows: vec![Timeframe {
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.calendar_dates = Some(CsvTable {
+            headers: vec!["service_id".to_string()],
+            rows: vec![CalendarDate {
+                service_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeServiceIdForeignKeyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

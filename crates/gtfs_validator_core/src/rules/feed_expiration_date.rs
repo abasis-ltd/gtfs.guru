@@ -75,3 +75,104 @@ fn populate_expiration_notice(notice: &mut ValidationNotice, row_number: u64) {
     ];
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::FeedInfo;
+
+    #[test]
+    fn detects_expiration_within_7_days() {
+        let _guard =
+            crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap()));
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec![
+                "feed_publisher_name".to_string(),
+                "feed_end_date".to_string(),
+            ],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: None,
+                feed_end_date: Some(GtfsDate::parse("20240520").unwrap()), // Within 7 days of 2024-05-18
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedExpirationDateValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FEED_EXPIRATION_DATE_7_DAYS
+        );
+    }
+
+    #[test]
+    fn detects_expiration_within_30_days() {
+        let _guard =
+            crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap()));
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec![
+                "feed_publisher_name".to_string(),
+                "feed_end_date".to_string(),
+            ],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: None,
+                feed_end_date: Some(GtfsDate::parse("20240610").unwrap()), // Within 30 days of 2024-05-18
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedExpirationDateValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FEED_EXPIRATION_DATE_30_DAYS
+        );
+    }
+
+    #[test]
+    fn passes_far_expiration() {
+        let _guard =
+            crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap()));
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec![
+                "feed_publisher_name".to_string(),
+                "feed_end_date".to_string(),
+            ],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: None,
+                feed_end_date: Some(GtfsDate::parse("20250101").unwrap()),
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedExpirationDateValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

@@ -81,3 +81,124 @@ fn forbidden_transfer_count_notice(row_number: u64) -> ValidationNotice {
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::FareTransferRule;
+
+    #[test]
+    fn detects_invalid_transfer_count() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec![
+                "from_leg_group_id".to_string(),
+                "to_leg_group_id".to_string(),
+                "transfer_count".to_string(),
+            ],
+            rows: vec![FareTransferRule {
+                from_leg_group_id: Some("G1".to_string()),
+                to_leg_group_id: Some("G1".to_string()),
+                transfer_count: Some(0),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleTransferCountValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_INVALID_TRANSFER_COUNT
+        );
+    }
+
+    #[test]
+    fn detects_missing_transfer_count() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec![
+                "from_leg_group_id".to_string(),
+                "to_leg_group_id".to_string(),
+            ],
+            rows: vec![FareTransferRule {
+                from_leg_group_id: Some("G1".to_string()),
+                to_leg_group_id: Some("G1".to_string()),
+                transfer_count: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleTransferCountValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_TRANSFER_COUNT
+        );
+    }
+
+    #[test]
+    fn detects_forbidden_transfer_count() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec![
+                "from_leg_group_id".to_string(),
+                "to_leg_group_id".to_string(),
+                "transfer_count".to_string(),
+            ],
+            rows: vec![FareTransferRule {
+                from_leg_group_id: Some("G1".to_string()),
+                to_leg_group_id: Some("G2".to_string()),
+                transfer_count: Some(1),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleTransferCountValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_FORBIDDEN_TRANSFER_COUNT
+        );
+    }
+
+    #[test]
+    fn passes_valid_combination() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec![
+                "from_leg_group_id".to_string(),
+                "to_leg_group_id".to_string(),
+                "transfer_count".to_string(),
+            ],
+            rows: vec![
+                FareTransferRule {
+                    from_leg_group_id: Some("G1".to_string()),
+                    to_leg_group_id: Some("G1".to_string()),
+                    transfer_count: Some(1),
+                    ..Default::default()
+                },
+                FareTransferRule {
+                    from_leg_group_id: Some("G1".to_string()),
+                    to_leg_group_id: Some("G2".to_string()),
+                    transfer_count: None,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleTransferCountValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

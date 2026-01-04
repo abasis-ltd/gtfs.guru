@@ -42,3 +42,107 @@ fn missing_feed_info_date_notice(field: &str, row_number: u64) -> ValidationNoti
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{FeedInfo, GtfsDate};
+
+    #[test]
+    fn detects_missing_end_date() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec![
+                "feed_publisher_name".to_string(),
+                "feed_start_date".to_string(),
+            ],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
+                feed_end_date: None,
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedServiceDateValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_FEED_INFO_DATE
+        );
+        assert!(notices
+            .iter()
+            .next()
+            .unwrap()
+            .message
+            .contains("feed_end_date"));
+    }
+
+    #[test]
+    fn detects_missing_start_date() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec![
+                "feed_publisher_name".to_string(),
+                "feed_end_date".to_string(),
+            ],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: None,
+                feed_end_date: Some(GtfsDate::parse("20240101").unwrap()),
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedServiceDateValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert!(notices
+            .iter()
+            .next()
+            .unwrap()
+            .message
+            .contains("feed_start_date"));
+    }
+
+    #[test]
+    fn passes_both_dates_present() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec![
+                "feed_publisher_name".to_string(),
+                "feed_start_date".to_string(),
+                "feed_end_date".to_string(),
+            ],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
+                feed_end_date: Some(GtfsDate::parse("20241231").unwrap()),
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedServiceDateValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

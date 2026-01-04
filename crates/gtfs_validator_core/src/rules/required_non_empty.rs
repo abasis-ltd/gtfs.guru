@@ -30,3 +30,40 @@ impl Validator for RequiredTablesNotEmptyValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::notice::NOTICE_CODE_EMPTY_TABLE;
+    use crate::{GtfsFeed, NoticeContainer};
+    use gtfs_model::{Agency, Route, Stop, StopTime, Trip};
+
+    #[test]
+    fn detects_empty_required_tables() {
+        let mut feed = GtfsFeed::default();
+        // CsvTable::default() has empty rows and empty headers by default.
+        // For stops.txt, it only emits NOTICE_CODE_EMPTY_TABLE if headers are not empty.
+        feed.stops.headers = vec!["stop_id".to_string()];
+
+        let mut notices = NoticeContainer::new();
+        RequiredTablesNotEmptyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 5);
+        let codes: Vec<_> = notices.iter().map(|n| n.code.as_str()).collect();
+        assert!(codes.iter().all(|&c| c == NOTICE_CODE_EMPTY_TABLE));
+    }
+
+    #[test]
+    fn passes_when_tables_are_not_empty() {
+        let mut feed = GtfsFeed::default();
+        feed.agency.rows = vec![Agency::default()];
+        feed.stops.rows = vec![Stop::default()];
+        feed.routes.rows = vec![Route::default()];
+        feed.trips.rows = vec![Trip::default()];
+        feed.stop_times.rows = vec![StopTime::default()];
+
+        let mut notices = NoticeContainer::new();
+        RequiredTablesNotEmptyValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

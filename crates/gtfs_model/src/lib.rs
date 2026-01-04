@@ -18,7 +18,7 @@ pub enum GtfsParseError {
     InvalidColorFormat(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct GtfsDate {
     year: i32,
     month: u8,
@@ -94,12 +94,16 @@ impl<'de> Deserialize<'de> for GtfsDate {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct GtfsTime {
     total_seconds: i32,
 }
 
 impl GtfsTime {
+    pub fn from_seconds(total_seconds: i32) -> Self {
+        Self { total_seconds }
+    }
+
     pub fn parse(value: &str) -> Result<Self, GtfsParseError> {
         let trimmed = value.trim();
         let parts: Vec<&str> = trimmed.split(':').collect();
@@ -181,12 +185,18 @@ impl<'de> Deserialize<'de> for GtfsTime {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct GtfsColor {
     rgb: u32,
 }
 
 impl GtfsColor {
+    pub fn new(r: u8, g: u8, b: u8) -> Self {
+        Self {
+            rgb: (r as u32) << 16 | (g as u32) << 8 | (b as u32),
+        }
+    }
+
     pub fn parse(value: &str) -> Result<Self, GtfsParseError> {
         let trimmed = value.trim();
         if trimmed.len() != 6 || !trimmed.chars().all(|ch| ch.is_ascii_hexdigit()) {
@@ -412,8 +422,9 @@ pub enum BikesAllowed {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Default)]
 pub enum ServiceAvailability {
+    #[default]
     #[serde(rename = "0")]
     Unavailable,
     #[serde(rename = "1")]
@@ -422,12 +433,13 @@ pub enum ServiceAvailability {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Default)]
 pub enum ExceptionType {
     #[serde(rename = "1")]
     Added,
     #[serde(rename = "2")]
     Removed,
+    #[default]
     #[serde(other)]
     Other,
 }
@@ -454,12 +466,13 @@ pub enum Transfers {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Default)]
 pub enum ExactTimes {
     #[serde(rename = "0")]
     FrequencyBased,
     #[serde(rename = "1")]
     ExactTimes,
+    #[default]
     #[serde(other)]
     Other,
 }
@@ -482,8 +495,9 @@ pub enum TransferType {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Default)]
 pub enum PathwayMode {
+    #[default]
     #[serde(rename = "1")]
     Walkway,
     #[serde(rename = "2")]
@@ -502,8 +516,9 @@ pub enum PathwayMode {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Default)]
 pub enum Bidirectional {
+    #[default]
     #[serde(rename = "0")]
     Unidirectional,
     #[serde(rename = "1")]
@@ -879,7 +894,7 @@ impl Default for Calendar {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct CalendarDate {
     pub service_id: String,
     pub date: GtfsDate,
@@ -936,7 +951,7 @@ impl Default for FareRule {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Shape {
     pub shape_id: String,
     pub shape_pt_lat: f64,
@@ -945,7 +960,7 @@ pub struct Shape {
     pub shape_dist_traveled: Option<f64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Frequency {
     pub trip_id: String,
     pub start_time: GtfsTime,
@@ -993,7 +1008,7 @@ pub struct StopArea {
     pub stop_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Timeframe {
     pub timeframe_group_id: Option<String>,
     pub start_time: Option<GtfsTime>,
@@ -1008,6 +1023,16 @@ pub struct FareMedia {
     pub fare_media_type: FareMediaType,
 }
 
+impl Default for FareMedia {
+    fn default() -> Self {
+        Self {
+            fare_media_id: String::new(),
+            fare_media_name: None,
+            fare_media_type: FareMediaType::NoneType,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareProduct {
     pub fare_product_id: String,
@@ -1016,6 +1041,19 @@ pub struct FareProduct {
     pub currency: String,
     pub fare_media_id: Option<String>,
     pub rider_category_id: Option<String>,
+}
+
+impl Default for FareProduct {
+    fn default() -> Self {
+        Self {
+            fare_product_id: String::new(),
+            fare_product_name: None,
+            amount: 0.0,
+            currency: String::new(),
+            fare_media_id: None,
+            rider_category_id: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1030,6 +1068,21 @@ pub struct FareLegRule {
     pub rule_priority: Option<u32>,
 }
 
+impl Default for FareLegRule {
+    fn default() -> Self {
+        Self {
+            leg_group_id: None,
+            network_id: None,
+            from_area_id: None,
+            to_area_id: None,
+            from_timeframe_group_id: None,
+            to_timeframe_group_id: None,
+            fare_product_id: String::new(),
+            rule_priority: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareTransferRule {
     pub from_leg_group_id: Option<String>,
@@ -1039,6 +1092,20 @@ pub struct FareTransferRule {
     pub fare_transfer_type: FareTransferType,
     pub transfer_count: Option<i32>,
     pub fare_product_id: Option<String>,
+}
+
+impl Default for FareTransferRule {
+    fn default() -> Self {
+        Self {
+            from_leg_group_id: None,
+            to_leg_group_id: None,
+            duration_limit: None,
+            duration_limit_type: None,
+            fare_transfer_type: FareTransferType::APlusAb,
+            transfer_count: None,
+            fare_product_id: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1051,6 +1118,19 @@ pub struct FareLegJoinRule {
     pub to_area_id: Option<String>,
 }
 
+impl Default for FareLegJoinRule {
+    fn default() -> Self {
+        Self {
+            from_network_id: String::new(),
+            to_network_id: String::new(),
+            from_stop_id: None,
+            to_stop_id: None,
+            from_area_id: None,
+            to_area_id: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct RiderCategory {
     pub rider_category_id: String,
@@ -1060,14 +1140,25 @@ pub struct RiderCategory {
     pub eligibility_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+impl Default for RiderCategory {
+    fn default() -> Self {
+        Self {
+            rider_category_id: String::new(),
+            rider_category_name: String::new(),
+            is_default_fare_category: None,
+            eligibility_url: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct LocationGroup {
     pub location_group_id: String,
     pub location_group_name: Option<String>,
     pub location_group_desc: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct LocationGroupStop {
     pub location_group_id: String,
     pub stop_id: String,
@@ -1077,6 +1168,15 @@ pub struct LocationGroupStop {
 pub struct Network {
     pub network_id: String,
     pub network_name: Option<String>,
+}
+
+impl Default for Network {
+    fn default() -> Self {
+        Self {
+            network_id: String::new(),
+            network_name: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1112,14 +1212,14 @@ pub struct Attribution {
     pub attribution_phone: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Level {
     pub level_id: String,
     pub level_index: f64,
     pub level_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Pathway {
     pub pathway_id: String,
     pub from_stop_id: String,
@@ -1135,7 +1235,7 @@ pub struct Pathway {
     pub reversed_signposted_as: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Translation {
     pub table_name: String,
     pub field_name: String,

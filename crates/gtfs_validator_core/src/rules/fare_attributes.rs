@@ -49,3 +49,51 @@ fn number_out_of_range_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::FareAttribute;
+
+    #[test]
+    fn detects_negative_price() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_attributes = Some(CsvTable {
+            headers: vec!["fare_id".to_string(), "price".to_string()],
+            rows: vec![FareAttribute {
+                fare_id: "F1".to_string(),
+                price: -5.0,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareAttributesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_NUMBER_OUT_OF_RANGE
+        );
+    }
+
+    #[test]
+    fn passes_valid_price() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_attributes = Some(CsvTable {
+            headers: vec!["fare_id".to_string(), "price".to_string()],
+            rows: vec![FareAttribute {
+                fare_id: "F1".to_string(),
+                price: 5.0,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareAttributesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

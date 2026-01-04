@@ -71,3 +71,123 @@ impl Validator for UnusedStopValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{LocationType, Stop, StopTime};
+
+    #[test]
+    fn detects_unused_stop() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "stop_name".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_name: Some("Stop 1".to_string()),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    stop_name: Some("Stop 2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UnusedStopValidator.validate(&feed, &mut notices);
+
+        assert_eq!(
+            notices
+                .iter()
+                .filter(|n| n.code == CODE_UNUSED_STOP)
+                .count(),
+            1
+        );
+        let notice = notices.iter().find(|n| n.code == CODE_UNUSED_STOP).unwrap();
+        assert_eq!(
+            notice.context.get("stopId").unwrap().as_str().unwrap(),
+            "S2"
+        );
+    }
+
+    #[test]
+    fn passes_used_stop_and_parent_station() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_name".to_string(),
+                "parent_station".to_string(),
+                "location_type".to_string(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    stop_name: Some("Stop 1".to_string()),
+                    parent_station: Some("ST1".to_string()),
+                    location_type: Some(LocationType::StopOrPlatform),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "ST1".to_string(),
+                    stop_name: Some("Station 1".to_string()),
+                    location_type: Some(LocationType::Station),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UnusedStopValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+
+    #[test]
+    fn detects_unused_station_without_used_children() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_name".to_string(),
+                "location_type".to_string(),
+            ],
+            rows: vec![Stop {
+                stop_id: "ST1".to_string(),
+                stop_name: Some("Station 1".to_string()),
+                location_type: Some(LocationType::Station),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable::default();
+
+        let mut notices = NoticeContainer::new();
+        UnusedStopValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_UNUSED_STOP));
+    }
+}

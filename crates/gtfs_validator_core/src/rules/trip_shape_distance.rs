@@ -149,3 +149,191 @@ fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     radius_meters * c
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Shape, Stop, StopTime, Trip};
+
+    #[test]
+    fn detects_trip_exceeds_shape_distance_above_threshold() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "shape_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                shape_id: Some("SH1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string(), "shape_dist_traveled".to_string()],
+            rows: vec![Shape {
+                shape_id: "SH1".to_string(),
+                shape_dist_traveled: Some(10.0),
+                shape_pt_lat: 40.7128,
+                shape_pt_lon: -74.0060,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_lat: Some(40.7128),
+                stop_lon: Some(-73.0060), // Far away (~100km)
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "shape_dist_traveled".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                stop_sequence: 1,
+                shape_dist_traveled: Some(20.0), // Greater than shape distance
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripAndShapeDistanceValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRIP_DISTANCE_EXCEEDS_SHAPE_DISTANCE));
+    }
+
+    #[test]
+    fn detects_trip_exceeds_shape_distance_below_threshold() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "shape_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                shape_id: Some("SH1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string(), "shape_dist_traveled".to_string()],
+            rows: vec![Shape {
+                shape_id: "SH1".to_string(),
+                shape_dist_traveled: Some(10.0),
+                shape_pt_lat: 40.7128,
+                shape_pt_lon: -74.0060,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_lat: Some(40.7128),
+                stop_lon: Some(-74.0060), // Exact same location
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "shape_dist_traveled".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                stop_sequence: 1,
+                shape_dist_traveled: Some(20.0), // Greater than shape distance
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripAndShapeDistanceValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRIP_DISTANCE_EXCEEDS_SHAPE_DISTANCE_BELOW_THRESHOLD));
+    }
+
+    #[test]
+    fn passes_valid_trip_shape_distance() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "shape_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                shape_id: Some("SH1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string(), "shape_dist_traveled".to_string()],
+            rows: vec![Shape {
+                shape_id: "SH1".to_string(),
+                shape_dist_traveled: Some(20.0),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".to_string(),
+                "stop_lat".to_string(),
+                "stop_lon".to_string(),
+            ],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                stop_lat: Some(40.7128),
+                stop_lon: Some(-74.0060),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "shape_dist_traveled".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                stop_sequence: 1,
+                shape_dist_traveled: Some(10.0), // Less than shape distance
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TripAndShapeDistanceValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

@@ -553,3 +553,145 @@ fn route_network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Stop, Translation};
+
+    #[test]
+    fn detects_missing_required_fields() {
+        let mut feed = GtfsFeed::default();
+        feed.translations = Some(CsvTable {
+            headers: vec![
+                "table_name".to_string(),
+                "field_name".to_string(),
+                "language".to_string(),
+            ],
+            rows: vec![
+                Translation {
+                    table_name: "stops".to_string(),
+                    field_name: "stop_name".to_string(),
+                    language: "".to_string(), // Missing language
+                    ..Default::default()
+                },
+                Translation {
+                    table_name: "".to_string(), // Missing table_name
+                    field_name: "stop_name".to_string(),
+                    language: "en".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TranslationFieldAndReferenceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(
+            notices
+                .iter()
+                .filter(|n| n.code == CODE_MISSING_REQUIRED_FIELD)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn detects_unknown_table_name() {
+        let mut feed = GtfsFeed::default();
+        feed.translations = Some(CsvTable {
+            headers: vec![
+                "table_name".to_string(),
+                "field_name".to_string(),
+                "language".to_string(),
+                "record_id".to_string(),
+            ],
+            rows: vec![Translation {
+                table_name: "unknown_table".to_string(),
+                field_name: "field".to_string(),
+                language: "en".to_string(),
+                record_id: Some("1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TranslationFieldAndReferenceValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSLATION_UNKNOWN_TABLE_NAME));
+    }
+
+    #[test]
+    fn detects_foreign_key_violation() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        feed.translations = Some(CsvTable {
+            headers: vec![
+                "table_name".to_string(),
+                "field_name".to_string(),
+                "language".to_string(),
+                "record_id".to_string(),
+            ],
+            rows: vec![Translation {
+                table_name: "stops".to_string(),
+                field_name: "stop_name".to_string(),
+                language: "en".to_string(),
+                record_id: Some("S2".to_string()), // Does not exist
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TranslationFieldAndReferenceValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSLATION_FOREIGN_KEY_VIOLATION));
+    }
+
+    #[test]
+    fn passes_valid_translation() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        feed.translations = Some(CsvTable {
+            headers: vec![
+                "table_name".to_string(),
+                "field_name".to_string(),
+                "language".to_string(),
+                "record_id".to_string(),
+            ],
+            rows: vec![Translation {
+                table_name: "stops".to_string(),
+                field_name: "stop_name".to_string(),
+                language: "en".to_string(),
+                record_id: Some("S1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TranslationFieldAndReferenceValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

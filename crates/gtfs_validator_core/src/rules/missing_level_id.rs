@@ -81,3 +81,122 @@ impl Validator for MissingLevelIdValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Level, Pathway, Stop};
+
+    #[test]
+    fn detects_missing_level_id_when_levels_present() {
+        let mut feed = GtfsFeed::default();
+        feed.levels = Some(CsvTable {
+            headers: vec!["level_id".to_string()],
+            rows: vec![Level {
+                level_id: "L1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                from_stop_id: "S1".to_string(),
+                to_stop_id: "S2".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    level_id: None,
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    level_id: Some("L1".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        MissingLevelIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_MISSING_LEVEL_ID);
+        assert_eq!(
+            notices.iter().next().unwrap().message,
+            "stops.level_id is required when levels.txt is present and stop is part of a pathway"
+        );
+    }
+
+    #[test]
+    fn passes_when_levels_missing() {
+        let mut feed = GtfsFeed::default();
+        feed.levels = None;
+        feed.pathways = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string()],
+            rows: vec![Pathway {
+                from_stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                level_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        MissingLevelIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn passes_when_stop_not_in_pathway() {
+        let mut feed = GtfsFeed::default();
+        feed.levels = Some(CsvTable {
+            headers: vec!["level_id".to_string()],
+            rows: vec![Level::default()],
+            row_numbers: vec![2],
+        });
+        feed.pathways = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string()],
+            rows: vec![Pathway {
+                from_stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S2".to_string(),
+                level_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        MissingLevelIdValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

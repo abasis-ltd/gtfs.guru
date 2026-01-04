@@ -69,3 +69,115 @@ impl Validator for PathwayDanglingGenericNodeValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{LocationType, Pathway, Stop};
+
+    #[test]
+    fn detects_dangling_generic_node() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![Stop {
+                stop_id: "G1".to_string(),
+                location_type: Some(LocationType::GenericNode),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![Pathway {
+                pathway_id: "P1".to_string(),
+                from_stop_id: "G1".to_string(),
+                to_stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayDanglingGenericNodeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_PATHWAY_DANGLING_GENERIC_NODE
+        );
+    }
+
+    #[test]
+    fn passes_when_node_has_two_pathways() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![Stop {
+                stop_id: "G1".to_string(),
+                location_type: Some(LocationType::GenericNode),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".to_string(),
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+            ],
+            rows: vec![
+                Pathway {
+                    pathway_id: "P1".to_string(),
+                    from_stop_id: "G1".to_string(),
+                    to_stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Pathway {
+                    pathway_id: "P2".to_string(),
+                    from_stop_id: "S2".to_string(),
+                    to_stop_id: "G1".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayDanglingGenericNodeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_non_generic_node() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                location_type: Some(LocationType::StopOrPlatform),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.pathways = Some(CsvTable {
+            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            rows: vec![Pathway {
+                from_stop_id: "S1".to_string(),
+                to_stop_id: "S2".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayDanglingGenericNodeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

@@ -74,3 +74,67 @@ fn time_greater_than_24_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, Timeframe};
+
+    #[test]
+    fn detects_only_one_time_specified() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec!["start_time".to_string()],
+            rows: vec![Timeframe {
+                start_time: Some(GtfsTime::from_seconds(3600)),
+                end_time: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeStartAndEndTimeValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_ONLY_START_OR_END));
+    }
+
+    #[test]
+    fn detects_time_greater_than_24() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec!["start_time".to_string(), "end_time".to_string()],
+            rows: vec![Timeframe {
+                start_time: Some(GtfsTime::from_seconds(25 * 3600)),
+                end_time: Some(GtfsTime::from_seconds(26 * 3600)),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeStartAndEndTimeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 2);
+        assert!(notices.iter().all(|n| n.code == CODE_TIME_GREATER_THAN_24));
+    }
+
+    #[test]
+    fn passes_valid_times() {
+        let mut feed = GtfsFeed::default();
+        feed.timeframes = Some(CsvTable {
+            headers: vec!["start_time".to_string(), "end_time".to_string()],
+            rows: vec![Timeframe {
+                start_time: Some(GtfsTime::from_seconds(3600)),
+                end_time: Some(GtfsTime::from_seconds(7200)),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeStartAndEndTimeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

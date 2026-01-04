@@ -655,3 +655,190 @@ fn missing_ref_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Route, RouteType, Stop, StopTime, Trip};
+
+    #[test]
+    fn detects_missing_trip_id_in_stop_times() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "NONEXISTENT".to_string(),
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ReferentialIntegrityValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_FOREIGN_KEY_VIOLATION);
+        assert_eq!(
+            notice
+                .context
+                .get("childFieldName")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "trip_id"
+        );
+        assert_eq!(
+            notice.context.get("fieldValue").unwrap().as_str().unwrap(),
+            "NONEXISTENT"
+        );
+    }
+
+    #[test]
+    fn detects_missing_stop_id_in_stop_times() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "NONEXISTENT".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ReferentialIntegrityValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_FOREIGN_KEY_VIOLATION);
+        assert_eq!(
+            notice
+                .context
+                .get("childFieldName")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "stop_id"
+        );
+    }
+
+    #[test]
+    fn detects_missing_route_id_in_trips() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "NONEXISTENT".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ReferentialIntegrityValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_FOREIGN_KEY_VIOLATION);
+        assert_eq!(
+            notice
+                .context
+                .get("childFieldName")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "route_id"
+        );
+    }
+
+    #[test]
+    fn passes_with_valid_references() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![Stop {
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_id: "S1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ReferentialIntegrityValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+

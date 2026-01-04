@@ -37,8 +37,14 @@ impl Validator for UnusedRouteValidator {
                 notice.file = Some(ROUTES_FILE.to_string());
                 notice.insert_context_field("csvRowNumber", feed.routes.row_number(index));
                 notice.insert_context_field("routeId", route_id);
-                notice.insert_context_field("routeShortName", route.route_short_name.as_deref().unwrap_or(""));
-                notice.insert_context_field("routeLongName", route.route_long_name.as_deref().unwrap_or(""));
+                notice.insert_context_field(
+                    "routeShortName",
+                    route.route_short_name.as_deref().unwrap_or(""),
+                );
+                notice.insert_context_field(
+                    "routeLongName",
+                    route.route_long_name.as_deref().unwrap_or(""),
+                );
                 notice.field_order = vec![
                     "csvRowNumber".to_string(),
                     "routeId".to_string(),
@@ -51,3 +57,86 @@ impl Validator for UnusedRouteValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Route, Trip};
+
+    #[test]
+    fn detects_unused_route() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_short_name".to_string()],
+            rows: vec![
+                Route {
+                    route_id: "R1".to_string(),
+                    route_short_name: Some("Route 1".to_string()),
+                    ..Default::default()
+                },
+                Route {
+                    route_id: "R2".to_string(),
+                    route_short_name: Some("Route 2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UnusedRouteValidator.validate(&feed, &mut notices);
+
+        assert_eq!(
+            notices
+                .iter()
+                .filter(|n| n.code == CODE_UNUSED_ROUTE)
+                .count(),
+            1
+        );
+        let notice = notices
+            .iter()
+            .find(|n| n.code == CODE_UNUSED_ROUTE)
+            .unwrap();
+        assert_eq!(
+            notice.context.get("routeId").unwrap().as_str().unwrap(),
+            "R2"
+        );
+    }
+
+    #[test]
+    fn passes_when_all_routes_used() {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec!["route_id".to_string(), "route_short_name".to_string()],
+            rows: vec![Route {
+                route_id: "R1".to_string(),
+                route_short_name: Some("Route 1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                route_id: "R1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UnusedRouteValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

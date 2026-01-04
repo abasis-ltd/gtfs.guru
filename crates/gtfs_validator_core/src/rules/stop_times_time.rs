@@ -178,3 +178,169 @@ impl Validator for TimepointTimeValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, StopTime, Timepoint};
+
+    #[test]
+    fn detects_only_one_time_specified() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "arrival_time".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                arrival_time: Some(GtfsTime::from_seconds(3600)),
+                departure_time: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeArrivalAndDepartureTimeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_STOP_TIME_WITH_ONLY_ARRIVAL_OR_DEPARTURE_TIME));
+    }
+
+    #[test]
+    fn detects_arrival_before_previous_departure() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "arrival_time".to_string(),
+                "departure_time".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    arrival_time: Some(GtfsTime::from_seconds(3600)),
+                    departure_time: Some(GtfsTime::from_seconds(3700)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(3650)), // Before 3700
+                    departure_time: Some(GtfsTime::from_seconds(3800)),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeArrivalAndDepartureTimeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_STOP_TIME_WITH_ARRIVAL_BEFORE_PREVIOUS_DEPARTURE_TIME));
+    }
+
+    #[test]
+    fn detects_timepoint_without_times() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "timepoint".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                timepoint: Some(Timepoint::Exact),
+                arrival_time: None,
+                departure_time: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TimepointTimeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_STOP_TIME_TIMEPOINT_WITHOUT_TIMES));
+    }
+
+    #[test]
+    fn detects_missing_timepoint_value() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "arrival_time".to_string(),
+                "timepoint".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                arrival_time: Some(GtfsTime::from_seconds(3600)),
+                departure_time: Some(GtfsTime::from_seconds(3600)),
+                timepoint: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        TimepointTimeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MISSING_TIMEPOINT_VALUE));
+    }
+
+    #[test]
+    fn passes_valid_times_and_timepoints() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "arrival_time".to_string(),
+                "departure_time".to_string(),
+                "timepoint".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 1,
+                    arrival_time: Some(GtfsTime::from_seconds(3600)),
+                    departure_time: Some(GtfsTime::from_seconds(3700)),
+                    timepoint: Some(Timepoint::Exact),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(4000)),
+                    departure_time: Some(GtfsTime::from_seconds(4100)),
+                    timepoint: Some(Timepoint::Exact),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeArrivalAndDepartureTimeValidator.validate(&feed, &mut notices);
+        TimepointTimeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

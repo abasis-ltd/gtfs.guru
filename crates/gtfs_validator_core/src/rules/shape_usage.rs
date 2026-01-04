@@ -48,3 +48,63 @@ impl Validator for ShapeUsageValidator {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Shape, Trip};
+
+    #[test]
+    fn detects_unused_shape() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![Shape {
+                shape_id: "SH1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                shape_id: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ShapeUsageValidator.validate(&feed, &mut notices);
+
+        assert!(notices.iter().any(|n| n.code == CODE_UNUSED_SHAPE));
+    }
+
+    #[test]
+    fn passes_used_shape() {
+        let mut feed = GtfsFeed::default();
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".to_string()],
+            rows: vec![Shape {
+                shape_id: "SH1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".to_string(), "shape_id".to_string()],
+            rows: vec![Trip {
+                trip_id: "T1".to_string(),
+                shape_id: Some("SH1".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ShapeUsageValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

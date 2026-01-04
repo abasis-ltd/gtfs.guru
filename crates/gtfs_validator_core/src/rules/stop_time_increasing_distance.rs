@@ -93,3 +93,156 @@ fn has_stop_id(stop_time: &gtfs_model::StopTime) -> bool {
     !stop_time.stop_id.trim().is_empty()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::StopTime;
+
+    #[test]
+    fn detects_decreasing_distance() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "shape_dist_traveled".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    shape_dist_traveled: Some(10.0),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    shape_dist_traveled: Some(5.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_DECREASING_OR_EQUAL_STOP_TIME_DISTANCE
+        );
+    }
+
+    #[test]
+    fn detects_equal_distance() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "shape_dist_traveled".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    shape_dist_traveled: Some(10.0),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    shape_dist_traveled: Some(10.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_DECREASING_OR_EQUAL_STOP_TIME_DISTANCE
+        );
+    }
+
+    #[test]
+    fn passes_increasing_distance() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+                "shape_dist_traveled".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    shape_dist_traveled: Some(10.0),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    shape_dist_traveled: Some(15.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_without_shape_dist_traveled_header() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    shape_dist_traveled: Some(10.0),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    shape_dist_traveled: Some(5.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+
+        let mut notices = NoticeContainer::new();
+        StopTimeIncreasingDistanceValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

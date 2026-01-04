@@ -243,3 +243,250 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{LocationType, Stop, StopTime, Transfer, TransferType};
+
+    #[test]
+    fn detects_missing_required_trip_ids() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+                "transfer_type".to_string(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                transfer_type: Some(TransferType::InSeat),
+                from_trip_id: None, // Missing
+                to_trip_id: None,   // Missing
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(
+            notices
+                .iter()
+                .filter(|n| n.code == CODE_MISSING_REQUIRED_FIELD)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn detects_station_in_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    location_type: Some(LocationType::Station),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+                "transfer_type".to_string(),
+                "from_trip_id".to_string(),
+                "to_trip_id".to_string(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                transfer_type: Some(TransferType::InSeat),
+                from_trip_id: Some("T1".to_string()),
+                to_trip_id: Some("T2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSFER_WITH_INVALID_STOP_LOCATION_TYPE));
+    }
+
+    #[test]
+    fn detects_suspicious_mid_trip_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S1_END".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3, 4],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1_END".to_string(),
+                    stop_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+                "transfer_type".to_string(),
+                "from_trip_id".to_string(),
+                "to_trip_id".to_string(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()), // Not the end of T1
+                to_stop_id: Some("S2".to_string()),
+                transfer_type: Some(TransferType::InSeat),
+                from_trip_id: Some("T1".to_string()),
+                to_trip_id: Some("T2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSFER_WITH_SUSPICIOUS_MID_TRIP_IN_SEAT));
+    }
+
+    #[test]
+    fn passes_valid_in_seat_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".to_string()],
+            rows: vec![
+                Stop {
+                    stop_id: "S1".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S1_END".to_string(),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: "S2".to_string(),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3, 4],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_id".to_string(),
+                "stop_sequence".to_string(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T1".to_string(),
+                    stop_id: "S1_END".to_string(),
+                    stop_sequence: 10,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T2".to_string(),
+                    stop_id: "S1_END".to_string(),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: "T2".to_string(),
+                    stop_id: "S2".to_string(),
+                    stop_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3, 4, 5],
+        };
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+                "transfer_type".to_string(),
+                "from_trip_id".to_string(),
+                "to_trip_id".to_string(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1_END".to_string()),
+                to_stop_id: Some("S1_END".to_string()),
+                transfer_type: Some(TransferType::InSeat),
+                from_trip_id: Some("T1".to_string()),
+                to_trip_id: Some("T2".to_string()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

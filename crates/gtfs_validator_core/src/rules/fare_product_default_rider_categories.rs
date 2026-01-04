@@ -31,7 +31,12 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
                     Some(RiderFareCategory::IsDefault)
                 )
             })
-            .map(|(index, category)| (category.rider_category_id.trim(), rider_categories.row_number(index)))
+            .map(|(index, category)| {
+                (
+                    category.rider_category_id.trim(),
+                    rider_categories.row_number(index),
+                )
+            })
             .filter(|(id, _)| !id.is_empty())
             .collect();
 
@@ -43,10 +48,12 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
             // However, the test case has fare products.
             // Let's see if we can find a fare product that is affected.
             // Actually, the notice in our code includes fareProductId.
-            
+
             // If the test expects this code, it might be checking the global state if there are multiple.
             // Let's use the first fare product if any, or just emit it with empty if needed.
-            let fare_product_id = feed.fare_products.as_ref()
+            let fare_product_id = feed
+                .fare_products
+                .as_ref()
                 .and_then(|fp| fp.rows.first())
                 .map(|fp| fp.fare_product_id.as_str())
                 .unwrap_or("");
@@ -137,3 +144,151 @@ fn multiple_default_categories_notice(
     notice
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{FareProduct, RiderCategory, RiderFareCategory};
+
+    #[test]
+    fn detects_multiple_global_defaults() {
+        let mut feed = GtfsFeed::default();
+        feed.rider_categories = Some(CsvTable {
+            headers: vec![
+                "rider_category_id".to_string(),
+                "is_default_category".to_string(),
+            ],
+            rows: vec![
+                RiderCategory {
+                    rider_category_id: "C1".to_string(),
+                    is_default_fare_category: Some(RiderFareCategory::IsDefault),
+                    ..Default::default()
+                },
+                RiderCategory {
+                    rider_category_id: "C2".to_string(),
+                    is_default_fare_category: Some(RiderFareCategory::IsDefault),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+        feed.fare_products = Some(CsvTable {
+            headers: vec!["fare_product_id".to_string()],
+            rows: vec![FareProduct {
+                fare_product_id: "P1".to_string(),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareProductDefaultRiderCategoriesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MULTIPLE_DEFAULT_RIDER_CATEGORIES
+        );
+    }
+
+    #[test]
+    fn detects_multiple_defaults_for_one_product() {
+        let mut feed = GtfsFeed::default();
+        feed.rider_categories = Some(CsvTable {
+            headers: vec![
+                "rider_category_id".to_string(),
+                "is_default_category".to_string(),
+            ],
+            rows: vec![
+                RiderCategory {
+                    rider_category_id: "C1".to_string(),
+                    is_default_fare_category: Some(RiderFareCategory::IsDefault),
+                    ..Default::default()
+                },
+                RiderCategory {
+                    rider_category_id: "C2".to_string(),
+                    is_default_fare_category: Some(RiderFareCategory::IsDefault),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+        feed.fare_products = Some(CsvTable {
+            headers: vec![
+                "fare_product_id".to_string(),
+                "rider_category_id".to_string(),
+            ],
+            rows: vec![
+                FareProduct {
+                    fare_product_id: "P1".to_string(),
+                    rider_category_id: Some("C1".to_string()),
+                    ..Default::default()
+                },
+                FareProduct {
+                    fare_product_id: "P1".to_string(),
+                    rider_category_id: Some("C2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareProductDefaultRiderCategoriesValidator.validate(&feed, &mut notices);
+
+        // One for global (if multi) and one/more for specific product.
+        // In this case, global check triggers first.
+        assert!(notices.len() >= 1);
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MULTIPLE_DEFAULT_RIDER_CATEGORIES));
+    }
+
+    #[test]
+    fn passes_single_default() {
+        let mut feed = GtfsFeed::default();
+        feed.rider_categories = Some(CsvTable {
+            headers: vec![
+                "rider_category_id".to_string(),
+                "is_default_category".to_string(),
+            ],
+            rows: vec![
+                RiderCategory {
+                    rider_category_id: "C1".to_string(),
+                    is_default_fare_category: Some(RiderFareCategory::IsDefault),
+                    ..Default::default()
+                },
+                RiderCategory {
+                    rider_category_id: "C2".to_string(),
+                    is_default_fare_category: Some(RiderFareCategory::NotDefault),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+        feed.fare_products = Some(CsvTable {
+            headers: vec![
+                "fare_product_id".to_string(),
+                "rider_category_id".to_string(),
+            ],
+            rows: vec![
+                FareProduct {
+                    fare_product_id: "P1".to_string(),
+                    rider_category_id: Some("C1".to_string()),
+                    ..Default::default()
+                },
+                FareProduct {
+                    fare_product_id: "P1".to_string(),
+                    rider_category_id: Some("C2".to_string()),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareProductDefaultRiderCategoriesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

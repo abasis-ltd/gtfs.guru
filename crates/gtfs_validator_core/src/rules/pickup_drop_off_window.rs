@@ -138,3 +138,118 @@ fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
     value.map(|time| time.to_string()).unwrap_or_default()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{GtfsTime, StopTime};
+
+    #[test]
+    fn detects_forbidden_arrival_departure() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "arrival_time".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                arrival_time: Some(GtfsTime::from_seconds(3700)), // Forbidden
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupDropOffWindowValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_FORBIDDEN_ARRIVAL_OR_DEPARTURE_TIME));
+    }
+
+    #[test]
+    fn detects_missing_window_half() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                end_pickup_drop_off_window: None,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupDropOffWindowValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_MISSING_PICKUP_OR_DROP_OFF_WINDOW));
+    }
+
+    #[test]
+    fn detects_invalid_window_order() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "end_pickup_drop_off_window".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
+                end_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)), // Invalid order
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupDropOffWindowValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_INVALID_PICKUP_DROP_OFF_WINDOW));
+    }
+
+    #[test]
+    fn passes_valid_window() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".to_string(),
+                "stop_sequence".to_string(),
+                "start_pickup_drop_off_window".to_string(),
+                "end_pickup_drop_off_window".to_string(),
+            ],
+            rows: vec![StopTime {
+                trip_id: "T1".to_string(),
+                stop_sequence: 1,
+                start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
+                end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        PickupDropOffWindowValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}

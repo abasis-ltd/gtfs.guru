@@ -4,6 +4,84 @@ use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validat
 const CODE_START_AND_END_RANGE_OUT_OF_ORDER: &str = "start_and_end_range_out_of_order";
 const CODE_START_AND_END_RANGE_EQUAL: &str = "start_and_end_range_equal";
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Frequency, GtfsTime};
+
+    #[test]
+    fn detects_start_after_end() {
+        let mut feed = GtfsFeed::default();
+        feed.frequencies = Some(CsvTable {
+            headers: vec!["trip_id".to_string(), "start_time".to_string(), "end_time".to_string()],
+            rows: vec![Frequency {
+                trip_id: "T1".to_string(),
+                start_time: GtfsTime::parse("10:00:00").unwrap(),
+                end_time: GtfsTime::parse("08:00:00").unwrap(),
+                headway_secs: 600,
+                exact_times: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FrequenciesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_START_AND_END_RANGE_OUT_OF_ORDER
+        );
+    }
+
+    #[test]
+    fn detects_start_equals_end() {
+        let mut feed = GtfsFeed::default();
+        feed.frequencies = Some(CsvTable {
+            headers: vec!["trip_id".to_string(), "start_time".to_string(), "end_time".to_string()],
+            rows: vec![Frequency {
+                trip_id: "T1".to_string(),
+                start_time: GtfsTime::parse("08:00:00").unwrap(),
+                end_time: GtfsTime::parse("08:00:00").unwrap(),
+                headway_secs: 600,
+                exact_times: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FrequenciesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_START_AND_END_RANGE_EQUAL
+        );
+    }
+
+    #[test]
+    fn passes_with_valid_frequency() {
+        let mut feed = GtfsFeed::default();
+        feed.frequencies = Some(CsvTable {
+            headers: vec!["trip_id".to_string(), "start_time".to_string(), "end_time".to_string()],
+            rows: vec![Frequency {
+                trip_id: "T1".to_string(),
+                start_time: GtfsTime::parse("08:00:00").unwrap(),
+                end_time: GtfsTime::parse("10:00:00").unwrap(),
+                headway_secs: 600,
+                exact_times: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FrequenciesValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct FrequenciesValidator;
 

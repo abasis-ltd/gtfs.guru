@@ -63,3 +63,87 @@ fn is_blank(value: Option<&str>) -> bool {
     value.map(|val| val.trim().is_empty()).unwrap_or(true)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{Transfer, TransferType};
+
+    #[test]
+    fn detects_missing_stop_ids_for_regular_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+                "transfer_type".to_string(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: None, // Missing
+                to_stop_id: None,   // Missing
+                transfer_type: Some(TransferType::Recommended),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransferStopIdsConditionalValidator.validate(&feed, &mut notices);
+
+        assert_eq!(
+            notices
+                .iter()
+                .filter(|n| n.code == CODE_MISSING_REQUIRED_FIELD)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn skips_check_for_in_seat_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+                "transfer_type".to_string(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: None,
+                to_stop_id: None,
+                transfer_type: Some(TransferType::InSeat),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransferStopIdsConditionalValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+
+    #[test]
+    fn passes_valid_transfer() {
+        let mut feed = GtfsFeed::default();
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".to_string(),
+                "to_stop_id".to_string(),
+                "transfer_type".to_string(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: Some("S1".to_string()),
+                to_stop_id: Some("S2".to_string()),
+                transfer_type: Some(TransferType::Recommended),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        TransferStopIdsConditionalValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
+    }
+}

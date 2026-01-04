@@ -119,3 +119,128 @@ fn is_blank(value: Option<&str>) -> bool {
     value.map(|val| val.trim().is_empty()).unwrap_or(true)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::{FeedInfo, GtfsDate};
+
+    #[test]
+    fn detects_start_date_after_end_date() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec!["feed_publisher_name".to_string()],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: Some(GtfsDate::parse("20250601").unwrap()),
+                feed_end_date: Some(GtfsDate::parse("20250101").unwrap()),
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedInfoValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_START_AND_END_RANGE_OUT_OF_ORDER
+        );
+    }
+
+    #[test]
+    fn detects_missing_contact() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec!["feed_publisher_name".to_string()],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: None,
+                feed_end_date: None,
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedContactValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MISSING_FEED_CONTACT_EMAIL_AND_URL
+        );
+    }
+
+    #[test]
+    fn detects_more_than_one_feed_info() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec!["feed_publisher_name".to_string()],
+            rows: vec![
+                FeedInfo {
+                    feed_publisher_name: "Test1".to_string(),
+                    feed_publisher_url: "http://example1.com".to_string(),
+                    feed_lang: "en".to_string(),
+                    feed_start_date: None,
+                    feed_end_date: None,
+                    feed_version: None,
+                    feed_contact_email: Some("test@test.com".to_string()),
+                    feed_contact_url: None,
+                },
+                FeedInfo {
+                    feed_publisher_name: "Test2".to_string(),
+                    feed_publisher_url: "http://example2.com".to_string(),
+                    feed_lang: "en".to_string(),
+                    feed_start_date: None,
+                    feed_end_date: None,
+                    feed_version: None,
+                    feed_contact_email: Some("test@test.com".to_string()),
+                    feed_contact_url: None,
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedInfoValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_MORE_THAN_ONE_ENTITY);
+    }
+
+    #[test]
+    fn passes_with_valid_feed_info() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec!["feed_publisher_name".to_string()],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".to_string(),
+                feed_publisher_url: "http://example.com".to_string(),
+                feed_lang: "en".to_string(),
+                feed_start_date: Some(GtfsDate::parse("20250101").unwrap()),
+                feed_end_date: Some(GtfsDate::parse("20251231").unwrap()),
+                feed_version: None,
+                feed_contact_email: Some("test@test.com".to_string()),
+                feed_contact_url: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedInfoValidator.validate(&feed, &mut notices);
+        FeedContactValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
+

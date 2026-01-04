@@ -67,3 +67,78 @@ impl MediaKey {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CsvTable;
+    use gtfs_model::FareMedia;
+
+    #[test]
+    fn detects_duplicate_fare_media() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_media = Some(CsvTable {
+            headers: vec![
+                "fare_media_id".to_string(),
+                "fare_media_name".to_string(),
+                "fare_media_type".to_string(),
+            ],
+            rows: vec![
+                FareMedia {
+                    fare_media_id: "M1".to_string(),
+                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_type: FareMediaType::NoneType,
+                },
+                FareMedia {
+                    fare_media_id: "M2".to_string(),
+                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_type: FareMediaType::NoneType,
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        DuplicateFareMediaValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_DUPLICATE_FARE_MEDIA
+        );
+    }
+
+    #[test]
+    fn passes_different_fare_media() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_media = Some(CsvTable {
+            headers: vec![
+                "fare_media_id".to_string(),
+                "fare_media_name".to_string(),
+                "fare_media_type".to_string(),
+            ],
+            rows: vec![
+                FareMedia {
+                    fare_media_id: "M1".to_string(),
+                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_type: FareMediaType::NoneType,
+                },
+                FareMedia {
+                    fare_media_id: "M2".to_string(),
+                    fare_media_name: Some("Card".to_string()),
+                    fare_media_type: FareMediaType::NoneType,
+                },
+                FareMedia {
+                    fare_media_id: "M3".to_string(),
+                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_type: FareMediaType::TransitCard,
+                },
+            ],
+            row_numbers: vec![2, 3, 4],
+        });
+
+        let mut notices = NoticeContainer::new();
+        DuplicateFareMediaValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
+    }
+}
