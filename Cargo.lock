@@ -1572,16 +1572,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtfs_model"
+name = "gtfs-guru"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "serde",
- "thiserror 1.0.69",
+ "gtfs_validator_core",
+ "gtfs_validator_report",
+ "pyo3",
+ "pyo3-async-runtimes",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
-name = "gtfs_validator_cli"
+name = "gtfs-guru-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1593,6 +1597,32 @@ dependencies = [
  "serde_json",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "gtfs-guru-web"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "gtfs_validator_core",
+ "gtfs_validator_report",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "gtfs_model"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1633,19 +1663,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtfs_validator_python"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "gtfs_validator_core",
- "gtfs_validator_report",
- "pyo3",
- "pyo3-async-runtimes",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "gtfs_validator_report"
 version = "0.1.0"
 dependencies = [
@@ -1668,23 +1685,6 @@ dependencies = [
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-test",
-]
-
-[[package]]
-name = "gtfs_validator_web"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64 0.22.1",
- "gtfs_validator_core",
- "gtfs_validator_report",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

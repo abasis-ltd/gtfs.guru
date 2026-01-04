@@ -89,7 +89,7 @@
                     </div>
                     <div class="window-body">
                         <div class="command-line">
-                            <span class="prompt">➜</span> <span class="cmd">gtfs-validator</span> <span
+                            <span class="prompt">➜</span> <span class="cmd">gtfs-guru</span> <span
                                 class="arg">--url</span> value_feed.zip
                         </div>
                         <div class="output">
@@ -191,9 +191,9 @@
                 <div class="tech-col">
                     <h3>Python API</h3>
                     <div class="code-block glass-card">
-                        <pre><code>import gtfs_validator
+                        <pre><code>import gtfs_guru
 
-result = gtfs_validator.validate("feed.zip")
+result = gtfs_guru.validate("feed.zip")
 
 if result.is_valid:
     print(f"Success in {result.time}s")
@@ -223,8 +223,8 @@ else:
                 <p>Join the future of transit data validation today.</p>
                 <div class="install-options">
                     <div class="install-cmd">
-                        <code>pip install gtfs-validator</code>
-                        <button class="copy-tiny" data-text="pip install gtfs-validator">Copy</button>
+                        <code>pip install gtfs.guru</code>
+                        <button class="copy-tiny" data-text="pip install gtfs.guru">Copy</button>
                     </div>
                 </div>
             </div>

@@ -1,8 +1,12 @@
 [package]
-name = "gtfs_validator_cli"
+name = "gtfs-guru-cli"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
+
+[[bin]]
+name = "gtfs-guru"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }

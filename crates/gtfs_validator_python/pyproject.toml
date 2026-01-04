@@ -3,7 +3,7 @@ requires = ["maturin>=1.4,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "gtfs-validator"
+name = "gtfs.guru"
 version = "0.1.0"
 description = "Fast GTFS validator written in Rust"
 readme = "README.md"
@@ -31,4 +31,4 @@ Repository = "https://github.com/user/gtfs-validator-rust"
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
-module-name = "gtfs_validator"
+module-name = "gtfs_guru"

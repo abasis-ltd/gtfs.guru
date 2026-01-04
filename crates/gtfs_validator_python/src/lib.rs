@@ -480,11 +480,11 @@ fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyObject {
 /// GTFS Validator Python bindings.
 ///
 /// Example:
-///     >>> import gtfs_validator
-///     >>> result = gtfs_validator.validate("/path/to/gtfs.zip")
+///     >>> import gtfs_guru
+///     >>> result = gtfs_guru.validate("/path/to/gtfs.zip")
 ///     >>> print(f"Valid: {result.is_valid}, Errors: {result.error_count}")
 #[pymodule]
-fn gtfs_validator(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn gtfs_guru(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     m.add_function(wrap_pyfunction!(validate_async, m)?)?;
     m.add_function(wrap_pyfunction!(version, m)?)?;
