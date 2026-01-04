@@ -24,6 +24,11 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libglib2.0-dev clang libclang-dev
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -60,7 +65,10 @@ jobs:
         run: wasm-pack test --node crates/gtfs_validator_wasm
 
       - name: Install binaryen (wasm-opt)
-        run: sudo apt-get update && sudo apt-get install -y binaryen
+        run: |
+          wget https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
+          tar -xzf binaryen-version_117-x86_64-linux.tar.gz
+          sudo mv binaryen-version_117/bin/* /usr/local/bin/
 
       - name: Optimize WASM binary
         run: |
