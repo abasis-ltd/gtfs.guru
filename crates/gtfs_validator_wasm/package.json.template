@@ -1,5 +1,5 @@
 {
-  "name": "@gtfs-validator/wasm",
+  "name": "gtfs.guru",
   "version": "0.1.0",
   "description": "GTFS feed validator - WebAssembly build. Validate GTFS feeds entirely in the browser.",
   "main": "gtfs_validator_wasm.js",

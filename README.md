@@ -57,11 +57,11 @@ cargo tauri dev
 ### Option 5: WebAssembly (Browser)
 
 ```bash
-npm install @gtfs-validator/wasm
+npm install gtfs.guru
 ```
 
 ```javascript
-import init, { validate_gtfs } from '@gtfs-validator/wasm';
+import init, { validate_gtfs } from 'gtfs.guru';
 
 await init();
 const bytes = new Uint8Array(await file.arrayBuffer());
@@ -478,21 +478,21 @@ Run the validator entirely in the browser - no server required. All validation h
 ### Installation
 
 ```bash
-npm install @gtfs-validator/wasm
+npm install gtfs.guru
 ```
 
 Or use CDN:
 
 ```html
 <script type="module">
-  import init, { validate_gtfs } from 'https://unpkg.com/@gtfs-validator/wasm/gtfs_validator_wasm.js';
+  import init, { validate_gtfs } from 'https://unpkg.com/gtfs.guru/gtfs_validator_wasm.js';
 </script>
 ```
 
 ### Basic Usage
 
 ```javascript
-import init, { validate_gtfs, version } from '@gtfs-validator/wasm';
+import init, { validate_gtfs, version } from 'gtfs.guru';
 
 // Initialize once
 await init();
@@ -516,7 +516,7 @@ const notices = JSON.parse(result.json);
 For large files, use the Web Worker wrapper:
 
 ```javascript
-import { GtfsValidator } from '@gtfs-validator/wasm';
+import { GtfsValidator } from 'gtfs.guru';
 
 const validator = new GtfsValidator();
 await validator.waitUntilReady();

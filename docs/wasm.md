@@ -7,18 +7,18 @@ The GTFS Validator can run entirely in the browser using WebAssembly. No server 
 ### npm / yarn / pnpm
 
 ```bash
-npm install @gtfs-validator/wasm
+npm install gtfs.guru
 # or
-yarn add @gtfs-validator/wasm
+yarn add gtfs.guru
 # or
-pnpm add @gtfs-validator/wasm
+pnpm add gtfs.guru
 ```
 
 ### CDN
 
 ```html
 <script type="module">
-  import init, { validate_gtfs } from 'https://unpkg.com/@gtfs-validator/wasm/gtfs_validator_wasm.js';
+  import init, { validate_gtfs } from 'https://unpkg.com/gtfs.guru/gtfs_validator_wasm.js';
 </script>
 ```
 
@@ -26,7 +26,7 @@ Or use jsDelivr:
 
 ```html
 <script type="module">
-  import init, { validate_gtfs } from 'https://cdn.jsdelivr.net/npm/@gtfs-validator/wasm/gtfs_validator_wasm.js';
+  import init, { validate_gtfs } from 'https://cdn.jsdelivr.net/npm/gtfs.guru/gtfs_validator_wasm.js';
 </script>
 ```
 
@@ -35,7 +35,7 @@ Or use jsDelivr:
 ### Browser (ES Modules)
 
 ```javascript
-import init, { validate_gtfs, version } from '@gtfs-validator/wasm';
+import init, { validate_gtfs, version } from 'gtfs.guru';
 
 async function main() {
   // Initialize WASM module (required once)
@@ -69,7 +69,7 @@ main();
 
 ```javascript
 const fs = require('fs');
-const { init, validate_gtfs } = require('@gtfs-validator/wasm');
+const { init, validate_gtfs } = require('gtfs.guru');
 
 async function main() {
   await init();
@@ -89,7 +89,7 @@ main();
 For better user experience, use the Web Worker to avoid blocking the main thread:
 
 ```javascript
-import { GtfsValidator } from '@gtfs-validator/wasm';
+import { GtfsValidator } from 'gtfs.guru';
 
 const validator = new GtfsValidator();
 
@@ -122,10 +122,12 @@ Returns the validator version string.
 Validates a GTFS ZIP file.
 
 **Parameters:**
+
 - `bytes: Uint8Array` - Raw bytes of the GTFS ZIP file
 - `countryCode?: string` - Optional ISO 3166-1 alpha-2 country code (e.g., "US", "DE", "RU")
 
 **Returns:** `ValidationResult` object with:
+
 - `json: string` - Full validation report as JSON
 - `error_count: number` - Number of errors
 - `warning_count: number` - Number of warnings
@@ -171,7 +173,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ['@gtfs-validator/wasm']
+    exclude: ['gtfs.guru']
   }
 });
 ```
@@ -207,7 +209,7 @@ export default {
 TypeScript definitions are included. Import types like this:
 
 ```typescript
-import type { ValidationResult, ValidationNotice, NoticeSeverity } from '@gtfs-validator/wasm';
+import type { ValidationResult, ValidationNotice, NoticeSeverity } from 'gtfs.guru';
 ```
 
 ## Memory Considerations
