@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/abasis-ltd/gtfs.guru/actions/workflows/ci.yml/badge.svg)](https://github.com/abasis-ltd/gtfs.guru/actions)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/v/gtfs_validator_core.svg)](https://crates.io/crates/gtfs_validator_core)
-[![PyPI](https://img.shields.io/pypi/v/gtfs-validator.svg)](https://pypi.org/project/gtfs-validator/)
+[![Crates.io](https://img.shields.io/crates/v/gtfs-guru.svg)](https://crates.io/crates/gtfs-guru)
+[![PyPI](https://img.shields.io/pypi/v/gtfs-guru.svg)](https://pypi.org/project/gtfs-guru/)
 
 **The world's fastest and most versatile GTFS validator.**
 
@@ -25,7 +25,7 @@ Building on the legacy of the original Java validator, we re-engineered everythi
 ### For Developers
 
 * **Drop-in Replacement:** Fully compatible with the Google/MobilityData validator output format.
-* **Universal API:** Bindings for Python, Rust, and WebAssembly.
+* **Universal API:** Bindings for Python (`gtfs-guru`), Rust, and WebAssembly.
 * **CI/CD Ready:** Tiny binary size, zero dependencies, and JSON output for automated pipelines.
 
 ---
@@ -46,13 +46,13 @@ You don't need to install anything. Just visit our website (coming soon) or run 
 Perfect for analyzing feeds in Jupyter notebooks or scripts.
 
 ```bash
-pip install gtfs-validator
+pip install gtfs-guru
 ```
 
 ```python
 import gtfs_guru
 
-report = gtfs_validator.validate("gtfs.zip")
+report = gtfs_guru.validate("gtfs.zip")
 print(f"Is valid: {report.is_valid}")
 print(f"Errors: {report.error_count}")
 report.save_html("report.html")
@@ -64,10 +64,10 @@ The classic command-line tool.
 
 ```bash
 # Build (or download binary from Releases)
-cargo build --release -p gtfs_validator_cli
+cargo build --release -p gtfs-guru-cli
 
 # Run
-./target/release/gtfs_validator_cli -i gtfs.zip -o output_dir
+./target/release/gtfs-guru -i gtfs.zip -o output_dir
 ```
 
 ---
@@ -113,7 +113,7 @@ let result = Validator::new().validate(input)?;
 Deploy your own validation API (compatible with serverless):
 
 ```bash
-cargo run --release -p gtfs_validator_web
+cargo run --release -p gtfs-guru-web
 # POST /create-job -> Validate feed from URL
 ```
 
@@ -133,10 +133,10 @@ A native GUI for macOS, Windows, and Linux.
 This repository is organized as a workspace of multiple crates:
 
 * **`crates/gtfs_validator_core`**: The brain. Contains all 88 validation rules.
-* **`crates/gtfs_validator_cli`**: Command-line tool.
-* **`crates/gtfs_validator_python`**: Python bindings.
+* **`crates/gtfs_validator_cli`**: Command-line tool (crate: `gtfs-guru-cli`).
+* **`crates/gtfs_validator_python`**: Python bindings (package: `gtfs-guru`).
 * **`crates/gtfs_validator_wasm`**: WebAssembly module.
-* **`crates/gtfs_validator_web`**: Web API server.
+* **`crates/gtfs_validator_web`**: Web API server (crate: `gtfs-guru-web`).
 * **`crates/gtfs_validator_gui`**: Desktop application (Tauri).
 
 ## 🤝 Contributing

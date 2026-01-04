@@ -3,14 +3,15 @@
 ## From Source (Rust)
 
 ```bash
-git clone https://github.com/user/gtfs-validator-rust
-cd gtfs-validator-rust
+git clone https://github.com/abasis-ltd/gtfs.guru
+cd gtfs.guru
 cargo build --release
 ```
 
 Binaries will be in `target/release/`:
-- `gtfs_validator_cli` — command-line tool
-- `gtfs_validator_web` — web server
+
+- `gtfs-guru` — command-line tool
+- `gtfs-guru-web` — web server
 
 ## Python Package
 

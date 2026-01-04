@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . .
 
 # Build the web service in release mode with optimizations
-RUN CARGO_INCREMENTAL=0 cargo build --release --bin gtfs_validator_web
+RUN CARGO_INCREMENTAL=0 cargo build --release --bin gtfs-guru-web
 
 # ============================================================================
 # Stage 2: Runtime (minimal image ~100MB)
@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /usr/src/app/target/release/gtfs_validator_web .
+COPY --from=builder /usr/src/app/target/release/gtfs-guru-web .
 
 # Create data directory with proper permissions
 RUN mkdir -p /data/jobs && chown -R gtfs:gtfs /data /app
@@ -57,4 +57,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -sf http://localhost:3000/healthz || exit 1
 
 # Run the validator
-CMD ["./gtfs_validator_web"]
+CMD ["./gtfs-guru-web"]

@@ -6,10 +6,11 @@
 
 ```bash
 # Validate local file
-gtfs_validator_cli --input /path/to/gtfs.zip --output_base ./report
+
+gtfs-guru --input /path/to/gtfs.zip --output_base ./report
 
 # Validate from URL
-gtfs_validator_cli --url https://example.com/gtfs.zip --output_base ./report
+gtfs-guru --url https://example.com/gtfs.zip --output_base ./report
 ```
 
 ### CLI Options
@@ -33,7 +34,7 @@ gtfs_validator_cli --url https://example.com/gtfs.zip --output_base ./report
 ### Starting the Server
 
 ```bash
-cargo run --release -p gtfs_validator_web
+cargo run --release -p gtfs-guru-web
 # Server starts at http://localhost:3000
 ```
 
