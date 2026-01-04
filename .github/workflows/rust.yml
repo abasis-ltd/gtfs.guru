@@ -73,7 +73,7 @@ jobs:
 
       - name: Optimize WASM binary
         run: |
-          ./binaryen-version_117/bin/wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-extension -o crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm
+          ./binaryen-version_117/bin/wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int -o crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm
           mv crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm
           echo "WASM size after optimization:"
           du -h crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm
