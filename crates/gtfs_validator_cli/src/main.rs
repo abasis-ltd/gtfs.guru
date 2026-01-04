@@ -243,12 +243,11 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> any
                 FixSafety::Unsafe => unsafe_count += 1,
             }
 
-            if let FixOperation::ReplaceField { file, .. } = &fix.operation {
-                fixes_by_file
-                    .entry(file.clone())
-                    .or_default()
-                    .push((notice, fix));
-            }
+            let FixOperation::ReplaceField { file, .. } = &fix.operation;
+            fixes_by_file
+                .entry(file.clone())
+                .or_default()
+                .push((notice, fix));
         }
     }
 
@@ -282,25 +281,23 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> any
                     continue;
                 }
 
-                if let FixOperation::ReplaceField {
+                let FixOperation::ReplaceField {
                     row,
                     field,
                     original,
                     replacement,
                     ..
-                } = &fix.operation
-                {
-                    let safety_label = match fix.safety {
-                        FixSafety::Safe => "[SAFE]",
-                        FixSafety::RequiresConfirmation => "[CONFIRM]",
-                        FixSafety::Unsafe => "[UNSAFE]",
-                    };
-                    println!("{} {} row {}, field '{}':", safety_label, file, row, field);
-                    println!("  Error: {} ({})", notice.message, notice.code);
-                    println!("  - {}", original);
-                    println!("  + {}", replacement);
-                    println!();
-                }
+                } = &fix.operation;
+                let safety_label = match fix.safety {
+                    FixSafety::Safe => "[SAFE]",
+                    FixSafety::RequiresConfirmation => "[CONFIRM]",
+                    FixSafety::Unsafe => "[UNSAFE]",
+                };
+                println!("{} {} row {}, field '{}':", safety_label, file, row, field);
+                println!("  Error: {} ({})", notice.message, notice.code);
+                println!("  - {}", original);
+                println!("  + {}", replacement);
+                println!();
             }
         }
         println!("Run with --fix to apply safe fixes, or --fix-unsafe to apply all.");
@@ -329,20 +326,18 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> any
 
                 if should_apply {
                     // For MVP, just log. Full implementation would modify the file.
-                    if let FixOperation::ReplaceField {
+                    let FixOperation::ReplaceField {
                         row,
                         field,
                         original,
                         replacement,
                         ..
-                    } = &fix.operation
-                    {
-                        info!(
-                            "Would fix {}: row {}, {} '{}' -> '{}'",
-                            file, row, field, original, replacement
-                        );
-                        applied += 1;
-                    }
+                    } = &fix.operation;
+                    info!(
+                        "Would fix {}: row {}, {} '{}' -> '{}'",
+                        file, row, field, original, replacement
+                    );
+                    applied += 1;
                 } else {
                     skipped += 1;
                 }

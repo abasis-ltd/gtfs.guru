@@ -205,16 +205,13 @@ mod tests {
         let fix = notice.fix.as_ref().expect("should suggest a fix");
         assert_eq!(fix.safety, FixSafety::Safe);
 
-        if let FixOperation::ReplaceField {
+        let FixOperation::ReplaceField {
             original,
             replacement,
             ..
-        } = &fix.operation
-        {
-            assert_eq!(original, "www.example.com");
-            assert_eq!(replacement, "https://www.example.com");
-        } else {
-            panic!("expected ReplaceField operation");
-        }
+        } = &fix.operation;
+
+        assert_eq!(original, "www.example.com");
+        assert_eq!(replacement, "https://www.example.com");
     }
 }
