@@ -383,7 +383,15 @@ mod tests {
             notice.context.get("fieldValue").unwrap().as_str().unwrap(),
             "S1"
         );
-        assert_eq!(notice.context.get("csvRowNumber").unwrap().as_u64().unwrap(), 3);
+        assert_eq!(
+            notice
+                .context
+                .get("csvRowNumber")
+                .unwrap()
+                .as_u64()
+                .unwrap(),
+            3
+        );
         assert_eq!(
             notice
                 .context
@@ -521,4 +529,3 @@ mod tests {
         assert_eq!(notices.len(), 0);
     }
 }
-

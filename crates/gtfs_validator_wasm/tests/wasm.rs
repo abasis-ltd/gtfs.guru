@@ -26,7 +26,10 @@ fn test_version() {
 fn test_validate_empty_bytes() {
     let result = validate_gtfs(&[], None);
     // Empty bytes should produce errors
-    assert!(result.error_count() > 0, "Empty input should produce errors");
+    assert!(
+        result.error_count() > 0,
+        "Empty input should produce errors"
+    );
     assert!(!result.is_valid(), "Empty input should not be valid");
 }
 
@@ -35,7 +38,10 @@ fn test_validate_invalid_zip() {
     let invalid_data = vec![0u8; 100];
     let result = validate_gtfs(&invalid_data, None);
     // Invalid ZIP should produce errors
-    assert!(result.error_count() > 0, "Invalid ZIP should produce errors");
+    assert!(
+        result.error_count() > 0,
+        "Invalid ZIP should produce errors"
+    );
     assert!(!result.is_valid(), "Invalid ZIP should not be valid");
 }
 
@@ -50,7 +56,10 @@ fn test_validate_with_country_code() {
 fn test_validate_json_returns_valid_json() {
     let json = validate_gtfs_json(&[], None);
     // Should be valid JSON (at minimum an empty array or error object)
-    assert!(json.starts_with('[') || json.starts_with('{'), "Should return valid JSON");
+    assert!(
+        json.starts_with('[') || json.starts_with('{'),
+        "Should return valid JSON"
+    );
 }
 
 #[wasm_bindgen_test]

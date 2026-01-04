@@ -720,4 +720,3 @@ mod tests {
         assert!(locations.bounds_by_id.contains_key("42"));
     }
 }
-

@@ -599,8 +599,7 @@ pub enum RiderFareCategory {
     Other,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Agency {
     pub agency_id: Option<String>,
     pub agency_name: String,
@@ -612,9 +611,7 @@ pub struct Agency {
     pub agency_email: Option<String>,
 }
 
-
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Stop {
     pub stop_id: String,
     pub stop_code: Option<String>,
@@ -646,7 +643,6 @@ impl Stop {
         self.stop_lat.is_some() && self.stop_lon.is_some()
     }
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Route {
@@ -689,8 +685,7 @@ impl Default for Route {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Trip {
     pub route_id: String,
     pub service_id: String,
@@ -706,8 +701,7 @@ pub struct Trip {
     pub continuous_drop_off: Option<ContinuousPickupDropOff>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct StopTime {
     pub trip_id: String,
     pub arrival_time: Option<GtfsTime>,
@@ -729,8 +723,6 @@ pub struct StopTime {
     pub end_pickup_drop_off_window: Option<GtfsTime>,
     pub stop_direction_name: Option<String>,
 }
-
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BookingRules {
@@ -846,8 +838,7 @@ impl Default for FareAttribute {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct FareRule {
     pub fare_id: String,
     pub route_id: Option<String>,
@@ -856,7 +847,6 @@ pub struct FareRule {
     pub contains_id: Option<String>,
     pub contains_route_id: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Shape {
@@ -876,8 +866,7 @@ pub struct Frequency {
     pub exact_times: Option<ExactTimes>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Transfer {
     pub from_stop_id: Option<String>,
     pub to_stop_id: Option<String>,
@@ -888,7 +877,6 @@ pub struct Transfer {
     pub from_trip_id: Option<String>,
     pub to_trip_id: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Area {
@@ -950,8 +938,7 @@ impl Default for FareProduct {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct FareLegRule {
     pub leg_group_id: Option<String>,
     pub network_id: Option<String>,
@@ -962,7 +949,6 @@ pub struct FareLegRule {
     pub fare_product_id: String,
     pub rule_priority: Option<u32>,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareTransferRule {
@@ -989,8 +975,7 @@ impl Default for FareTransferRule {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct FareLegJoinRule {
     pub from_network_id: String,
     pub to_network_id: String,
@@ -1000,9 +985,7 @@ pub struct FareLegJoinRule {
     pub to_area_id: Option<String>,
 }
 
-
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct RiderCategory {
     pub rider_category_id: String,
     pub rider_category_name: String,
@@ -1010,7 +993,6 @@ pub struct RiderCategory {
     pub is_default_fare_category: Option<RiderFareCategory>,
     pub eligibility_url: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct LocationGroup {
@@ -1025,13 +1007,11 @@ pub struct LocationGroupStop {
     pub stop_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Network {
     pub network_id: String,
     pub network_name: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RouteNetwork {

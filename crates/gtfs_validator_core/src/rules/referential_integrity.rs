@@ -841,4 +841,3 @@ mod tests {
         assert_eq!(notices.len(), 0);
     }
 }
-

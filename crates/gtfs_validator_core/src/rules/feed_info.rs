@@ -215,7 +215,10 @@ mod tests {
         FeedInfoValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices.iter().next().unwrap().code, CODE_MORE_THAN_ONE_ENTITY);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_MORE_THAN_ONE_ENTITY
+        );
     }
 
     #[test]
@@ -243,4 +246,3 @@ mod tests {
         assert_eq!(notices.len(), 0);
     }
 }
-

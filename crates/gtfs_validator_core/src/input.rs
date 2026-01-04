@@ -500,7 +500,9 @@ impl GtfsBytesReader {
 
     /// Create a new reader from a byte slice (copies the data)
     pub fn from_slice(data: &[u8]) -> Self {
-        Self { data: data.to_vec() }
+        Self {
+            data: data.to_vec(),
+        }
     }
 
     pub fn read_file(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
@@ -514,11 +516,13 @@ impl GtfsBytesReader {
         match archive.by_name(file_name) {
             Ok(mut zipped) => {
                 let mut buffer = Vec::new();
-                zipped.read_to_end(&mut buffer).map_err(|err| GtfsInputError::ZipFileIo {
-                    path: PathBuf::from("<memory>"),
-                    file: file_name.to_string(),
-                    source: err,
-                })?;
+                zipped
+                    .read_to_end(&mut buffer)
+                    .map_err(|err| GtfsInputError::ZipFileIo {
+                        path: PathBuf::from("<memory>"),
+                        file: file_name.to_string(),
+                        source: err,
+                    })?;
                 return Ok(buffer);
             }
             Err(zip::result::ZipError::FileNotFound) => {}
@@ -538,10 +542,12 @@ impl GtfsBytesReader {
 
         for index in 0..archive.len() {
             let (name, is_dir) = {
-                let file = archive.by_index(index).map_err(|err| GtfsInputError::ZipFile {
-                    file: file_name.to_string(),
-                    source: err,
-                })?;
+                let file = archive
+                    .by_index(index)
+                    .map_err(|err| GtfsInputError::ZipFile {
+                        file: file_name.to_string(),
+                        source: err,
+                    })?;
                 (file.name().to_string(), file.is_dir())
             };
             if is_dir {
@@ -568,7 +574,10 @@ impl GtfsBytesReader {
                     matched_name = Some(lower);
                 }
                 Some(current_depth) if depth == current_depth => {
-                    let should_replace = matched_name.as_ref().map(|best| lower < *best).unwrap_or(true);
+                    let should_replace = matched_name
+                        .as_ref()
+                        .map(|best| lower < *best)
+                        .unwrap_or(true);
                     if should_replace {
                         matched_index = Some(index);
                         matched_name = Some(lower);
@@ -582,20 +591,27 @@ impl GtfsBytesReader {
             return Err(GtfsInputError::MissingFile(file_name.to_string()));
         };
 
-        let mut zipped = archive.by_index(index).map_err(|err| GtfsInputError::ZipFile {
-            file: file_name.to_string(),
-            source: err,
-        })?;
+        let mut zipped = archive
+            .by_index(index)
+            .map_err(|err| GtfsInputError::ZipFile {
+                file: file_name.to_string(),
+                source: err,
+            })?;
         let mut buffer = Vec::new();
-        zipped.read_to_end(&mut buffer).map_err(|err| GtfsInputError::ZipFileIo {
-            path: PathBuf::from("<memory>"),
-            file: file_name.to_string(),
-            source: err,
-        })?;
+        zipped
+            .read_to_end(&mut buffer)
+            .map_err(|err| GtfsInputError::ZipFileIo {
+                path: PathBuf::from("<memory>"),
+                file: file_name.to_string(),
+                source: err,
+            })?;
         Ok(buffer)
     }
 
-    pub fn read_csv<T: DeserializeOwned>(&self, file_name: &str) -> Result<CsvTable<T>, GtfsInputError> {
+    pub fn read_csv<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+    ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
         read_csv_from_reader(data.as_slice(), file_name).map_err(GtfsInputError::Csv)
     }
@@ -607,8 +623,8 @@ impl GtfsBytesReader {
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
         validate_csv_data(file_name, &data, notices);
-        let (table, errors) =
-            read_csv_from_reader_with_errors(data.as_slice(), file_name).map_err(GtfsInputError::Csv)?;
+        let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+            .map_err(GtfsInputError::Csv)?;
         for error in errors {
             if skip_csv_parse_error(&table, &error) {
                 continue;
@@ -639,8 +655,8 @@ impl GtfsBytesReader {
         match self.read_file(file_name) {
             Ok(data) => {
                 validate_csv_data(file_name, &data, notices);
-                let (table, errors) =
-                    read_csv_from_reader_with_errors(data.as_slice(), file_name).map_err(GtfsInputError::Csv)?;
+                let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+                    .map_err(GtfsInputError::Csv)?;
                 for error in errors {
                     if skip_csv_parse_error(&table, &error) {
                         continue;
@@ -688,10 +704,12 @@ impl GtfsBytesReader {
 
         let mut files = Vec::new();
         for index in 0..archive.len() {
-            let file = archive.by_index(index).map_err(|err| GtfsInputError::ZipFile {
-                file: "<memory>".to_string(),
-                source: err,
-            })?;
+            let file = archive
+                .by_index(index)
+                .map_err(|err| GtfsInputError::ZipFile {
+                    file: "<memory>".to_string(),
+                    source: err,
+                })?;
             if file.is_dir() {
                 continue;
             }

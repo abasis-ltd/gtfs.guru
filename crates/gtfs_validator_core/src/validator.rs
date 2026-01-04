@@ -41,10 +41,12 @@ impl ValidatorRunner {
         let captured_google_rules = crate::google_rules_enabled();
 
         #[cfg(feature = "parallel")]
-        let new_notices = self.run_parallel(feed, captured_date, captured_country, captured_google_rules);
+        let new_notices =
+            self.run_parallel(feed, captured_date, captured_country, captured_google_rules);
 
         #[cfg(not(feature = "parallel"))]
-        let new_notices = self.run_sequential(feed, captured_date, captured_country, captured_google_rules);
+        let new_notices =
+            self.run_sequential(feed, captured_date, captured_country, captured_google_rules);
 
         notices.merge(new_notices);
     }

@@ -14,7 +14,11 @@ mod tests {
     fn detects_start_after_end() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec!["trip_id".to_string(), "start_time".to_string(), "end_time".to_string()],
+            headers: vec![
+                "trip_id".to_string(),
+                "start_time".to_string(),
+                "end_time".to_string(),
+            ],
             rows: vec![Frequency {
                 trip_id: "T1".to_string(),
                 start_time: GtfsTime::parse("10:00:00").unwrap(),
@@ -39,7 +43,11 @@ mod tests {
     fn detects_start_equals_end() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec!["trip_id".to_string(), "start_time".to_string(), "end_time".to_string()],
+            headers: vec![
+                "trip_id".to_string(),
+                "start_time".to_string(),
+                "end_time".to_string(),
+            ],
             rows: vec![Frequency {
                 trip_id: "T1".to_string(),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),
@@ -64,7 +72,11 @@ mod tests {
     fn passes_with_valid_frequency() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec!["trip_id".to_string(), "start_time".to_string(), "end_time".to_string()],
+            headers: vec![
+                "trip_id".to_string(),
+                "start_time".to_string(),
+                "end_time".to_string(),
+            ],
             rows: vec![Frequency {
                 trip_id: "T1".to_string(),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),
@@ -148,4 +160,3 @@ impl Validator for FrequenciesValidator {
         }
     }
 }
-

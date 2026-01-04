@@ -137,7 +137,6 @@ mod tests {
     #[test]
     fn emits_notice_for_station_with_parent_station() {
         let feed = feed_with_stops(vec![gtfs_model::Stop {
-                        
             stop_id: "STATION1".to_string(),
             stop_code: None,
             stop_name: Some("Station".to_string()),
@@ -181,7 +180,6 @@ mod tests {
     #[test]
     fn emits_notice_for_location_missing_parent_station() {
         let feed = feed_with_stops(vec![gtfs_model::Stop {
-                        
             stop_id: "ENTRANCE1".to_string(),
             stop_code: None,
             stop_name: Some("Entrance".to_string()),
@@ -225,7 +223,6 @@ mod tests {
     #[test]
     fn emits_notice_for_platform_without_parent_station() {
         let feed = feed_with_stops(vec![gtfs_model::Stop {
-                        
             stop_id: "STOP1".to_string(),
             stop_code: None,
             stop_name: Some("Platform".to_string()),
@@ -268,7 +265,6 @@ mod tests {
     #[test]
     fn skips_stop_without_parent_station() {
         let feed = feed_with_stops(vec![gtfs_model::Stop {
-                        
             stop_id: "STOP1".to_string(),
             stop_code: None,
             stop_name: Some("Stop".to_string()),

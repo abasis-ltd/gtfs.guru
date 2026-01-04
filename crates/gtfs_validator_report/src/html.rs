@@ -749,11 +749,11 @@ fn render_notice_group(
         .first()
         .map(|notice| notice.message.as_str())
         .unwrap_or("");
-    
+
     // Check if this is a geographic notice that should have a map button
-    let has_map_data = notices.iter().any(|n| {
-        n.context.contains_key("stopLocation") && n.context.contains_key("match")
-    });
+    let has_map_data = notices
+        .iter()
+        .any(|n| n.context.contains_key("stopLocation") && n.context.contains_key("match"));
 
     out.push_str("            <tr class=\"notice\">\n                <td>");
     push_escaped(out, code);
@@ -819,7 +819,7 @@ fn render_map_button(out: &mut String, notice: &ValidationNotice) {
     if let (Some(stop_loc), Some(match_loc)) = (stop_location, match_location) {
         let (stop_lat, stop_lon) = extract_lat_lng(stop_loc);
         let (match_lat, match_lon) = extract_lat_lng(match_loc);
-        
+
         if stop_lat.is_some() && match_lat.is_some() {
             out.push_str("                                    <td>");
             out.push_str("<button class=\"view-map-btn\" ");

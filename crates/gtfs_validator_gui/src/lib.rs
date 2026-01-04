@@ -100,12 +100,12 @@ fn run_validation(
     // Determine input path (download if URL)
     let (input_path, _download_cleanup) = if let Some(url_str) = url {
         if url_str.trim().is_empty() {
-             return Err("URL cannot be empty".to_string());
+            return Err("URL cannot be empty".to_string());
         }
         let temp_dir = std::env::temp_dir();
         let file_name = format!("gtfs_download_{}.zip", uuid::Uuid::new_v4());
         let download_path = temp_dir.join(&file_name);
-        
+
         download_url_to_path(&url_str, &download_path).map_err(|e| e.to_string())?;
         (download_path, true)
     } else if let Some(p) = path {
@@ -172,9 +172,11 @@ fn run_validation(
             NoticeSeverity::Warning => warning_count += 1,
             NoticeSeverity::Info => info_count += 1,
         }
-        
+
         // Extract geographic errors for map display
-        if notice.code == "stop_too_far_from_shape" || notice.code == "stop_too_far_from_shape_using_user_distance" {
+        if notice.code == "stop_too_far_from_shape"
+            || notice.code == "stop_too_far_from_shape_using_user_distance"
+        {
             if let Some(geo_error) = extract_geo_error(&notice.context) {
                 geo_errors.push(geo_error);
             }
@@ -194,25 +196,29 @@ fn run_validation(
     })
 }
 
-fn extract_geo_error(context: &std::collections::BTreeMap<String, serde_json::Value>) -> Option<GeoError> {
+fn extract_geo_error(
+    context: &std::collections::BTreeMap<String, serde_json::Value>,
+) -> Option<GeoError> {
     let stop_location = context.get("stopLocation")?.as_array()?;
     let match_location = context.get("match")?.as_array()?;
-    
+
     if stop_location.len() < 2 || match_location.len() < 2 {
         return None;
     }
-    
+
     let stop_lat = stop_location[0].as_f64()?;
     let stop_lon = stop_location[1].as_f64()?;
     let match_lat = match_location[0].as_f64()?;
     let match_lon = match_location[1].as_f64()?;
-    let stop_name = context.get("stopName")
+    let stop_name = context
+        .get("stopName")
         .and_then(|v| v.as_str())
         .unwrap_or("Unknown")
         .to_string();
-    
+
     // Extract shape path if available
-    let shape_path = context.get("shapePath")
+    let shape_path = context
+        .get("shapePath")
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
@@ -227,7 +233,7 @@ fn extract_geo_error(context: &std::collections::BTreeMap<String, serde_json::Va
                 .collect()
         })
         .unwrap_or_default();
-    
+
     Some(GeoError {
         stop_name,
         stop_lat,
@@ -242,12 +248,9 @@ fn download_url_to_path(url: &str, path: &std::path::Path) -> Result<(), anyhow:
     let client = reqwest::blocking::Client::builder()
         .user_agent(format!("gtfs-validator-gui/{}", env!("CARGO_PKG_VERSION")))
         .build()?;
-        
-    let mut response = client
-        .get(url)
-        .send()?
-        .error_for_status()?;
-        
+
+    let mut response = client.get(url).send()?.error_for_status()?;
+
     let mut file = std::fs::File::create(path)?;
     std::io::copy(&mut response, &mut file)?;
     Ok(())

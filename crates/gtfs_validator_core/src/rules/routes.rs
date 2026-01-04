@@ -30,7 +30,10 @@ mod tests {
         RoutesValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices.iter().next().unwrap().code, CODE_ROUTE_BOTH_NAMES_MISSING);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_ROUTE_BOTH_NAMES_MISSING
+        );
     }
 
     #[test]
@@ -51,7 +54,10 @@ mod tests {
         RoutesValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices.iter().next().unwrap().code, CODE_ROUTE_SHORT_NAME_TOO_LONG);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_ROUTE_SHORT_NAME_TOO_LONG
+        );
     }
 
     #[test]
@@ -106,7 +112,10 @@ mod tests {
         RoutesValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices.iter().next().unwrap().code, CODE_ROUTE_DESC_SAME_AS_NAME);
+        assert_eq!(
+            notices.iter().next().unwrap().code,
+            CODE_ROUTE_DESC_SAME_AS_NAME
+        );
     }
 
     #[test]
@@ -267,4 +276,3 @@ impl Validator for RoutesValidator {
         }
     }
 }
-

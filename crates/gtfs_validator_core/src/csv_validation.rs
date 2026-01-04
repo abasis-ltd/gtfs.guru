@@ -1186,7 +1186,8 @@ fn is_mixed_case_violation(value: &str) -> bool {
         if token.chars().any(|ch| ch.is_ascii_digit()) {
             return false;
         }
-        return token.chars().all(|ch| ch.is_lowercase()) || token.chars().all(|ch| ch.is_uppercase());
+        return token.chars().all(|ch| ch.is_lowercase())
+            || token.chars().all(|ch| ch.is_uppercase());
     }
 
     let mut has_mixed_case = false;

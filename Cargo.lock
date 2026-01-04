@@ -948,9 +948,9 @@ dependencies = [
 
 [[package]]
 name = "dlopen2_derive"
-version = "0.4.3"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fbbb781877580993a8707ec48672673ec7b81eeba04cfd2310bd28c08e47c8f"
+checksum = "95f4a04e1bfbfa4835a6073177aafb95ead4de0722dbb339195fdc7e0a09599b"
 dependencies = [
  "proc-macro2",
  "quote",
