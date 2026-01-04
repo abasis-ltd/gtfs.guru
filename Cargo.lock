@@ -1572,19 +1572,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtfs-guru"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "gtfs_validator_core",
- "gtfs_validator_report",
- "pyo3",
- "pyo3-async-runtimes",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "gtfs-guru-cli"
 version = "0.1.0"
 dependencies = [
@@ -1597,6 +1584,50 @@ dependencies = [
  "serde_json",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "gtfs-guru-gui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "gtfs_validator_core",
+ "gtfs_validator_report",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-shell",
+ "uuid",
+]
+
+[[package]]
+name = "gtfs-guru-python"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "gtfs_validator_core",
+ "gtfs_validator_report",
+ "pyo3",
+ "pyo3-async-runtimes",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "gtfs-guru-wasm"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "gtfs_validator_core",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]
@@ -1645,24 +1676,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtfs_validator_gui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "gtfs_validator_core",
- "gtfs_validator_report",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-shell",
- "uuid",
-]
-
-[[package]]
 name = "gtfs_validator_report"
 version = "0.1.0"
 dependencies = [
@@ -1672,19 +1685,6 @@ dependencies = [
  "gtfs_validator_core",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "gtfs_validator_wasm"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "gtfs_validator_core",
- "js-sys",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-test",
 ]
 
 [[package]]

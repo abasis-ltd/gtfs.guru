@@ -140,24 +140,26 @@ mod tests {
 
     #[test]
     fn detects_invalid_agency_url() {
-        let mut feed = GtfsFeed::default();
-        feed.agency = CsvTable {
-            headers: vec![
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
-            ],
-            rows: vec![Agency {
-                agency_id: None,
-                agency_name: "Test".to_string(),
-                agency_url: "ht tp://invalid".to_string(),
-                agency_timezone: "UTC".to_string(),
-                agency_lang: None,
-                agency_phone: None,
-                agency_fare_url: None,
-                agency_email: None,
-            }],
-            row_numbers: vec![2],
+        let feed = GtfsFeed {
+            agency: CsvTable {
+                headers: vec![
+                    "agency_name".to_string(),
+                    "agency_url".to_string(),
+                    "agency_timezone".to_string(),
+                ],
+                rows: vec![Agency {
+                    agency_id: None,
+                    agency_name: "Test".to_string(),
+                    agency_url: "ht tp://invalid".to_string(),
+                    agency_timezone: "UTC".to_string(),
+                    agency_lang: None,
+                    agency_phone: None,
+                    agency_fare_url: None,
+                    agency_email: None,
+                }],
+                row_numbers: vec![2],
+            },
+            ..Default::default()
         };
 
         let mut notices = NoticeContainer::new();
@@ -174,24 +176,26 @@ mod tests {
 
     #[test]
     fn suggests_fix_for_url_missing_scheme() {
-        let mut feed = GtfsFeed::default();
-        feed.agency = CsvTable {
-            headers: vec![
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
-            ],
-            rows: vec![Agency {
-                agency_id: None,
-                agency_name: "Test".to_string(),
-                agency_url: "www.example.com".to_string(),
-                agency_timezone: "UTC".to_string(),
-                agency_lang: None,
-                agency_phone: None,
-                agency_fare_url: None,
-                agency_email: None,
-            }],
-            row_numbers: vec![2],
+        let feed = GtfsFeed {
+            agency: CsvTable {
+                headers: vec![
+                    "agency_name".to_string(),
+                    "agency_url".to_string(),
+                    "agency_timezone".to_string(),
+                ],
+                rows: vec![Agency {
+                    agency_id: None,
+                    agency_name: "Test".to_string(),
+                    agency_url: "www.example.com".to_string(),
+                    agency_timezone: "UTC".to_string(),
+                    agency_lang: None,
+                    agency_phone: None,
+                    agency_fare_url: None,
+                    agency_email: None,
+                }],
+                row_numbers: vec![2],
+            },
+            ..Default::default()
         };
 
         let mut notices = NoticeContainer::new();

@@ -1,5 +1,5 @@
 [package]
-name = "gtfs-guru"
+name = "gtfs-guru-wasm"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
