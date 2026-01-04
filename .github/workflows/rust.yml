@@ -27,7 +27,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libglib2.0-dev clang libclang-dev
+          sudo apt-get install -y libgtk-3-dev libglib2.0-dev clang libclang-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev libwebkit2gtk-4.1-dev
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -68,7 +68,9 @@ jobs:
         run: |
           wget https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
           tar -xzf binaryen-version_117-x86_64-linux.tar.gz
-          sudo mv binaryen-version_117/bin/* /usr/local/bin/
+          sudo cp binaryen-version_117/bin/wasm-opt /usr/local/bin/
+          sudo chmod +x /usr/local/bin/wasm-opt
+          wasm-opt --version
 
       - name: Optimize WASM binary
         run: |
