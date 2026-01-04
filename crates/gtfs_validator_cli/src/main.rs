@@ -82,6 +82,18 @@ struct Args {
     /// Generate SARIF output for CI/CD integration (GitHub Actions, GitLab CI, etc.)
     #[arg(long = "sarif")]
     sarif: Option<String>,
+
+    /// Show what fixes would be applied without modifying files
+    #[arg(long = "fix-dry-run")]
+    fix_dry_run: bool,
+
+    /// Apply safe auto-fixes to the GTFS feed
+    #[arg(long = "fix")]
+    fix: bool,
+
+    /// Apply all fixes including potentially unsafe ones (implies --fix)
+    #[arg(long = "fix-unsafe")]
+    fix_unsafe: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -203,6 +215,151 @@ fn main() -> anyhow::Result<()> {
         let sarif_report = SarifReport::from_notices(&notices);
         sarif_report.write(&sarif_path)?;
         info!("SARIF report written to {}", sarif_path.display());
+    }
+
+    // Handle auto-fix options
+    if args.fix_dry_run || args.fix || args.fix_unsafe {
+        handle_fixes(&notices, &args, input.path())?;
+    }
+
+    Ok(())
+}
+
+fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> anyhow::Result<()> {
+    use gtfs_validator_core::{FixOperation, FixSafety};
+    use std::collections::HashMap;
+
+    // Collect all fixes, grouped by file
+    let mut fixes_by_file: HashMap<String, Vec<_>> = HashMap::new();
+    let mut safe_count = 0;
+    let mut requires_confirmation_count = 0;
+    let mut unsafe_count = 0;
+
+    for notice in notices.iter() {
+        if let Some(fix) = &notice.fix {
+            match fix.safety {
+                FixSafety::Safe => safe_count += 1,
+                FixSafety::RequiresConfirmation => requires_confirmation_count += 1,
+                FixSafety::Unsafe => unsafe_count += 1,
+            }
+
+            if let FixOperation::ReplaceField { file, .. } = &fix.operation {
+                fixes_by_file
+                    .entry(file.clone())
+                    .or_default()
+                    .push((notice, fix));
+            }
+        }
+    }
+
+    let total = safe_count + requires_confirmation_count + unsafe_count;
+    if total == 0 {
+        info!("No auto-fixes available");
+        return Ok(());
+    }
+
+    info!(
+        "Found {} fixable issues: {} safe, {} need confirmation, {} unsafe",
+        total, safe_count, requires_confirmation_count, unsafe_count
+    );
+
+    // Determine which fixes to show/apply based on flags
+    let include_safe = true;
+    let include_requires_confirmation = args.fix_unsafe;
+    let include_unsafe = args.fix_unsafe;
+
+    // For dry-run, just show what would be fixed
+    if args.fix_dry_run {
+        println!("\n=== Fix Dry Run ===\n");
+        for (file, file_fixes) in &fixes_by_file {
+            for (notice, fix) in file_fixes {
+                let should_show = match fix.safety {
+                    FixSafety::Safe => include_safe,
+                    FixSafety::RequiresConfirmation => include_requires_confirmation,
+                    FixSafety::Unsafe => include_unsafe,
+                };
+                if !should_show {
+                    continue;
+                }
+
+                if let FixOperation::ReplaceField {
+                    row,
+                    field,
+                    original,
+                    replacement,
+                    ..
+                } = &fix.operation
+                {
+                    let safety_label = match fix.safety {
+                        FixSafety::Safe => "[SAFE]",
+                        FixSafety::RequiresConfirmation => "[CONFIRM]",
+                        FixSafety::Unsafe => "[UNSAFE]",
+                    };
+                    println!("{} {} row {}, field '{}':", safety_label, file, row, field);
+                    println!("  Error: {} ({})", notice.message, notice.code);
+                    println!("  - {}", original);
+                    println!("  + {}", replacement);
+                    println!();
+                }
+            }
+        }
+        println!("Run with --fix to apply safe fixes, or --fix-unsafe to apply all.");
+        return Ok(());
+    }
+
+    // Apply fixes
+    if args.fix || args.fix_unsafe {
+        let mut applied = 0;
+        let mut skipped = 0;
+
+        // Note: For MVP, we just log what would be done. Full CSV rewriting is complex.
+        // A complete implementation would:
+        // 1. Read the CSV file
+        // 2. Parse while preserving original formatting (quotes, delimiters)
+        // 3. Apply fixes by row/field
+        // 4. Write back
+
+        for (file, file_fixes) in &fixes_by_file {
+            for (_notice, fix) in file_fixes {
+                let should_apply = match fix.safety {
+                    FixSafety::Safe => include_safe,
+                    FixSafety::RequiresConfirmation => include_requires_confirmation,
+                    FixSafety::Unsafe => include_unsafe,
+                };
+
+                if should_apply {
+                    // For MVP, just log. Full implementation would modify the file.
+                    if let FixOperation::ReplaceField {
+                        row,
+                        field,
+                        original,
+                        replacement,
+                        ..
+                    } = &fix.operation
+                    {
+                        info!(
+                            "Would fix {}: row {}, {} '{}' -> '{}'",
+                            file, row, field, original, replacement
+                        );
+                        applied += 1;
+                    }
+                } else {
+                    skipped += 1;
+                }
+            }
+        }
+
+        info!(
+            "Fixes: {} would be applied, {} skipped (use --fix-unsafe to include)",
+            applied, skipped
+        );
+
+        if applied > 0 {
+            info!(
+                "Note: Actual file modification not yet implemented. Files at {} unchanged.",
+                gtfs_path.display()
+            );
+        }
     }
 
     Ok(())

@@ -1,4 +1,7 @@
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    Fix, FixOperation, FixSafety, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice,
+    Validator,
+};
 use url::Url;
 
 const CODE_URI_SYNTAX_ERROR: &str = "u_r_i_syntax_error";
@@ -106,6 +109,25 @@ fn validate_url(
             "fieldName".to_string(),
             "fieldValue".to_string(),
         ];
+
+        // Try to suggest a fix if the URL is just missing a scheme
+        if !trimmed.contains("://") && (trimmed.contains('.') || trimmed.starts_with("www.")) {
+            let suggested = format!("https://{}", trimmed);
+            if Url::parse(&suggested).is_ok() {
+                notice.fix = Some(Fix {
+                    description: "Add https:// scheme".to_string(),
+                    safety: FixSafety::Safe,
+                    operation: FixOperation::ReplaceField {
+                        file: filename.to_string(),
+                        row: row_number,
+                        field: field_name.to_string(),
+                        original: trimmed.to_string(),
+                        replacement: suggested,
+                    },
+                });
+            }
+        }
+
         notices.push(notice);
     }
 }
@@ -120,7 +142,11 @@ mod tests {
     fn detects_invalid_agency_url() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_name".to_string(), "agency_url".to_string(), "agency_timezone".to_string()],
+            headers: vec![
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
             rows: vec![Agency {
                 agency_id: None,
                 agency_name: "Test".to_string(),
@@ -140,6 +166,55 @@ mod tests {
         assert_eq!(notices.len(), 1);
         let notice = notices.iter().next().unwrap();
         assert_eq!(notice.code, CODE_URI_SYNTAX_ERROR);
-        assert_eq!(notice.context.get("fieldName").unwrap().as_str().unwrap(), "agency_url");
+        assert_eq!(
+            notice.context.get("fieldName").unwrap().as_str().unwrap(),
+            "agency_url"
+        );
+    }
+
+    #[test]
+    fn suggests_fix_for_url_missing_scheme() {
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_name".to_string(),
+                "agency_url".to_string(),
+                "agency_timezone".to_string(),
+            ],
+            rows: vec![Agency {
+                agency_id: None,
+                agency_name: "Test".to_string(),
+                agency_url: "www.example.com".to_string(),
+                agency_timezone: "UTC".to_string(),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        UrlSyntaxValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_URI_SYNTAX_ERROR);
+
+        // Check that a fix is suggested
+        let fix = notice.fix.as_ref().expect("should suggest a fix");
+        assert_eq!(fix.safety, FixSafety::Safe);
+
+        if let FixOperation::ReplaceField {
+            original,
+            replacement,
+            ..
+        } = &fix.operation
+        {
+            assert_eq!(original, "www.example.com");
+            assert_eq!(replacement, "https://www.example.com");
+        } else {
+            panic!("expected ReplaceField operation");
+        }
     }
 }

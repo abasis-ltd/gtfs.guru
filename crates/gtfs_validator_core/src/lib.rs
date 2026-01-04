@@ -37,7 +37,7 @@ pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,
     GtfsInputSource,
 };
-pub use notice::{NoticeContainer, NoticeSeverity, ValidationNotice};
+pub use notice::{Fix, FixOperation, FixSafety, NoticeContainer, NoticeSeverity, ValidationNotice};
 pub use notice_schema::build_notice_schema_map;
 pub use rules::default_runner;
 pub use validation_context::{

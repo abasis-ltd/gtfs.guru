@@ -1,8 +1,8 @@
-site_name: GTFS Validator (Rust)
+site_name: GTFS.Guru
 site_description: High-performance GTFS feed validator written in Rust
-site_url: https://github.com/user/gtfs-validator-rust
-repo_url: https://github.com/user/gtfs-validator-rust
-repo_name: user/gtfs-validator-rust
+site_url: https://gtfs.guru
+repo_url: https://github.com/abasis-ltd/gtfs.guru
+repo_name: abasis-ltd/gtfs.guru
 
 theme:
   name: material

@@ -18,6 +18,43 @@ pub enum NoticeSeverity {
     Info,
 }
 
+/// Safety level for auto-fixes
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FixSafety {
+    /// Safe to apply automatically (formatting, whitespace)
+    Safe,
+    /// Requires user confirmation (deduplication)
+    RequiresConfirmation,
+    /// May change semantics (referential fixes)
+    Unsafe,
+}
+
+/// The actual fix operation
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum FixOperation {
+    /// Replace a field value
+    ReplaceField {
+        file: String,
+        row: u64,
+        field: String,
+        original: String,
+        replacement: String,
+    },
+}
+
+/// A suggested fix for a validation issue
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fix {
+    /// Description of what the fix does
+    pub description: String,
+    /// Safety level
+    pub safety: FixSafety,
+    /// The fix operation
+    pub operation: FixOperation,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationNotice {
     pub code: String,
@@ -30,6 +67,8 @@ pub struct ValidationNotice {
     pub context: BTreeMap<String, Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub field_order: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fix: Option<Fix>,
 }
 
 impl ValidationNotice {
@@ -47,6 +86,7 @@ impl ValidationNotice {
             field: None,
             context: BTreeMap::new(),
             field_order: Vec::new(),
+            fix: None,
         }
     }
 
@@ -144,6 +184,12 @@ impl ValidationNotice {
         row: u64,
     ) -> Self {
         self.set_location(file, field, row);
+        self
+    }
+
+    /// Attach a suggested fix to this notice
+    pub fn with_fix(mut self, fix: Fix) -> Self {
+        self.fix = Some(fix);
         self
     }
 }

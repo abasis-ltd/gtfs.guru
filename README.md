@@ -77,7 +77,7 @@ console.log(`Valid: ${result.is_valid}, Errors: ${result.error_count}`);
 ### From Source (Rust)
 
 ```bash
-git clone https://github.com/user/gtfs-validator-rust
+git clone https://github.com/abasis-ltd/gtfs.guru
 cd gtfs-validator-rust
 cargo build --release
 ```
@@ -309,7 +309,7 @@ The output will be an `.app` (macOS), `.exe` (Windows), or `.deb/.AppImage` (Lin
 
 ### Download Pre-built Installers
 
-Pre-built installers are available from [GitHub Releases](https://github.com/user/gtfs-validator-rust/releases):
+Pre-built installers are available from [GitHub Releases](https://github.com/abasis-ltd/gtfs.guru/releases):
 
 | Platform | Format | Description |
 |----------|--------|-------------|
