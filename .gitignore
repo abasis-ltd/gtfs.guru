@@ -4,3 +4,7 @@
 /golden_actual/
 /scripts/golden_manifest.tsv
 google-transitfeed/
+
+# Python
+__pycache__/
+*.pyc
