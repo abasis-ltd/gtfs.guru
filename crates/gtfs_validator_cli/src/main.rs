@@ -15,7 +15,7 @@ use gtfs_validator_core::{
 };
 use gtfs_validator_report::{
     write_html_report, HtmlReportContext, MemoryUsageRecord, ReportSummary, ReportSummaryContext,
-    ValidationReport,
+    SarifReport, ValidationReport,
 };
 
 #[derive(Debug, Parser)]
@@ -78,6 +78,10 @@ struct Args {
 
     #[arg(long = "google_rules", alias = "google-rules")]
     google_rules: bool,
+
+    /// Generate SARIF output for CI/CD integration (GitHub Actions, GitLab CI, etc.)
+    #[arg(long = "sarif")]
+    sarif: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -192,6 +196,14 @@ fn main() -> anyhow::Result<()> {
     report.write_json_with_format(args.output.join(&validation_report_name), args.pretty)?;
     ValidationReport::empty()
         .write_json_with_format(args.output.join(&system_errors_report_name), args.pretty)?;
+
+    // Generate SARIF report if requested
+    if let Some(sarif_name) = &args.sarif {
+        let sarif_path = args.output.join(sarif_name);
+        let sarif_report = SarifReport::from_notices(&notices);
+        sarif_report.write(&sarif_path)?;
+        info!("SARIF report written to {}", sarif_path.display());
+    }
 
     Ok(())
 }

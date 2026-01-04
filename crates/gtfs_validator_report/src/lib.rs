@@ -31,6 +31,9 @@ use gtfs_validator_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, V
 mod html;
 pub use html::{write_html_report, HtmlReportContext};
 
+mod sarif;
+pub use sarif::SarifReport;
+
 const DEFAULT_COUNTRY_CODE: &str = "ZZ";
 const DEFAULT_HTML_REPORT_NAME: &str = "report.html";
 const DEFAULT_SYSTEM_ERRORS_REPORT_NAME: &str = "system_errors.json";
