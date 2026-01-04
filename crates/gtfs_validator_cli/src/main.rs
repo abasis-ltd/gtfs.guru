@@ -497,7 +497,7 @@ fn current_rss_bytes() -> Option<u64> {
 
         #[cfg(target_os = "macos")]
         {
-            return Some(max_rss);
+            Some(max_rss)
         }
         #[cfg(not(target_os = "macos"))]
         {

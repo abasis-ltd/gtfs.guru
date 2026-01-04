@@ -32,3 +32,71 @@ jobs:
 
       - name: Run tests
         run: cargo test --all-features
+
+  wasm:
+    name: WASM Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM (web target)
+        run: wasm-pack build crates/gtfs_validator_wasm --target web --release
+
+      - name: Build WASM (nodejs target)
+        run: wasm-pack build crates/gtfs_validator_wasm --target nodejs --release --out-dir pkg-node
+
+      - name: Run WASM tests
+        run: wasm-pack test --node crates/gtfs_validator_wasm
+
+      - name: Install binaryen (wasm-opt)
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+
+      - name: Optimize WASM binary
+        run: |
+          wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int -o crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm
+          mv crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm
+          echo "WASM size after optimization:"
+          du -h crates/gtfs_validator_wasm/pkg/gtfs_validator_wasm_bg.wasm
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: crates/gtfs_validator_wasm/pkg/
+
+  publish-npm:
+    name: Publish to npm
+    needs: [build, wasm]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: crates/gtfs_validator_wasm/pkg
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: crates/gtfs_validator_wasm/pkg
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -69,7 +69,7 @@ fn check_point(
     row_number: u64,
     entity_id: Option<&str>,
 ) {
-    if lat < -90.0 || lat > 90.0 {
+    if !(-90.0..=90.0).contains(&lat) {
         let mut notice = ValidationNotice::new(
             CODE_NUMBER_OUT_OF_RANGE,
             NoticeSeverity::Error,
@@ -94,7 +94,7 @@ fn check_point(
         notices.push(notice);
     }
 
-    if lon < -180.0 || lon > 180.0 {
+    if !(-180.0..=180.0).contains(&lon) {
         let mut notice = ValidationNotice::new(
             CODE_NUMBER_OUT_OF_RANGE,
             NoticeSeverity::Error,

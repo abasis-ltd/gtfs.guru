@@ -166,7 +166,7 @@ mod tests {
         let mut notices = NoticeContainer::new();
         FareRulesValidator.validate(&feed, &mut notices);
 
-        assert!(notices.len() >= 1);
+        assert!(!notices.is_empty());
         assert!(notices.iter().any(|n| n.code == CODE_FOREIGN_KEY_VIOLATION));
     }
 

@@ -198,7 +198,7 @@ fn generate_complex_feed(
 fn benchmark_validation(c: &mut Criterion) {
     // 5 shapes, 1000 points each, 5 trips each
     let feed = generate_complex_feed(5, 1000, 5);
-    let validator = ShapeToStopMatchingValidator::default();
+    let validator = ShapeToStopMatchingValidator;
 
     c.bench_function("shape_matching_5_shapes_1000_pts", |b| {
         b.iter(|| {

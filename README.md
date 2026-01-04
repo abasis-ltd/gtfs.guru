@@ -54,6 +54,22 @@ cargo tauri dev
 # Or build: cargo tauri build
 ```
 
+### Option 5: WebAssembly (Browser)
+
+```bash
+npm install @gtfs-validator/wasm
+```
+
+```javascript
+import init, { validate_gtfs } from '@gtfs-validator/wasm';
+
+await init();
+const bytes = new Uint8Array(await file.arrayBuffer());
+const result = validate_gtfs(bytes, 'US');
+
+console.log(`Valid: ${result.is_valid}, Errors: ${result.error_count}`);
+```
+
 ---
 
 ## Installation
@@ -67,6 +83,7 @@ cargo build --release
 ```
 
 Binaries will be in `target/release/`:
+
 - `gtfs_validator_cli` — command-line tool
 - `gtfs_validator_web` — web server
 
@@ -164,18 +181,21 @@ cargo run --release -p gtfs_validator_web
 ### API Endpoints
 
 #### Health Check
+
 ```bash
 GET /healthz
 # Response: "ok"
 ```
 
 #### Version
+
 ```bash
 GET /version
 # Response: {"version": "0.1.0"}
 ```
 
 #### Create Validation Job (with URL)
+
 ```bash
 POST /create-job
 Content-Type: application/json
@@ -187,6 +207,7 @@ Content-Type: application/json
 ```
 
 #### Create Validation Job (for upload)
+
 ```bash
 POST /create-job
 
@@ -195,6 +216,7 @@ POST /create-job
 ```
 
 #### Upload GTFS File
+
 ```bash
 PUT /upload/{job_id}
 Content-Type: application/octet-stream
@@ -205,6 +227,7 @@ Content-Type: application/octet-stream
 ```
 
 #### Check Job Status
+
 ```bash
 GET /jobs/{job_id}/status
 
@@ -219,6 +242,7 @@ GET /jobs/{job_id}/status
 ```
 
 #### Get Reports
+
 ```bash
 GET /jobs/{job_id}/report.json    # JSON report
 GET /jobs/{job_id}/report.html    # HTML report
@@ -263,17 +287,20 @@ print(report["summary"]["validationResult"])
 The desktop application provides a beautiful native interface identical to the web version but running locally without a browser.
 
 ### Features
+
 - Drag & drop GTFS files
 - Native file dialogs
 - Offline validation
 - HTML/JSON report export
 
 ### Running in Development
+
 ```bash
 cargo tauri dev
 ```
 
 ### Building for Release
+
 ```bash
 cargo tauri build
 ```
@@ -293,7 +320,6 @@ Pre-built installers are available from [GitHub Releases](https://github.com/use
 | **Linux** | `.AppImage` | Portable Linux application |
 
 ---
-
 
 ## Python API
 
@@ -365,6 +391,7 @@ Each notice has the following attributes:
 | `field` | `str?` | Field name |
 
 Methods:
+
 - `notice.get(key)` — Get context field by name
 - `notice.context()` — Get all context as dict
 
@@ -444,29 +471,106 @@ result.save_html("report.html")
 
 ---
 
+## WebAssembly (WASM)
+
+Run the validator entirely in the browser - no server required. All validation happens locally.
+
+### Installation
+
+```bash
+npm install @gtfs-validator/wasm
+```
+
+Or use CDN:
+
+```html
+<script type="module">
+  import init, { validate_gtfs } from 'https://unpkg.com/@gtfs-validator/wasm/gtfs_validator_wasm.js';
+</script>
+```
+
+### Basic Usage
+
+```javascript
+import init, { validate_gtfs, version } from '@gtfs-validator/wasm';
+
+// Initialize once
+await init();
+console.log('Version:', version());
+
+// Validate a file
+const file = document.getElementById('gtfs-input').files[0];
+const bytes = new Uint8Array(await file.arrayBuffer());
+const result = validate_gtfs(bytes, 'US');  // country code optional
+
+console.log('Valid:', result.is_valid);
+console.log('Errors:', result.error_count);
+console.log('Warnings:', result.warning_count);
+
+// Parse detailed notices
+const notices = JSON.parse(result.json);
+```
+
+### Web Worker (Non-blocking)
+
+For large files, use the Web Worker wrapper:
+
+```javascript
+import { GtfsValidator } from '@gtfs-validator/wasm';
+
+const validator = new GtfsValidator();
+await validator.waitUntilReady();
+
+const result = await validator.validate(file, { countryCode: 'US' });
+console.log(result.isValid, result.validationTimeMs);
+
+validator.terminate();
+```
+
+### Building WASM
+
+```bash
+# Install wasm-pack
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+# Build
+./scripts/build-wasm.sh
+
+# Or manually
+wasm-pack build crates/gtfs_validator_wasm --target web --release
+```
+
+See [docs/wasm.md](docs/wasm.md) for full documentation including bundler configs (Webpack, Vite, Next.js).
+
+---
+
 ## Validation Rules
 
 The validator implements **88 validation rules** covering:
 
 ### File Structure
+
 - Required files (agency.txt, stops.txt, routes.txt, trips.txt, stop_times.txt)
 - Recommended files (feed_info.txt, shapes.txt)
 - File encoding (UTF-8)
 - CSV parsing
 
 ### Data Integrity
+
 - Primary key uniqueness
 - Foreign key references
 - Required fields
 - Data types and formats
 
 ### Geographic Validation
+
 - Coordinate ranges (latitude/longitude)
 - Stop-to-shape distance
 - Travel speed between stops
 - Shape geometry
 
 ### Schedule Validation
+
 - Stop time sequences
 - Arrival/departure times
 - Calendar validity
@@ -474,12 +578,14 @@ The validator implements **88 validation rules** covering:
 - Overlapping frequencies
 
 ### Accessibility & Quality
+
 - Route color contrast
 - Stop naming
 - Pathway connectivity
 - Fare system consistency
 
 For the full list of notices, use:
+
 ```python
 import gtfs_validator
 print(gtfs_validator.notice_codes())
@@ -498,6 +604,7 @@ gtfs-validator-rust/
 │   ├── gtfs_validator_cli/   # Command-line interface
 │   ├── gtfs_validator_web/   # REST API server (Axum)
 │   ├── gtfs_validator_python/# Python bindings (PyO3)
+│   ├── gtfs_validator_wasm/  # WebAssembly for browsers
 │   └── gtfs_validator_gui/   # Desktop app (Tauri)
 ├── scripts/                  # Testing and comparison tools
 ├── docs/                     # Additional documentation
@@ -528,6 +635,29 @@ cargo test
 cargo test -p gtfs_validator_core
 ```
 
+### Pre-commit Hooks
+
+Install pre-commit hooks for automatic code quality checks before each commit:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install hooks
+pre-commit install
+pre-commit install --hook-type pre-push
+
+# Run manually on all files
+pre-commit run --all-files
+```
+
+Hooks include:
+
+- **cargo fmt** — Format check on commit
+- **cargo clippy** — Lint check on commit
+- **cargo check** — Compile check on commit
+- **cargo test** — Test run on push
+
 ### Building Python Wheels
 
 ```bash
@@ -554,9 +684,10 @@ maturin build --release --target x86_64-pc-windows-msvc   # Windows
 | CLI interface | Yes | Yes (compatible) |
 | Web API | Yes | Yes |
 | Python bindings | No | Yes |
+| WASM (browser) | No | Yes |
 | Performance | Baseline | 10-50x faster |
 | Memory usage | ~500MB | ~50MB |
-| Binary size | ~50MB (JAR) | ~5MB |
+| Binary size | ~50MB (JAR) | ~5MB (CLI), ~1.5MB (WASM) |
 
 ---
 

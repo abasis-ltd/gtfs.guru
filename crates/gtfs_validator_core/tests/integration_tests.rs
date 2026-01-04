@@ -145,12 +145,10 @@ fn visit_dirs(dir: &Path, cb: &mut dyn FnMut(&Path)) -> std::io::Result<()> {
 
 fn contains_txt_files(path: &Path) -> bool {
     if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                if let Some(ext) = entry.path().extension() {
-                    if ext == "txt" {
-                        return true;
-                    }
+        for entry in entries.flatten() {
+            if let Some(ext) = entry.path().extension() {
+                if ext == "txt" {
+                    return true;
                 }
             }
         }

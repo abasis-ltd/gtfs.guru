@@ -600,6 +600,7 @@ pub enum RiderFareCategory {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct Agency {
     pub agency_id: Option<String>,
     pub agency_name: String,
@@ -611,22 +612,9 @@ pub struct Agency {
     pub agency_email: Option<String>,
 }
 
-impl Default for Agency {
-    fn default() -> Self {
-        Self {
-            agency_id: None,
-            agency_name: String::new(),
-            agency_url: String::new(),
-            agency_timezone: String::new(),
-            agency_lang: None,
-            agency_phone: None,
-            agency_fare_url: None,
-            agency_email: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct Stop {
     pub stop_id: String,
     pub stop_code: Option<String>,
@@ -659,35 +647,6 @@ impl Stop {
     }
 }
 
-impl Default for Stop {
-    fn default() -> Self {
-        Self {
-            stop_id: String::new(),
-            stop_code: None,
-            stop_name: None,
-            tts_stop_name: None,
-            stop_desc: None,
-            stop_lat: None,
-            stop_lon: None,
-            zone_id: None,
-            stop_url: None,
-            location_type: None,
-            parent_station: None,
-            stop_timezone: None,
-            wheelchair_boarding: None,
-            level_id: None,
-            platform_code: None,
-            stop_address: None,
-            stop_city: None,
-            stop_region: None,
-            stop_postcode: None,
-            stop_country: None,
-            stop_phone: None,
-            signposted_as: None,
-            vehicle_type: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Route {
@@ -731,6 +690,7 @@ impl Default for Route {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct Trip {
     pub route_id: String,
     pub service_id: String,
@@ -747,6 +707,7 @@ pub struct Trip {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct StopTime {
     pub trip_id: String,
     pub arrival_time: Option<GtfsTime>,
@@ -769,50 +730,7 @@ pub struct StopTime {
     pub stop_direction_name: Option<String>,
 }
 
-impl Default for Trip {
-    fn default() -> Self {
-        Self {
-            route_id: String::new(),
-            service_id: String::new(),
-            trip_id: String::new(),
-            trip_headsign: None,
-            trip_short_name: None,
-            direction_id: None,
-            block_id: None,
-            shape_id: None,
-            wheelchair_accessible: None,
-            bikes_allowed: None,
-            continuous_pickup: None,
-            continuous_drop_off: None,
-        }
-    }
-}
 
-impl Default for StopTime {
-    fn default() -> Self {
-        Self {
-            trip_id: String::new(),
-            arrival_time: None,
-            departure_time: None,
-            stop_id: String::new(),
-            location_group_id: None,
-            location_id: None,
-            stop_sequence: 0,
-            stop_headsign: None,
-            pickup_type: None,
-            drop_off_type: None,
-            pickup_booking_rule_id: None,
-            drop_off_booking_rule_id: None,
-            continuous_pickup: None,
-            continuous_drop_off: None,
-            shape_dist_traveled: None,
-            timepoint: None,
-            start_pickup_drop_off_window: None,
-            end_pickup_drop_off_window: None,
-            stop_direction_name: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BookingRules {
@@ -929,6 +847,7 @@ impl Default for FareAttribute {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct FareRule {
     pub fare_id: String,
     pub route_id: Option<String>,
@@ -938,18 +857,6 @@ pub struct FareRule {
     pub contains_route_id: Option<String>,
 }
 
-impl Default for FareRule {
-    fn default() -> Self {
-        Self {
-            fare_id: String::new(),
-            route_id: None,
-            origin_id: None,
-            destination_id: None,
-            contains_id: None,
-            contains_route_id: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Shape {
@@ -970,6 +877,7 @@ pub struct Frequency {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct Transfer {
     pub from_stop_id: Option<String>,
     pub to_stop_id: Option<String>,
@@ -981,20 +889,6 @@ pub struct Transfer {
     pub to_trip_id: Option<String>,
 }
 
-impl Default for Transfer {
-    fn default() -> Self {
-        Self {
-            from_stop_id: None,
-            to_stop_id: None,
-            transfer_type: None,
-            min_transfer_time: None,
-            from_route_id: None,
-            to_route_id: None,
-            from_trip_id: None,
-            to_trip_id: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Area {
@@ -1057,6 +951,7 @@ impl Default for FareProduct {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct FareLegRule {
     pub leg_group_id: Option<String>,
     pub network_id: Option<String>,
@@ -1068,20 +963,6 @@ pub struct FareLegRule {
     pub rule_priority: Option<u32>,
 }
 
-impl Default for FareLegRule {
-    fn default() -> Self {
-        Self {
-            leg_group_id: None,
-            network_id: None,
-            from_area_id: None,
-            to_area_id: None,
-            from_timeframe_group_id: None,
-            to_timeframe_group_id: None,
-            fare_product_id: String::new(),
-            rule_priority: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareTransferRule {
@@ -1109,6 +990,7 @@ impl Default for FareTransferRule {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct FareLegJoinRule {
     pub from_network_id: String,
     pub to_network_id: String,
@@ -1118,20 +1000,9 @@ pub struct FareLegJoinRule {
     pub to_area_id: Option<String>,
 }
 
-impl Default for FareLegJoinRule {
-    fn default() -> Self {
-        Self {
-            from_network_id: String::new(),
-            to_network_id: String::new(),
-            from_stop_id: None,
-            to_stop_id: None,
-            from_area_id: None,
-            to_area_id: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct RiderCategory {
     pub rider_category_id: String,
     pub rider_category_name: String,
@@ -1140,16 +1011,6 @@ pub struct RiderCategory {
     pub eligibility_url: Option<String>,
 }
 
-impl Default for RiderCategory {
-    fn default() -> Self {
-        Self {
-            rider_category_id: String::new(),
-            rider_category_name: String::new(),
-            is_default_fare_category: None,
-            eligibility_url: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct LocationGroup {
@@ -1165,19 +1026,12 @@ pub struct LocationGroupStop {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct Network {
     pub network_id: String,
     pub network_name: Option<String>,
 }
 
-impl Default for Network {
-    fn default() -> Self {
-        Self {
-            network_id: String::new(),
-            network_name: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RouteNetwork {

@@ -314,7 +314,7 @@ fn run_validation(
     // Build report JSON
     let summary_context = ReportSummaryContext::new()
         .with_gtfs_input(&input_path)
-        .with_output_directory(&input_path.parent().unwrap_or(&input_path))
+        .with_output_directory(input_path.parent().unwrap_or(&input_path))
         .with_validation_time_seconds(elapsed.as_secs_f64())
         .with_validator_version(env!("CARGO_PKG_VERSION"));
 
@@ -386,7 +386,7 @@ fn validate_async(
     let path_clone = path.clone();
     let country_code_clone = country_code.clone();
     let date_clone = date.clone();
-    let on_progress_clone = on_progress.map(|obj| Arc::new(obj));
+    let on_progress_clone = on_progress.map(Arc::new);
 
     pyo3_async_runtimes::tokio::future_into_py(py, async move {
         // Run validation in a blocking task

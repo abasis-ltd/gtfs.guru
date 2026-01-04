@@ -580,7 +580,7 @@ fn decode_pubsub_data(data: String) -> Option<String> {
 
 fn extract_job_id(name: &str) -> Option<String> {
     let segments: Vec<&str> = name
-        .split(|ch| ch == '/' || ch == '\\')
+        .split(['/', '\\'])
         .filter(|value| !value.trim().is_empty())
         .collect();
     for segment in &segments {

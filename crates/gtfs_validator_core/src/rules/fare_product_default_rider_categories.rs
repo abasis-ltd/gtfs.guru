@@ -238,7 +238,7 @@ mod tests {
 
         // One for global (if multi) and one/more for specific product.
         // In this case, global check triggers first.
-        assert!(notices.len() >= 1);
+        assert!(!notices.is_empty());
         assert!(notices
             .iter()
             .any(|n| n.code == CODE_MULTIPLE_DEFAULT_RIDER_CATEGORIES));

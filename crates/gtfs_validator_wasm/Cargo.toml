@@ -5,6 +5,10 @@ edition = "2021"
 license = "Apache-2.0"
 description = "GTFS validator compiled to WebAssembly for browser-based validation"
 
+[package.metadata.wasm-pack.profile.release]
+# Disable built-in wasm-opt (we'll run it separately with proper flags)
+wasm-opt = false
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -26,3 +30,4 @@ default-features = false  # Disable rayon for WASM
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+serde_json = { workspace = true }

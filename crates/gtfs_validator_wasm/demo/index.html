@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTFS Validator - WASM Demo</title>
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --text-muted: #666666;
+      --border: #e0e0e0;
+      --primary: #1976d2;
+      --error: #d32f2f;
+      --error-bg: #ffebee;
+      --warning: #f57c00;
+      --warning-bg: #fff3e0;
+      --info: #1976d2;
+      --info-bg: #e3f2fd;
+      --success: #388e3c;
+      --success-bg: #e8f5e9;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    .version {
+      display: inline-block;
+      background: var(--primary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 1rem;
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+    }
+
+    .drop-zone {
+      border: 3px dashed var(--border);
+      border-radius: 12px;
+      padding: 3rem 2rem;
+      text-align: center;
+      background: var(--card-bg);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .drop-zone:hover {
+      border-color: var(--primary);
+    }
+
+    .drop-zone.dragover {
+      border-color: var(--primary);
+      background: var(--info-bg);
+    }
+
+    .drop-zone p {
+      margin: 0.5rem 0;
+      color: var(--text-muted);
+    }
+
+    .drop-zone .icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .file-label {
+      display: inline-block;
+      background: var(--primary);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      margin-top: 1rem;
+    }
+
+    .file-label:hover {
+      opacity: 0.9;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 3rem;
+      background: var(--card-bg);
+      border-radius: 12px;
+      margin-top: 2rem;
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .results {
+      display: none;
+      margin-top: 2rem;
+    }
+
+    .results.show {
+      display: block;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat {
+      background: var(--card-bg);
+      padding: 1.25rem;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .stat.valid { background: var(--success-bg); color: var(--success); }
+    .stat.invalid { background: var(--error-bg); color: var(--error); }
+    .stat.errors { color: var(--error); }
+    .stat.warnings { color: var(--warning); }
+    .stat.info { color: var(--info); }
+
+    .notices-section {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .notices-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .notices-header h2 {
+      font-size: 1.25rem;
+    }
+
+    .filter-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .filter-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.15s;
+    }
+
+    .filter-btn:hover {
+      background: var(--bg);
+    }
+
+    .filter-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .notices-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .notice {
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      border-radius: 8px;
+      border-left: 4px solid;
+    }
+
+    .notice.ERROR {
+      background: var(--error-bg);
+      border-left-color: var(--error);
+    }
+
+    .notice.WARNING {
+      background: var(--warning-bg);
+      border-left-color: var(--warning);
+    }
+
+    .notice.INFO {
+      background: var(--info-bg);
+      border-left-color: var(--info);
+    }
+
+    .notice-code {
+      font-family: monospace;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .notice-title {
+      margin: 0.25rem 0;
+    }
+
+    .notice-location {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding: 1rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>GTFS Validator</h1>
+      <p class="subtitle">Validate GTFS feeds entirely in your browser</p>
+      <span class="version" id="version">Loading...</span>
+    </header>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="icon">📦</div>
+      <p><strong>Drag and drop</strong> a GTFS ZIP file here</p>
+      <p>or</p>
+      <label class="file-label" for="fileInput">Choose File</label>
+      <input type="file" id="fileInput" accept=".zip">
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Validating your GTFS feed...</p>
+    </div>
+
+    <div class="results" id="results">
+      <div class="summary" id="summary"></div>
+
+      <div class="notices-section">
+        <div class="notices-header">
+          <h2>Notices</h2>
+          <div class="filter-buttons">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="ERROR">Errors</button>
+            <button class="filter-btn" data-filter="WARNING">Warnings</button>
+            <button class="filter-btn" data-filter="INFO">Info</button>
+          </div>
+        </div>
+        <div class="notices-list" id="notices"></div>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        Powered by <a href="https://github.com/gtfs-validator/gtfs-validator-rust" target="_blank">gtfs-validator-rust</a>
+        &bull; No data is uploaded &bull; Everything runs locally in your browser
+      </p>
+    </footer>
+  </div>
+
+  <script type="module">
+    // Import WASM module - adjust path as needed
+    import init, { validate_gtfs, version } from '../pkg/gtfs_validator_wasm.js';
+
+    let wasmReady = false;
+    let allNotices = [];
+    let currentFilter = 'all';
+
+    async function initWasm() {
+      try {
+        await init();
+        wasmReady = true;
+        document.getElementById('version').textContent = `v${version()}`;
+        console.log('GTFS Validator WASM ready');
+      } catch (error) {
+        console.error('Failed to initialize WASM:', error);
+        document.getElementById('version').textContent = 'Error loading';
+      }
+    }
+
+    async function validateFile(file) {
+      if (!wasmReady) {
+        await initWasm();
+      }
+
+      const dropZone = document.getElementById('dropZone');
+      const loading = document.getElementById('loading');
+      const results = document.getElementById('results');
+
+      dropZone.style.display = 'none';
+      loading.classList.add('show');
+      results.classList.remove('show');
+
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const startTime = performance.now();
+        const result = validate_gtfs(bytes);
+        const elapsed = (performance.now() - startTime).toFixed(0);
+
+        allNotices = JSON.parse(result.json);
+
+        renderSummary(result, elapsed, file.name);
+        renderNotices();
+
+        loading.classList.remove('show');
+        results.classList.add('show');
+      } catch (error) {
+        console.error('Validation error:', error);
+        loading.classList.remove('show');
+        dropZone.style.display = 'block';
+        alert('Error validating file: ' + error.message);
+      }
+    }
+
+    function renderSummary(result, elapsed, filename) {
+      const summary = document.getElementById('summary');
+      summary.innerHTML = `
+        <div class="stat ${result.is_valid ? 'valid' : 'invalid'}">
+          <div class="stat-value">${result.is_valid ? '✓' : '✗'}</div>
+          <div class="stat-label">${result.is_valid ? 'Valid' : 'Invalid'}</div>
+        </div>
+        <div class="stat errors">
+          <div class="stat-value">${result.error_count}</div>
+          <div class="stat-label">Errors</div>
+        </div>
+        <div class="stat warnings">
+          <div class="stat-value">${result.warning_count}</div>
+          <div class="stat-label">Warnings</div>
+        </div>
+        <div class="stat info">
+          <div class="stat-value">${result.info_count}</div>
+          <div class="stat-label">Info</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">${elapsed}</div>
+          <div class="stat-label">ms</div>
+        </div>
+      `;
+    }
+
+    function renderNotices() {
+      const noticesEl = document.getElementById('notices');
+      const filtered = currentFilter === 'all'
+        ? allNotices
+        : allNotices.filter(n => n.severity === currentFilter);
+
+      if (filtered.length === 0) {
+        noticesEl.innerHTML = `
+          <div class="empty-state">
+            ${currentFilter === 'all'
+              ? 'No notices found - your GTFS feed looks great!'
+              : `No ${currentFilter.toLowerCase()} notices`}
+          </div>
+        `;
+        return;
+      }
+
+      noticesEl.innerHTML = filtered.slice(0, 200).map(notice => `
+        <div class="notice ${notice.severity}">
+          <div class="notice-code">[${notice.code}]</div>
+          <div class="notice-title">${notice.title || notice.code}</div>
+          ${notice.filename || notice.csvRowNumber ? `
+            <div class="notice-location">
+              ${notice.filename || ''}${notice.csvRowNumber ? `:${notice.csvRowNumber}` : ''}
+              ${notice.fieldName ? ` (${notice.fieldName})` : ''}
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+
+      if (filtered.length > 200) {
+        noticesEl.innerHTML += `
+          <div class="empty-state">
+            Showing 200 of ${filtered.length} notices
+          </div>
+        `;
+      }
+    }
+
+    // Event handlers
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      if (e.target.files[0]) {
+        validateFile(e.target.files[0]);
+      }
+    });
+
+    const dropZone = document.getElementById('dropZone');
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) {
+        validateFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    dropZone.addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderNotices();
+      });
+    });
+
+    // Initialize
+    initWasm();
+  </script>
+</body>
+</html>
