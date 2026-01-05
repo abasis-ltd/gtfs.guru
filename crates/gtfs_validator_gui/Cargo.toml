@@ -1,9 +1,11 @@
 [package]
 name = "gtfs-guru-gui"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Desktop GUI for GTFS Validator"
+repository = "https://github.com/abasis-ltd/gtfs.guru"
+homepage = "https://github.com/abasis-ltd/gtfs.guru"
 
 [lib]
 name = "gtfs_validator_gui_lib"
@@ -18,7 +20,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-gtfs-guru-core = { path = "../gtfs_validator_core", version = "0.1.0" }
+gtfs-guru-core = { path = "../gtfs_validator_core", version = "0.1.1" }
 gtfs-guru-report = { path = "../gtfs_validator_report", version = "0.1.0" }
 
 # Tauri

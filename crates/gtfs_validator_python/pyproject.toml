@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "gtfs-guru"
-version = "0.1.0"
+version = "0.1.1"
 description = "Fast GTFS validator written in Rust"
 readme = "README.md"
 license = { text = "Apache-2.0" }

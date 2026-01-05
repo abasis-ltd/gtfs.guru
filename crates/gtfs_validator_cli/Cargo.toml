@@ -1,9 +1,11 @@
 [package]
 name = "gtfs-guru-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
-
+description = "Command-line interface for GTFS Guru validator"
+repository = "https://github.com/abasis-ltd/gtfs.guru"
+homepage = "https://github.com/abasis-ltd/gtfs.guru"
 [[bin]]
 name = "gtfs-guru"
 path = "src/main.rs"
@@ -19,8 +21,8 @@ tracing-subscriber = { workspace = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "0.1.0"
+version = "0.1.1"
 
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
-version = "0.1.0"
+version = "0.1.1"

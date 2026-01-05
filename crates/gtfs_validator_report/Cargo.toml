@@ -1,16 +1,18 @@
 [package]
 name = "gtfs-guru-report"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
-
+description = "Reporting structures for GTFS Guru validator"
+repository = "https://github.com/abasis-ltd/gtfs.guru"
+homepage = "https://github.com/abasis-ltd/gtfs.guru"
 [dependencies]
 anyhow = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-gtfs-guru-model = { path = "../gtfs_model", version = "0.1.0" }
+gtfs-guru-model = { path = "../gtfs_model", version = "0.1.1" }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "0.1.0"
+version = "0.1.1"

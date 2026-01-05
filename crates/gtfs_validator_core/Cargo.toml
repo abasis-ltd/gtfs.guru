@@ -1,9 +1,11 @@
 [package]
 name = "gtfs-guru-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
-
+description = "Core validation logic for GTFS Guru"
+repository = "https://github.com/abasis-ltd/gtfs.guru"
+homepage = "https://github.com/abasis-ltd/gtfs.guru"
 [features]
 default = ["parallel"]
 parallel = ["rayon"]
@@ -22,7 +24,7 @@ rayon = { version = "1.11.0", optional = true }
 
 [dependencies.gtfs-guru-model]
 path = "../gtfs_model"
-version = "0.1.0"
+version = "0.1.1"
 
 [build-dependencies]
 regex = { workspace = true }

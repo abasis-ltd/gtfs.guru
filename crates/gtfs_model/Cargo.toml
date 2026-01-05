@@ -1,9 +1,11 @@
 [package]
 name = "gtfs-guru-model"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
-
+description = "Data models for GTFS (General Transit Feed Specification)"
+repository = "https://github.com/abasis-ltd/gtfs.guru"
+homepage = "https://github.com/abasis-ltd/gtfs.guru"
 [dependencies]
 chrono = { workspace = true }
 serde = { workspace = true }
