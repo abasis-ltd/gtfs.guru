@@ -1,4 +1,4 @@
-import init, { validate_gtfs } from './pkg/gtfs_validator_wasm.js';
+import init, { validate_gtfs } from './pkg/gtfs_guru_wasm.js';
 
 // Initialize WASM
 init().catch(console.error);

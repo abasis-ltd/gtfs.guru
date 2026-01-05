@@ -15,6 +15,7 @@ use gtfs_guru_core::{
 use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
+use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,7 +53,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![validate_gtfs, get_version])
+        .manage(AppState::default())
+        .invoke_handler(tauri::generate_handler![
+            validate_gtfs,
+            get_version,
+            open_path
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -90,6 +96,33 @@ async fn validate_gtfs(
 #[tauri::command]
 fn get_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("File does not exist at path: {}", path));
+    }
+
+    #[cfg(target_os = "macos")]
+    let command = "open";
+    #[cfg(target_os = "windows")]
+    let command = "explorer";
+    #[cfg(target_os = "linux")]
+    let command = "xdg-open";
+
+    let output = std::process::Command::new(command)
+        .arg(&path)
+        .output()
+        .map_err(|e| format!("Failed to spawn open command: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Open command failed: {}", stderr));
+    }
+
+    Ok(())
 }
 
 fn run_validation(

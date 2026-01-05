@@ -41,8 +41,9 @@ pub use notice::{Fix, FixOperation, FixSafety, NoticeContainer, NoticeSeverity, 
 pub use notice_schema::build_notice_schema_map;
 pub use rules::default_runner;
 pub use validation_context::{
-    google_rules_enabled, set_google_rules_enabled, set_validation_country_code,
-    set_validation_date, validation_country_code, validation_date, ValidationCountryCodeGuard,
+    google_rules_enabled, set_google_rules_enabled, set_thorough_mode_enabled,
+    set_validation_country_code, set_validation_date, thorough_mode_enabled,
+    validation_country_code, validation_date, ThoroughModeGuard, ValidationCountryCodeGuard,
     ValidationDateGuard, ValidationGoogleRulesGuard,
 };
 pub use validator::{Validator, ValidatorRunner};

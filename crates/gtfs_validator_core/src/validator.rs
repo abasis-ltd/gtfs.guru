@@ -39,14 +39,25 @@ impl ValidatorRunner {
         let captured_date = crate::validation_date();
         let captured_country = crate::validation_country_code();
         let captured_google_rules = crate::google_rules_enabled();
+        let captured_thorough = crate::thorough_mode_enabled();
 
         #[cfg(feature = "parallel")]
-        let new_notices =
-            self.run_parallel(feed, captured_date, captured_country, captured_google_rules);
+        let new_notices = self.run_parallel(
+            feed,
+            captured_date,
+            captured_country,
+            captured_google_rules,
+            captured_thorough,
+        );
 
         #[cfg(not(feature = "parallel"))]
-        let new_notices =
-            self.run_sequential(feed, captured_date, captured_country, captured_google_rules);
+        let new_notices = self.run_sequential(
+            feed,
+            captured_date,
+            captured_country,
+            captured_google_rules,
+            captured_thorough,
+        );
 
         notices.merge(new_notices);
     }
@@ -58,6 +69,7 @@ impl ValidatorRunner {
         captured_date: chrono::NaiveDate,
         captured_country: Option<String>,
         captured_google_rules: bool,
+        captured_thorough: bool,
     ) -> NoticeContainer {
         self.validators
             .par_iter()
@@ -66,6 +78,7 @@ impl ValidatorRunner {
                 let _date_guard = crate::set_validation_date(Some(captured_date));
                 let _country_guard = crate::set_validation_country_code(captured_country.clone());
                 let _google_rules_guard = crate::set_google_rules_enabled(captured_google_rules);
+                let _thorough_guard = crate::set_thorough_mode_enabled(captured_thorough);
 
                 self.run_single_validator(validator.as_ref(), feed)
             })
@@ -82,11 +95,13 @@ impl ValidatorRunner {
         captured_date: chrono::NaiveDate,
         captured_country: Option<String>,
         captured_google_rules: bool,
+        captured_thorough: bool,
     ) -> NoticeContainer {
         // Set context once for sequential execution
         let _date_guard = crate::set_validation_date(Some(captured_date));
         let _country_guard = crate::set_validation_country_code(captured_country);
         let _google_rules_guard = crate::set_google_rules_enabled(captured_google_rules);
+        let _thorough_guard = crate::set_thorough_mode_enabled(captured_thorough);
 
         self.validators
             .iter()

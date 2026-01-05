@@ -5,6 +5,7 @@ use crate::feed::{
     FARE_PRODUCTS_FILE, LEVELS_FILE, LOCATION_GROUPS_FILE, NETWORKS_FILE, PATHWAYS_FILE,
     RIDER_CATEGORIES_FILE, ROUTES_FILE, STOPS_FILE, TRIPS_FILE,
 };
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_DUPLICATE_KEY: &str = "duplicate_key";
@@ -146,12 +147,24 @@ impl Validator for DuplicateKeyValidator {
 
         // Fare products: fare_product_id
         if let Some(ref fare_products) = feed.fare_products {
-            let mut seen: HashMap<&str, u64> = HashMap::new();
+            let mut seen: HashMap<String, u64> = HashMap::new();
             for (index, row) in fare_products.rows.iter().enumerate() {
                 let row_number = fare_products.row_number(index);
                 let id = row.fare_product_id.trim();
+                let media_id = row.fare_media_id.as_deref().unwrap_or("").trim();
+
                 if !id.is_empty() {
-                    if let Some(prev_row) = seen.get(id) {
+                    // In strict mode (thorough), fare_product_id must be unique globally.
+                    // In compatibility mode (Java), it seems they might allow duplicates if fare_media_id differs
+                    // or simply don't enforce strictly. MBTA feed has duplicates with different media.
+                    // We will use composite key in non-thorough mode if media_id is present.
+                    let key = if !thorough_mode_enabled() && !media_id.is_empty() {
+                        format!("{}:{}", id, media_id)
+                    } else {
+                        id.to_string()
+                    };
+
+                    if let Some(prev_row) = seen.get(&key) {
                         notices.push(duplicate_key_notice(
                             FARE_PRODUCTS_FILE,
                             row_number,
@@ -160,7 +173,7 @@ impl Validator for DuplicateKeyValidator {
                             *prev_row,
                         ));
                     } else {
-                        seen.insert(id, row_number);
+                        seen.insert(key, row_number);
                     }
                 }
             }

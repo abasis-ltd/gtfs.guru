@@ -39,6 +39,7 @@ uuid = { version = "1.0", features = ["v4"] }
 # Utils
 anyhow = { workspace = true }
 chrono = { workspace = true }
+url = "2.5"
 
 [features]
 default = ["custom-protocol"]

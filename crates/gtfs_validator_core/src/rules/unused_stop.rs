@@ -5,6 +5,8 @@ use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validat
 
 const CODE_UNUSED_STOP: &str = "unused_stop";
 
+use crate::validation_context::thorough_mode_enabled;
+
 #[derive(Debug, Default)]
 pub struct UnusedStopValidator;
 
@@ -14,6 +16,10 @@ impl Validator for UnusedStopValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
+
         let mut used_stop_ids: HashSet<&str> = HashSet::new();
         for stop_time in &feed.stop_times.rows {
             let stop_id = stop_time.stop_id.trim();

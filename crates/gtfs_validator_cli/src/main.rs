@@ -93,7 +93,12 @@ struct Args {
 
     /// Apply all fixes including potentially unsafe ones (implies --fix)
     #[arg(long = "fix-unsafe")]
-    fix_unsafe: bool,
+    pub fix_unsafe: bool,
+
+    /// Enable thorough validation (reports missing recommended fields and columns).
+    /// By default, only mandatory GTFS rules are enforced to match Java validator behavior.
+    #[arg(long = "thorough")]
+    pub thorough: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -123,6 +128,11 @@ fn main() -> anyhow::Result<()> {
     };
     let _google_rules_guard = if args.google_rules {
         Some(gtfs_guru_core::set_google_rules_enabled(true))
+    } else {
+        None
+    };
+    let _thorough_guard = if args.thorough {
+        Some(gtfs_guru_core::set_thorough_mode_enabled(true))
     } else {
         None
     };

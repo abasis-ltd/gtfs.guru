@@ -1,4 +1,5 @@
 use crate::feed::PATHWAYS_FILE;
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
@@ -18,6 +19,7 @@ impl Validator for PathwaysValidator {
                 let row_number = pathways.row_number(index);
                 if pathway.length.is_none()
                     && !matches!(pathway.pathway_mode, gtfs_guru_model::PathwayMode::ExitGate)
+                    && thorough_mode_enabled()
                 {
                     let mut notice = ValidationNotice::new(
                         CODE_MISSING_RECOMMENDED_FIELD,
@@ -46,6 +48,7 @@ impl Validator for PathwaysValidator {
 
                 if matches!(pathway.pathway_mode, gtfs_guru_model::PathwayMode::Stairs)
                     && pathway.stair_count.is_none()
+                    && thorough_mode_enabled()
                 {
                     let mut notice = ValidationNotice::new(
                         CODE_MISSING_RECOMMENDED_FIELD,

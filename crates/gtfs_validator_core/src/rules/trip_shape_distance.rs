@@ -21,6 +21,20 @@ impl Validator for TripAndShapeDistanceValidator {
             None => return,
         };
 
+        // Pre-build index: shape_id -> (max_dist, lat, lon) - O(shapes) instead of O(trips × shapes)
+        let mut shape_max_dist: HashMap<&str, (f64, f64, f64)> = HashMap::new();
+        for shape in &shapes.rows {
+            let shape_id = shape.shape_id.trim();
+            if shape_id.is_empty() {
+                continue;
+            }
+            let dist = shape.shape_dist_traveled.unwrap_or(0.0);
+            let entry = shape_max_dist.entry(shape_id).or_insert((0.0, 0.0, 0.0));
+            if dist > entry.0 {
+                *entry = (dist, shape.shape_pt_lat, shape.shape_pt_lon);
+            }
+        }
+
         let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
         for stop_time in &feed.stop_times.rows {
             let trip_id = stop_time.trip_id.trim();
@@ -75,33 +89,13 @@ impl Validator for TripAndShapeDistanceValidator {
 
             let max_stop_time_dist = last_stop_time.shape_dist_traveled.unwrap_or(0.0);
 
-            let mut max_shape: Option<&gtfs_guru_model::Shape> = None;
-            let mut max_shape_dist = 0.0;
-            for shape in shapes
-                .rows
-                .iter()
-                .filter(|shape| shape.shape_id.trim() == shape_id)
-            {
-                let dist = shape.shape_dist_traveled.unwrap_or(0.0);
-                if max_shape.is_none() || dist > max_shape_dist {
-                    max_shape = Some(shape);
-                    max_shape_dist = dist;
-                }
-            }
-            let max_shape = match max_shape {
-                Some(shape) => shape,
-                None => continue,
+            // O(1) lookup instead of O(shapes) iteration
+            let (max_shape_dist, shape_lat, shape_lon) = match shape_max_dist.get(shape_id) {
+                Some(&data) if data.0 > 0.0 => data,
+                _ => continue,
             };
-            if max_shape_dist == 0.0 {
-                continue;
-            }
 
-            let distance_meters = haversine_meters(
-                max_shape.shape_pt_lat,
-                max_shape.shape_pt_lon,
-                stop_lat,
-                stop_lon,
-            );
+            let distance_meters = haversine_meters(shape_lat, shape_lon, stop_lat, stop_lon);
 
             if max_stop_time_dist > max_shape_dist {
                 let (code, severity, message) = if distance_meters > DISTANCE_THRESHOLD_METERS {

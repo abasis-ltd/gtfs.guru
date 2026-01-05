@@ -5,6 +5,8 @@ use gtfs_guru_model::{BikesAllowed, RouteType};
 
 const CODE_MISSING_BIKE_ALLOWANCE: &str = "missing_bike_allowance";
 
+use crate::validation_context::thorough_mode_enabled;
+
 #[derive(Debug, Default)]
 pub struct BikesAllowanceValidator;
 
@@ -15,7 +17,7 @@ impl Validator for BikesAllowanceValidator {
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         let has_bikes_allowed_column = feed.trips.headers.iter().any(|h| h == "bikes_allowed");
-        if !has_bikes_allowed_column {
+        if !has_bikes_allowed_column || !thorough_mode_enabled() {
             return;
         }
 

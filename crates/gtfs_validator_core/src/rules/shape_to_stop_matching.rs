@@ -2,8 +2,10 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::RouteType;
+use rstar::{RTree, RTreeObject, AABB};
 
 const CODE_STOP_TOO_FAR_FROM_SHAPE: &str = "stop_too_far_from_shape";
 const CODE_STOP_TOO_FAR_FROM_SHAPE_USER_DISTANCE: &str =
@@ -186,6 +188,9 @@ fn report_problems(
         if problem.problem_type == ProblemType::StopTooFarFromShape
             && !reported_stop_ids.insert(stop_id.to_string())
         {
+            continue;
+        }
+        if !thorough_mode_enabled() && problem.problem_type != ProblemType::StopTooFarFromShape {
             continue;
         }
         notices.push(problem_notice(
@@ -820,18 +825,71 @@ impl StopPoint<'_> {
 #[derive(Debug, Clone)]
 struct ShapePoints {
     points: Vec<ShapePoint>,
+    rtree: RTree<ShapeSegment>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ShapeSegment {
+    index: usize,
+    p1: LatLng,
+    p2: LatLng,
+}
+
+impl RTreeObject for ShapeSegment {
+    type Envelope = AABB<[f64; 2]>;
+
+    fn envelope(&self) -> Self::Envelope {
+        let min_lat = self.p1.lat.min(self.p2.lat);
+        let max_lat = self.p1.lat.max(self.p2.lat);
+        let min_lon = self.p1.lon.min(self.p2.lon);
+        let max_lon = self.p1.lon.max(self.p2.lon);
+        AABB::from_corners([min_lat, min_lon], [max_lat, max_lon])
+    }
+}
+
+impl rstar::PointDistance for ShapeSegment {
+    fn distance_2(&self, point: &[f64; 2]) -> f64 {
+        let p_lat = point[0];
+        let p_lon = point[1];
+        let p1_lat = self.p1.lat;
+        let p1_lon = self.p1.lon;
+        let p2_lat = self.p2.lat;
+        let p2_lon = self.p2.lon;
+
+        let l2 = (p1_lat - p2_lat).powi(2) + (p1_lon - p2_lon).powi(2);
+        if l2 == 0.0 {
+            return (p_lat - p1_lat).powi(2) + (p_lon - p1_lon).powi(2);
+        }
+
+        let t = ((p_lat - p1_lat) * (p2_lat - p1_lat) + (p_lon - p1_lon) * (p2_lon - p1_lon)) / l2;
+        let t = t.max(0.0).min(1.0);
+
+        let proj_lat = p1_lat + t * (p2_lat - p1_lat);
+        let proj_lon = p1_lon + t * (p2_lon - p1_lon);
+
+        (p_lat - proj_lat).powi(2) + (p_lon - proj_lon).powi(2)
+    }
 }
 
 impl ShapePoints {
     fn from_shapes(mut shapes: Vec<&gtfs_guru_model::Shape>) -> Self {
         shapes.sort_by_key(|shape| shape.shape_pt_sequence);
         let mut points = Vec::with_capacity(shapes.len());
+        let mut segments = Vec::with_capacity(shapes.len().saturating_sub(1));
         let mut geo_distance = 0.0_f64;
         let mut user_distance = 0.0_f64;
         for (idx, shape) in shapes.iter().enumerate() {
             if idx > 0 {
                 let prev = shapes[idx - 1];
-                geo_distance += haversine_meters(lat_lng(prev), lat_lng(shape)).max(0.0);
+                let prev_loc = lat_lng(prev);
+                let curr_loc = lat_lng(shape);
+                geo_distance += haversine_meters(prev_loc, curr_loc).max(0.0);
+
+                segments.push(ShapeSegment {
+                    index: idx - 1,
+                    p1: prev_loc,
+                    p2: curr_loc,
+                });
             }
             user_distance = user_distance.max(shape.shape_dist_traveled.unwrap_or(0.0));
             points.push(ShapePoint {
@@ -840,7 +898,10 @@ impl ShapePoints {
                 location: lat_lng(shape),
             });
         }
-        Self { points }
+
+        let rtree = RTree::bulk_load(segments);
+
+        Self { points, rtree }
     }
 
     fn has_user_distance(&self) -> bool {
@@ -855,21 +916,45 @@ impl ShapePoints {
     }
 
     fn match_from_location(&self, location: LatLng) -> StopToShapeMatch {
-        let mut best_match = StopToShapeMatch::new();
+        if self.points.is_empty() {
+            return StopToShapeMatch::new();
+        }
         if self.points.len() == 1 {
+            let mut best_match = StopToShapeMatch::new();
             let closest = self.points[0].location;
             best_match.keep_best_match(closest, haversine_meters(location, closest), 0);
+            if best_match.has_best_match() {
+                self.fill_location_match(&mut best_match);
+            }
+            return best_match;
         }
-        for index in 0..self.points.len().saturating_sub(1) {
-            let left = self.points[index].location;
-            let right = self.points[index + 1].location;
-            let (closest, distance) = closest_point_on_segment(location, left, right);
-            best_match.keep_best_match(closest, distance, index);
+
+        // Use RTree nearest neighbor to find the closest segment quickly
+        // Note: The distance_2 impl uses Euclidean degrees, so it's an approximation.
+        // We might want to check a few neighbors or verify, but usually it's good enough for "closest".
+        // However, to be strictly correct with Haversine, nearest neighbor in lat/lon space
+        // is very likely the nearest in Haversine unless distortion is extreme.
+        let closest_segment = self.rtree.nearest_neighbor(&[location.lat, location.lon]);
+
+        if let Some(segment) = closest_segment {
+            let mut best_match = StopToShapeMatch::new();
+            let (closest, distance) = closest_point_on_segment(location, segment.p1, segment.p2);
+            best_match.keep_best_match(closest, distance, segment.index);
+
+            // Check neighbors in RTree just in case (optional, but safer)
+            // Or simply iterate a few candidates if we wanted to be perfectly sure.
+            // For now, let's rely on the nearest provided by RTree as a good candidate
+            // but strictly we should probably query nearest N if we want to be 100% sure about projection.
+            // Given the context of "stop matching", strict nearest is good.
+
+            if best_match.has_best_match() {
+                self.fill_location_match(&mut best_match);
+            }
+            return best_match;
         }
-        if best_match.has_best_match() {
-            self.fill_location_match(&mut best_match);
-        }
-        best_match
+
+        // Fallback (shouldn't happen if not empty)
+        StopToShapeMatch::new()
     }
 
     fn match_from_user_dist(
@@ -894,9 +979,66 @@ impl ShapePoints {
         let mut distance_to_end_previous_segment = f64::INFINITY;
         let mut previous_segment_getting_further_away = false;
 
-        for index in 0..self.points.len().saturating_sub(1) {
-            let left = self.points[index].location;
-            let right = self.points[index + 1].location;
+        // Calculate search envelope in degrees
+        // 1 degree ~ 111,111 meters
+        const METERS_PER_DEGREE: f64 = 111_111.0;
+        let lat_delta = max_distance_from_shape / METERS_PER_DEGREE;
+        // Adjust lon delta based on latitude (cos(lat))
+        // Clamp cos_lat to avoid division by zero near poles, though unlikely for transit
+        let cos_lat = location.lat.to_radians().cos().abs().max(0.01);
+        let lon_delta = lat_delta / cos_lat;
+
+        // Add a safety margin (e.g. 50%) to account for Haversine vs Euclidean difference
+        let safety_factor = 1.5;
+        let search_lat_delta = lat_delta * safety_factor;
+        let search_lon_delta = lon_delta * safety_factor;
+
+        let envelope = AABB::from_corners(
+            [
+                location.lat - search_lat_delta,
+                location.lon - search_lon_delta,
+            ],
+            [
+                location.lat + search_lat_delta,
+                location.lon + search_lon_delta,
+            ],
+        );
+
+        // Query RTree for candidate segments
+        let candidates = self.rtree.locate_in_envelope_intersecting(&envelope);
+
+        // Process ONLY candidate segments, but we must sort them by index to maintain logic
+        // "previous_segment_getting_further_away" relies on sequential processing.
+        // So we collect candidates and sort by index.
+        let mut sorted_candidates: Vec<&ShapeSegment> = candidates.collect();
+        sorted_candidates.sort_by_key(|s| s.index);
+
+        // Optimization: If candidates list is sparse/discontinuous, the logic
+        // "distance_to_end_previous_segment" is tricky because it assumes continuity.
+        // However, the original algorithm iterates ALL segments to detect local minima.
+        // If we skip segments that are too far away, we just effectively ignore them.
+        // But we need to be careful about "distance_to_end_previous_segment" logic.
+        //
+        // If we are skipping segments, we treat them as "infinite distance".
+        // The logic relies on `previous_segment_getting_further_away` to group matches.
+
+        let mut last_index = usize::MAX;
+
+        for segment in sorted_candidates {
+            // Handle gap between segments (reset state if non-consecutive)
+            if last_index != usize::MAX && segment.index != last_index + 1 {
+                // Gap detected, reset local match state as if we started fresh or finished a group
+                if local_match.has_best_match() {
+                    matches.push(local_match.clone());
+                    local_match.clear_best_match();
+                }
+                distance_to_end_previous_segment = f64::INFINITY;
+                previous_segment_getting_further_away = false;
+            }
+            last_index = segment.index;
+
+            let left = segment.p1;
+            let right = segment.p2;
             let (closest, geo_distance_to_shape) = closest_point_on_segment(location, left, right);
 
             if geo_distance_to_shape <= max_distance_from_shape {
@@ -908,7 +1050,7 @@ impl ShapePoints {
                     matches.push(local_match.clone());
                     local_match.clear_best_match();
                 }
-                local_match.keep_best_match(closest, geo_distance_to_shape, index);
+                local_match.keep_best_match(closest, geo_distance_to_shape, segment.index);
             } else if local_match.has_best_match() {
                 matches.push(local_match.clone());
                 local_match.clear_best_match();

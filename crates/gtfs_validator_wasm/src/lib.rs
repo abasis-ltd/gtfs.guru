@@ -1,8 +1,8 @@
 use wasm_bindgen::prelude::*;
 
 use gtfs_guru_core::{
-    default_runner, set_validation_country_code, set_validation_date, validate_bytes,
-    NoticeContainer, NoticeSeverity,
+    default_runner, set_thorough_mode_enabled, set_validation_country_code, set_validation_date,
+    validate_bytes, NoticeContainer, NoticeSeverity,
 };
 
 #[cfg(feature = "console_error_panic_hook")]
@@ -76,6 +76,7 @@ pub fn validate_gtfs(zip_bytes: &[u8], country_code: Option<String>) -> Validati
     // Set validation context
     let _country_guard = set_validation_country_code(country_code);
     let _date_guard = set_validation_date(None); // Use current date
+    let _thorough_guard = set_thorough_mode_enabled(false); // Default to standard mode
 
     // Create runner with all validators
     let runner = default_runner();
