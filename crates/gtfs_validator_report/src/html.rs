@@ -88,6 +88,23 @@ fn render_html(
     <script>
       $(document).ready(function () {
         $(document).tooltip();
+        
+        // Accordion functionality
+        $(".accordion tr.notice").click(function() {
+            var $this = $(this);
+            var $desc = $this.next("tr.description");
+            
+            $this.toggleClass("open");
+            $desc.toggleClass("open");
+            
+            // Toggle +/- icon
+            var $icon = $this.find("span:first");
+            if ($this.hasClass("open")) {
+                $icon.text("–"); // En dash
+            } else {
+                $icon.text("+");
+            }
+        });
       });
     </script>
     <style>
@@ -171,10 +188,23 @@ fn render_html(
 
     .summary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: 1.2fr 1.5fr 0.8fr 0.7fr 1fr;
         gap: 0.75rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
+
+    @media (max-width: 1024px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 640px) {
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
 
     .card {
         background: var(--card-bg);
@@ -199,7 +229,8 @@ fn render_html(
         margin: 0;
         display: grid;
         grid-template-columns: auto 1fr;
-        gap: 0.5rem 1rem;
+        gap: 0.1rem 0.5rem;
+        font-size: 0.85rem;
     }
 
     .card dt {
@@ -215,11 +246,13 @@ fn render_html(
 
     .card ul, .card ol {
         margin: 0;
-        padding-left: 1.25rem;
+        padding-left: 0;
+        list-style: none;
+        font-size: 0.85rem;
     }
 
     .card li {
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.1rem;
     }
 
     .section-title {
@@ -229,6 +262,42 @@ fn render_html(
         display: flex;
         align-items: center;
         gap: 0.5rem;
+    }
+    .tooltip {
+        position: relative;
+        display: inline-block;
+        border-bottom: 1px dotted var(--text-muted);
+        cursor: help;
+        color: var(--primary);
+        font-size: 0.75rem;
+        margin-left: 0.25rem;
+    }
+
+    .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 240px;
+        background-color: #1e293b;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px;
+        position: absolute;
+        z-index: 10;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -120px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.75rem;
+        line-height: 1.2;
+        font-weight: normal;
+        pointer-events: none;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
     }
 
     .compliance-stats {
@@ -294,6 +363,14 @@ fn render_html(
 
     .accordion tr.notice.open {
         background: #f1f5f9;
+    }
+
+    .accordion tr.description {
+        display: none;
+    }
+
+    .accordion tr.description.open {
+        display: table-row;
     }
 
     .notice-code {
@@ -578,7 +655,7 @@ fn render_feed_info(out: &mut String, summary: &ReportSummary) {
             }
             if key == "Service Window" {
                 out.push_str(
-                    "                        <a href=\"#\" class=\"tooltip\" onclick=\"event.preventDefault();\"><span>(?)</span>\n                            <span class=\"tooltiptext\" style=\"transform: translateX(-100%)\">The range of service dates covered by the feed, based on trips with an associated service_id in calendar.txt and/or calendar_dates.txt</span>\n                        </a>\n",
+                    "                        <a href=\"#\" class=\"tooltip\" onclick=\"event.preventDefault();\">(?)<span class=\"tooltiptext\">The range of service dates covered by the feed, based on trips with an associated service_id in calendar.txt and/or calendar_dates.txt</span></a>\n",
                 );
             }
             out.push_str("                    </dt>\n");
@@ -614,18 +691,20 @@ fn render_counts(out: &mut String, summary: &ReportSummary) {
 }
 
 fn render_features(out: &mut String, summary: &ReportSummary) {
-    out.push_str("            <div class=\"card\">\n                <h4>GTFS Features Included</h4>\n                <div style=\"display: flex; flex-wrap: wrap; gap: 4px;\">\n");
     if let Some(features) = summary.gtfs_features.as_ref() {
-        for feature in build_feature_entries(features) {
-            out.push_str("                    <span class=\"spec-feature\">");
-            out.push_str("<a href=\"");
-            push_escaped(out, &feature.doc_url);
-            out.push_str("\" target=\"_blank\">");
-            push_escaped(out, &feature.name);
-            out.push_str("</a></span>\n");
+        if !features.is_empty() {
+            out.push_str("            <div class=\"card\">\n                <h4>GTFS Features Included</h4>\n                <div style=\"display: flex; flex-wrap: wrap; gap: 4px;\">\n");
+            for feature in build_feature_entries(features) {
+                out.push_str("                    <span class=\"spec-feature\">");
+                out.push_str("<a href=\"");
+                push_escaped(out, &feature.doc_url);
+                out.push_str("\" target=\"_blank\">");
+                push_escaped(out, &feature.name);
+                out.push_str("</a></span>\n");
+            }
+            out.push_str("                </div>\n            </div>\n");
         }
     }
-    out.push_str("                </div>\n            </div>\n");
 }
 
 fn build_feed_info_entries(info: &ReportFeedInfo) -> Vec<(String, String)> {

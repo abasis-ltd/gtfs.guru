@@ -13,31 +13,46 @@ impl Validator for MissingTripEdgeValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_guru_model::StopTime)>> = HashMap::new();
-        for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            let row_number = feed.stop_times.row_number(index);
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            let results: Vec<NoticeContainer> = feed
+                .stop_times_by_trip
+                .par_iter()
+                .map(|(trip_id, indices)| Self::check_trip(feed, trip_id, indices))
+                .collect();
+
+            for result in results {
+                notices.merge(result);
             }
-            by_trip
-                .entry(trip_id)
-                .or_default()
-                .push((row_number, stop_time));
-        }
-        for stop_times in by_trip.values_mut() {
-            stop_times.sort_by_key(|(_, stop_time)| stop_time.stop_sequence);
         }
 
-        for stop_times in by_trip.values() {
-            if stop_times.is_empty() {
-                continue;
+        #[cfg(not(feature = "parallel"))]
+        {
+            // Use pre-built index - indices are already sorted by stop_sequence
+            for (trip_id, indices) in &feed.stop_times_by_trip {
+                let result = Self::check_trip(feed, trip_id, indices);
+                notices.merge(result);
             }
-            let (first_row, first) = stop_times[0];
-            let (last_row, last) = stop_times[stop_times.len() - 1];
-            check_trip_edge(first, first_row, notices);
-            check_trip_edge(last, last_row, notices);
         }
+    }
+}
+
+impl MissingTripEdgeValidator {
+    fn check_trip(feed: &GtfsFeed, _trip_id: &str, indices: &[usize]) -> NoticeContainer {
+        let mut notices = NoticeContainer::new();
+        if indices.is_empty() {
+            return notices;
+        }
+        let first_idx = indices[0];
+        let last_idx = indices[indices.len() - 1];
+        let first = &feed.stop_times.rows[first_idx];
+        let last = &feed.stop_times.rows[last_idx];
+        let first_row = feed.stop_times.row_number(first_idx);
+        let last_row = feed.stop_times.row_number(last_idx);
+        check_trip_edge(first, first_row, &mut notices);
+        check_trip_edge(last, last_row, &mut notices);
+        notices
     }
 }
 
@@ -124,6 +139,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         MissingTripEdgeValidator.validate(&feed, &mut notices);
@@ -159,6 +175,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         MissingTripEdgeValidator.validate(&feed, &mut notices);
@@ -194,6 +211,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         MissingTripEdgeValidator.validate(&feed, &mut notices);
@@ -218,6 +236,7 @@ mod tests {
             }],
             row_numbers: vec![2],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         MissingTripEdgeValidator.validate(&feed, &mut notices);

@@ -36,85 +36,141 @@ impl Validator for StopTimeTravelSpeedValidator {
             routes_by_id.insert(route_id, route);
         }
 
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
-        let mut stop_time_rows: HashMap<*const gtfs_guru_model::StopTime, u64> = HashMap::new();
-        for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            stop_time_rows.insert(stop_time as *const _, feed.stop_times.row_number(index));
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .push(stop_time);
-        }
-        for stop_times in stop_times_by_trip.values_mut() {
-            stop_times.sort_by_key(|stop_time| stop_time.stop_sequence);
-        }
-
+        // Build trips_by_id for fast lookup
+        let mut trips_by_id: HashMap<&str, (usize, &gtfs_guru_model::Trip)> = HashMap::new();
         for (trip_index, trip) in feed.trips.rows.iter().enumerate() {
             let trip_id = trip.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
+            if !trip_id.is_empty() {
+                trips_by_id.insert(trip_id, (trip_index, trip));
             }
-            let stop_times = match stop_times_by_trip.get(trip_id) {
-                Some(times) if times.len() > 1 => times,
-                _ => continue,
-            };
-            let route_id = trip.route_id.trim();
-            if route_id.is_empty() {
-                continue;
-            }
-            let route = match routes_by_id.get(route_id) {
-                Some(route) => *route,
-                None => continue,
-            };
-            let max_speed_kph = max_speed_kph(route.route_type);
-            let trip_row_number = feed.trips.row_number(trip_index);
+        }
 
-            let mut distances_km = Vec::with_capacity(stop_times.len() - 1);
-            let mut coords = Vec::with_capacity(stop_times.len());
-            let mut missing_coords = false;
-            for stop_time in stop_times.iter() {
-                match stop_coords(stop_time, &stops_by_id) {
-                    Some(coords_for_stop) => coords.push(coords_for_stop),
-                    None => {
-                        missing_coords = true;
-                        break;
-                    }
+        let context = ValidationContext {
+            stops_by_id,
+            routes_by_id,
+            trips_by_id,
+        };
+
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            let results: Vec<NoticeContainer> = feed
+                .stop_times_by_trip
+                .par_iter()
+                .map(|(trip_id, indices)| Self::check_trip(feed, trip_id, indices, &context))
+                .collect();
+
+            for result in results {
+                notices.merge(result);
+            }
+        }
+
+        #[cfg(not(feature = "parallel"))]
+        {
+            // Use pre-built index - indices are already sorted by stop_sequence
+            for (trip_id, indices) in &feed.stop_times_by_trip {
+                let result = Self::check_trip(feed, trip_id, indices, &context);
+                notices.merge(result);
+            }
+        }
+    }
+}
+
+struct ValidationContext<'a> {
+    stops_by_id: HashMap<&'a str, &'a gtfs_guru_model::Stop>,
+    routes_by_id: HashMap<&'a str, &'a gtfs_guru_model::Route>,
+    trips_by_id: HashMap<&'a str, (usize, &'a gtfs_guru_model::Trip)>,
+}
+
+// Sync implementation is required for sharing across threads,
+// but HashMap with &str keys and &T values is Send + Sync if T is Sync.
+// gtfs_guru_model types are Sync.
+unsafe impl<'a> Sync for ValidationContext<'a> {}
+unsafe impl<'a> Send for ValidationContext<'a> {}
+
+impl StopTimeTravelSpeedValidator {
+    fn check_trip(
+        feed: &GtfsFeed,
+        trip_id: &str,
+        indices: &[usize],
+        context: &ValidationContext,
+    ) -> NoticeContainer {
+        let mut notices = NoticeContainer::new();
+        if indices.len() <= 1 {
+            return notices;
+        }
+        let (trip_index, trip) = match context.trips_by_id.get(trip_id) {
+            Some(t) => *t,
+            None => return notices,
+        };
+        let route_id = trip.route_id.trim();
+        if route_id.is_empty() {
+            return notices;
+        }
+        let route = match context.routes_by_id.get(route_id) {
+            Some(route) => *route,
+            None => return notices,
+        };
+        let max_speed_kph = max_speed_kph(route.route_type);
+        let trip_row_number = feed.trips.row_number(trip_index);
+
+        // Collect stop_times as references for validation functions
+        let stop_times: Vec<&gtfs_guru_model::StopTime> =
+            indices.iter().map(|&i| &feed.stop_times.rows[i]).collect();
+
+        // Build row number lookup
+        let stop_time_rows: HashMap<*const gtfs_guru_model::StopTime, u64> = indices
+            .iter()
+            .map(|&i| {
+                (
+                    &feed.stop_times.rows[i] as *const _,
+                    feed.stop_times.row_number(i),
+                )
+            })
+            .collect();
+
+        let mut distances_km = Vec::with_capacity(stop_times.len() - 1);
+        let mut coords = Vec::with_capacity(stop_times.len());
+        let mut missing_coords = false;
+        for stop_time in stop_times.iter() {
+            match stop_coords(stop_time, &context.stops_by_id) {
+                Some(coords_for_stop) => coords.push(coords_for_stop),
+                None => {
+                    missing_coords = true;
+                    break;
                 }
             }
-            if missing_coords {
-                continue;
-            }
-            for i in 0..coords.len() - 1 {
-                let (lat1, lon1) = coords[i];
-                let (lat2, lon2) = coords[i + 1];
-                distances_km.push(haversine_km(lat1, lon1, lat2, lon2));
-            }
-
-            validate_consecutive_stops(
-                notices,
-                trip,
-                trip_row_number,
-                stop_times,
-                &distances_km,
-                max_speed_kph,
-                &stops_by_id,
-                &stop_time_rows,
-            );
-            validate_far_stops(
-                notices,
-                trip,
-                trip_row_number,
-                stop_times,
-                &distances_km,
-                max_speed_kph,
-                &stops_by_id,
-                &stop_time_rows,
-            );
         }
+        if missing_coords {
+            return notices;
+        }
+        for i in 0..coords.len() - 1 {
+            let (lat1, lon1) = coords[i];
+            let (lat2, lon2) = coords[i + 1];
+            distances_km.push(haversine_km(lat1, lon1, lat2, lon2));
+        }
+
+        validate_consecutive_stops(
+            &mut notices,
+            trip,
+            trip_row_number,
+            &stop_times,
+            &distances_km,
+            max_speed_kph,
+            &context.stops_by_id,
+            &stop_time_rows,
+        );
+        validate_far_stops(
+            &mut notices,
+            trip,
+            trip_row_number,
+            &stop_times,
+            &distances_km,
+            max_speed_kph,
+            &context.stops_by_id,
+            &stop_time_rows,
+        );
+        notices
     }
 }
 
@@ -490,6 +546,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
@@ -582,6 +639,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3, 4],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
@@ -658,6 +716,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         StopTimeTravelSpeedValidator.validate(&feed, &mut notices);

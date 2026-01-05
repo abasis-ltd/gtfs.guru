@@ -4,6 +4,8 @@ import init, { validate_gtfs } from './pkg/gtfs_guru_wasm.js';
 init().catch(console.error);
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Enable fade-up animations only when JS is working
+    document.body.classList.add('js-enabled');
 
     /* --- Intersection Observer for Fade-Up Animations --- */
     const observerOptions = {
@@ -114,6 +116,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const scoreNumberEl = document.getElementById('score-number');
     const scoreRingEl = document.getElementById('score-ring');
 
+    // Report modal elements
+    const reportModal = document.getElementById('report-modal');
+    const reportModalBody = document.getElementById('report-modal-body');
+    const viewReportBtn = document.getElementById('view-report-btn');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const downloadJsonBtn = document.getElementById('download-json-btn');
+    const downloadJsonModalBtn = document.getElementById('download-json-modal-btn');
+
+    // Store validation result
+    let lastValidationResult = null;
+    let lastFileName = 'gtfs_validation';
+
     if (dropZone && fileInput) {
         // Drag & Drop
         dropZone.addEventListener('dragover', (e) => {
@@ -148,9 +162,48 @@ document.addEventListener('DOMContentLoaded', () => {
             resetBtn.addEventListener('click', () => {
                 resultState.classList.add('hidden');
                 uploadState.classList.remove('hidden');
-                fileInput.value = ''; // Reset input
+                fileInput.value = '';
+                lastValidationResult = null;
             });
         }
+
+        // View Report button
+        if (viewReportBtn) {
+            viewReportBtn.addEventListener('click', () => {
+                if (lastValidationResult) {
+                    showReportModal(lastValidationResult);
+                }
+            });
+        }
+
+        // Close modal
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', closeReportModal);
+        }
+
+        // Close modal on backdrop click
+        if (reportModal) {
+            reportModal.addEventListener('click', (e) => {
+                if (e.target === reportModal) {
+                    closeReportModal();
+                }
+            });
+        }
+
+        // Download JSON buttons
+        if (downloadJsonBtn) {
+            downloadJsonBtn.addEventListener('click', downloadValidationJSON);
+        }
+        if (downloadJsonModalBtn) {
+            downloadJsonModalBtn.addEventListener('click', downloadValidationJSON);
+        }
+
+        // Close modal on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && reportModal && !reportModal.classList.contains('hidden')) {
+                closeReportModal();
+            }
+        });
     }
 
     async function handleFile(file) {
@@ -158,6 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Please upload a ZIP file.');
             return;
         }
+
+        lastFileName = file.name.replace('.zip', '');
 
         // Show processing
         uploadState.classList.add('hidden');
@@ -171,6 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 try {
                     const result = validate_gtfs(bytes, null);
+                    lastValidationResult = result;
                     showResults(result);
                 } catch (err) {
                     console.error("Validation error:", err);
@@ -196,10 +252,9 @@ document.addEventListener('DOMContentLoaded', () => {
         errorCountEl.innerText = errors;
         warningCountEl.innerText = warnings;
 
-        // Simple scoring: 100 if no errors, else 0. 
-        // Or maybe 100 - (errors * 5). Min 0.
+        // Simple scoring
         let score = Math.max(0, 100 - (errors * 20));
-        if (errors > 0 && score === 100) score = 90; // Penalize at least a bit
+        if (errors > 0 && score === 100) score = 90;
 
         scoreNumberEl.innerText = score;
 
@@ -212,6 +267,116 @@ document.addEventListener('DOMContentLoaded', () => {
             scoreRingEl.style.borderColor = 'var(--success)';
         }
 
+        // Re-create icons for new buttons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
         console.log("Validation Result:", result);
     }
+
+    function showReportModal(result) {
+        if (!reportModal || !reportModalBody) return;
+
+        let notices = [];
+        try {
+            notices = JSON.parse(result.json);
+        } catch (e) {
+            console.error('Failed to parse notices:', e);
+        }
+
+        // Group by severity
+        const groups = {
+            error: notices.filter(n => n.severity === 'error'),
+            warning: notices.filter(n => n.severity === 'warning'),
+            info: notices.filter(n => n.severity === 'info')
+        };
+
+        let html = '';
+
+        if (notices.length === 0) {
+            html = `
+                <div class="empty-state">
+                    <i data-lucide="check-circle"></i>
+                    <h4>Perfect!</h4>
+                    <p>No issues found in your GTFS feed.</p>
+                </div>
+            `;
+        } else {
+            // Render each group
+            if (groups.error.length > 0) {
+                html += renderNoticeGroup('Errors', 'error', groups.error);
+            }
+            if (groups.warning.length > 0) {
+                html += renderNoticeGroup('Warnings', 'warning', groups.warning);
+            }
+            if (groups.info.length > 0) {
+                html += renderNoticeGroup('Info', 'info', groups.info);
+            }
+        }
+
+        reportModalBody.innerHTML = html;
+        reportModal.classList.remove('hidden');
+
+        // Initialize lucide icons in modal
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    function renderNoticeGroup(title, severity, notices) {
+        const items = notices.slice(0, 50).map(notice => `
+            <div class="notice-item ${severity}">
+                <div class="notice-code">${escapeHtml(notice.code)}</div>
+                <div class="notice-message">${escapeHtml(notice.message)}</div>
+                <div class="notice-location">
+                    ${notice.file ? `<span>File: <code>${escapeHtml(notice.file)}</code></span>` : ''}
+                    ${notice.row ? `<span>Row: <code>${notice.row}</code></span>` : ''}
+                    ${notice.field ? `<span>Field: <code>${escapeHtml(notice.field)}</code></span>` : ''}
+                </div>
+            </div>
+        `).join('');
+
+        const moreCount = notices.length > 50 ? notices.length - 50 : 0;
+        const moreNote = moreCount > 0 ? `<p style="color: var(--text-secondary); font-size: 0.85rem; text-align: center;">+ ${moreCount} more ${severity}s (download JSON for full report)</p>` : '';
+
+        return `
+            <div class="notice-group">
+                <div class="notice-group-header ${severity}">
+                    <span>${title}</span>
+                    <span class="notice-group-count">${notices.length}</span>
+                </div>
+                ${items}
+                ${moreNote}
+            </div>
+        `;
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function closeReportModal() {
+        if (reportModal) {
+            reportModal.classList.add('hidden');
+        }
+    }
+
+    function downloadValidationJSON() {
+        if (!lastValidationResult) return;
+
+        const blob = new Blob([lastValidationResult.json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${lastFileName}_validation_report.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
 });
+

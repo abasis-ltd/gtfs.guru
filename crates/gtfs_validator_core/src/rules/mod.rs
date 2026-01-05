@@ -186,7 +186,6 @@ pub use url_syntax::UrlSyntaxValidator;
 
 pub fn default_runner() -> ValidatorRunner {
     let mut runner = ValidatorRunner::new();
-    /*
     runner.register(CalendarPresenceValidator);
     runner.register(CalendarValidator);
     runner.register(MissingStopsFileValidator);
@@ -195,7 +194,7 @@ pub fn default_runner() -> ValidatorRunner {
     runner.register(DateTripsValidator);
     runner.register(RequiredTablesNotEmptyValidator);
     runner.register(RequiredFieldsNonEmptyValidator);
-    // runner.register(ReferentialIntegrityValidator);
+    runner.register(ReferentialIntegrityValidator);
     runner.register(TripUsageValidator);
     runner.register(StopTimeArrivalAndDepartureTimeValidator);
     runner.register(TimepointTimeValidator);
@@ -213,7 +212,6 @@ pub fn default_runner() -> ValidatorRunner {
     runner.register(StopTimesShapeDistTraveledPresenceValidator);
     runner.register(StopTimeTravelSpeedValidator);
     runner.register(TripAndShapeDistanceValidator);
-    */
     // runner.register(ShapeToStopMatchingValidator);
     runner.register(BlockTripsWithOverlappingStopTimesValidator);
     runner.register(DuplicateStopSequenceValidator);

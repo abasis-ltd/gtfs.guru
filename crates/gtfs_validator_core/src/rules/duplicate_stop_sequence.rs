@@ -14,15 +14,41 @@ impl Validator for DuplicateStopSequenceValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut seen: HashMap<(String, u32), u64> = HashMap::new();
-        for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            let row_number = feed.stop_times.row_number(index);
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            let new_notices: Vec<ValidationNotice> = feed
+                .stop_times_by_trip
+                .par_iter()
+                .flat_map(|(trip_id, indices)| Self::check_trip(feed, trip_id, indices))
+                .collect();
+
+            for notice in new_notices {
+                notices.push(notice);
             }
-            let key = (trip_id.to_string(), stop_time.stop_sequence);
-            if let Some(previous_row) = seen.get(&key) {
+        }
+
+        #[cfg(not(feature = "parallel"))]
+        {
+            for (trip_id, indices) in &feed.stop_times_by_trip {
+                let trip_notices = Self::check_trip(feed, trip_id, indices);
+                for notice in trip_notices {
+                    notices.push(notice);
+                }
+            }
+        }
+    }
+}
+
+impl DuplicateStopSequenceValidator {
+    fn check_trip(feed: &GtfsFeed, trip_id: &str, indices: &[usize]) -> Vec<ValidationNotice> {
+        let mut notices = Vec::new();
+        let mut seen_sequences: HashMap<u32, u64> = HashMap::new();
+        for &idx in indices {
+            let stop_time = &feed.stop_times.rows[idx];
+            let row_number = feed.stop_times.row_number(idx);
+            let seq = stop_time.stop_sequence;
+            if let Some(previous_row) = seen_sequences.get(&seq) {
                 let mut notice = ValidationNotice::new(
                     CODE_DUPLICATE_KEY,
                     NoticeSeverity::Error,
@@ -31,7 +57,7 @@ impl Validator for DuplicateStopSequenceValidator {
                 notice.insert_context_field("fieldName1", "trip_id");
                 notice.insert_context_field("fieldName2", "stop_sequence");
                 notice.insert_context_field("fieldValue1", trip_id);
-                notice.insert_context_field("fieldValue2", stop_time.stop_sequence);
+                notice.insert_context_field("fieldValue2", seq);
                 notice.insert_context_field("filename", STOP_TIMES_FILE);
                 notice.insert_context_field("newCsvRowNumber", row_number);
                 notice.insert_context_field("oldCsvRowNumber", *previous_row);
@@ -46,9 +72,10 @@ impl Validator for DuplicateStopSequenceValidator {
                 ];
                 notices.push(notice);
             } else {
-                seen.insert(key, row_number);
+                seen_sequences.insert(seq, row_number);
             }
         }
+        notices
     }
 }
 
@@ -77,6 +104,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         DuplicateStopSequenceValidator.validate(&feed, &mut notices);
@@ -105,6 +133,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         DuplicateStopSequenceValidator.validate(&feed, &mut notices);
@@ -131,6 +160,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         DuplicateStopSequenceValidator.validate(&feed, &mut notices);

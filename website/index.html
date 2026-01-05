@@ -16,8 +16,7 @@
         rel="stylesheet">
 
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="icon" type="image/png" href="favicon.png">
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
@@ -35,6 +34,7 @@
     <nav class="glass-nav">
         <div class="container nav-container">
             <a href="#" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
                 <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
             </a>
             <div class="nav-links">
@@ -111,7 +111,35 @@
                                 <div class="stat"><span class="red" id="error-count">0</span> Errors</div>
                                 <div class="stat"><span class="yellow" id="warning-count">0</span> Warnings</div>
                             </div>
-                            <button class="btn btn-sm btn-outline" id="reset-btn">Validate Another</button>
+                            <div class="result-actions">
+                                <button class="btn btn-sm btn-primary" id="view-report-btn">
+                                    <i data-lucide="file-text"></i> View Report
+                                </button>
+                                <button class="btn btn-sm btn-outline" id="download-json-btn">
+                                    <i data-lucide="download"></i> JSON
+                                </button>
+                            </div>
+                            <button class="btn btn-link" id="reset-btn">Validate Another</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Report Modal -->
+                <div class="report-modal hidden" id="report-modal">
+                    <div class="report-modal-content glass-card">
+                        <div class="report-modal-header">
+                            <h3>Validation Report</h3>
+                            <button class="close-btn" id="close-modal-btn">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                        <div class="report-modal-body" id="report-modal-body">
+                            <!-- Notices will be rendered here -->
+                        </div>
+                        <div class="report-modal-footer">
+                            <button class="btn btn-sm btn-outline" id="download-json-modal-btn">
+                                <i data-lucide="download"></i> Download JSON
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -245,6 +273,7 @@ else:
     <footer>
         <div class="container footer-container">
             <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
                 <span class="logo-text">GTFS Guru</span>
                 <p>Made with love by <a href="https://abasis.ai"
                         style="color: inherit; text-decoration: underline;">Abasis.AI</a></p>
@@ -262,7 +291,17 @@ else:
 
     <script src="script.js" type="module"></script>
     <script>
-        lucide.createIcons();
+        // Initialize Lucide icons with error handling
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            // Retry after a short delay if script hasn't finished loading
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
     </script>
 </body>
 

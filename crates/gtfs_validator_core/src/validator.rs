@@ -246,6 +246,7 @@ mod tests {
             pathways: None,
             translations: None,
             networks: None,
+            stop_times_by_trip: std::collections::HashMap::new(),
             route_networks: None,
         }
     }
