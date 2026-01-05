@@ -46,10 +46,10 @@ impl Validator for UnusedRouteValidator {
                     route.route_long_name.as_deref().unwrap_or(""),
                 );
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "routeId".to_string(),
-                    "routeShortName".to_string(),
-                    "routeLongName".to_string(),
+                    "csvRowNumber".into(),
+                    "routeId".into(),
+                    "routeShortName".into(),
+                    "routeLongName".into(),
                 ];
                 notices.push(notice);
             }
@@ -67,26 +67,26 @@ mod tests {
     fn detects_unused_route() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_short_name".to_string()],
+            headers: vec!["route_id".into(), "route_short_name".into()],
             rows: vec![
                 Route {
-                    route_id: "R1".to_string(),
-                    route_short_name: Some("Route 1".to_string()),
+                    route_id: "R1".into(),
+                    route_short_name: Some("Route 1".into()),
                     ..Default::default()
                 },
                 Route {
-                    route_id: "R2".to_string(),
-                    route_short_name: Some("Route 2".to_string()),
+                    route_id: "R2".into(),
+                    route_short_name: Some("Route 2".into()),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -116,19 +116,19 @@ mod tests {
     fn passes_when_all_routes_used() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_short_name".to_string()],
+            headers: vec!["route_id".into(), "route_short_name".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                route_short_name: Some("Route 1".to_string()),
+                route_id: "R1".into(),
+                route_short_name: Some("Route 1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

@@ -212,7 +212,7 @@ pub fn default_runner() -> ValidatorRunner {
     runner.register(StopTimesShapeDistTraveledPresenceValidator);
     runner.register(StopTimeTravelSpeedValidator);
     runner.register(TripAndShapeDistanceValidator);
-    // runner.register(ShapeToStopMatchingValidator);
+    runner.register(ShapeToStopMatchingValidator);
     runner.register(BlockTripsWithOverlappingStopTimesValidator);
     runner.register(DuplicateStopSequenceValidator);
     runner.register(StopsValidator);

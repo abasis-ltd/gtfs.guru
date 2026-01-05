@@ -84,12 +84,12 @@ fn check_point(
             notice.insert_context_field("entityId", entity_id);
         }
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "entityId".to_string(),
-            "fieldName".to_string(),
-            "fieldType".to_string(),
-            "fieldValue".to_string(),
-            "filename".to_string(),
+            "csvRowNumber".into(),
+            "entityId".into(),
+            "fieldName".into(),
+            "fieldType".into(),
+            "fieldValue".into(),
+            "filename".into(),
         ];
         notices.push(notice);
     }
@@ -109,12 +109,12 @@ fn check_point(
             notice.insert_context_field("entityId", entity_id);
         }
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "entityId".to_string(),
-            "fieldName".to_string(),
-            "fieldType".to_string(),
-            "fieldValue".to_string(),
-            "filename".to_string(),
+            "csvRowNumber".into(),
+            "entityId".into(),
+            "fieldName".into(),
+            "fieldType".into(),
+            "fieldValue".into(),
+            "filename".into(),
         ];
         notices.push(notice);
     }
@@ -135,14 +135,14 @@ fn check_point(
         notice.insert_context_field("lonFieldName", lon_field);
         notice.insert_context_field("lonFieldValue", lon);
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "entityId".to_string(),
-            "featureIndex".to_string(),
-            "filename".to_string(),
-            "latFieldName".to_string(),
-            "latFieldValue".to_string(),
-            "lonFieldName".to_string(),
-            "lonFieldValue".to_string(),
+            "csvRowNumber".into(),
+            "entityId".into(),
+            "featureIndex".into(),
+            "filename".into(),
+            "latFieldName".into(),
+            "latFieldValue".into(),
+            "lonFieldName".into(),
+            "lonFieldValue".into(),
         ];
         notices.push(notice);
     }
@@ -163,14 +163,14 @@ fn check_point(
         notice.insert_context_field("lonFieldName", lon_field);
         notice.insert_context_field("lonFieldValue", lon);
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "entityId".to_string(),
-            "featureIndex".to_string(),
-            "filename".to_string(),
-            "latFieldName".to_string(),
-            "latFieldValue".to_string(),
-            "lonFieldName".to_string(),
-            "lonFieldValue".to_string(),
+            "csvRowNumber".into(),
+            "entityId".into(),
+            "featureIndex".into(),
+            "filename".into(),
+            "latFieldName".into(),
+            "latFieldValue".into(),
+            "lonFieldName".into(),
+            "lonFieldValue".into(),
         ];
         notices.push(notice);
     }
@@ -187,7 +187,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec![],
             rows: vec![gtfs_guru_model::Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 stop_lat: Some(95.0),  // Too high
                 stop_lon: Some(200.0), // Too high
                 ..Default::default()
@@ -217,7 +217,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec![],
             rows: vec![gtfs_guru_model::Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 stop_lat: Some(0.5),
                 stop_lon: Some(0.5),
                 ..Default::default()

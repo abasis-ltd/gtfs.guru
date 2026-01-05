@@ -73,7 +73,7 @@ fn expired_notice(row_number: u64, service_id: &str) -> ValidationNotice {
     );
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("serviceId", service_id);
-    notice.field_order = vec!["csvRowNumber".to_string(), "serviceId".to_string()];
+    notice.field_order = vec!["csvRowNumber".into(), "serviceId".into()];
     notice
 }
 
@@ -235,7 +235,7 @@ mod tests {
         feed.calendar_dates = Some(CsvTable {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::CalendarDate {
-                service_id: "SVC1".to_string(),
+                service_id: "SVC1".into(),
                 date: gtfs_date(past),
                 exception_type: ExceptionType::Added,
             }],
@@ -264,12 +264,12 @@ mod tests {
             headers: Vec::new(),
             rows: vec![
                 gtfs_guru_model::CalendarDate {
-                    service_id: "SVC1".to_string(),
+                    service_id: "SVC1".into(),
                     date: gtfs_date(past),
                     exception_type: ExceptionType::Added,
                 },
                 gtfs_guru_model::CalendarDate {
-                    service_id: "SVC2".to_string(),
+                    service_id: "SVC2".into(),
                     date: gtfs_date(future),
                     exception_type: ExceptionType::Added,
                 },
@@ -289,7 +289,7 @@ mod tests {
         end: NaiveDate,
     ) -> gtfs_guru_model::Calendar {
         gtfs_guru_model::Calendar {
-            service_id: service_id.to_string(),
+            service_id: service_id.into(),
             monday: ServiceAvailability::Available,
             tuesday: ServiceAvailability::Available,
             wednesday: ServiceAvailability::Available,
@@ -311,10 +311,10 @@ mod tests {
             agency: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
-                    agency_id: Some("A1".to_string()),
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_id: Some("A1".into()),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,

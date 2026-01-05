@@ -106,12 +106,12 @@ impl ValidationNotice {
             error.parsed_content.clone().unwrap_or_default(),
         );
         notice.field_order = vec![
-            "charIndex".to_string(),
-            "columnIndex".to_string(),
-            "filename".to_string(),
-            "lineIndex".to_string(),
-            "message".to_string(),
-            "parsedContent".to_string(),
+            "charIndex".into(),
+            "columnIndex".into(),
+            "filename".into(),
+            "lineIndex".into(),
+            "message".into(),
+            "parsedContent".into(),
         ];
         return notice;
     }
@@ -171,9 +171,9 @@ impl ValidationNotice {
         self.field = Some(field.into());
         self.row = Some(row);
         self.field_order = vec![
-            "filename".to_string(),
-            "csvRowNumber".to_string(),
-            "fieldName".to_string(),
+            "filename".into(),
+            "csvRowNumber".into(),
+            "fieldName".into(),
         ];
     }
 

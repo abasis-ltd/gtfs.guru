@@ -84,9 +84,9 @@ impl Validator for LocationHasStopTimesValidator {
                     notice
                         .insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "stopId".to_string(),
-                        "stopName".to_string(),
+                        "csvRowNumber".into(),
+                        "stopId".into(),
+                        "stopName".into(),
                     ];
                     notices.push(notice);
                 }
@@ -103,10 +103,10 @@ impl Validator for LocationHasStopTimesValidator {
                     notice.insert_context_field("stopTimeCsvRowNumber", *stop_time_row);
                 }
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "stopId".to_string(),
-                    "stopName".to_string(),
-                    "stopTimeCsvRowNumber".to_string(),
+                    "csvRowNumber".into(),
+                    "stopId".into(),
+                    "stopName".into(),
+                    "stopTimeCsvRowNumber".into(),
                 ];
                 notices.push(notice);
             }
@@ -124,9 +124,9 @@ mod tests {
     fn detects_stop_without_stop_time() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 location_type: Some(LocationType::StopOrPlatform),
                 ..Default::default()
             }],
@@ -148,18 +148,18 @@ mod tests {
     fn detects_location_with_unexpected_stop_time() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 location_type: Some(LocationType::Station),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -179,15 +179,15 @@ mod tests {
     fn passes_valid_cases() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "P1".to_string(),
+                    stop_id: "P1".into(),
                     location_type: Some(LocationType::Station),
                     ..Default::default()
                 },
@@ -195,9 +195,9 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

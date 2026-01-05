@@ -55,7 +55,7 @@ fn attribution_without_role_notice(attribution_id: &str, row_number: u64) -> Val
     );
     notice.insert_context_field("attributionId", attribution_id);
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.field_order = vec!["attributionId".to_string(), "csvRowNumber".to_string()];
+    notice.field_order = vec!["attributionId".into(), "csvRowNumber".into()];
     notice
 }
 
@@ -70,16 +70,16 @@ mod tests {
         let mut feed = base_feed();
         feed.attributions = Some(CsvTable {
             headers: vec![
-                "is_producer".to_string(),
-                "is_operator".to_string(),
-                "is_authority".to_string(),
+                "is_producer".into(),
+                "is_operator".into(),
+                "is_authority".into(),
             ],
             rows: vec![gtfs_guru_model::Attribution {
                 attribution_id: None,
                 agency_id: None,
                 route_id: None,
                 trip_id: None,
-                organization_name: "Org".to_string(),
+                organization_name: "Org".into(),
                 is_producer: Some(YesNo::No),
                 is_operator: None,
                 is_authority: Some(YesNo::No),
@@ -110,7 +110,7 @@ mod tests {
                 agency_id: None,
                 route_id: None,
                 trip_id: None,
-                organization_name: "Org".to_string(),
+                organization_name: "Org".into(),
                 is_producer: None,
                 is_operator: None,
                 is_authority: None,
@@ -131,13 +131,13 @@ mod tests {
     fn passes_when_role_set() {
         let mut feed = base_feed();
         feed.attributions = Some(CsvTable {
-            headers: vec!["is_producer".to_string()],
+            headers: vec!["is_producer".into()],
             rows: vec![gtfs_guru_model::Attribution {
                 attribution_id: None,
                 agency_id: None,
                 route_id: None,
                 trip_id: None,
-                organization_name: "Org".to_string(),
+                organization_name: "Org".into(),
                 is_producer: Some(YesNo::Yes),
                 is_operator: None,
                 is_authority: None,
@@ -160,9 +160,9 @@ mod tests {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,
@@ -173,8 +173,8 @@ mod tests {
             stops: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Stop {
-                    stop_id: "STOP1".to_string(),
-                    stop_name: Some("Stop".to_string()),
+                    stop_id: "STOP1".into(),
+                    stop_name: Some("Stop".into()),
                     stop_lat: Some(10.0),
                     stop_lon: Some(20.0),
                     ..Default::default()
@@ -184,8 +184,8 @@ mod tests {
             routes: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Route {
-                    route_id: "R1".to_string(),
-                    route_short_name: Some("R1".to_string()),
+                    route_id: "R1".into(),
+                    route_short_name: Some("R1".into()),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 }],

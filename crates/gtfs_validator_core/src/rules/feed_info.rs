@@ -50,7 +50,7 @@ impl Validator for FeedContactValidator {
                     "missing feed_contact_email and feed_contact_url",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.field_order = vec!["csvRowNumber".to_string()];
+                notice.field_order = vec!["csvRowNumber".into()];
                 notices.push(notice);
             }
         }
@@ -87,13 +87,13 @@ impl Validator for FeedInfoValidator {
                         notice.insert_context_field("startFieldName", "feed_start_date");
                         notice.insert_context_field("startValue", start.to_string());
                         notice.field_order = vec![
-                            "csvRowNumber".to_string(),
-                            "endFieldName".to_string(),
-                            "endValue".to_string(),
-                            "entityId".to_string(),
-                            "filename".to_string(),
-                            "startFieldName".to_string(),
-                            "startValue".to_string(),
+                            "csvRowNumber".into(),
+                            "endFieldName".into(),
+                            "endValue".into(),
+                            "entityId".into(),
+                            "filename".into(),
+                            "startFieldName".into(),
+                            "startValue".into(),
                         ];
                         notices.push(notice);
                     }
@@ -111,7 +111,7 @@ fn more_than_one_entity_notice(count: usize) -> ValidationNotice {
     );
     notice.insert_context_field("entityCount", count);
     notice.insert_context_field("filename", FEED_INFO_FILE);
-    notice.field_order = vec!["entityCount".to_string(), "filename".to_string()];
+    notice.field_order = vec!["entityCount".into(), "filename".into()];
     notice
 }
 
@@ -129,11 +129,11 @@ mod tests {
     fn detects_start_date_after_end_date() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec!["feed_publisher_name".to_string()],
+            headers: vec!["feed_publisher_name".into()],
             rows: vec![FeedInfo {
-                feed_publisher_name: "Test".to_string(),
-                feed_publisher_url: "http://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: "http://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: Some(GtfsDate::parse("20250601").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20250101").unwrap()),
                 feed_version: None,
@@ -157,11 +157,11 @@ mod tests {
     fn detects_missing_contact() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec!["feed_publisher_name".to_string()],
+            headers: vec!["feed_publisher_name".into()],
             rows: vec![FeedInfo {
-                feed_publisher_name: "Test".to_string(),
-                feed_publisher_url: "http://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: "http://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
@@ -185,26 +185,26 @@ mod tests {
     fn detects_more_than_one_feed_info() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec!["feed_publisher_name".to_string()],
+            headers: vec!["feed_publisher_name".into()],
             rows: vec![
                 FeedInfo {
-                    feed_publisher_name: "Test1".to_string(),
-                    feed_publisher_url: "http://example1.com".to_string(),
-                    feed_lang: "en".to_string(),
+                    feed_publisher_name: "Test1".into(),
+                    feed_publisher_url: "http://example1.com".into(),
+                    feed_lang: "en".into(),
                     feed_start_date: None,
                     feed_end_date: None,
                     feed_version: None,
-                    feed_contact_email: Some("test@test.com".to_string()),
+                    feed_contact_email: Some("test@test.com".into()),
                     feed_contact_url: None,
                 },
                 FeedInfo {
-                    feed_publisher_name: "Test2".to_string(),
-                    feed_publisher_url: "http://example2.com".to_string(),
-                    feed_lang: "en".to_string(),
+                    feed_publisher_name: "Test2".into(),
+                    feed_publisher_url: "http://example2.com".into(),
+                    feed_lang: "en".into(),
                     feed_start_date: None,
                     feed_end_date: None,
                     feed_version: None,
-                    feed_contact_email: Some("test@test.com".to_string()),
+                    feed_contact_email: Some("test@test.com".into()),
                     feed_contact_url: None,
                 },
             ],
@@ -225,15 +225,15 @@ mod tests {
     fn passes_with_valid_feed_info() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec!["feed_publisher_name".to_string()],
+            headers: vec!["feed_publisher_name".into()],
             rows: vec![FeedInfo {
-                feed_publisher_name: "Test".to_string(),
-                feed_publisher_url: "http://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: "http://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: Some(GtfsDate::parse("20250101").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20251231").unwrap()),
                 feed_version: None,
-                feed_contact_email: Some("test@test.com".to_string()),
+                feed_contact_email: Some("test@test.com".into()),
                 feed_contact_url: None,
             }],
             row_numbers: vec![2],

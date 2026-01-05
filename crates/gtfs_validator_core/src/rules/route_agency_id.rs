@@ -39,9 +39,9 @@ impl Validator for RouteAgencyIdValidator {
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", ROUTES_FILE);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "fieldName".to_string(),
-                    "filename".to_string(),
+                    "csvRowNumber".into(),
+                    "fieldName".into(),
+                    "filename".into(),
                 ];
                 notices.push(notice);
             }
@@ -63,23 +63,23 @@ mod tests {
     fn detects_missing_required_agency_id() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_id".to_string()],
+            headers: vec!["agency_id".into()],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".to_string()),
+                    agency_id: Some("A1".into()),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".to_string()),
+                    agency_id: Some("A2".into()),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -98,17 +98,17 @@ mod tests {
     fn detects_missing_recommended_agency_id() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_id".to_string()],
+            headers: vec!["agency_id".into()],
             rows: vec![Agency {
-                agency_id: Some("A1".to_string()),
+                agency_id: Some("A1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -127,24 +127,24 @@ mod tests {
     fn passes_when_agency_id_present() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_id".to_string()],
+            headers: vec!["agency_id".into()],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".to_string()),
+                    agency_id: Some("A1".into()),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".to_string()),
+                    agency_id: Some("A2".into()),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "agency_id".to_string()],
+            headers: vec!["route_id".into(), "agency_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                agency_id: Some("A1".to_string()),
+                route_id: "R1".into(),
+                agency_id: Some("A1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

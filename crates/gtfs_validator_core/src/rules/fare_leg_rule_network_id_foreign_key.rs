@@ -58,12 +58,12 @@ impl Validator for FareLegRuleNetworkIdForeignKeyValidator {
                 notice.insert_context_field("parentFieldName", "network_id");
                 notice.insert_context_field("parentFilename", "routes.txt or networks.txt");
                 notice.field_order = vec![
-                    "childFieldName".to_string(),
-                    "childFilename".to_string(),
-                    "csvRowNumber".to_string(),
-                    "fieldValue".to_string(),
-                    "parentFieldName".to_string(),
-                    "parentFilename".to_string(),
+                    "childFieldName".into(),
+                    "childFilename".into(),
+                    "csvRowNumber".into(),
+                    "fieldValue".into(),
+                    "parentFieldName".into(),
+                    "parentFilename".into(),
                 ];
                 notices.push(notice);
             }
@@ -81,18 +81,18 @@ mod tests {
     fn detects_missing_network_id() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "network_id".to_string()],
+            headers: vec!["route_id".into(), "network_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                network_id: Some("N1".to_string()),
+                route_id: "R1".into(),
+                network_id: Some("N1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.fare_leg_rules = Some(CsvTable {
-            headers: vec!["network_id".to_string()],
+            headers: vec!["network_id".into()],
             rows: vec![FareLegRule {
-                network_id: Some("UNKNOWN".to_string()),
+                network_id: Some("UNKNOWN".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -112,17 +112,17 @@ mod tests {
     fn passes_valid_network_id() {
         let mut feed = GtfsFeed::default();
         feed.networks = Some(CsvTable {
-            headers: vec!["network_id".to_string()],
+            headers: vec!["network_id".into()],
             rows: vec![Network {
-                network_id: "N1".to_string(),
+                network_id: "N1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.fare_leg_rules = Some(CsvTable {
-            headers: vec!["network_id".to_string()],
+            headers: vec!["network_id".into()],
             rows: vec![FareLegRule {
-                network_id: Some("N1".to_string()),
+                network_id: Some("N1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -138,7 +138,7 @@ mod tests {
     fn skips_empty_network_id() {
         let mut feed = GtfsFeed::default();
         feed.fare_leg_rules = Some(CsvTable {
-            headers: vec!["network_id".to_string()],
+            headers: vec!["network_id".into()],
             rows: vec![FareLegRule {
                 network_id: None,
                 ..Default::default()

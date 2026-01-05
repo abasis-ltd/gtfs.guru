@@ -65,6 +65,7 @@ fn test_errors() {
             let _date_guard = gtfs_guru_core::set_validation_date(Some(
                 chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             ));
+            let _thorough_guard = gtfs_guru_core::set_thorough_mode_enabled(true);
             let is_google = path.to_string_lossy().contains("google");
             let _google_guard = gtfs_guru_core::set_google_rules_enabled(is_google);
 
@@ -102,6 +103,7 @@ fn test_warnings() {
             let _date_guard = gtfs_guru_core::set_validation_date(Some(
                 chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             ));
+            let _thorough_guard = gtfs_guru_core::set_thorough_mode_enabled(true);
 
             let is_google = path.to_string_lossy().contains("google");
             let _google_guard = gtfs_guru_core::set_google_rules_enabled(is_google);

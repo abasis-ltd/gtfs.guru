@@ -67,10 +67,10 @@ impl Validator for StopTimesRecordValidator {
                     );
                     notice.insert_context_field("tripId", trip_id);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "locationGroupId".to_string(),
-                        "locationId".to_string(),
-                        "tripId".to_string(),
+                        "csvRowNumber".into(),
+                        "locationGroupId".into(),
+                        "locationId".into(),
+                        "tripId".into(),
                     ];
                     notices.push(notice);
                 }
@@ -90,14 +90,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_pickup_drop_off_window".to_string(),
-                "end_pickup_drop_off_window".to_string(),
-                "pickup_type".to_string(),
-                "drop_off_type".to_string(),
+                "trip_id".into(),
+                "start_pickup_drop_off_window".into(),
+                "end_pickup_drop_off_window".into(),
+                "pickup_type".into(),
+                "drop_off_type".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
                 pickup_type: Some(PickupDropOffType::MustPhone),
@@ -122,15 +122,15 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_pickup_drop_off_window".to_string(),
-                "end_pickup_drop_off_window".to_string(),
-                "pickup_type".to_string(),
-                "drop_off_type".to_string(),
+                "trip_id".into(),
+                "start_pickup_drop_off_window".into(),
+                "end_pickup_drop_off_window".into(),
+                "pickup_type".into(),
+                "drop_off_type".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                     end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
                     pickup_type: Some(PickupDropOffType::MustPhone),
@@ -138,8 +138,8 @@ mod tests {
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S1".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S1".into(),
                     ..Default::default()
                 },
             ],

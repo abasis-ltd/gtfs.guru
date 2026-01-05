@@ -76,9 +76,9 @@ fn forbidden_pickup_type_notice(
     notice.insert_context_field("startPickupDropOffWindow", time_value(start_window));
     notice.insert_context_field("endPickupDropOffWindow", time_value(end_window));
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "endPickupDropOffWindow".to_string(),
-        "startPickupDropOffWindow".to_string(),
+        "csvRowNumber".into(),
+        "endPickupDropOffWindow".into(),
+        "startPickupDropOffWindow".into(),
     ];
     notice
 }
@@ -97,9 +97,9 @@ fn forbidden_drop_off_type_notice(
     notice.insert_context_field("startPickupDropOffWindow", time_value(start_window));
     notice.insert_context_field("endPickupDropOffWindow", time_value(end_window));
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "endPickupDropOffWindow".to_string(),
-        "startPickupDropOffWindow".to_string(),
+        "csvRowNumber".into(),
+        "endPickupDropOffWindow".into(),
+        "startPickupDropOffWindow".into(),
     ];
     notice
 }
@@ -119,13 +119,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "start_pickup_drop_off_window".to_string(),
-                "pickup_type".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "start_pickup_drop_off_window".into(),
+                "pickup_type".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_type: Some(PickupDropOffType::Regular), // Forbidden for windows
@@ -145,13 +145,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "start_pickup_drop_off_window".to_string(),
-                "drop_off_type".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "start_pickup_drop_off_window".into(),
+                "drop_off_type".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 drop_off_type: Some(PickupDropOffType::Regular), // Forbidden for windows
@@ -173,14 +173,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "start_pickup_drop_off_window".to_string(),
-                "pickup_type".to_string(),
-                "drop_off_type".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "start_pickup_drop_off_window".into(),
+                "pickup_type".into(),
+                "drop_off_type".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_type: Some(PickupDropOffType::MustPhone),

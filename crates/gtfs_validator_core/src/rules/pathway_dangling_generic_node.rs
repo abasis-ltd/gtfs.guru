@@ -58,10 +58,10 @@ impl Validator for PathwayDanglingGenericNodeValidator {
                 notice.insert_context_field("stopId", stop_id);
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "parentStation".to_string(),
-                    "stopId".to_string(),
-                    "stopName".to_string(),
+                    "csvRowNumber".into(),
+                    "parentStation".into(),
+                    "stopId".into(),
+                    "stopName".into(),
                 ];
                 notices.push(notice);
             }
@@ -79,9 +79,9 @@ mod tests {
     fn detects_dangling_generic_node() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![Stop {
-                stop_id: "G1".to_string(),
+                stop_id: "G1".into(),
                 location_type: Some(LocationType::GenericNode),
                 ..Default::default()
             }],
@@ -89,14 +89,14 @@ mod tests {
         };
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
-                from_stop_id: "G1".to_string(),
-                to_stop_id: "S1".to_string(),
+                pathway_id: "P1".into(),
+                from_stop_id: "G1".into(),
+                to_stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -116,9 +116,9 @@ mod tests {
     fn passes_when_node_has_two_pathways() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![Stop {
-                stop_id: "G1".to_string(),
+                stop_id: "G1".into(),
                 location_type: Some(LocationType::GenericNode),
                 ..Default::default()
             }],
@@ -126,21 +126,21 @@ mod tests {
         };
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![
                 Pathway {
-                    pathway_id: "P1".to_string(),
-                    from_stop_id: "G1".to_string(),
-                    to_stop_id: "S1".to_string(),
+                    pathway_id: "P1".into(),
+                    from_stop_id: "G1".into(),
+                    to_stop_id: "S1".into(),
                     ..Default::default()
                 },
                 Pathway {
-                    pathway_id: "P2".to_string(),
-                    from_stop_id: "S2".to_string(),
-                    to_stop_id: "G1".to_string(),
+                    pathway_id: "P2".into(),
+                    from_stop_id: "S2".into(),
+                    to_stop_id: "G1".into(),
                     ..Default::default()
                 },
             ],
@@ -157,19 +157,19 @@ mod tests {
     fn skips_non_generic_node() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 location_type: Some(LocationType::StopOrPlatform),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.pathways = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Pathway {
-                from_stop_id: "S1".to_string(),
-                to_stop_id: "S2".to_string(),
+                from_stop_id: "S1".into(),
+                to_stop_id: "S2".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

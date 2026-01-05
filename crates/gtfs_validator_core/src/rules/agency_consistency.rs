@@ -32,9 +32,9 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", AGENCY_FILE);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "fieldName".to_string(),
-                    "filename".to_string(),
+                    "csvRowNumber".into(),
+                    "fieldName".into(),
+                    "filename".into(),
                 ];
                 notices.push(notice);
             }
@@ -52,9 +52,9 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", AGENCY_FILE);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "fieldName".to_string(),
-                    "filename".to_string(),
+                    "csvRowNumber".into(),
+                    "fieldName".into(),
+                    "filename".into(),
                 ];
                 notices.push(notice);
             }
@@ -73,9 +73,9 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                 notice.insert_context_field("expected", common_timezone);
                 notice.field_order = vec![
-                    "actual".to_string(),
-                    "csvRowNumber".to_string(),
-                    "expected".to_string(),
+                    "actual".into(),
+                    "csvRowNumber".into(),
+                    "expected".into(),
                 ];
                 notices.push(notice);
             }
@@ -103,9 +103,9 @@ impl Validator for AgencyConsistencyValidator {
                     notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                     notice.insert_context_field("expected", existing.as_str());
                     notice.field_order = vec![
-                        "actual".to_string(),
-                        "csvRowNumber".to_string(),
-                        "expected".to_string(),
+                        "actual".into(),
+                        "csvRowNumber".into(),
+                        "expected".into(),
                     ];
                     notices.push(notice);
                 }
@@ -143,9 +143,9 @@ mod tests {
         let mut feed = base_feed();
         feed.agency.rows.push(gtfs_guru_model::Agency {
             agency_id: None,
-            agency_name: "Agency2".to_string(),
-            agency_url: "https://example.com".to_string(),
-            agency_timezone: "UTC".to_string(),
+            agency_name: "Agency2".into(),
+            agency_url: "https://example.com".into(),
+            agency_timezone: "UTC".into(),
             agency_lang: None,
             agency_phone: None,
             agency_fare_url: None,
@@ -166,10 +166,10 @@ mod tests {
     fn errors_when_timezones_inconsistent() {
         let mut feed = base_feed();
         feed.agency.rows.push(gtfs_guru_model::Agency {
-            agency_id: Some("A2".to_string()),
-            agency_name: "Agency2".to_string(),
-            agency_url: "https://example.com".to_string(),
-            agency_timezone: "Europe/Paris".to_string(),
+            agency_id: Some("A2".into()),
+            agency_name: "Agency2".into(),
+            agency_url: "https://example.com".into(),
+            agency_timezone: "Europe/Paris".into(),
             agency_lang: None,
             agency_phone: None,
             agency_fare_url: None,
@@ -187,13 +187,13 @@ mod tests {
     #[test]
     fn warns_when_languages_inconsistent() {
         let mut feed = base_feed();
-        feed.agency.rows[0].agency_lang = Some("en".to_string());
+        feed.agency.rows[0].agency_lang = Some("en".into());
         feed.agency.rows.push(gtfs_guru_model::Agency {
-            agency_id: Some("A2".to_string()),
-            agency_name: "Agency2".to_string(),
-            agency_url: "https://example.com".to_string(),
-            agency_timezone: "UTC".to_string(),
-            agency_lang: Some("fr".to_string()),
+            agency_id: Some("A2".into()),
+            agency_name: "Agency2".into(),
+            agency_url: "https://example.com".into(),
+            agency_timezone: "UTC".into(),
+            agency_lang: Some("fr".into()),
             agency_phone: None,
             agency_fare_url: None,
             agency_email: None,
@@ -212,10 +212,10 @@ mod tests {
             agency: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
-                    agency_id: Some("A1".to_string()),
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_id: Some("A1".into()),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,

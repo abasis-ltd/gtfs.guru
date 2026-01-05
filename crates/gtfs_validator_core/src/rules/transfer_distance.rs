@@ -133,10 +133,10 @@ fn transfer_distance_notice(
     notice.insert_context_field("toStopId", to_stop_id);
     notice.insert_context_field("distanceKm", distance_km);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fromStopId".to_string(),
-        "toStopId".to_string(),
-        "distanceKm".to_string(),
+        "csvRowNumber".into(),
+        "fromStopId".into(),
+        "toStopId".into(),
+        "distanceKm".into(),
     ];
     notice
 }
@@ -165,19 +165,19 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
+                "stop_id".into(),
+                "stop_lat".into(),
+                "stop_lon".into(),
             ],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     stop_lat: Some(45.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     stop_lat: Some(45.1), // Approx 11km north
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -186,10 +186,10 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.transfers = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -208,19 +208,19 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
+                "stop_id".into(),
+                "stop_lat".into(),
+                "stop_lon".into(),
             ],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     stop_lat: Some(45.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     stop_lat: Some(45.02), // Approx 2.2km north
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -229,10 +229,10 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.transfers = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -251,19 +251,19 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
+                "stop_id".into(),
+                "stop_lat".into(),
+                "stop_lon".into(),
             ],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     stop_lat: Some(45.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     stop_lat: Some(45.001), // Approx 111m north
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -272,10 +272,10 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.transfers = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

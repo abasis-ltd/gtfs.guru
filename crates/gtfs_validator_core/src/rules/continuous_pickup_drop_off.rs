@@ -76,11 +76,11 @@ impl Validator for ContinuousPickupDropOffValidator {
                         notice.insert_context_field("stopTimeCsvRowNumber", *row_number);
                         notice.insert_context_field("tripId", trip_id);
                         notice.field_order = vec![
-                            "endPickupDropOffWindow".to_string(),
-                            "routeCsvRowNumber".to_string(),
-                            "startPickupDropOffWindow".to_string(),
-                            "stopTimeCsvRowNumber".to_string(),
-                            "tripId".to_string(),
+                            "endPickupDropOffWindow".into(),
+                            "routeCsvRowNumber".into(),
+                            "startPickupDropOffWindow".into(),
+                            "stopTimeCsvRowNumber".into(),
+                            "tripId".into(),
                         ];
                         notices.push(notice);
                     }
@@ -122,30 +122,30 @@ mod tests {
     fn detects_forbidden_windows() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "continuous_pickup".to_string()],
+            headers: vec!["route_id".into(), "continuous_pickup".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 continuous_pickup: Some(ContinuousPickupDropOff::Continuous),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["route_id".to_string(), "trip_id".to_string()],
+            headers: vec!["route_id".into(), "trip_id".into()],
             rows: vec![Trip {
-                route_id: "R1".to_string(),
-                trip_id: "T1".to_string(),
+                route_id: "R1".into(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_pickup_drop_off_window".to_string(),
+                "trip_id".into(),
+                "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 start_pickup_drop_off_window: Some(GtfsTime::parse("08:00:00").unwrap()),
                 ..Default::default()
             }],
@@ -166,27 +166,27 @@ mod tests {
     fn passes_without_windows() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "continuous_pickup".to_string()],
+            headers: vec!["route_id".into(), "continuous_pickup".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 continuous_pickup: Some(ContinuousPickupDropOff::Continuous),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["route_id".to_string(), "trip_id".to_string()],
+            headers: vec!["route_id".into(), "trip_id".into()],
             rows: vec![Trip {
-                route_id: "R1".to_string(),
-                trip_id: "T1".to_string(),
+                route_id: "R1".into(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -202,18 +202,18 @@ mod tests {
     fn skips_without_headers() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         // stop_times missing window headers, validator should skip
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 start_pickup_drop_off_window: Some(GtfsTime::parse("08:00:00").unwrap()),
                 ..Default::default()
             }],

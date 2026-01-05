@@ -91,12 +91,12 @@ fn foreign_key_notice(
     );
     notice.row = Some(row_number);
     notice.field_order = vec![
-        "childFieldName".to_string(),
-        "childFilename".to_string(),
-        "csvRowNumber".to_string(),
-        "fieldValue".to_string(),
-        "parentFieldName".to_string(),
-        "parentFilename".to_string(),
+        "childFieldName".into(),
+        "childFilename".into(),
+        "csvRowNumber".into(),
+        "fieldValue".into(),
+        "parentFieldName".into(),
+        "parentFilename".into(),
     ];
     notice.insert_context_field("childFieldName", child_field);
     notice.insert_context_field("childFilename", child_file);
@@ -116,17 +116,17 @@ mod tests {
     fn detects_missing_fare_id() {
         let mut feed = GtfsFeed::default();
         feed.fare_attributes = Some(CsvTable {
-            headers: vec!["fare_id".to_string()],
+            headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".to_string(),
+                fare_id: "F1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.fare_rules = Some(CsvTable {
-            headers: vec!["fare_id".to_string()],
+            headers: vec!["fare_id".into()],
             rows: vec![FareRule {
-                fare_id: "UNKNOWN".to_string(),
+                fare_id: "UNKNOWN".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -146,18 +146,18 @@ mod tests {
     fn detects_missing_route_id() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.fare_rules = Some(CsvTable {
-            headers: vec!["fare_id".to_string(), "route_id".to_string()],
+            headers: vec!["fare_id".into(), "route_id".into()],
             rows: vec![FareRule {
-                fare_id: "F1".to_string(),
-                route_id: Some("UNKNOWN".to_string()),
+                fare_id: "F1".into(),
+                route_id: Some("UNKNOWN".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -174,26 +174,26 @@ mod tests {
     fn passes_valid_rule() {
         let mut feed = GtfsFeed::default();
         feed.fare_attributes = Some(CsvTable {
-            headers: vec!["fare_id".to_string()],
+            headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".to_string(),
+                fare_id: "F1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.fare_rules = Some(CsvTable {
-            headers: vec!["fare_id".to_string(), "route_id".to_string()],
+            headers: vec!["fare_id".into(), "route_id".into()],
             rows: vec![FareRule {
-                fare_id: "F1".to_string(),
-                route_id: Some("R1".to_string()),
+                fare_id: "F1".into(),
+                route_id: Some("R1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

@@ -55,12 +55,12 @@ fn missing_ref_notice(location_id: &str, row_number: u64) -> ValidationNotice {
     );
     notice.row = Some(row_number);
     notice.field_order = vec![
-        "childFieldName".to_string(),
-        "childFilename".to_string(),
-        "csvRowNumber".to_string(),
-        "fieldValue".to_string(),
-        "parentFieldName".to_string(),
-        "parentFilename".to_string(),
+        "childFieldName".into(),
+        "childFilename".into(),
+        "csvRowNumber".into(),
+        "fieldValue".into(),
+        "parentFieldName".into(),
+        "parentFilename".into(),
     ];
     notice.insert_context_field("childFieldName", "location_id");
     notice.insert_context_field("childFilename", STOP_TIMES_FILE);
@@ -82,16 +82,16 @@ mod tests {
     fn detects_missing_location_id() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
-                location_id: Some("L1".to_string()),
+                stop_id: "S1".into(),
+                location_id: Some("L1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         let mut locations = LocationsGeoJson::default();
-        locations.location_ids = HashSet::from(["L2".to_string()]);
+        locations.location_ids = HashSet::from(["L2".into()]);
         feed.locations = Some(locations);
 
         let mut notices = NoticeContainer::new();
@@ -108,16 +108,16 @@ mod tests {
     fn passes_valid_location_id() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
-                location_id: Some("L1".to_string()),
+                stop_id: "S1".into(),
+                location_id: Some("L1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         let mut locations = LocationsGeoJson::default();
-        locations.location_ids = HashSet::from(["L1".to_string()]);
+        locations.location_ids = HashSet::from(["L1".into()]);
         feed.locations = Some(locations);
 
         let mut notices = NoticeContainer::new();
@@ -130,10 +130,10 @@ mod tests {
     fn skips_missing_header() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
-                location_id: Some("L1".to_string()),
+                stop_id: "S1".into(),
+                location_id: Some("L1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

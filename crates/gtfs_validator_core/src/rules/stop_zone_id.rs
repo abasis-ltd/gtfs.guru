@@ -92,9 +92,9 @@ impl Validator for StopZoneIdValidator {
                 notice.insert_context_field("stopId", stop_id);
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "stopId".to_string(),
-                    "stopName".to_string(),
+                    "csvRowNumber".into(),
+                    "stopId".into(),
+                    "stopName".into(),
                 ];
                 notices.push(notice);
             }
@@ -127,40 +127,40 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_rules = Some(CsvTable {
             headers: vec![
-                "fare_id".to_string(),
-                "route_id".to_string(),
-                "origin_id".to_string(),
+                "fare_id".into(),
+                "route_id".into(),
+                "origin_id".into(),
             ],
             rows: vec![FareRule {
-                fare_id: "F1".to_string(),
-                route_id: Some("R1".to_string()),
-                origin_id: Some("Z1".to_string()),
+                fare_id: "F1".into(),
+                route_id: Some("R1".into()),
+                origin_id: Some("Z1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "zone_id".to_string()],
+            headers: vec!["stop_id".into(), "zone_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 zone_id: None, // Missing
                 ..Default::default()
             }],
@@ -182,41 +182,41 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_rules = Some(CsvTable {
             headers: vec![
-                "fare_id".to_string(),
-                "route_id".to_string(),
-                "origin_id".to_string(),
+                "fare_id".into(),
+                "route_id".into(),
+                "origin_id".into(),
             ],
             rows: vec![FareRule {
-                fare_id: "F1".to_string(),
-                route_id: Some("R1".to_string()),
-                origin_id: Some("Z1".to_string()),
+                fare_id: "F1".into(),
+                route_id: Some("R1".into()),
+                origin_id: Some("Z1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "zone_id".to_string()],
+            headers: vec!["stop_id".into(), "zone_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
-                zone_id: Some("Z1".to_string()),
+                stop_id: "S1".into(),
+                zone_id: Some("Z1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

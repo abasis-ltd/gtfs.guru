@@ -50,11 +50,7 @@ impl Validator for BikesAllowanceValidator {
             notice.insert_context_field("csvRowNumber", row_number);
             notice.insert_context_field("routeId", route_id);
             notice.insert_context_field("tripId", trip_id);
-            notice.field_order = vec![
-                "csvRowNumber".to_string(),
-                "routeId".to_string(),
-                "tripId".to_string(),
-            ];
+            notice.field_order = vec!["csvRowNumber".into(), "routeId".into(), "tripId".into()];
             notices.push(notice);
         }
     }
@@ -74,6 +70,7 @@ mod tests {
 
     #[test]
     fn emits_notice_for_missing_bike_allowance() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let feed = base_feed(RouteType::Ferry, None);
 
         let mut notices = NoticeContainer::new();
@@ -115,9 +112,9 @@ mod tests {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,
@@ -128,8 +125,8 @@ mod tests {
             stops: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Stop {
-                    stop_id: "STOP1".to_string(),
-                    stop_name: Some("Stop".to_string()),
+                    stop_id: "STOP1".into(),
+                    stop_name: Some("Stop".into()),
                     stop_lat: Some(10.0),
                     stop_lon: Some(20.0),
                     ..Default::default()
@@ -139,19 +136,19 @@ mod tests {
             routes: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Route {
-                    route_id: "R1".to_string(),
-                    route_short_name: Some("R1".to_string()),
+                    route_id: "R1".into(),
+                    route_short_name: Some("R1".into()),
                     route_type,
                     ..Default::default()
                 }],
                 row_numbers: Vec::new(),
             },
             trips: CsvTable {
-                headers: vec!["bikes_allowed".to_string()],
+                headers: vec!["bikes_allowed".into()],
                 rows: vec![gtfs_guru_model::Trip {
-                    route_id: "R1".to_string(),
-                    service_id: "SVC1".to_string(),
-                    trip_id: "T1".to_string(),
+                    route_id: "R1".into(),
+                    service_id: "SVC1".into(),
+                    trip_id: "T1".into(),
                     bikes_allowed,
                     ..Default::default()
                 }],

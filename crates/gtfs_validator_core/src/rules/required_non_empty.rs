@@ -42,7 +42,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         // CsvTable::default() has empty rows and empty headers by default.
         // For stops.txt, it only emits NOTICE_CODE_EMPTY_TABLE if headers are not empty.
-        feed.stops.headers = vec!["stop_id".to_string()];
+        feed.stops.headers = vec!["stop_id".into()];
 
         let mut notices = NoticeContainer::new();
         RequiredTablesNotEmptyValidator.validate(&feed, &mut notices);

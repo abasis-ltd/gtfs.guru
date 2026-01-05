@@ -640,12 +640,12 @@ fn missing_ref_notice(
     );
     notice.row = Some(row_number);
     notice.field_order = vec![
-        "childFieldName".to_string(),
-        "childFilename".to_string(),
-        "csvRowNumber".to_string(),
-        "fieldValue".to_string(),
-        "parentFieldName".to_string(),
-        "parentFilename".to_string(),
+        "childFieldName".into(),
+        "childFilename".into(),
+        "csvRowNumber".into(),
+        "fieldValue".into(),
+        "parentFieldName".into(),
+        "parentFilename".into(),
     ];
     notice.insert_context_field("childFieldName", child_field);
     notice.insert_context_field("childFilename", child_file);
@@ -665,26 +665,26 @@ mod tests {
     fn detects_missing_trip_id_in_stop_times() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "NONEXISTENT".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "NONEXISTENT".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -715,26 +715,26 @@ mod tests {
     fn detects_missing_stop_id_in_stop_times() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "NONEXISTENT".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "NONEXISTENT".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -761,19 +761,19 @@ mod tests {
     fn detects_missing_route_id_in_trips() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "NONEXISTENT".to_string(),
+                trip_id: "T1".into(),
+                route_id: "NONEXISTENT".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -800,36 +800,36 @@ mod tests {
     fn passes_with_valid_references() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

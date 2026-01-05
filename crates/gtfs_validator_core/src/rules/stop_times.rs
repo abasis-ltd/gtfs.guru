@@ -36,7 +36,7 @@ impl Validator for TripUsageValidator {
                 );
                 notice.insert_context_field("tripId", trip_id);
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.field_order = vec!["csvRowNumber".to_string(), "tripId".to_string()];
+                notice.field_order = vec!["csvRowNumber".into(), "tripId".into()];
                 notices.push(notice);
             }
         }
@@ -53,15 +53,15 @@ mod tests {
     fn detects_unused_trip() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![],
             row_numbers: vec![],
         };
@@ -82,17 +82,17 @@ mod tests {
     fn passes_when_trip_is_used() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -108,21 +108,21 @@ mod tests {
     fn reports_each_unused_trip_once() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![
                 Trip {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     ..Default::default()
                 },
                 Trip {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![],
             row_numbers: vec![],
         };

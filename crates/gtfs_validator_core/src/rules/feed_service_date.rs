@@ -38,7 +38,7 @@ fn missing_feed_info_date_notice(field: &str, row_number: u64) -> ValidationNoti
     );
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("fieldName", field);
-    notice.field_order = vec!["csvRowNumber".to_string(), "fieldName".to_string()];
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into()];
     notice
 }
 
@@ -53,13 +53,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
             headers: vec![
-                "feed_publisher_name".to_string(),
-                "feed_start_date".to_string(),
+                "feed_publisher_name".into(),
+                "feed_start_date".into(),
             ],
             rows: vec![FeedInfo {
-                feed_publisher_name: "Test".to_string(),
-                feed_publisher_url: "http://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: "http://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_end_date: None,
                 feed_version: None,
@@ -90,13 +90,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
             headers: vec![
-                "feed_publisher_name".to_string(),
-                "feed_end_date".to_string(),
+                "feed_publisher_name".into(),
+                "feed_end_date".into(),
             ],
             rows: vec![FeedInfo {
-                feed_publisher_name: "Test".to_string(),
-                feed_publisher_url: "http://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: "http://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: None,
                 feed_end_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_version: None,
@@ -123,14 +123,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
             headers: vec![
-                "feed_publisher_name".to_string(),
-                "feed_start_date".to_string(),
-                "feed_end_date".to_string(),
+                "feed_publisher_name".into(),
+                "feed_start_date".into(),
+                "feed_end_date".into(),
             ],
             rows: vec![FeedInfo {
-                feed_publisher_name: "Test".to_string(),
-                feed_publisher_url: "http://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: "http://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20241231").unwrap()),
                 feed_version: None,

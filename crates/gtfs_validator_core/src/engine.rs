@@ -101,7 +101,7 @@ pub fn validate_bytes_reader(
         }
         Err(panic) => {
             notices.push(runtime_exception_in_loader_error_notice(
-                "<memory>".to_string(),
+                "<memory>".into(),
                 panic_payload_message(&*panic),
             ));
             ValidationOutcome {
@@ -119,7 +119,7 @@ fn unknown_file_notice(file_name: &str) -> ValidationNotice {
         "unknown file in input",
     );
     notice.insert_context_field("filename", file_name);
-    notice.field_order = vec!["filename".to_string()];
+    notice.field_order = vec!["filename".into()];
     notice
 }
 
@@ -145,7 +145,7 @@ fn malformed_json_notice(file: &str, source: &serde_json::Error) -> ValidationNo
         ValidationNotice::new("malformed_json", NoticeSeverity::Error, source.to_string());
     notice.file = Some(file.to_string());
     notice.insert_context_field("message", source.to_string());
-    notice.field_order = vec!["filename".to_string(), "message".to_string()];
+    notice.field_order = vec!["filename".into(), "message".into()];
     notice
 }
 
@@ -167,7 +167,7 @@ fn io_error_notice(error: &GtfsInputError) -> ValidationNotice {
     let mut notice = ValidationNotice::new("i_o_error", NoticeSeverity::Error, message.clone());
     notice.insert_context_field("exception", exception);
     notice.insert_context_field("message", message);
-    notice.field_order = vec!["exception".to_string(), "message".to_string()];
+    notice.field_order = vec!["exception".into(), "message".into()];
     notice
 }
 
@@ -181,9 +181,9 @@ fn runtime_exception_in_loader_error_notice(file: String, message: String) -> Va
     notice.insert_context_field("filename", file);
     notice.insert_context_field("message", message);
     notice.field_order = vec![
-        "exception".to_string(),
-        "filename".to_string(),
-        "message".to_string(),
+        "exception".into(),
+        "filename".into(),
+        "message".into(),
     ];
     notice
 }
@@ -194,7 +194,7 @@ fn panic_payload_message(panic: &(dyn std::any::Any + Send)) -> String {
     } else if let Some(message) = panic.downcast_ref::<String>() {
         message.clone()
     } else {
-        "panic".to_string()
+        "panic".into()
     }
 }
 
@@ -207,7 +207,7 @@ fn uri_syntax_error_notice(exception: &str, message: &str) -> ValidationNotice {
     );
     notice.insert_context_field("exception", exception);
     notice.insert_context_field("message", message);
-    notice.field_order = vec!["exception".to_string(), "message".to_string()];
+    notice.field_order = vec!["exception".into(), "message".into()];
     notice
 }
 
@@ -226,9 +226,9 @@ fn runtime_exception_in_validator_error_notice(
     notice.insert_context_field("message", message);
     notice.insert_context_field("validator", validator);
     notice.field_order = vec![
-        "exception".to_string(),
-        "message".to_string(),
-        "validator".to_string(),
+        "exception".into(),
+        "message".into(),
+        "validator".into(),
     ];
     notice
 }
@@ -242,7 +242,7 @@ fn thread_execution_error_notice(exception: &str, message: &str) -> ValidationNo
     );
     notice.insert_context_field("exception", exception);
     notice.insert_context_field("message", message);
-    notice.field_order = vec!["exception".to_string(), "message".to_string()];
+    notice.field_order = vec!["exception".into(), "message".into()];
     notice
 }
 

@@ -48,12 +48,12 @@ impl Validator for TripServiceIdForeignKeyValidator {
                 notice.insert_context_field("parentFieldName", "service_id");
                 notice.insert_context_field("parentFilename", "calendar.txt or calendar_dates.txt");
                 notice.field_order = vec![
-                    "childFieldName".to_string(),
-                    "childFilename".to_string(),
-                    "csvRowNumber".to_string(),
-                    "fieldValue".to_string(),
-                    "parentFieldName".to_string(),
-                    "parentFilename".to_string(),
+                    "childFieldName".into(),
+                    "childFilename".into(),
+                    "csvRowNumber".into(),
+                    "fieldValue".into(),
+                    "parentFieldName".into(),
+                    "parentFilename".into(),
                 ];
                 notice.message = format!(
                     "missing referenced service_id in {} or {}",
@@ -75,10 +75,10 @@ mod tests {
     fn detects_missing_service_id() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "service_id".to_string()],
+            headers: vec!["trip_id".into(), "service_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                service_id: "missing_service".to_string(),
+                trip_id: "T1".into(),
+                service_id: "missing_service".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -94,18 +94,18 @@ mod tests {
     fn passes_service_id_in_calendar() {
         let mut feed = GtfsFeed::default();
         feed.calendar = Some(CsvTable {
-            headers: vec!["service_id".to_string()],
+            headers: vec!["service_id".into()],
             rows: vec![Calendar {
-                service_id: "S1".to_string(),
+                service_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "service_id".to_string()],
+            headers: vec!["trip_id".into(), "service_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                service_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                service_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -121,18 +121,18 @@ mod tests {
     fn passes_service_id_in_calendar_dates() {
         let mut feed = GtfsFeed::default();
         feed.calendar_dates = Some(CsvTable {
-            headers: vec!["service_id".to_string()],
+            headers: vec!["service_id".into()],
             rows: vec![CalendarDate {
-                service_id: "S1".to_string(),
+                service_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "service_id".to_string()],
+            headers: vec!["trip_id".into(), "service_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                service_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                service_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

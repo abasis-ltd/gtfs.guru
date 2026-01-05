@@ -22,6 +22,11 @@ impl Validator for TripAndShapeDistanceValidator {
         };
 
         // Pre-build index: shape_id -> (max_dist, lat, lon) - O(shapes) instead of O(trips × shapes)
+        // Parallelize shape index building?
+        // It's a reduction. For now, keep sequential or use parallel iterator + reduce.
+        // Given it's a HashMap insert, sequential might be fine or use DashMap if we really want parallel building.
+        // Let's keep it sequential for now as shapes are usually fewer than trips, or just efficient enough.
+        // Actually, let's just keep the index build sequential as it constructs a HashMap.
         let mut shape_max_dist: HashMap<&str, (f64, f64, f64)> = HashMap::new();
         for shape in &shapes.rows {
             let shape_id = shape.shape_id.trim();
@@ -35,20 +40,12 @@ impl Validator for TripAndShapeDistanceValidator {
             }
         }
 
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
-        for stop_time in &feed.stop_times.rows {
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .push(stop_time);
-        }
-        for stop_times in stop_times_by_trip.values_mut() {
-            stop_times.sort_by_key(|stop_time| stop_time.stop_sequence);
-        }
+        // We can use feed.stop_times_by_trip which is already built!
+        // Oh wait, `trip_shape_distance` uses `stop_times_by_trip` derived locally in the original code.
+        // But `feed.stop_times_by_trip` exists on `GtfsFeed` and is built in `feed.rs`.
+        // We should use `feed.stop_times_by_trip`!
+        // But we need `stop_times` objects. `feed.stop_times_by_trip` gives us indices `Vec<usize>`.
+        // We can use that.
 
         let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         for stop in &feed.stops.rows {
@@ -59,75 +56,124 @@ impl Validator for TripAndShapeDistanceValidator {
             stops_by_id.insert(stop_id, stop);
         }
 
-        for trip in feed.trips.rows.iter() {
-            let trip_id = trip.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
+        // Create a thread-safe context
+        let context = ValidationContext {
+            shape_max_dist,
+            stops_by_id,
+        };
+
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            // Iterate over trips in parallel
+            let results: Vec<NoticeContainer> = feed
+                .trips
+                .rows
+                .par_iter()
+                .map(|trip| check_trip(trip, feed, &context))
+                .collect();
+
+            for result in results {
+                notices.merge(result);
             }
-            let shape_id = match trip.shape_id.as_ref() {
-                Some(shape_id) => shape_id.trim(),
-                None => continue,
-            };
-            if shape_id.is_empty() {
-                continue;
-            }
-            let stop_times = match stop_times_by_trip.get(trip_id) {
-                Some(stop_times) if !stop_times.is_empty() => stop_times,
-                _ => continue,
-            };
-            let last_stop_time = stop_times[stop_times.len() - 1];
-            if last_stop_time.stop_id.trim().is_empty() {
-                continue;
-            }
-            let stop = match stops_by_id.get(last_stop_time.stop_id.trim()) {
-                Some(stop) => *stop,
-                None => continue,
-            };
-            let (Some(stop_lat), Some(stop_lon)) = (stop.stop_lat, stop.stop_lon) else {
-                continue;
-            };
+        }
 
-            let max_stop_time_dist = last_stop_time.shape_dist_traveled.unwrap_or(0.0);
-
-            // O(1) lookup instead of O(shapes) iteration
-            let (max_shape_dist, shape_lat, shape_lon) = match shape_max_dist.get(shape_id) {
-                Some(&data) if data.0 > 0.0 => data,
-                _ => continue,
-            };
-
-            let distance_meters = haversine_meters(shape_lat, shape_lon, stop_lat, stop_lon);
-
-            if max_stop_time_dist > max_shape_dist {
-                let (code, severity, message) = if distance_meters > DISTANCE_THRESHOLD_METERS {
-                    (
-                        CODE_TRIP_DISTANCE_EXCEEDS_SHAPE_DISTANCE,
-                        NoticeSeverity::Error,
-                        "trip distance exceeds shape distance",
-                    )
-                } else {
-                    (
-                        CODE_TRIP_DISTANCE_EXCEEDS_SHAPE_DISTANCE_BELOW_THRESHOLD,
-                        NoticeSeverity::Warning,
-                        "trip distance exceeds shape distance (below threshold)",
-                    )
-                };
-                let mut notice = ValidationNotice::new(code, severity, message);
-                notice.insert_context_field("tripId", trip_id);
-                notice.insert_context_field("shapeId", shape_id);
-                notice.insert_context_field("maxTripDistanceTraveled", max_stop_time_dist);
-                notice.insert_context_field("maxShapeDistanceTraveled", max_shape_dist);
-                notice.insert_context_field("geoDistanceToShape", distance_meters);
-                notice.field_order = vec![
-                    "tripId".to_string(),
-                    "shapeId".to_string(),
-                    "maxTripDistanceTraveled".to_string(),
-                    "maxShapeDistanceTraveled".to_string(),
-                    "geoDistanceToShape".to_string(),
-                ];
-                notices.push(notice);
+        #[cfg(not(feature = "parallel"))]
+        {
+            for trip in &feed.trips.rows {
+                let result = check_trip(trip, feed, &context);
+                notices.merge(result);
             }
         }
     }
+}
+
+struct ValidationContext<'a> {
+    shape_max_dist: HashMap<&'a str, (f64, f64, f64)>,
+    stops_by_id: HashMap<&'a str, &'a gtfs_guru_model::Stop>,
+}
+
+unsafe impl<'a> Sync for ValidationContext<'a> {}
+unsafe impl<'a> Send for ValidationContext<'a> {}
+
+fn check_trip(
+    trip: &gtfs_guru_model::Trip,
+    feed: &GtfsFeed,
+    context: &ValidationContext,
+) -> NoticeContainer {
+    let mut notices = NoticeContainer::new();
+    let trip_id = trip.trip_id.trim();
+    if trip_id.is_empty() {
+        return notices;
+    }
+    let shape_id = match trip.shape_id.as_ref() {
+        Some(shape_id) => shape_id.trim(),
+        None => return notices,
+    };
+    if shape_id.is_empty() {
+        return notices;
+    }
+
+    // Use the pre-calculated index from feed
+    let stop_time_indices = match feed.stop_times_by_trip.get(trip_id) {
+        Some(indices) if !indices.is_empty() => indices,
+        _ => return notices,
+    };
+
+    // We need the last stop time. Indices are sorted by stop_sequence in feed.rs
+    let last_index = stop_time_indices[stop_time_indices.len() - 1];
+    let last_stop_time = &feed.stop_times.rows[last_index];
+
+    if last_stop_time.stop_id.trim().is_empty() {
+        return notices;
+    }
+    let stop = match context.stops_by_id.get(last_stop_time.stop_id.trim()) {
+        Some(stop) => *stop,
+        None => return notices,
+    };
+    let (Some(stop_lat), Some(stop_lon)) = (stop.stop_lat, stop.stop_lon) else {
+        return notices;
+    };
+
+    let max_stop_time_dist = last_stop_time.shape_dist_traveled.unwrap_or(0.0);
+
+    let (max_shape_dist, shape_lat, shape_lon) = match context.shape_max_dist.get(shape_id) {
+        Some(&data) if data.0 > 0.0 => data,
+        _ => return notices,
+    };
+
+    let distance_meters = haversine_meters(shape_lat, shape_lon, stop_lat, stop_lon);
+
+    if max_stop_time_dist > max_shape_dist {
+        let (code, severity, message) = if distance_meters > DISTANCE_THRESHOLD_METERS {
+            (
+                CODE_TRIP_DISTANCE_EXCEEDS_SHAPE_DISTANCE,
+                NoticeSeverity::Error,
+                "trip distance exceeds shape distance",
+            )
+        } else {
+            (
+                CODE_TRIP_DISTANCE_EXCEEDS_SHAPE_DISTANCE_BELOW_THRESHOLD,
+                NoticeSeverity::Warning,
+                "trip distance exceeds shape distance (below threshold)",
+            )
+        };
+        let mut notice = ValidationNotice::new(code, severity, message);
+        notice.insert_context_field("tripId", trip_id);
+        notice.insert_context_field("shapeId", shape_id);
+        notice.insert_context_field("maxTripDistanceTraveled", max_stop_time_dist);
+        notice.insert_context_field("maxShapeDistanceTraveled", max_shape_dist);
+        notice.insert_context_field("geoDistanceToShape", distance_meters);
+        notice.field_order = vec![
+            "tripId".into(),
+            "shapeId".into(),
+            "maxTripDistanceTraveled".into(),
+            "maxShapeDistanceTraveled".into(),
+            "geoDistanceToShape".into(),
+        ];
+        notices.push(notice);
+    }
+    notices
 }
 
 fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
@@ -153,18 +199,18 @@ mod tests {
     fn detects_trip_exceeds_shape_distance_above_threshold() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "shape_id".to_string()],
+            headers: vec!["trip_id".into(), "shape_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                shape_id: Some("SH1".to_string()),
+                trip_id: "T1".into(),
+                shape_id: Some("SH1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string(), "shape_dist_traveled".to_string()],
+            headers: vec!["shape_id".into(), "shape_dist_traveled".into()],
             rows: vec![Shape {
-                shape_id: "SH1".to_string(),
+                shape_id: "SH1".into(),
                 shape_dist_traveled: Some(10.0),
                 shape_pt_lat: 40.7128,
                 shape_pt_lon: -74.0060,
@@ -173,13 +219,9 @@ mod tests {
             row_numbers: vec![2],
         });
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 stop_lat: Some(40.7128),
                 stop_lon: Some(-73.0060), // Far away (~100km)
                 ..Default::default()
@@ -188,14 +230,14 @@ mod tests {
         };
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_id".to_string(),
-                "stop_sequence".to_string(),
-                "shape_dist_traveled".to_string(),
+                "trip_id".into(),
+                "stop_id".into(),
+                "stop_sequence".into(),
+                "shape_dist_traveled".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 stop_sequence: 1,
                 shape_dist_traveled: Some(20.0), // Greater than shape distance
                 ..Default::default()
@@ -204,6 +246,7 @@ mod tests {
         };
 
         let mut notices = NoticeContainer::new();
+        feed.rebuild_stop_times_index();
         TripAndShapeDistanceValidator.validate(&feed, &mut notices);
 
         assert!(notices
@@ -215,18 +258,18 @@ mod tests {
     fn detects_trip_exceeds_shape_distance_below_threshold() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "shape_id".to_string()],
+            headers: vec!["trip_id".into(), "shape_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                shape_id: Some("SH1".to_string()),
+                trip_id: "T1".into(),
+                shape_id: Some("SH1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string(), "shape_dist_traveled".to_string()],
+            headers: vec!["shape_id".into(), "shape_dist_traveled".into()],
             rows: vec![Shape {
-                shape_id: "SH1".to_string(),
+                shape_id: "SH1".into(),
                 shape_dist_traveled: Some(10.0),
                 shape_pt_lat: 40.7128,
                 shape_pt_lon: -74.0060,
@@ -235,13 +278,9 @@ mod tests {
             row_numbers: vec![2],
         });
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 stop_lat: Some(40.7128),
                 stop_lon: Some(-74.0060), // Exact same location
                 ..Default::default()
@@ -250,14 +289,14 @@ mod tests {
         };
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_id".to_string(),
-                "stop_sequence".to_string(),
-                "shape_dist_traveled".to_string(),
+                "trip_id".into(),
+                "stop_id".into(),
+                "stop_sequence".into(),
+                "shape_dist_traveled".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 stop_sequence: 1,
                 shape_dist_traveled: Some(20.0), // Greater than shape distance
                 ..Default::default()
@@ -266,6 +305,7 @@ mod tests {
         };
 
         let mut notices = NoticeContainer::new();
+        feed.rebuild_stop_times_index();
         TripAndShapeDistanceValidator.validate(&feed, &mut notices);
 
         assert!(notices
@@ -277,31 +317,27 @@ mod tests {
     fn passes_valid_trip_shape_distance() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "shape_id".to_string()],
+            headers: vec!["trip_id".into(), "shape_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                shape_id: Some("SH1".to_string()),
+                trip_id: "T1".into(),
+                shape_id: Some("SH1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string(), "shape_dist_traveled".to_string()],
+            headers: vec!["shape_id".into(), "shape_dist_traveled".into()],
             rows: vec![Shape {
-                shape_id: "SH1".to_string(),
+                shape_id: "SH1".into(),
                 shape_dist_traveled: Some(20.0),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 stop_lat: Some(40.7128),
                 stop_lon: Some(-74.0060),
                 ..Default::default()
@@ -310,14 +346,14 @@ mod tests {
         };
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_id".to_string(),
-                "stop_sequence".to_string(),
-                "shape_dist_traveled".to_string(),
+                "trip_id".into(),
+                "stop_id".into(),
+                "stop_sequence".into(),
+                "shape_dist_traveled".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 stop_sequence: 1,
                 shape_dist_traveled: Some(10.0), // Less than shape distance
                 ..Default::default()
@@ -326,6 +362,7 @@ mod tests {
         };
 
         let mut notices = NoticeContainer::new();
+        feed.rebuild_stop_times_index();
         TripAndShapeDistanceValidator.validate(&feed, &mut notices);
 
         assert!(notices.is_empty());

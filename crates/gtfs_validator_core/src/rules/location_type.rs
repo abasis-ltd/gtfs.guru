@@ -68,10 +68,10 @@ fn station_with_parent_station_notice(
     notice.insert_context_field("stopId", stop.stop_id.as_str());
     notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "parentStation".to_string(),
-        "stopId".to_string(),
-        "stopName".to_string(),
+        "csvRowNumber".into(),
+        "parentStation".into(),
+        "stopId".into(),
+        "stopName".into(),
     ];
     notice
 }
@@ -90,10 +90,10 @@ fn location_without_parent_station_notice(
     notice.insert_context_field("stopId", stop.stop_id.as_str());
     notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "locationType".to_string(),
-        "stopId".to_string(),
-        "stopName".to_string(),
+        "csvRowNumber".into(),
+        "locationType".into(),
+        "stopId".into(),
+        "stopName".into(),
     ];
     notice
 }
@@ -111,9 +111,9 @@ fn platform_without_parent_station_notice(
     notice.insert_context_field("stopId", stop.stop_id.as_str());
     notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "stopId".to_string(),
-        "stopName".to_string(),
+        "csvRowNumber".into(),
+        "stopId".into(),
+        "stopName".into(),
     ];
     notice
 }
@@ -137,9 +137,9 @@ mod tests {
     #[test]
     fn emits_notice_for_station_with_parent_station() {
         let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "STATION1".to_string(),
+            stop_id: "STATION1".into(),
             stop_code: None,
-            stop_name: Some("Station".to_string()),
+            stop_name: Some("Station".into()),
             tts_stop_name: None,
             stop_desc: None,
             stop_lat: Some(10.0),
@@ -147,7 +147,7 @@ mod tests {
             zone_id: None,
             stop_url: None,
             location_type: Some(LocationType::Station),
-            parent_station: Some("PARENT".to_string()),
+            parent_station: Some("PARENT".into()),
             stop_timezone: None,
             wheelchair_boarding: None,
             level_id: None,
@@ -180,9 +180,9 @@ mod tests {
     #[test]
     fn emits_notice_for_location_missing_parent_station() {
         let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "ENTRANCE1".to_string(),
+            stop_id: "ENTRANCE1".into(),
             stop_code: None,
-            stop_name: Some("Entrance".to_string()),
+            stop_name: Some("Entrance".into()),
             tts_stop_name: None,
             stop_desc: None,
             stop_lat: Some(10.0),
@@ -223,9 +223,9 @@ mod tests {
     #[test]
     fn emits_notice_for_platform_without_parent_station() {
         let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "STOP1".to_string(),
+            stop_id: "STOP1".into(),
             stop_code: None,
-            stop_name: Some("Platform".to_string()),
+            stop_name: Some("Platform".into()),
             tts_stop_name: None,
             stop_desc: None,
             stop_lat: Some(10.0),
@@ -237,7 +237,7 @@ mod tests {
             stop_timezone: None,
             wheelchair_boarding: None,
             level_id: None,
-            platform_code: Some("PLAT".to_string()),
+            platform_code: Some("PLAT".into()),
             stop_address: None,
             stop_city: None,
             stop_region: None,
@@ -265,9 +265,9 @@ mod tests {
     #[test]
     fn skips_stop_without_parent_station() {
         let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "STOP1".to_string(),
+            stop_id: "STOP1".into(),
             stop_code: None,
-            stop_name: Some("Stop".to_string()),
+            stop_name: Some("Stop".into()),
             tts_stop_name: None,
             stop_desc: None,
             stop_lat: Some(10.0),
@@ -301,9 +301,9 @@ mod tests {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,

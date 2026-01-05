@@ -114,3 +114,42 @@ pub fn set_thorough_mode_enabled(enabled: bool) -> ThoroughModeGuard {
 pub fn thorough_mode_enabled() -> bool {
     THOROUGH_MODE.with(|cell| cell.get())
 }
+
+#[derive(Clone, Debug)]
+pub struct ValidationContextState {
+    pub date: NaiveDate,
+    pub country_code: Option<String>,
+    pub google_rules: bool,
+    pub thorough_mode: bool,
+}
+
+// Ensure it is Send + Sync (NaiveDate is Copy/Send/Sync, String is Send/Sync)
+unsafe impl Send for ValidationContextState {}
+unsafe impl Sync for ValidationContextState {}
+
+impl ValidationContextState {
+    pub fn capture() -> Self {
+        Self {
+            date: validation_date(),
+            country_code: validation_country_code(),
+            google_rules: google_rules_enabled(),
+            thorough_mode: thorough_mode_enabled(),
+        }
+    }
+
+    pub fn apply(
+        &self,
+    ) -> (
+        ValidationDateGuard,
+        ValidationCountryCodeGuard,
+        ValidationGoogleRulesGuard,
+        ThoroughModeGuard,
+    ) {
+        (
+            set_validation_date(Some(self.date)),
+            set_validation_country_code(self.country_code.clone()),
+            set_google_rules_enabled(self.google_rules),
+            set_thorough_mode_enabled(self.thorough_mode),
+        )
+    }
+}

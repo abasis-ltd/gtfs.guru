@@ -415,6 +415,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
+name = "castaway"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dec551ab6e7578819132c713a93c022a05d60159dc86e7a7050223577484c55a"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -558,6 +567,21 @@ checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
 dependencies = [
  "bytes",
  "memchr",
+]
+
+[[package]]
+name = "compact_str"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fdb1325a1cece981e8a296ab8f0f9b63ae357bd0784a9faaf548cc7b480707a"
+dependencies = [
+ "castaway",
+ "cfg-if",
+ "itoa",
+ "rustversion",
+ "ryu",
+ "serde",
+ "static_assertions",
 ]
 
 [[package]]
@@ -1592,6 +1616,7 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
+ "compact_str",
  "criterion",
  "csv",
  "gtfs-guru-model",
@@ -1630,6 +1655,7 @@ name = "gtfs-guru-model"
 version = "0.1.1"
 dependencies = [
  "chrono",
+ "compact_str",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -1653,6 +1679,7 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
+ "compact_str",
  "gtfs-guru-core",
  "gtfs-guru-model",
  "serde",

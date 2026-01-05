@@ -135,11 +135,11 @@ fn multiple_default_categories_notice(
     notice.insert_context_field("riderCategoryId1", rider_category_id1);
     notice.insert_context_field("riderCategoryId2", rider_category_id2);
     notice.field_order = vec![
-        "csvRowNumber1".to_string(),
-        "csvRowNumber2".to_string(),
-        "fareProductId".to_string(),
-        "riderCategoryId1".to_string(),
-        "riderCategoryId2".to_string(),
+        "csvRowNumber1".into(),
+        "csvRowNumber2".into(),
+        "fareProductId".into(),
+        "riderCategoryId1".into(),
+        "riderCategoryId2".into(),
     ];
     notice
 }
@@ -155,17 +155,17 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
             headers: vec![
-                "rider_category_id".to_string(),
-                "is_default_category".to_string(),
+                "rider_category_id".into(),
+                "is_default_category".into(),
             ],
             rows: vec![
                 RiderCategory {
-                    rider_category_id: "C1".to_string(),
+                    rider_category_id: "C1".into(),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
                 RiderCategory {
-                    rider_category_id: "C2".to_string(),
+                    rider_category_id: "C2".into(),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
@@ -173,9 +173,9 @@ mod tests {
             row_numbers: vec![2, 3],
         });
         feed.fare_products = Some(CsvTable {
-            headers: vec!["fare_product_id".to_string()],
+            headers: vec!["fare_product_id".into()],
             rows: vec![FareProduct {
-                fare_product_id: "P1".to_string(),
+                fare_product_id: "P1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -196,17 +196,17 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
             headers: vec![
-                "rider_category_id".to_string(),
-                "is_default_category".to_string(),
+                "rider_category_id".into(),
+                "is_default_category".into(),
             ],
             rows: vec![
                 RiderCategory {
-                    rider_category_id: "C1".to_string(),
+                    rider_category_id: "C1".into(),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
                 RiderCategory {
-                    rider_category_id: "C2".to_string(),
+                    rider_category_id: "C2".into(),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
@@ -215,18 +215,18 @@ mod tests {
         });
         feed.fare_products = Some(CsvTable {
             headers: vec![
-                "fare_product_id".to_string(),
-                "rider_category_id".to_string(),
+                "fare_product_id".into(),
+                "rider_category_id".into(),
             ],
             rows: vec![
                 FareProduct {
-                    fare_product_id: "P1".to_string(),
-                    rider_category_id: Some("C1".to_string()),
+                    fare_product_id: "P1".into(),
+                    rider_category_id: Some("C1".into()),
                     ..Default::default()
                 },
                 FareProduct {
-                    fare_product_id: "P1".to_string(),
-                    rider_category_id: Some("C2".to_string()),
+                    fare_product_id: "P1".into(),
+                    rider_category_id: Some("C2".into()),
                     ..Default::default()
                 },
             ],
@@ -249,17 +249,17 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
             headers: vec![
-                "rider_category_id".to_string(),
-                "is_default_category".to_string(),
+                "rider_category_id".into(),
+                "is_default_category".into(),
             ],
             rows: vec![
                 RiderCategory {
-                    rider_category_id: "C1".to_string(),
+                    rider_category_id: "C1".into(),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
                 RiderCategory {
-                    rider_category_id: "C2".to_string(),
+                    rider_category_id: "C2".into(),
                     is_default_fare_category: Some(RiderFareCategory::NotDefault),
                     ..Default::default()
                 },
@@ -268,18 +268,18 @@ mod tests {
         });
         feed.fare_products = Some(CsvTable {
             headers: vec![
-                "fare_product_id".to_string(),
-                "rider_category_id".to_string(),
+                "fare_product_id".into(),
+                "rider_category_id".into(),
             ],
             rows: vec![
                 FareProduct {
-                    fare_product_id: "P1".to_string(),
-                    rider_category_id: Some("C1".to_string()),
+                    fare_product_id: "P1".into(),
+                    rider_category_id: Some("C1".into()),
                     ..Default::default()
                 },
                 FareProduct {
-                    fare_product_id: "P1".to_string(),
-                    rider_category_id: Some("C2".to_string()),
+                    fare_product_id: "P1".into(),
+                    rider_category_id: Some("C2".into()),
                     ..Default::default()
                 },
             ],

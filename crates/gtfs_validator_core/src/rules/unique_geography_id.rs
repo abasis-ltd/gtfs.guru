@@ -133,10 +133,10 @@ fn duplicate_id_notice(
     }
     notice.insert_context_field("geographyId", id);
     notice.field_order = vec![
-        "csvRowNumberA".to_string(),
-        "csvRowNumberB".to_string(),
-        "featureIndex".to_string(),
-        "geographyId".to_string(),
+        "csvRowNumberA".into(),
+        "csvRowNumberB".into(),
+        "featureIndex".into(),
+        "geographyId".into(),
     ];
     notice
 }
@@ -151,17 +151,17 @@ mod tests {
     fn detects_duplicate_id_between_stops_and_location_groups() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "ID1".to_string(),
+                stop_id: "ID1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.location_group_stops = Some(CsvTable {
-            headers: vec!["location_group_id".to_string()],
+            headers: vec!["location_group_id".into()],
             rows: vec![LocationGroupStop {
-                location_group_id: "ID1".to_string(),
+                location_group_id: "ID1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -179,17 +179,17 @@ mod tests {
     fn passes_unique_ids() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.location_group_stops = Some(CsvTable {
-            headers: vec!["location_group_id".to_string()],
+            headers: vec!["location_group_id".into()],
             rows: vec![LocationGroupStop {
-                location_group_id: "LG1".to_string(),
+                location_group_id: "LG1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

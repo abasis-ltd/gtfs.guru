@@ -15,9 +15,9 @@ mod tests {
     fn detects_both_names_missing() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            headers: vec!["route_id".into(), "route_type".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
                 route_short_name: None,
                 route_long_name: None,
@@ -40,11 +40,11 @@ mod tests {
     fn detects_short_name_too_long() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_short_name".to_string()],
+            headers: vec!["route_id".into(), "route_short_name".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
-                route_short_name: Some("VeryLongRouteName".to_string()),
+                route_short_name: Some("VeryLongRouteName".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -65,15 +65,15 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             headers: vec![
-                "route_id".to_string(),
-                "route_short_name".to_string(),
-                "route_long_name".to_string(),
+                "route_id".into(),
+                "route_short_name".into(),
+                "route_long_name".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
-                route_short_name: Some("42".to_string()),
-                route_long_name: Some("42 Downtown Express".to_string()),
+                route_short_name: Some("42".into()),
+                route_long_name: Some("42 Downtown Express".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -94,15 +94,15 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             headers: vec![
-                "route_id".to_string(),
-                "route_short_name".to_string(),
-                "route_desc".to_string(),
+                "route_id".into(),
+                "route_short_name".into(),
+                "route_desc".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
-                route_short_name: Some("42".to_string()),
-                route_desc: Some("42".to_string()),
+                route_short_name: Some("42".into()),
+                route_desc: Some("42".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -123,15 +123,15 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             headers: vec![
-                "route_id".to_string(),
-                "route_short_name".to_string(),
-                "route_long_name".to_string(),
+                "route_id".into(),
+                "route_short_name".into(),
+                "route_long_name".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
-                route_short_name: Some("42".to_string()),
-                route_long_name: Some("Downtown Express".to_string()),
+                route_short_name: Some("42".into()),
+                route_long_name: Some("Downtown Express".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -174,7 +174,7 @@ impl Validator for RoutesValidator {
                 );
                 notice.insert_context_field("routeId", route.route_id.as_str());
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.field_order = vec!["csvRowNumber".to_string(), "routeId".to_string()];
+                notice.field_order = vec!["csvRowNumber".into(), "routeId".into()];
                 notices.push(notice);
                 continue;
             }
@@ -190,9 +190,9 @@ impl Validator for RoutesValidator {
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("routeShortName", short);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "routeId".to_string(),
-                        "routeShortName".to_string(),
+                        "csvRowNumber".into(),
+                        "routeId".into(),
+                        "routeShortName".into(),
                     ];
                     notices.push(notice);
                 }
@@ -220,10 +220,10 @@ impl Validator for RoutesValidator {
                         notice.insert_context_field("routeShortName", short);
                         notice.insert_context_field("routeLongName", long);
                         notice.field_order = vec![
-                            "csvRowNumber".to_string(),
-                            "routeId".to_string(),
-                            "routeLongName".to_string(),
-                            "routeShortName".to_string(),
+                            "csvRowNumber".into(),
+                            "routeId".into(),
+                            "routeLongName".into(),
+                            "routeShortName".into(),
                         ];
                         notices.push(notice);
                     }
@@ -243,10 +243,10 @@ impl Validator for RoutesValidator {
                         notice.insert_context_field("routeDesc", route_desc);
                         notice.insert_context_field("specifiedField", "route_short_name");
                         notice.field_order = vec![
-                            "csvRowNumber".to_string(),
-                            "routeDesc".to_string(),
-                            "routeId".to_string(),
-                            "specifiedField".to_string(),
+                            "csvRowNumber".into(),
+                            "routeDesc".into(),
+                            "routeId".into(),
+                            "specifiedField".into(),
                         ];
                         notices.push(notice);
                         continue;
@@ -264,10 +264,10 @@ impl Validator for RoutesValidator {
                         notice.insert_context_field("routeDesc", route_desc);
                         notice.insert_context_field("specifiedField", "route_long_name");
                         notice.field_order = vec![
-                            "csvRowNumber".to_string(),
-                            "routeDesc".to_string(),
-                            "routeId".to_string(),
-                            "specifiedField".to_string(),
+                            "csvRowNumber".into(),
+                            "routeDesc".into(),
+                            "routeId".into(),
+                            "specifiedField".into(),
                         ];
                         notices.push(notice);
                     }

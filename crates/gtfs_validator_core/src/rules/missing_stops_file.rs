@@ -46,7 +46,7 @@ mod tests {
     fn passes_when_stops_file_present() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![gtfs_guru_model::Stop::default()],
             row_numbers: vec![2],
         };

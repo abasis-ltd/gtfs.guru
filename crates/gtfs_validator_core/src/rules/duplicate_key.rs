@@ -349,11 +349,11 @@ fn duplicate_key_notice(
     notice.insert_context_field("filename", filename);
     notice.insert_context_field("prevCsvRowNumber", prev_row_number);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
-        "prevCsvRowNumber".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
+        "prevCsvRowNumber".into(),
     ];
     notice
 }
@@ -368,14 +368,14 @@ mod tests {
     fn detects_duplicate_stop_id() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     ..Default::default()
                 },
             ],
@@ -420,15 +420,15 @@ mod tests {
     fn detects_duplicate_route_id() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            headers: vec!["route_id".into(), "route_type".into()],
             rows: vec![
                 Route {
-                    route_id: "R1".to_string(),
+                    route_id: "R1".into(),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 },
                 Route {
-                    route_id: "R1".to_string(),
+                    route_id: "R1".into(),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 },
@@ -452,14 +452,14 @@ mod tests {
     fn detects_duplicate_trip_id() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![
                 Trip {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     ..Default::default()
                 },
                 Trip {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     ..Default::default()
                 },
             ],
@@ -482,29 +482,29 @@ mod tests {
     fn passes_with_unique_ids() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string()],
+            headers: vec!["route_id".into()],
             rows: vec![
                 Route {
-                    route_id: "R1".to_string(),
+                    route_id: "R1".into(),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 },
                 Route {
-                    route_id: "R2".to_string(),
+                    route_id: "R2".into(),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 },
@@ -522,14 +522,14 @@ mod tests {
     fn ignores_empty_ids() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "".to_string(),
+                    stop_id: "".into(),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "".to_string(),
+                    stop_id: "".into(),
                     ..Default::default()
                 },
             ],

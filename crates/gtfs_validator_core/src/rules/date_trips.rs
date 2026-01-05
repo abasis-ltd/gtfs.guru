@@ -247,8 +247,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
             rows: vec![gtfs_guru_model::Trip {
-                trip_id: "T1".to_string(),
-                service_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                service_id: "S1".into(),
                 ..Default::default()
             }],
             ..Default::default()

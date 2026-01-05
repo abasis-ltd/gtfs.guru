@@ -15,12 +15,18 @@ impl Validator for MissingTripEdgeValidator {
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         #[cfg(feature = "parallel")]
         {
-            use rayon::prelude::*;
-            let results: Vec<NoticeContainer> = feed
-                .stop_times_by_trip
-                .par_iter()
-                .map(|(trip_id, indices)| Self::check_trip(feed, trip_id, indices))
-                .collect();
+            #[cfg(feature = "parallel")]
+            let results: Vec<NoticeContainer> = {
+                use rayon::prelude::*;
+                let ctx = crate::ValidationContextState::capture();
+                feed.stop_times_by_trip
+                    .par_iter()
+                    .map(|(trip_id, stop_time_indices)| {
+                        let _guards = ctx.apply();
+                        Self::check_trip(feed, trip_id, stop_time_indices)
+                    })
+                    .collect()
+            };
 
             for result in results {
                 notices.merge(result);
@@ -98,10 +104,10 @@ fn missing_trip_edge_notice(
     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
     notice.insert_context_field("tripId", stop_time.trip_id.as_str());
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "specifiedField".to_string(),
-        "stopSequence".to_string(),
-        "tripId".to_string(),
+        "csvRowNumber".into(),
+        "specifiedField".into(),
+        "stopSequence".into(),
+        "tripId".into(),
     ];
     notice
 }
@@ -117,20 +123,20 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "departure_time".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "departure_time".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     arrival_time: None,
                     departure_time: Some(GtfsTime::from_seconds(3600)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: Some(GtfsTime::from_seconds(4100)),
@@ -153,20 +159,20 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "arrival_time".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "arrival_time".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: None,
@@ -188,21 +194,21 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "arrival_time".to_string(),
-                "departure_time".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "arrival_time".into(),
+                "departure_time".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: Some(GtfsTime::from_seconds(4100)),
@@ -224,12 +230,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "start_pickup_drop_off_window".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 ..Default::default()

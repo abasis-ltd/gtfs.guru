@@ -495,9 +495,9 @@ fn check_non_empty(
         notice.field = Some(field.to_string());
         notice.row = Some(row_number);
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "fieldName".to_string(),
-            "filename".to_string(),
+            "csvRowNumber".into(),
+            "fieldName".into(),
+            "filename".into(),
         ];
         notices.push(notice);
     }
@@ -513,14 +513,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
             ],
             rows: vec![gtfs_guru_model::Agency {
-                agency_name: "".to_string(), // Empty
-                agency_url: "https://example.com".to_string(),
-                agency_timezone: "UTC".to_string(),
+                agency_name: "".into(), // Empty
+                agency_url: "https://example.com".into(),
+                agency_timezone: "UTC".into(),
                 ..Default::default()
             }],
             row_numbers: vec![1],
@@ -532,7 +532,7 @@ mod tests {
         assert_eq!(notices.len(), 1);
         let notice = notices.iter().next().unwrap();
         assert_eq!(notice.code, CODE_EMPTY_REQUIRED_FIELD);
-        assert_eq!(notice.field, Some("agency_name".to_string()));
+        assert_eq!(notice.field, Some("agency_name".into()));
     }
 
     #[test]
@@ -540,14 +540,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
             ],
             rows: vec![gtfs_guru_model::Agency {
-                agency_name: "Test".to_string(),
-                agency_url: "https://example.com".to_string(),
-                agency_timezone: "UTC".to_string(),
+                agency_name: "Test".into(),
+                agency_url: "https://example.com".into(),
+                agency_timezone: "UTC".into(),
                 ..Default::default()
             }],
             row_numbers: vec![1],

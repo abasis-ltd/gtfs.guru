@@ -28,7 +28,7 @@ impl Validator for FareTransferRuleDurationLimitTypeValidator {
                     "duration_limit_type is required when duration_limit is set",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.field_order = vec!["csvRowNumber".to_string()];
+                notice.field_order = vec!["csvRowNumber".into()];
                 notices.push(notice);
             }
             if !has_duration_limit && has_duration_limit_type {
@@ -38,7 +38,7 @@ impl Validator for FareTransferRuleDurationLimitTypeValidator {
                     "duration_limit is required when duration_limit_type is set",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.field_order = vec!["csvRowNumber".to_string()];
+                notice.field_order = vec!["csvRowNumber".into()];
                 notices.push(notice);
             }
         }
@@ -55,7 +55,7 @@ mod tests {
     fn detects_duration_limit_without_type() {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
-            headers: vec!["duration_limit".to_string()],
+            headers: vec!["duration_limit".into()],
             rows: vec![FareTransferRule {
                 duration_limit: Some(3600),
                 duration_limit_type: None,
@@ -78,7 +78,7 @@ mod tests {
     fn detects_type_without_duration_limit() {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
-            headers: vec!["duration_limit_type".to_string()],
+            headers: vec!["duration_limit_type".into()],
             rows: vec![FareTransferRule {
                 duration_limit: None,
                 duration_limit_type: Some(DurationLimitType::DepartureToArrival),
@@ -102,8 +102,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
             headers: vec![
-                "duration_limit".to_string(),
-                "duration_limit_type".to_string(),
+                "duration_limit".into(),
+                "duration_limit_type".into(),
             ],
             rows: vec![FareTransferRule {
                 duration_limit: Some(3600),

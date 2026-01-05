@@ -66,11 +66,8 @@ impl Validator for UnusedStopValidator {
                 notice.insert_context_field("csvRowNumber", feed.stops.row_number(index));
                 notice.insert_context_field("stopId", stop_id);
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
-                notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "stopId".to_string(),
-                    "stopName".to_string(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
                 notices.push(notice);
             }
         }
@@ -85,28 +82,29 @@ mod tests {
 
     #[test]
     fn detects_unused_stop() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "stop_name".to_string()],
+            headers: vec!["stop_id".into(), "stop_name".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
-                    stop_name: Some("Stop 1".to_string()),
+                    stop_id: "S1".into(),
+                    stop_name: Some("Stop 1".into()),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
-                    stop_name: Some("Stop 2".to_string()),
+                    stop_id: "S2".into(),
+                    stop_name: Some("Stop 2".into()),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -134,22 +132,22 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![
-                "stop_id".to_string(),
-                "stop_name".to_string(),
-                "parent_station".to_string(),
-                "location_type".to_string(),
+                "stop_id".into(),
+                "stop_name".into(),
+                "parent_station".into(),
+                "location_type".into(),
             ],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
-                    stop_name: Some("Stop 1".to_string()),
-                    parent_station: Some("ST1".to_string()),
+                    stop_id: "S1".into(),
+                    stop_name: Some("Stop 1".into()),
+                    parent_station: Some("ST1".into()),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "ST1".to_string(),
-                    stop_name: Some("Station 1".to_string()),
+                    stop_id: "ST1".into(),
+                    stop_name: Some("Station 1".into()),
                     location_type: Some(LocationType::Station),
                     ..Default::default()
                 },
@@ -157,10 +155,10 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -174,16 +172,13 @@ mod tests {
 
     #[test]
     fn detects_unused_station_without_used_children() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".to_string(),
-                "stop_name".to_string(),
-                "location_type".to_string(),
-            ],
+            headers: vec!["stop_id".into(), "stop_name".into(), "location_type".into()],
             rows: vec![Stop {
-                stop_id: "ST1".to_string(),
-                stop_name: Some("Station 1".to_string()),
+                stop_id: "ST1".into(),
+                stop_name: Some("Station 1".into()),
                 location_type: Some(LocationType::Station),
                 ..Default::default()
             }],

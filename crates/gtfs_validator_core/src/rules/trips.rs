@@ -38,7 +38,7 @@ impl Validator for TripUsabilityValidator {
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("tripId", trip_id);
-                notice.field_order = vec!["csvRowNumber".to_string(), "tripId".to_string()];
+                notice.field_order = vec!["csvRowNumber".into(), "tripId".into()];
                 notices.push(notice);
             } else if stop_count == 1 {
                 let mut notice = ValidationNotice::new(
@@ -48,7 +48,7 @@ impl Validator for TripUsabilityValidator {
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("tripId", trip_id);
-                notice.field_order = vec!["csvRowNumber".to_string(), "tripId".to_string()];
+                notice.field_order = vec!["csvRowNumber".into(), "tripId".into()];
                 notices.push(notice);
             }
         }
@@ -65,15 +65,15 @@ mod tests {
     fn detects_trip_with_no_stop_times() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![],
             row_numbers: vec![],
         };
@@ -89,17 +89,17 @@ mod tests {
     fn detects_trip_with_single_stop_time() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 ..Default::default()
             }],
@@ -117,23 +117,23 @@ mod tests {
     fn passes_with_two_or_more_stop_times() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string()],
+            headers: vec!["trip_id".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 2,
                     ..Default::default()
                 },

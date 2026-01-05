@@ -504,7 +504,7 @@ fn empty_column_name_notice(file: &str, index: usize) -> ValidationNotice {
     );
     notice.insert_context_field("filename", file);
     notice.insert_context_field("index", index);
-    notice.field_order = vec!["filename".to_string(), "index".to_string()];
+    notice.field_order = vec!["filename".into(), "index".into()];
     notice
 }
 
@@ -524,10 +524,10 @@ fn duplicated_column_notice(
     notice.insert_context_field("firstIndex", first_index);
     notice.insert_context_field("secondIndex", second_index);
     notice.field_order = vec![
-        "fieldName".to_string(),
-        "filename".to_string(),
-        "firstIndex".to_string(),
-        "secondIndex".to_string(),
+        "fieldName".into(),
+        "filename".into(),
+        "firstIndex".into(),
+        "secondIndex".into(),
     ];
     notice
 }
@@ -539,9 +539,9 @@ fn unknown_column_notice(file: &str, field_name: &str, index: usize) -> Validati
     notice.insert_context_field("filename", file);
     notice.insert_context_field("index", index);
     notice.field_order = vec![
-        "fieldName".to_string(),
-        "filename".to_string(),
-        "index".to_string(),
+        "fieldName".into(),
+        "filename".into(),
+        "index".into(),
     ];
     notice
 }
@@ -554,7 +554,7 @@ fn missing_required_column_notice(file: &str, field_name: &str) -> ValidationNot
     );
     notice.insert_context_field("fieldName", field_name);
     notice.insert_context_field("filename", file);
-    notice.field_order = vec!["fieldName".to_string(), "filename".to_string()];
+    notice.field_order = vec!["fieldName".into(), "filename".into()];
     notice
 }
 
@@ -566,7 +566,7 @@ fn missing_recommended_column_notice(file: &str, field_name: &str) -> Validation
     );
     notice.insert_context_field("fieldName", field_name);
     notice.insert_context_field("filename", file);
-    notice.field_order = vec!["fieldName".to_string(), "filename".to_string()];
+    notice.field_order = vec!["fieldName".into(), "filename".into()];
     notice
 }
 
@@ -575,7 +575,7 @@ fn empty_row_notice(file: &str, row_number: u64) -> ValidationNotice {
     let mut notice = ValidationNotice::new("empty_row", NoticeSeverity::Warning, "row is empty");
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("filename", file);
-    notice.field_order = vec!["csvRowNumber".to_string(), "filename".to_string()];
+    notice.field_order = vec!["csvRowNumber".into(), "filename".into()];
     notice
 }
 
@@ -595,10 +595,10 @@ fn invalid_row_length_notice(
     notice.insert_context_field("headerCount", header_len);
     notice.insert_context_field("rowLength", row_len);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "filename".to_string(),
-        "headerCount".to_string(),
-        "rowLength".to_string(),
+        "csvRowNumber".into(),
+        "filename".into(),
+        "headerCount".into(),
+        "rowLength".into(),
     ];
     notice
 }
@@ -619,10 +619,10 @@ fn leading_trailing_whitespace_notice(
     notice.insert_context_field("fieldValue", value);
     notice.insert_context_field("filename", file);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -665,10 +665,10 @@ fn new_line_notice(file: &str, field_name: &str, row_number: u64, value: &str) -
     notice.insert_context_field("fieldValue", value);
     notice.insert_context_field("filename", file);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -689,10 +689,10 @@ fn invalid_character_notice(
     notice.insert_context_field("fieldValue", value);
     notice.insert_context_field("filename", file);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -713,10 +713,10 @@ fn non_ascii_notice(
     notice.insert_context_field("fieldValue", value);
     notice.insert_context_field("filename", file);
     notice.field_order = vec![
-        "columnName".to_string(),
-        "csvRowNumber".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "columnName".into(),
+        "csvRowNumber".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -729,7 +729,7 @@ fn too_many_rows_notice(file: &str, row_number: u64) -> ValidationNotice {
     );
     notice.insert_context_field("filename", file);
     notice.insert_context_field("rowNumber", row_number);
-    notice.field_order = vec!["filename".to_string(), "rowNumber".to_string()];
+    notice.field_order = vec!["filename".into(), "rowNumber".into()];
     notice
 }
 
@@ -910,10 +910,10 @@ fn populate_field_notice(
     notice.field = Some(field_name.to_string());
     notice.insert_context_field("fieldValue", value);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
 }
 
@@ -938,10 +938,10 @@ fn mixed_case_notice(
     notice.field = Some(field_name.to_string());
     notice.insert_context_field("fieldValue", value);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -962,10 +962,10 @@ fn unexpected_enum_value_notice(
     notice.field = Some(field_name.to_string());
     notice.insert_context_field("fieldValue", value);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -988,11 +988,11 @@ fn invalid_currency_amount_notice(
     notice.insert_context_field("currencyCode", currency_code);
     notice.insert_context_field("fieldValue", value);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "currencyCode".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "currencyCode".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -1308,7 +1308,7 @@ fn valid_timezones() -> &'static HashSet<String> {
                 }
             }
         }
-        zones.insert("UTC".to_string());
+        zones.insert("UTC".into());
         zones
     })
 }
@@ -1379,9 +1379,9 @@ fn missing_recommended_field_notice(
     notice.row = Some(row_number);
     notice.field = Some(field_name.to_string());
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -1400,9 +1400,9 @@ fn missing_required_field_notice(
     notice.row = Some(row_number);
     notice.field = Some(field_name.to_string());
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "filename".into(),
     ];
     notice
 }

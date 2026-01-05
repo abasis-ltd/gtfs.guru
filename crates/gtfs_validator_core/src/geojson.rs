@@ -206,7 +206,7 @@ impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
                                                     &feature_id,
                                                     index,
                                                     geometry_type,
-                                                    "polygon ring is self-intersecting".to_string(),
+                                                    "polygon ring is self-intersecting".into(),
                                                 ));
                                             }
                                         }
@@ -270,7 +270,7 @@ impl LocationsGeoJson {
         );
         notice.insert_context_field("filename", LOCATIONS_GEOJSON_FILE);
         notice.insert_context_field("message", message.into());
-        notice.field_order = vec!["filename".to_string(), "message".to_string()];
+        notice.field_order = vec!["filename".into(), "message".into()];
         Self {
             location_ids: HashSet::new(),
             bounds_by_id: HashMap::new(),
@@ -344,25 +344,25 @@ fn bounds_from_points(points: Vec<(f64, f64)>) -> Option<BoundingBox> {
 fn points_from_polygon(coords: &Value) -> Result<Vec<(f64, f64)>, String> {
     let rings = coords
         .as_array()
-        .ok_or_else(|| "polygon coordinates must be an array".to_string())?;
+        .ok_or_else(|| String::from("polygon coordinates must be an array"))?;
     let mut points = Vec::new();
     for ring in rings {
         let ring_points = ring
             .as_array()
-            .ok_or_else(|| "polygon ring must be an array".to_string())?;
+            .ok_or_else(|| String::from("polygon ring must be an array"))?;
         for point in ring_points {
             let coords = point
                 .as_array()
-                .ok_or_else(|| "polygon point must be an array".to_string())?;
+                .ok_or_else(|| String::from("polygon point must be an array"))?;
             if coords.len() < 2 {
-                return Err("polygon point must have two coordinates".to_string());
+                return Err(String::from("polygon point must have two coordinates"));
             }
             let lon = coords[0]
                 .as_f64()
-                .ok_or_else(|| "longitude must be a number".to_string())?;
+                .ok_or_else(|| String::from("longitude must be a number"))?;
             let lat = coords[1]
                 .as_f64()
-                .ok_or_else(|| "latitude must be a number".to_string())?;
+                .ok_or_else(|| String::from("latitude must be a number"))?;
             points.push((lon, lat));
         }
     }
@@ -372,7 +372,7 @@ fn points_from_polygon(coords: &Value) -> Result<Vec<(f64, f64)>, String> {
 fn points_from_multipolygon(coords: &Value) -> Result<Vec<(f64, f64)>, String> {
     let polygons = coords
         .as_array()
-        .ok_or_else(|| "multipolygon coordinates must be an array".to_string())?;
+        .ok_or_else(|| String::from("multipolygon coordinates must be an array"))?;
     let mut points = Vec::new();
     for polygon in polygons {
         let polygon_points = points_from_polygon(polygon)?;
@@ -469,7 +469,7 @@ fn geojson_unknown_element_notice(unknown: &str) -> ValidationNotice {
     );
     notice.insert_context_field("filename", LOCATIONS_GEOJSON_FILE);
     notice.insert_context_field("unknownElement", unknown);
-    notice.field_order = vec!["filename".to_string(), "unknownElement".to_string()];
+    notice.field_order = vec!["filename".into(), "unknownElement".into()];
     notice
 }
 
@@ -481,7 +481,7 @@ fn geojson_duplicated_element_notice(duplicated: &str) -> ValidationNotice {
     );
     notice.insert_context_field("duplicatedElement", duplicated);
     notice.insert_context_field("filename", LOCATIONS_GEOJSON_FILE);
-    notice.field_order = vec!["duplicatedElement".to_string(), "filename".to_string()];
+    notice.field_order = vec!["duplicatedElement".into(), "filename".into()];
     notice
 }
 
@@ -499,7 +499,7 @@ fn unsupported_geojson_type_notice(value: &str) -> ValidationNotice {
             value
         ),
     );
-    notice.field_order = vec!["geoJsonType".to_string(), "message".to_string()];
+    notice.field_order = vec!["geoJsonType".into(), "message".into()];
     notice
 }
 
@@ -517,9 +517,9 @@ fn missing_required_element_notice(
     notice.insert_context_field("featureId", feature_id);
     notice.insert_context_field("missingElement", missing);
     notice.field_order = vec![
-        "featureId".to_string(),
-        "featureIndex".to_string(),
-        "missingElement".to_string(),
+        "featureId".into(),
+        "featureIndex".into(),
+        "missingElement".into(),
     ];
     notice
 }
@@ -538,9 +538,9 @@ fn unsupported_feature_type_notice(
     notice.insert_context_field("featureId", feature_id);
     notice.insert_context_field("featureType", feature_type);
     notice.field_order = vec![
-        "featureId".to_string(),
-        "featureIndex".to_string(),
-        "featureType".to_string(),
+        "featureId".into(),
+        "featureIndex".into(),
+        "featureType".into(),
     ];
     notice
 }
@@ -559,9 +559,9 @@ fn unsupported_geometry_type_notice(
     notice.insert_context_field("featureId", feature_id);
     notice.insert_context_field("geometryType", geometry_type);
     notice.field_order = vec![
-        "featureId".to_string(),
-        "featureIndex".to_string(),
-        "geometryType".to_string(),
+        "featureId".into(),
+        "featureIndex".into(),
+        "geometryType".into(),
     ];
     notice
 }
@@ -580,9 +580,9 @@ fn duplicate_geojson_key_notice(
     notice.insert_context_field("firstIndex", first_index);
     notice.insert_context_field("secondIndex", second_index);
     notice.field_order = vec![
-        "featureId".to_string(),
-        "firstIndex".to_string(),
-        "secondIndex".to_string(),
+        "featureId".into(),
+        "firstIndex".into(),
+        "secondIndex".into(),
     ];
     notice
 }
@@ -603,10 +603,10 @@ fn invalid_geometry_notice(
     notice.insert_context_field("geometryType", geometry_type);
     notice.insert_context_field("message", message);
     notice.field_order = vec![
-        "featureId".to_string(),
-        "featureIndex".to_string(),
-        "geometryType".to_string(),
-        "message".to_string(),
+        "featureId".into(),
+        "featureIndex".into(),
+        "geometryType".into(),
+        "message".into(),
     ];
     notice
 }
@@ -631,14 +631,14 @@ fn point_near_origin_notice(
     notice.insert_context_field("lonFieldName", Value::Null);
     notice.insert_context_field("lonFieldValue", lon);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "entityId".to_string(),
-        "featureIndex".to_string(),
-        "filename".to_string(),
-        "latFieldName".to_string(),
-        "latFieldValue".to_string(),
-        "lonFieldName".to_string(),
-        "lonFieldValue".to_string(),
+        "csvRowNumber".into(),
+        "entityId".into(),
+        "featureIndex".into(),
+        "filename".into(),
+        "latFieldName".into(),
+        "latFieldValue".into(),
+        "lonFieldName".into(),
+        "lonFieldValue".into(),
     ];
     notice
 }
@@ -660,14 +660,14 @@ fn point_near_pole_notice(
     notice.insert_context_field("lonFieldName", Value::Null);
     notice.insert_context_field("lonFieldValue", lon);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "entityId".to_string(),
-        "featureIndex".to_string(),
-        "filename".to_string(),
-        "latFieldName".to_string(),
-        "latFieldValue".to_string(),
-        "lonFieldName".to_string(),
-        "lonFieldValue".to_string(),
+        "csvRowNumber".into(),
+        "entityId".into(),
+        "featureIndex".into(),
+        "filename".into(),
+        "latFieldName".into(),
+        "latFieldValue".into(),
+        "lonFieldName".into(),
+        "lonFieldValue".into(),
     ];
     notice
 }

@@ -51,9 +51,9 @@ impl Validator for UnusedAgencyValidator {
                     notice.insert_context_field("agencyId", agency_id);
                     notice.insert_context_field("agencyName", &agency.agency_name);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "agencyId".to_string(),
-                        "agencyName".to_string(),
+                        "csvRowNumber".into(),
+                        "agencyId".into(),
+                        "agencyName".into(),
                     ];
                     notices.push(notice);
                 }
@@ -73,30 +73,30 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
-                "agency_id".to_string(),
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
+                "agency_id".into(),
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
             ],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".to_string()),
-                    agency_name: "Agency1".to_string(),
+                    agency_id: Some("A1".into()),
+                    agency_name: "Agency1".into(),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".to_string()),
-                    agency_name: "Agency2".to_string(),
+                    agency_id: Some("A2".into()),
+                    agency_name: "Agency2".into(),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "agency_id".to_string()],
+            headers: vec!["route_id".into(), "agency_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                agency_id: Some("A1".to_string()),
+                route_id: "R1".into(),
+                agency_id: Some("A1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -126,30 +126,30 @@ mod tests {
     fn passes_when_all_agencies_used() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_id".to_string()],
+            headers: vec!["agency_id".into()],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".to_string()),
+                    agency_id: Some("A1".into()),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".to_string()),
+                    agency_id: Some("A2".into()),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "agency_id".to_string()],
+            headers: vec!["route_id".into(), "agency_id".into()],
             rows: vec![
                 Route {
-                    route_id: "R1".to_string(),
-                    agency_id: Some("A1".to_string()),
+                    route_id: "R1".into(),
+                    agency_id: Some("A1".into()),
                     ..Default::default()
                 },
                 Route {
-                    route_id: "R2".to_string(),
-                    agency_id: Some("A2".to_string()),
+                    route_id: "R2".into(),
+                    agency_id: Some("A2".into()),
                     ..Default::default()
                 },
             ],
@@ -166,9 +166,9 @@ mod tests {
     fn passes_single_agency_feed() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_id".to_string()],
+            headers: vec!["agency_id".into()],
             rows: vec![Agency {
-                agency_id: Some("A1".to_string()),
+                agency_id: Some("A1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

@@ -34,10 +34,10 @@ impl Validator for DuplicateFareMediaValidator {
                 notice.insert_context_field("fareMediaId1", prev_id);
                 notice.insert_context_field("fareMediaId2", fare_media_id);
                 notice.field_order = vec![
-                    "csvRowNumber1".to_string(),
-                    "csvRowNumber2".to_string(),
-                    "fareMediaId1".to_string(),
-                    "fareMediaId2".to_string(),
+                    "csvRowNumber1".into(),
+                    "csvRowNumber2".into(),
+                    "fareMediaId1".into(),
+                    "fareMediaId2".into(),
                 ];
                 notices.push(notice);
             } else {
@@ -78,19 +78,19 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_media = Some(CsvTable {
             headers: vec![
-                "fare_media_id".to_string(),
-                "fare_media_name".to_string(),
-                "fare_media_type".to_string(),
+                "fare_media_id".into(),
+                "fare_media_name".into(),
+                "fare_media_type".into(),
             ],
             rows: vec![
                 FareMedia {
-                    fare_media_id: "M1".to_string(),
-                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_id: "M1".into(),
+                    fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
                 FareMedia {
-                    fare_media_id: "M2".to_string(),
-                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_id: "M2".into(),
+                    fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
             ],
@@ -112,24 +112,24 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_media = Some(CsvTable {
             headers: vec![
-                "fare_media_id".to_string(),
-                "fare_media_name".to_string(),
-                "fare_media_type".to_string(),
+                "fare_media_id".into(),
+                "fare_media_name".into(),
+                "fare_media_type".into(),
             ],
             rows: vec![
                 FareMedia {
-                    fare_media_id: "M1".to_string(),
-                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_id: "M1".into(),
+                    fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
                 FareMedia {
-                    fare_media_id: "M2".to_string(),
-                    fare_media_name: Some("Card".to_string()),
+                    fare_media_id: "M2".into(),
+                    fare_media_name: Some("Card".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
                 FareMedia {
-                    fare_media_id: "M3".to_string(),
-                    fare_media_name: Some("Pass".to_string()),
+                    fare_media_id: "M3".into(),
+                    fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::TransitCard,
                 },
             ],

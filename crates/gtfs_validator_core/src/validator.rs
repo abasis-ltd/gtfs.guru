@@ -150,9 +150,9 @@ fn runtime_exception_in_validator_error_notice(
     notice.insert_context_field("message", message);
     notice.insert_context_field("validator", validator);
     notice.field_order = vec![
-        "exception".to_string(),
-        "message".to_string(),
-        "validator".to_string(),
+        "exception".into(),
+        "message".into(),
+        "validator".into(),
     ];
     notice
 }
@@ -166,7 +166,7 @@ fn thread_execution_error_notice(message: &str) -> ValidationNotice {
     );
     notice.insert_context_field("exception", "thread_execution_error");
     notice.insert_context_field("message", message);
-    notice.field_order = vec!["exception".to_string(), "message".to_string()];
+    notice.field_order = vec!["exception".into(), "message".into()];
     notice
 }
 
@@ -176,7 +176,7 @@ fn panic_payload_message(panic: &(dyn std::any::Any + Send)) -> String {
     } else if let Some(message) = panic.downcast_ref::<String>() {
         message.clone()
     } else {
-        "panic".to_string()
+        "panic".into()
     }
 }
 

@@ -17,10 +17,14 @@ impl Validator for DuplicateStopSequenceValidator {
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
+            let ctx = crate::ValidationContextState::capture();
             let new_notices: Vec<ValidationNotice> = feed
                 .stop_times_by_trip
                 .par_iter()
-                .flat_map(|(trip_id, indices)| Self::check_trip(feed, trip_id, indices))
+                .flat_map(|(trip_id, indices)| {
+                    let _guards = ctx.apply();
+                    Self::check_trip(feed, trip_id, indices)
+                })
                 .collect();
 
             for notice in new_notices {
@@ -62,13 +66,13 @@ impl DuplicateStopSequenceValidator {
                 notice.insert_context_field("newCsvRowNumber", row_number);
                 notice.insert_context_field("oldCsvRowNumber", *previous_row);
                 notice.field_order = vec![
-                    "fieldName1".to_string(),
-                    "fieldName2".to_string(),
-                    "fieldValue1".to_string(),
-                    "fieldValue2".to_string(),
-                    "filename".to_string(),
-                    "newCsvRowNumber".to_string(),
-                    "oldCsvRowNumber".to_string(),
+                    "fieldName1".into(),
+                    "fieldName2".into(),
+                    "fieldValue1".into(),
+                    "fieldValue2".into(),
+                    "filename".into(),
+                    "newCsvRowNumber".into(),
+                    "oldCsvRowNumber".into(),
                 ];
                 notices.push(notice);
             } else {
@@ -89,15 +93,15 @@ mod tests {
     fn detects_duplicate_stop_sequence() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            headers: vec!["trip_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     ..Default::default()
                 },
@@ -118,15 +122,15 @@ mod tests {
     fn passes_with_unique_sequences() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            headers: vec!["trip_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 2,
                     ..Default::default()
                 },
@@ -145,15 +149,15 @@ mod tests {
     fn allows_same_sequence_different_trips() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            headers: vec!["trip_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T2".to_string(),
+                    trip_id: "T2".into(),
                     stop_sequence: 1,
                     ..Default::default()
                 },

@@ -32,13 +32,13 @@ impl Validator for CalendarValidator {
                     notice.insert_context_field("startFieldName", "start_date");
                     notice.insert_context_field("startValue", row.start_date.to_string());
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "endFieldName".to_string(),
-                        "endValue".to_string(),
-                        "entityId".to_string(),
-                        "filename".to_string(),
-                        "startFieldName".to_string(),
-                        "startValue".to_string(),
+                        "csvRowNumber".into(),
+                        "endFieldName".into(),
+                        "endValue".into(),
+                        "entityId".into(),
+                        "filename".into(),
+                        "startFieldName".into(),
+                        "startValue".into(),
                     ];
                     notices.push(notice);
                 }
@@ -68,13 +68,13 @@ impl Validator for CalendarValidator {
                     notice.insert_context_field("newCsvRowNumber", row_number);
                     notice.insert_context_field("oldCsvRowNumber", *prev_row);
                     notice.field_order = vec![
-                        "fieldName1".to_string(),
-                        "fieldName2".to_string(),
-                        "fieldValue1".to_string(),
-                        "fieldValue2".to_string(),
-                        "filename".to_string(),
-                        "newCsvRowNumber".to_string(),
-                        "oldCsvRowNumber".to_string(),
+                        "fieldName1".into(),
+                        "fieldName2".into(),
+                        "fieldValue1".into(),
+                        "fieldValue2".into(),
+                        "filename".into(),
+                        "newCsvRowNumber".into(),
+                        "oldCsvRowNumber".into(),
                     ];
                     notices.push(notice);
                 } else {
@@ -95,7 +95,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.calendar = Some(CsvTable {
             rows: vec![gtfs_guru_model::Calendar {
-                service_id: "S1".to_string(),
+                service_id: "S1".into(),
                 start_date: GtfsDate::parse("20240102").unwrap(),
                 end_date: GtfsDate::parse("20240101").unwrap(),
                 ..Default::default()

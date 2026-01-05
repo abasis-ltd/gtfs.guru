@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+use compact_str::CompactString;
 use gtfs_guru_model::{
     Agency, Area, Attribution, BookingRules, Calendar, CalendarDate, FareAttribute,
     FareLegJoinRule, FareLegRule, FareMedia, FareProduct, FareRule, FareTransferRule, FeedInfo,
@@ -112,7 +114,7 @@ pub struct GtfsFeed {
     pub levels: Option<CsvTable<Level>>,
     pub pathways: Option<CsvTable<Pathway>>,
     pub translations: Option<CsvTable<Translation>>,
-    pub stop_times_by_trip: HashMap<String, Vec<usize>>,
+    pub stop_times_by_trip: HashMap<CompactString, Vec<usize>>,
 }
 
 impl GtfsFeed {
@@ -275,15 +277,47 @@ impl GtfsFeed {
     ) -> Result<Self, GtfsInputError> {
         use rayon::prelude::*;
 
-        // Helper to load a CSV table and capture its local notices
-        fn load<T: serde::de::DeserializeOwned + Send>(
-            reader: &GtfsInputReader,
-            filename: &str,
-        ) -> (Result<Option<CsvTable<T>>, GtfsInputError>, NoticeContainer) {
-            let mut local_notices = NoticeContainer::new();
-            let result = reader.read_optional_csv_with_notices(filename, &mut local_notices);
-            (result, local_notices)
+        // Capture context from the main thread
+        let thorough = crate::validation_context::thorough_mode_enabled();
+        let google = crate::validation_context::google_rules_enabled();
+        let country = crate::validation_context::validation_country_code();
+        let date = crate::validation_context::validation_date();
+
+        struct ParallelLoader<'a> {
+            reader: &'a GtfsInputReader,
+            thorough: bool,
+            google: bool,
+            country: Option<String>,
+            date: NaiveDate,
         }
+
+        impl<'a> ParallelLoader<'a> {
+            fn load<T: serde::de::DeserializeOwned + Send>(
+                &self,
+                filename: &str,
+            ) -> (Result<Option<CsvTable<T>>, GtfsInputError>, NoticeContainer) {
+                // Restore context in the worker thread
+                let _g1 = crate::validation_context::set_thorough_mode_enabled(self.thorough);
+                let _g2 = crate::validation_context::set_google_rules_enabled(self.google);
+                let _g3 =
+                    crate::validation_context::set_validation_country_code(self.country.clone());
+                let _g4 = crate::validation_context::set_validation_date(Some(self.date));
+
+                let mut local_notices = NoticeContainer::new();
+                let result = self
+                    .reader
+                    .read_optional_csv_with_notices(filename, &mut local_notices);
+                (result, local_notices)
+            }
+        }
+
+        let loader = ParallelLoader {
+            reader,
+            thorough,
+            google,
+            country,
+            date,
+        };
 
         // Parallelize loading:
         // Group 1: Stop Times (Index built in parallel)
@@ -303,7 +337,7 @@ impl GtfsFeed {
             ),
         ) = rayon::join(
             || {
-                let (res, notices) = load(reader, STOP_TIMES_FILE);
+                let (res, notices) = loader.load(STOP_TIMES_FILE);
                 let (res, index) = match res {
                     Ok(Some(table)) => {
                         let idx = Self::build_stop_times_index(&table);
@@ -315,74 +349,195 @@ impl GtfsFeed {
             },
             || {
                 rayon::join(
-                    || load(reader, SHAPES_FILE),
+                    || loader.load(SHAPES_FILE),
                     || {
                         rayon::join(
                             || {
                                 rayon::join(
-                                    || load(reader, TRIPS_FILE),
-                                    || load(reader, CALENDAR_DATES_FILE),
+                                    || loader.load(TRIPS_FILE),
+                                    || loader.load(CALENDAR_DATES_FILE),
                                 )
                             },
                             || {
                                 rayon::join(
                                     || {
                                         rayon::join(
-                                            || load(reader, STOPS_FILE),
-                                            || load(reader, ROUTES_FILE),
+                                            || loader.load(STOPS_FILE),
+                                            || loader.load(ROUTES_FILE),
                                         )
                                     },
                                     || {
+                                        let (
+                                            (
+                                                (
+                                                    (agency, n_a),
+                                                    (calendar, n_b),
+                                                    (fare_attributes, n_c),
+                                                    (fare_rules, n_d),
+                                                    (fare_media, n_e),
+                                                    (fare_products, n_f),
+                                                    (fare_leg_rules, n_g),
+                                                ),
+                                                (
+                                                    (fare_transfer_rules, n_h),
+                                                    (fare_leg_join_rules, n_i),
+                                                    (areas, n_j),
+                                                    (stop_areas, n_k),
+                                                    (timeframes, n_l),
+                                                    (rider_categories, n_m),
+                                                    (frequencies, n_n),
+                                                ),
+                                            ),
+                                            (
+                                                (
+                                                    (transfers, n_o),
+                                                    (location_groups, n_p),
+                                                    (location_group_stops, n_q),
+                                                    (locations, n_r),
+                                                    (booking_rules, n_s),
+                                                    (networks, n_t),
+                                                ),
+                                                (
+                                                    (route_networks, n_u),
+                                                    (feed_info, n_v),
+                                                    (attributions, n_w),
+                                                    (levels, n_x),
+                                                    (pathways, n_y),
+                                                    (translations, n_z),
+                                                ),
+                                            ),
+                                        ) = rayon::join(
+                                            || {
+                                                rayon::join(
+                                                    || {
+                                                        // Batch 1 (7 files)
+                                                        let (agency, n1) = loader.load(AGENCY_FILE);
+                                                        let (calendar, n2) =
+                                                            loader.load(CALENDAR_FILE);
+                                                        let (fare_attributes, n3) =
+                                                            loader.load(FARE_ATTRIBUTES_FILE);
+                                                        let (fare_rules, n4) =
+                                                            loader.load(FARE_RULES_FILE);
+                                                        let (fare_media, n5) =
+                                                            loader.load(FARE_MEDIA_FILE);
+                                                        let (fare_products, n6) =
+                                                            loader.load(FARE_PRODUCTS_FILE);
+                                                        let (fare_leg_rules, n7) =
+                                                            loader.load(FARE_LEG_RULES_FILE);
+                                                        (
+                                                            (agency, n1),
+                                                            (calendar, n2),
+                                                            (fare_attributes, n3),
+                                                            (fare_rules, n4),
+                                                            (fare_media, n5),
+                                                            (fare_products, n6),
+                                                            (fare_leg_rules, n7),
+                                                        )
+                                                    },
+                                                    || {
+                                                        // Batch 2 (7 files)
+                                                        let (fare_transfer_rules, n1) =
+                                                            loader.load(FARE_TRANSFER_RULES_FILE);
+                                                        let (fare_leg_join_rules, n2) =
+                                                            loader.load(FARE_LEG_JOIN_RULES_FILE);
+                                                        let (areas, n3) = loader.load(AREAS_FILE);
+                                                        let (stop_areas, n4) =
+                                                            loader.load(STOP_AREAS_FILE);
+                                                        let (timeframes, n5) =
+                                                            loader.load(TIMEFRAMES_FILE);
+                                                        let (rider_categories, n6) =
+                                                            loader.load(RIDER_CATEGORIES_FILE);
+                                                        let (frequencies, n7) =
+                                                            loader.load(FREQUENCIES_FILE);
+                                                        (
+                                                            (fare_transfer_rules, n1),
+                                                            (fare_leg_join_rules, n2),
+                                                            (areas, n3),
+                                                            (stop_areas, n4),
+                                                            (timeframes, n5),
+                                                            (rider_categories, n6),
+                                                            (frequencies, n7),
+                                                        )
+                                                    },
+                                                )
+                                            },
+                                            || {
+                                                rayon::join(
+                                                    || {
+                                                        // Batch 3 (6 files)
+                                                        let (transfers, n1) =
+                                                            loader.load(TRANSFERS_FILE);
+                                                        let (location_groups, n2) =
+                                                            loader.load(LOCATION_GROUPS_FILE);
+                                                        let (location_group_stops, n3) =
+                                                            loader.load(LOCATION_GROUP_STOPS_FILE);
+
+                                                        let (locations, n4) = match reader
+                                                            .read_optional_json::<GeoJsonFeatureCollection>(
+                                                                LOCATIONS_GEOJSON_FILE,
+                                                            ) {
+                                                            Ok(data) => (Ok(data.map(LocationsGeoJson::from)), NoticeContainer::new()),
+                                                            Err(GtfsInputError::Json { file, source })
+                                                                if file == LOCATIONS_GEOJSON_FILE =>
+                                                            {
+                                                                let n = NoticeContainer::new();
+                                                                (Ok(Some(LocationsGeoJson::malformed_json(
+                                                                    source.to_string(),
+                                                                ))), n)
+                                                            }
+                                                            Err(err) => (Err(err), NoticeContainer::new()),
+                                                        };
+
+                                                        let (booking_rules, n5) =
+                                                            loader.load(BOOKING_RULES_FILE);
+                                                        let (networks, n6) =
+                                                            loader.load(NETWORKS_FILE);
+
+                                                        (
+                                                            (transfers, n1),
+                                                            (location_groups, n2),
+                                                            (location_group_stops, n3),
+                                                            (locations, n4),
+                                                            (booking_rules, n5),
+                                                            (networks, n6),
+                                                        )
+                                                    },
+                                                    || {
+                                                        // Batch 4 (6 files)
+                                                        let (route_networks, n1) =
+                                                            loader.load(ROUTE_NETWORKS_FILE);
+                                                        let (feed_info, n2) =
+                                                            loader.load(FEED_INFO_FILE);
+                                                        let (attributions, n3) =
+                                                            loader.load(ATTRIBUTIONS_FILE);
+                                                        let (levels, n4) = loader.load(LEVELS_FILE);
+                                                        let (pathways, n5) =
+                                                            loader.load(PATHWAYS_FILE);
+                                                        let (translations, n6) =
+                                                            loader.load(TRANSLATIONS_FILE);
+
+                                                        (
+                                                            (route_networks, n1),
+                                                            (feed_info, n2),
+                                                            (attributions, n3),
+                                                            (levels, n4),
+                                                            (pathways, n5),
+                                                            (translations, n6),
+                                                        )
+                                                    },
+                                                )
+                                            },
+                                        );
+
                                         let mut n = NoticeContainer::new();
-
-                                        macro_rules! load_seq {
-                                            ($file:expr) => {
-                                                reader.read_optional_csv_with_notices($file, &mut n)
-                                            };
+                                        // Merge all notices
+                                        for container in [
+                                            n_a, n_b, n_c, n_d, n_e, n_f, n_g, n_h, n_i, n_j, n_k,
+                                            n_l, n_m, n_n, n_o, n_p, n_q, n_r, n_s, n_t, n_u, n_v,
+                                            n_w, n_x, n_y, n_z,
+                                        ] {
+                                            n.merge(container);
                                         }
-
-                                        let agency = load_seq!(AGENCY_FILE);
-                                        let calendar = load_seq!(CALENDAR_FILE);
-                                        let fare_attributes = load_seq!(FARE_ATTRIBUTES_FILE);
-                                        let fare_rules = load_seq!(FARE_RULES_FILE);
-                                        let fare_media = load_seq!(FARE_MEDIA_FILE);
-                                        let fare_products = load_seq!(FARE_PRODUCTS_FILE);
-                                        let fare_leg_rules = load_seq!(FARE_LEG_RULES_FILE);
-                                        let fare_transfer_rules =
-                                            load_seq!(FARE_TRANSFER_RULES_FILE);
-                                        let fare_leg_join_rules =
-                                            load_seq!(FARE_LEG_JOIN_RULES_FILE);
-                                        let areas = load_seq!(AREAS_FILE);
-                                        let stop_areas = load_seq!(STOP_AREAS_FILE);
-                                        let timeframes = load_seq!(TIMEFRAMES_FILE);
-                                        let rider_categories = load_seq!(RIDER_CATEGORIES_FILE);
-                                        let frequencies = load_seq!(FREQUENCIES_FILE);
-                                        let transfers = load_seq!(TRANSFERS_FILE);
-                                        let location_groups = load_seq!(LOCATION_GROUPS_FILE);
-                                        let location_group_stops =
-                                            load_seq!(LOCATION_GROUP_STOPS_FILE);
-                                        let locations = match reader
-                                            .read_optional_json::<GeoJsonFeatureCollection>(
-                                                LOCATIONS_GEOJSON_FILE,
-                                            ) {
-                                            Ok(data) => Ok(data.map(LocationsGeoJson::from)),
-                                            Err(GtfsInputError::Json { file, source })
-                                                if file == LOCATIONS_GEOJSON_FILE =>
-                                            {
-                                                Ok(Some(LocationsGeoJson::malformed_json(
-                                                    source.to_string(),
-                                                )))
-                                            }
-                                            Err(err) => Err(err),
-                                        };
-                                        let booking_rules = load_seq!(BOOKING_RULES_FILE);
-                                        let networks = load_seq!(NETWORKS_FILE);
-                                        let route_networks = load_seq!(ROUTE_NETWORKS_FILE);
-                                        let feed_info = load_seq!(FEED_INFO_FILE);
-                                        let attributions = load_seq!(ATTRIBUTIONS_FILE);
-                                        let levels = load_seq!(LEVELS_FILE);
-                                        let pathways = load_seq!(PATHWAYS_FILE);
-                                        let translations = load_seq!(TRANSLATIONS_FILE);
 
                                         (
                                             (
@@ -552,12 +707,14 @@ impl GtfsFeed {
         })
     }
 
-    fn build_stop_times_index(stop_times: &CsvTable<StopTime>) -> HashMap<String, Vec<usize>> {
-        let mut index: HashMap<String, Vec<usize>> = HashMap::new();
+    fn build_stop_times_index(
+        stop_times: &CsvTable<StopTime>,
+    ) -> HashMap<CompactString, Vec<usize>> {
+        let mut index: HashMap<CompactString, Vec<usize>> = HashMap::new();
         for (i, st) in stop_times.rows.iter().enumerate() {
             let trip_id = st.trip_id.trim();
             if !trip_id.is_empty() {
-                index.entry(trip_id.to_string()).or_default().push(i);
+                index.entry(trip_id.into()).or_default().push(i);
             }
         }
         // Sort each trip's stop_times by stop_sequence

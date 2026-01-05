@@ -48,7 +48,7 @@ impl FieldTypeSchema {
                 .filter(|value| !value.is_empty())
                 .collect();
             let mut schema = Self {
-                field_type: "array".to_string(),
+                field_type: "array".into(),
                 contains: None,
                 min_items: None,
                 max_items: None,
@@ -148,7 +148,7 @@ impl NoticeSchema {
         Self {
             code: code.to_string(),
             severity_level,
-            schema_type: "object".to_string(),
+            schema_type: "object".into(),
             short_summary: None,
             description: None,
             references: None,

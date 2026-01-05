@@ -552,12 +552,12 @@ fn build_feed_info(feed: &GtfsFeed) -> ReportFeedInfo {
     ReportFeedInfo {
         publisher_name: has_feed_info.then(|| {
             info_row
-                .map(|row| row.feed_publisher_name.clone())
+                .map(|row| row.feed_publisher_name.to_string())
                 .unwrap_or_default()
         }),
         publisher_url: has_feed_info.then(|| {
             info_row
-                .map(|row| row.feed_publisher_url.clone())
+                .map(|row| row.feed_publisher_url.to_string())
                 .unwrap_or_default()
         }),
         feed_language: has_feed_info.then(|| {
@@ -579,7 +579,7 @@ fn build_feed_info(feed: &GtfsFeed) -> ReportFeedInfo {
         }),
         feed_email: has_feed_info.then(|| {
             info_row
-                .and_then(|row| row.feed_contact_email.clone())
+                .and_then(|row| row.feed_contact_email.as_ref().map(|s| s.to_string()))
                 .unwrap_or_default()
         }),
         feed_service_window_start: has_service_window.then(|| service_start_str),
@@ -592,10 +592,10 @@ fn build_agencies(feed: &GtfsFeed) -> Vec<ReportAgency> {
         .rows
         .iter()
         .map(|agency| ReportAgency {
-            name: agency.agency_name.clone(),
-            url: agency.agency_url.clone(),
-            phone: agency.agency_phone.clone().unwrap_or_default(),
-            email: agency.agency_email.clone().unwrap_or_default(),
+            name: agency.agency_name.to_string(),
+            url: agency.agency_url.to_string(),
+            phone: agency.agency_phone.clone().unwrap_or_default().to_string(),
+            email: agency.agency_email.clone().unwrap_or_default().to_string(),
         })
         .collect()
 }
@@ -1080,7 +1080,7 @@ fn has_header<T>(table: &CsvTable<T>, header: &str) -> bool {
         .any(|value| value.eq_ignore_ascii_case(header))
 }
 
-fn has_text(value: &Option<String>) -> bool {
+fn has_text(value: &Option<compact_str::CompactString>) -> bool {
     value
         .as_deref()
         .map(|text| !text.trim().is_empty())

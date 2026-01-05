@@ -32,10 +32,10 @@ impl Validator for RouteColorContrastValidator {
                 notice.insert_context_field("routeColor", route_color);
                 notice.insert_context_field("routeTextColor", route_text_color);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "routeColor".to_string(),
-                    "routeId".to_string(),
-                    "routeTextColor".to_string(),
+                    "csvRowNumber".into(),
+                    "routeColor".into(),
+                    "routeId".into(),
+                    "routeTextColor".into(),
                 ];
                 notices.push(notice);
             }
@@ -54,12 +54,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             headers: vec![
-                "route_id".to_string(),
-                "route_color".to_string(),
-                "route_text_color".to_string(),
+                "route_id".into(),
+                "route_color".into(),
+                "route_text_color".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_color: Some(GtfsColor::new(255, 255, 255)), // White
                 route_text_color: Some(GtfsColor::new(200, 200, 200)), // Light Grey (poor contrast)
                 ..Default::default()
@@ -78,12 +78,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             headers: vec![
-                "route_id".to_string(),
-                "route_color".to_string(),
-                "route_text_color".to_string(),
+                "route_id".into(),
+                "route_color".into(),
+                "route_text_color".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_color: Some(GtfsColor::new(255, 255, 255)), // White
                 route_text_color: Some(GtfsColor::new(0, 0, 0)),  // Black (good contrast)
                 ..Default::default()

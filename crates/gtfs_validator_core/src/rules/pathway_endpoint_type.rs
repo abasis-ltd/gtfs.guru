@@ -91,10 +91,10 @@ fn check_endpoint(
                 notice.insert_context_field("pathwayId", pathway_id);
                 notice.insert_context_field("stopId", stop_id);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "fieldName".to_string(),
-                    "pathwayId".to_string(),
-                    "stopId".to_string(),
+                    "csvRowNumber".into(),
+                    "fieldName".into(),
+                    "pathwayId".into(),
+                    "stopId".into(),
                 ];
                 notices.push(notice);
             }
@@ -110,10 +110,10 @@ fn check_endpoint(
             notice.insert_context_field("pathwayId", pathway_id);
             notice.insert_context_field("stopId", stop_id);
             notice.field_order = vec![
-                "csvRowNumber".to_string(),
-                "fieldName".to_string(),
-                "pathwayId".to_string(),
-                "stopId".to_string(),
+                "csvRowNumber".into(),
+                "fieldName".into(),
+                "pathwayId".into(),
+                "stopId".into(),
             ];
             notices.push(notice);
         }
@@ -134,9 +134,9 @@ mod tests {
     fn detects_pathway_to_station() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 location_type: Some(LocationType::Station),
                 ..Default::default()
             }],
@@ -144,14 +144,14 @@ mod tests {
         };
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
-                from_stop_id: "S1".to_string(),
-                to_stop_id: "N1".to_string(),
+                pathway_id: "P1".into(),
+                from_stop_id: "S1".into(),
+                to_stop_id: "N1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -172,20 +172,20 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![
-                "stop_id".to_string(),
-                "location_type".to_string(),
-                "parent_station".to_string(),
+                "stop_id".into(),
+                "location_type".into(),
+                "parent_station".into(),
             ],
             rows: vec![
                 Stop {
-                    stop_id: "P1".to_string(),
+                    stop_id: "P1".into(),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "BA1".to_string(),
+                    stop_id: "BA1".into(),
                     location_type: Some(LocationType::BoardingArea),
-                    parent_station: Some("P1".to_string()),
+                    parent_station: Some("P1".into()),
                     ..Default::default()
                 },
             ],
@@ -193,14 +193,14 @@ mod tests {
         };
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "PW1".to_string(),
-                from_stop_id: "P1".to_string(),
-                to_stop_id: "N1".to_string(),
+                pathway_id: "PW1".into(),
+                from_stop_id: "P1".into(),
+                to_stop_id: "N1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -220,20 +220,20 @@ mod tests {
     fn passes_valid_endpoints() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![
                 Stop {
-                    stop_id: "E1".to_string(),
+                    stop_id: "E1".into(),
                     location_type: Some(LocationType::EntranceOrExit),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "N1".to_string(),
+                    stop_id: "N1".into(),
                     location_type: Some(LocationType::GenericNode),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "P1".to_string(),
+                    stop_id: "P1".into(),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
@@ -242,21 +242,21 @@ mod tests {
         };
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![
                 Pathway {
-                    pathway_id: "PW1".to_string(),
-                    from_stop_id: "E1".to_string(),
-                    to_stop_id: "N1".to_string(),
+                    pathway_id: "PW1".into(),
+                    from_stop_id: "E1".into(),
+                    to_stop_id: "N1".into(),
                     ..Default::default()
                 },
                 Pathway {
-                    pathway_id: "PW2".to_string(),
-                    from_stop_id: "N1".to_string(),
-                    to_stop_id: "P1".to_string(),
+                    pathway_id: "PW2".into(),
+                    from_stop_id: "N1".into(),
+                    to_stop_id: "P1".into(),
                     ..Default::default()
                 },
             ],

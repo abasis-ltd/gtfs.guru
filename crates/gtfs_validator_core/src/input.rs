@@ -707,7 +707,7 @@ impl GtfsBytesReader {
             let file = archive
                 .by_index(index)
                 .map_err(|err| GtfsInputError::ZipFile {
-                    file: "<memory>".to_string(),
+                    file: "<memory>".into(),
                     source: err,
                 })?;
             if file.is_dir() {
@@ -726,7 +726,7 @@ fn unknown_file_notice(file_name: &str) -> ValidationNotice {
         "unknown file in input",
     );
     notice.insert_context_field("filename", file_name);
-    notice.field_order = vec!["filename".to_string()];
+    notice.field_order = vec!["filename".into()];
     notice
 }
 

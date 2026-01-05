@@ -180,12 +180,12 @@ fn validate_trip_side(
             notice.insert_context_field("tripFieldName", side.trip_field_name());
             notice.insert_context_field("tripId", trip_id);
             notice.field_order = vec![
-                "csvRowNumber".to_string(),
-                "expectedRouteId".to_string(),
-                "routeFieldName".to_string(),
-                "routeId".to_string(),
-                "tripFieldName".to_string(),
-                "tripId".to_string(),
+                "csvRowNumber".into(),
+                "expectedRouteId".into(),
+                "routeFieldName".into(),
+                "routeId".into(),
+                "tripFieldName".into(),
+                "tripId".into(),
             ];
             notices.push(notice);
         }
@@ -226,11 +226,11 @@ fn validate_trip_side(
         notice.insert_context_field("tripFieldName", side.trip_field_name());
         notice.insert_context_field("tripId", trip_id);
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "stopFieldName".to_string(),
-            "stopId".to_string(),
-            "tripFieldName".to_string(),
-            "tripId".to_string(),
+            "csvRowNumber".into(),
+            "stopFieldName".into(),
+            "stopId".into(),
+            "tripFieldName".into(),
+            "tripId".into(),
         ];
         notices.push(notice);
     }
@@ -261,26 +261,26 @@ mod tests {
     fn detects_mismatched_trip_and_route() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.transfers = Some(CsvTable {
             headers: vec![
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "from_trip_id".to_string(),
-                "from_route_id".to_string(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "from_trip_id".into(),
+                "from_route_id".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
-                from_trip_id: Some("T1".to_string()),
-                from_route_id: Some("R2".to_string()), // Mismatch
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
+                from_trip_id: Some("T1".into()),
+                from_route_id: Some("R2".into()), // Mismatch
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -298,47 +298,47 @@ mod tests {
     fn detects_trip_missing_stop() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.transfers = Some(CsvTable {
             headers: vec![
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "from_trip_id".to_string(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "from_trip_id".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S2".to_string()), // T1 does not stop at S2
-                to_stop_id: Some("S1".to_string()),
-                from_trip_id: Some("T1".to_string()),
+                from_stop_id: Some("S2".into()), // T1 does not stop at S2
+                to_stop_id: Some("S1".into()),
+                from_trip_id: Some("T1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -356,49 +356,49 @@ mod tests {
     fn passes_valid_trip_reference() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.transfers = Some(CsvTable {
             headers: vec![
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "from_trip_id".to_string(),
-                "from_route_id".to_string(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "from_trip_id".into(),
+                "from_route_id".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
-                from_trip_id: Some("T1".to_string()),
-                from_route_id: Some("R1".to_string()),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
+                from_trip_id: Some("T1".into()),
+                from_route_id: Some("R1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

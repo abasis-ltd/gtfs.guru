@@ -1,3 +1,4 @@
+use compact_str::CompactString;
 use std::fmt;
 
 use chrono::NaiveDate;
@@ -601,40 +602,40 @@ pub enum RiderFareCategory {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Agency {
-    pub agency_id: Option<String>,
-    pub agency_name: String,
-    pub agency_url: String,
-    pub agency_timezone: String,
-    pub agency_lang: Option<String>,
-    pub agency_phone: Option<String>,
-    pub agency_fare_url: Option<String>,
-    pub agency_email: Option<String>,
+    pub agency_id: Option<CompactString>,
+    pub agency_name: CompactString,
+    pub agency_url: CompactString,
+    pub agency_timezone: CompactString,
+    pub agency_lang: Option<CompactString>,
+    pub agency_phone: Option<CompactString>,
+    pub agency_fare_url: Option<CompactString>,
+    pub agency_email: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Stop {
-    pub stop_id: String,
-    pub stop_code: Option<String>,
-    pub stop_name: Option<String>,
-    pub tts_stop_name: Option<String>,
-    pub stop_desc: Option<String>,
+    pub stop_id: CompactString,
+    pub stop_code: Option<CompactString>,
+    pub stop_name: Option<CompactString>,
+    pub tts_stop_name: Option<CompactString>,
+    pub stop_desc: Option<CompactString>,
     pub stop_lat: Option<f64>,
     pub stop_lon: Option<f64>,
-    pub zone_id: Option<String>,
-    pub stop_url: Option<String>,
+    pub zone_id: Option<CompactString>,
+    pub stop_url: Option<CompactString>,
     pub location_type: Option<LocationType>,
-    pub parent_station: Option<String>,
-    pub stop_timezone: Option<String>,
+    pub parent_station: Option<CompactString>,
+    pub stop_timezone: Option<CompactString>,
     pub wheelchair_boarding: Option<WheelchairBoarding>,
-    pub level_id: Option<String>,
-    pub platform_code: Option<String>,
-    pub stop_address: Option<String>,
-    pub stop_city: Option<String>,
-    pub stop_region: Option<String>,
-    pub stop_postcode: Option<String>,
-    pub stop_country: Option<String>,
-    pub stop_phone: Option<String>,
-    pub signposted_as: Option<String>,
+    pub level_id: Option<CompactString>,
+    pub platform_code: Option<CompactString>,
+    pub stop_address: Option<CompactString>,
+    pub stop_city: Option<CompactString>,
+    pub stop_region: Option<CompactString>,
+    pub stop_postcode: Option<CompactString>,
+    pub stop_country: Option<CompactString>,
+    pub stop_phone: Option<CompactString>,
+    pub signposted_as: Option<CompactString>,
     pub vehicle_type: Option<RouteType>,
 }
 
@@ -646,27 +647,27 @@ impl Stop {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Route {
-    pub route_id: String,
-    pub agency_id: Option<String>,
-    pub route_short_name: Option<String>,
-    pub route_long_name: Option<String>,
-    pub route_desc: Option<String>,
+    pub route_id: CompactString,
+    pub agency_id: Option<CompactString>,
+    pub route_short_name: Option<CompactString>,
+    pub route_long_name: Option<CompactString>,
+    pub route_desc: Option<CompactString>,
     pub route_type: RouteType,
-    pub route_url: Option<String>,
+    pub route_url: Option<CompactString>,
     pub route_color: Option<GtfsColor>,
     pub route_text_color: Option<GtfsColor>,
     pub route_sort_order: Option<u32>,
     pub continuous_pickup: Option<ContinuousPickupDropOff>,
     pub continuous_drop_off: Option<ContinuousPickupDropOff>,
-    pub network_id: Option<String>,
-    pub route_branding_url: Option<String>,
+    pub network_id: Option<CompactString>,
+    pub route_branding_url: Option<CompactString>,
     pub checkin_duration: Option<u32>,
 }
 
 impl Default for Route {
     fn default() -> Self {
         Self {
-            route_id: String::new(),
+            route_id: CompactString::default(),
             agency_id: None,
             route_short_name: None,
             route_long_name: None,
@@ -687,14 +688,14 @@ impl Default for Route {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Trip {
-    pub route_id: String,
-    pub service_id: String,
-    pub trip_id: String,
-    pub trip_headsign: Option<String>,
-    pub trip_short_name: Option<String>,
+    pub route_id: CompactString,
+    pub service_id: CompactString,
+    pub trip_id: CompactString,
+    pub trip_headsign: Option<CompactString>,
+    pub trip_short_name: Option<CompactString>,
     pub direction_id: Option<DirectionId>,
-    pub block_id: Option<String>,
-    pub shape_id: Option<String>,
+    pub block_id: Option<CompactString>,
+    pub shape_id: Option<CompactString>,
     pub wheelchair_accessible: Option<WheelchairAccessible>,
     pub bikes_allowed: Option<BikesAllowed>,
     pub continuous_pickup: Option<ContinuousPickupDropOff>,
@@ -703,30 +704,30 @@ pub struct Trip {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct StopTime {
-    pub trip_id: String,
+    pub trip_id: CompactString,
     pub arrival_time: Option<GtfsTime>,
     pub departure_time: Option<GtfsTime>,
-    pub stop_id: String,
-    pub location_group_id: Option<String>,
-    pub location_id: Option<String>,
+    pub stop_id: CompactString,
+    pub location_group_id: Option<CompactString>,
+    pub location_id: Option<CompactString>,
     pub stop_sequence: u32,
-    pub stop_headsign: Option<String>,
+    pub stop_headsign: Option<CompactString>,
     pub pickup_type: Option<PickupDropOffType>,
     pub drop_off_type: Option<PickupDropOffType>,
-    pub pickup_booking_rule_id: Option<String>,
-    pub drop_off_booking_rule_id: Option<String>,
+    pub pickup_booking_rule_id: Option<CompactString>,
+    pub drop_off_booking_rule_id: Option<CompactString>,
     pub continuous_pickup: Option<ContinuousPickupDropOff>,
     pub continuous_drop_off: Option<ContinuousPickupDropOff>,
     pub shape_dist_traveled: Option<f64>,
     pub timepoint: Option<Timepoint>,
     pub start_pickup_drop_off_window: Option<GtfsTime>,
     pub end_pickup_drop_off_window: Option<GtfsTime>,
-    pub stop_direction_name: Option<String>,
+    pub stop_direction_name: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BookingRules {
-    pub booking_rule_id: String,
+    pub booking_rule_id: CompactString,
     pub booking_type: BookingType,
     pub prior_notice_duration_min: Option<i32>,
     pub prior_notice_duration_max: Option<i32>,
@@ -734,19 +735,19 @@ pub struct BookingRules {
     pub prior_notice_start_time: Option<GtfsTime>,
     pub prior_notice_last_day: Option<i32>,
     pub prior_notice_last_time: Option<GtfsTime>,
-    pub prior_notice_service_id: Option<String>,
-    pub message: Option<String>,
-    pub pickup_message: Option<String>,
-    pub drop_off_message: Option<String>,
-    pub phone_number: Option<String>,
-    pub info_url: Option<String>,
-    pub booking_url: Option<String>,
+    pub prior_notice_service_id: Option<CompactString>,
+    pub message: Option<CompactString>,
+    pub pickup_message: Option<CompactString>,
+    pub drop_off_message: Option<CompactString>,
+    pub phone_number: Option<CompactString>,
+    pub info_url: Option<CompactString>,
+    pub booking_url: Option<CompactString>,
 }
 
 impl Default for BookingRules {
     fn default() -> Self {
         Self {
-            booking_rule_id: String::new(),
+            booking_rule_id: CompactString::default(),
             booking_type: BookingType::Other,
             prior_notice_duration_min: None,
             prior_notice_duration_max: None,
@@ -767,7 +768,7 @@ impl Default for BookingRules {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Calendar {
-    pub service_id: String,
+    pub service_id: CompactString,
     pub monday: ServiceAvailability,
     pub tuesday: ServiceAvailability,
     pub wednesday: ServiceAvailability,
@@ -782,7 +783,7 @@ pub struct Calendar {
 impl Default for Calendar {
     fn default() -> Self {
         Self {
-            service_id: String::new(),
+            service_id: CompactString::default(),
             monday: ServiceAvailability::Unavailable,
             tuesday: ServiceAvailability::Unavailable,
             wednesday: ServiceAvailability::Unavailable,
@@ -806,19 +807,19 @@ impl Default for Calendar {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct CalendarDate {
-    pub service_id: String,
+    pub service_id: CompactString,
     pub date: GtfsDate,
     pub exception_type: ExceptionType,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareAttribute {
-    pub fare_id: String,
+    pub fare_id: CompactString,
     pub price: f64,
-    pub currency_type: String,
+    pub currency_type: CompactString,
     pub payment_method: PaymentMethod,
     pub transfers: Option<Transfers>,
-    pub agency_id: Option<String>,
+    pub agency_id: Option<CompactString>,
     pub transfer_duration: Option<u32>,
     pub ic_price: Option<f64>,
 }
@@ -826,9 +827,9 @@ pub struct FareAttribute {
 impl Default for FareAttribute {
     fn default() -> Self {
         Self {
-            fare_id: String::new(),
+            fare_id: CompactString::default(),
             price: 0.0,
-            currency_type: String::new(),
+            currency_type: CompactString::default(),
             payment_method: PaymentMethod::OnBoard,
             transfers: None,
             agency_id: None,
@@ -840,17 +841,17 @@ impl Default for FareAttribute {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct FareRule {
-    pub fare_id: String,
-    pub route_id: Option<String>,
-    pub origin_id: Option<String>,
-    pub destination_id: Option<String>,
-    pub contains_id: Option<String>,
-    pub contains_route_id: Option<String>,
+    pub fare_id: CompactString,
+    pub route_id: Option<CompactString>,
+    pub origin_id: Option<CompactString>,
+    pub destination_id: Option<CompactString>,
+    pub contains_id: Option<CompactString>,
+    pub contains_route_id: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Shape {
-    pub shape_id: String,
+    pub shape_id: CompactString,
     pub shape_pt_lat: f64,
     pub shape_pt_lon: f64,
     pub shape_pt_sequence: u32,
@@ -859,7 +860,7 @@ pub struct Shape {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Frequency {
-    pub trip_id: String,
+    pub trip_id: CompactString,
     pub start_time: GtfsTime,
     pub end_time: GtfsTime,
     pub headway_secs: u32,
@@ -868,47 +869,47 @@ pub struct Frequency {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Transfer {
-    pub from_stop_id: Option<String>,
-    pub to_stop_id: Option<String>,
+    pub from_stop_id: Option<CompactString>,
+    pub to_stop_id: Option<CompactString>,
     pub transfer_type: Option<TransferType>,
     pub min_transfer_time: Option<u32>,
-    pub from_route_id: Option<String>,
-    pub to_route_id: Option<String>,
-    pub from_trip_id: Option<String>,
-    pub to_trip_id: Option<String>,
+    pub from_route_id: Option<CompactString>,
+    pub to_route_id: Option<CompactString>,
+    pub from_trip_id: Option<CompactString>,
+    pub to_trip_id: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Area {
-    pub area_id: String,
-    pub area_name: Option<String>,
+    pub area_id: CompactString,
+    pub area_name: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StopArea {
-    pub area_id: String,
-    pub stop_id: String,
+    pub area_id: CompactString,
+    pub stop_id: CompactString,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Timeframe {
-    pub timeframe_group_id: Option<String>,
+    pub timeframe_group_id: Option<CompactString>,
     pub start_time: Option<GtfsTime>,
     pub end_time: Option<GtfsTime>,
-    pub service_id: String,
+    pub service_id: CompactString,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareMedia {
-    pub fare_media_id: String,
-    pub fare_media_name: Option<String>,
+    pub fare_media_id: CompactString,
+    pub fare_media_name: Option<CompactString>,
     pub fare_media_type: FareMediaType,
 }
 
 impl Default for FareMedia {
     fn default() -> Self {
         Self {
-            fare_media_id: String::new(),
+            fare_media_id: CompactString::default(),
             fare_media_name: None,
             fare_media_type: FareMediaType::NoneType,
         }
@@ -917,21 +918,21 @@ impl Default for FareMedia {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareProduct {
-    pub fare_product_id: String,
-    pub fare_product_name: Option<String>,
+    pub fare_product_id: CompactString,
+    pub fare_product_name: Option<CompactString>,
     pub amount: f64,
-    pub currency: String,
-    pub fare_media_id: Option<String>,
-    pub rider_category_id: Option<String>,
+    pub currency: CompactString,
+    pub fare_media_id: Option<CompactString>,
+    pub rider_category_id: Option<CompactString>,
 }
 
 impl Default for FareProduct {
     fn default() -> Self {
         Self {
-            fare_product_id: String::new(),
+            fare_product_id: CompactString::default(),
             fare_product_name: None,
             amount: 0.0,
-            currency: String::new(),
+            currency: CompactString::default(),
             fare_media_id: None,
             rider_category_id: None,
         }
@@ -940,25 +941,25 @@ impl Default for FareProduct {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct FareLegRule {
-    pub leg_group_id: Option<String>,
-    pub network_id: Option<String>,
-    pub from_area_id: Option<String>,
-    pub to_area_id: Option<String>,
-    pub from_timeframe_group_id: Option<String>,
-    pub to_timeframe_group_id: Option<String>,
-    pub fare_product_id: String,
+    pub leg_group_id: Option<CompactString>,
+    pub network_id: Option<CompactString>,
+    pub from_area_id: Option<CompactString>,
+    pub to_area_id: Option<CompactString>,
+    pub from_timeframe_group_id: Option<CompactString>,
+    pub to_timeframe_group_id: Option<CompactString>,
+    pub fare_product_id: CompactString,
     pub rule_priority: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareTransferRule {
-    pub from_leg_group_id: Option<String>,
-    pub to_leg_group_id: Option<String>,
+    pub from_leg_group_id: Option<CompactString>,
+    pub to_leg_group_id: Option<CompactString>,
     pub duration_limit: Option<i32>,
     pub duration_limit_type: Option<DurationLimitType>,
     pub fare_transfer_type: FareTransferType,
     pub transfer_count: Option<i32>,
-    pub fare_product_id: Option<String>,
+    pub fare_product_id: Option<CompactString>,
 }
 
 impl Default for FareTransferRule {
@@ -977,87 +978,87 @@ impl Default for FareTransferRule {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct FareLegJoinRule {
-    pub from_network_id: String,
-    pub to_network_id: String,
-    pub from_stop_id: Option<String>,
-    pub to_stop_id: Option<String>,
-    pub from_area_id: Option<String>,
-    pub to_area_id: Option<String>,
+    pub from_network_id: CompactString,
+    pub to_network_id: CompactString,
+    pub from_stop_id: Option<CompactString>,
+    pub to_stop_id: Option<CompactString>,
+    pub from_area_id: Option<CompactString>,
+    pub to_area_id: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct RiderCategory {
-    pub rider_category_id: String,
-    pub rider_category_name: String,
+    pub rider_category_id: CompactString,
+    pub rider_category_name: CompactString,
     #[serde(rename = "is_default_category")]
     pub is_default_fare_category: Option<RiderFareCategory>,
-    pub eligibility_url: Option<String>,
+    pub eligibility_url: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct LocationGroup {
-    pub location_group_id: String,
-    pub location_group_name: Option<String>,
-    pub location_group_desc: Option<String>,
+    pub location_group_id: CompactString,
+    pub location_group_name: Option<CompactString>,
+    pub location_group_desc: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct LocationGroupStop {
-    pub location_group_id: String,
-    pub stop_id: String,
+    pub location_group_id: CompactString,
+    pub stop_id: CompactString,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Network {
-    pub network_id: String,
-    pub network_name: Option<String>,
+    pub network_id: CompactString,
+    pub network_name: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RouteNetwork {
-    pub route_id: String,
-    pub network_id: String,
+    pub route_id: CompactString,
+    pub network_id: CompactString,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FeedInfo {
-    pub feed_publisher_name: String,
-    pub feed_publisher_url: String,
-    pub feed_lang: String,
+    pub feed_publisher_name: CompactString,
+    pub feed_publisher_url: CompactString,
+    pub feed_lang: CompactString,
     pub feed_start_date: Option<GtfsDate>,
     pub feed_end_date: Option<GtfsDate>,
-    pub feed_version: Option<String>,
-    pub feed_contact_email: Option<String>,
-    pub feed_contact_url: Option<String>,
+    pub feed_version: Option<CompactString>,
+    pub feed_contact_email: Option<CompactString>,
+    pub feed_contact_url: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Attribution {
-    pub attribution_id: Option<String>,
-    pub agency_id: Option<String>,
-    pub route_id: Option<String>,
-    pub trip_id: Option<String>,
-    pub organization_name: String,
+    pub attribution_id: Option<CompactString>,
+    pub agency_id: Option<CompactString>,
+    pub route_id: Option<CompactString>,
+    pub trip_id: Option<CompactString>,
+    pub organization_name: CompactString,
     pub is_producer: Option<YesNo>,
     pub is_operator: Option<YesNo>,
     pub is_authority: Option<YesNo>,
-    pub attribution_url: Option<String>,
-    pub attribution_email: Option<String>,
-    pub attribution_phone: Option<String>,
+    pub attribution_url: Option<CompactString>,
+    pub attribution_email: Option<CompactString>,
+    pub attribution_phone: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Level {
-    pub level_id: String,
+    pub level_id: CompactString,
     pub level_index: f64,
-    pub level_name: Option<String>,
+    pub level_name: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Pathway {
-    pub pathway_id: String,
-    pub from_stop_id: String,
-    pub to_stop_id: String,
+    pub pathway_id: CompactString,
+    pub from_stop_id: CompactString,
+    pub to_stop_id: CompactString,
     pub pathway_mode: PathwayMode,
     pub is_bidirectional: Bidirectional,
     pub length: Option<f64>,
@@ -1065,19 +1066,19 @@ pub struct Pathway {
     pub stair_count: Option<u32>,
     pub max_slope: Option<f64>,
     pub min_width: Option<f64>,
-    pub signposted_as: Option<String>,
-    pub reversed_signposted_as: Option<String>,
+    pub signposted_as: Option<CompactString>,
+    pub reversed_signposted_as: Option<CompactString>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Translation {
-    pub table_name: String,
-    pub field_name: String,
-    pub language: String,
-    pub translation: String,
-    pub record_id: Option<String>,
-    pub record_sub_id: Option<String>,
-    pub field_value: Option<String>,
+    pub table_name: CompactString,
+    pub field_name: CompactString,
+    pub language: CompactString,
+    pub translation: CompactString,
+    pub record_id: Option<CompactString>,
+    pub record_sub_id: Option<CompactString>,
+    pub field_value: Option<CompactString>,
 }
 
 #[cfg(test)]

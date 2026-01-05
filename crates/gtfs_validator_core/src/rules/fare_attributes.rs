@@ -40,11 +40,11 @@ fn number_out_of_range_notice(
     notice.insert_context_field("fieldType", field_type);
     notice.insert_context_field("fieldValue", field_value);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldType".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldType".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -59,9 +59,9 @@ mod tests {
     fn detects_negative_price() {
         let mut feed = GtfsFeed::default();
         feed.fare_attributes = Some(CsvTable {
-            headers: vec!["fare_id".to_string(), "price".to_string()],
+            headers: vec!["fare_id".into(), "price".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".to_string(),
+                fare_id: "F1".into(),
                 price: -5.0,
                 ..Default::default()
             }],
@@ -82,9 +82,9 @@ mod tests {
     fn passes_valid_price() {
         let mut feed = GtfsFeed::default();
         feed.fare_attributes = Some(CsvTable {
-            headers: vec!["fare_id".to_string(), "price".to_string()],
+            headers: vec!["fare_id".into(), "price".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".to_string(),
+                fare_id: "F1".into(),
                 price: 5.0,
                 ..Default::default()
             }],

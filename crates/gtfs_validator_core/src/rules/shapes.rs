@@ -145,24 +145,24 @@ fn shape_notice(
     if let Some(distance) = distance {
         notice.insert_context_field("actualDistanceBetweenShapePoints", distance);
         notice.field_order = vec![
-            "actualDistanceBetweenShapePoints".to_string(),
-            "csvRowNumber".to_string(),
-            "prevCsvRowNumber".to_string(),
-            "prevShapeDistTraveled".to_string(),
-            "prevShapePtSequence".to_string(),
-            "shapeDistTraveled".to_string(),
-            "shapeId".to_string(),
-            "shapePtSequence".to_string(),
+            "actualDistanceBetweenShapePoints".into(),
+            "csvRowNumber".into(),
+            "prevCsvRowNumber".into(),
+            "prevShapeDistTraveled".into(),
+            "prevShapePtSequence".into(),
+            "shapeDistTraveled".into(),
+            "shapeId".into(),
+            "shapePtSequence".into(),
         ];
     } else {
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "prevCsvRowNumber".to_string(),
-            "prevShapeDistTraveled".to_string(),
-            "prevShapePtSequence".to_string(),
-            "shapeDistTraveled".to_string(),
-            "shapeId".to_string(),
-            "shapePtSequence".to_string(),
+            "csvRowNumber".into(),
+            "prevCsvRowNumber".into(),
+            "prevShapeDistTraveled".into(),
+            "prevShapePtSequence".into(),
+            "shapeDistTraveled".into(),
+            "shapeId".into(),
+            "shapePtSequence".into(),
         ];
     }
     notice
@@ -191,17 +191,17 @@ mod tests {
     fn detects_decreasing_shape_distance() {
         let mut feed = GtfsFeed::default();
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string()],
+            headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: Some(100.0),
                 },
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.01,
                     shape_pt_lon: -74.01,
                     shape_pt_sequence: 2,
@@ -225,17 +225,17 @@ mod tests {
     fn detects_equal_distance_same_coords() {
         let mut feed = GtfsFeed::default();
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string()],
+            headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: Some(100.0),
                 },
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 2,
@@ -259,17 +259,17 @@ mod tests {
     fn passes_with_increasing_distance() {
         let mut feed = GtfsFeed::default();
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string()],
+            headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: Some(0.0),
                 },
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.01,
                     shape_pt_lon: -74.01,
                     shape_pt_sequence: 2,
@@ -289,17 +289,17 @@ mod tests {
     fn passes_without_shape_dist_traveled() {
         let mut feed = GtfsFeed::default();
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string()],
+            headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: None,
                 },
                 Shape {
-                    shape_id: "S1".to_string(),
+                    shape_id: "S1".into(),
                     shape_pt_lat: 40.01,
                     shape_pt_lon: -74.01,
                     shape_pt_sequence: 2,

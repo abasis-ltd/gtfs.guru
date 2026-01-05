@@ -104,10 +104,10 @@ fn validate_url(
         notice.insert_context_field("fieldName", field_name);
         notice.insert_context_field("fieldValue", trimmed);
         notice.field_order = vec![
-            "filename".to_string(),
-            "csvRowNumber".to_string(),
-            "fieldName".to_string(),
-            "fieldValue".to_string(),
+            "filename".into(),
+            "csvRowNumber".into(),
+            "fieldName".into(),
+            "fieldValue".into(),
         ];
 
         // Try to suggest a fix if the URL is just missing a scheme
@@ -115,7 +115,7 @@ fn validate_url(
             let suggested = format!("https://{}", trimmed);
             if Url::parse(&suggested).is_ok() {
                 notice.fix = Some(Fix {
-                    description: "Add https:// scheme".to_string(),
+                    description: "Add https:// scheme".into(),
                     safety: FixSafety::Safe,
                     operation: FixOperation::ReplaceField {
                         file: filename.to_string(),
@@ -143,15 +143,15 @@ mod tests {
         let feed = GtfsFeed {
             agency: CsvTable {
                 headers: vec![
-                    "agency_name".to_string(),
-                    "agency_url".to_string(),
-                    "agency_timezone".to_string(),
+                    "agency_name".into(),
+                    "agency_url".into(),
+                    "agency_timezone".into(),
                 ],
                 rows: vec![Agency {
                     agency_id: None,
-                    agency_name: "Test".to_string(),
-                    agency_url: "ht tp://invalid".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_name: "Test".into(),
+                    agency_url: "ht tp://invalid".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,
@@ -179,15 +179,15 @@ mod tests {
         let feed = GtfsFeed {
             agency: CsvTable {
                 headers: vec![
-                    "agency_name".to_string(),
-                    "agency_url".to_string(),
-                    "agency_timezone".to_string(),
+                    "agency_name".into(),
+                    "agency_url".into(),
+                    "agency_timezone".into(),
                 ],
                 rows: vec![Agency {
                     agency_id: None,
-                    agency_name: "Test".to_string(),
-                    agency_url: "www.example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_name: "Test".into(),
+                    agency_url: "www.example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,

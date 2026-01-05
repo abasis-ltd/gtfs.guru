@@ -53,12 +53,17 @@ impl Validator for StopTimeTravelSpeedValidator {
 
         #[cfg(feature = "parallel")]
         {
-            use rayon::prelude::*;
-            let results: Vec<NoticeContainer> = feed
-                .stop_times_by_trip
-                .par_iter()
-                .map(|(trip_id, indices)| Self::check_trip(feed, trip_id, indices, &context))
-                .collect();
+            let results: Vec<NoticeContainer> = {
+                use rayon::prelude::*;
+                let ctx = crate::ValidationContextState::capture();
+                feed.stop_times_by_trip
+                    .par_iter()
+                    .map(|(trip_id, indices)| {
+                        let _guards = ctx.apply();
+                        Self::check_trip(feed, trip_id, indices, &context)
+                    })
+                    .collect()
+            };
 
             for result in results {
                 notices.merge(result);
@@ -362,21 +367,21 @@ fn populate_travel_speed_notice(
         notice.insert_context_field("arrivalTime2", arrival);
     }
     notice.field_order = vec![
-        "tripCsvRowNumber".to_string(),
-        "tripId".to_string(),
-        "routeId".to_string(),
-        "speedKph".to_string(),
-        "distanceKm".to_string(),
-        "csvRowNumber1".to_string(),
-        "stopSequence1".to_string(),
-        "stopId1".to_string(),
-        "stopName1".to_string(),
-        "departureTime1".to_string(),
-        "csvRowNumber2".to_string(),
-        "stopSequence2".to_string(),
-        "stopId2".to_string(),
-        "stopName2".to_string(),
-        "arrivalTime2".to_string(),
+        "tripCsvRowNumber".into(),
+        "tripId".into(),
+        "routeId".into(),
+        "speedKph".into(),
+        "distanceKm".into(),
+        "csvRowNumber1".into(),
+        "stopSequence1".into(),
+        "stopId1".into(),
+        "stopName1".into(),
+        "departureTime1".into(),
+        "csvRowNumber2".into(),
+        "stopSequence2".into(),
+        "stopId2".into(),
+        "stopName2".into(),
+        "arrivalTime2".into(),
     ];
 }
 
@@ -481,20 +486,16 @@ mod tests {
     fn detects_fast_travel_consecutive() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     stop_lat: Some(0.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     stop_lat: Some(0.1),
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -503,42 +504,42 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            headers: vec!["route_id".into(), "route_type".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_id".to_string(),
-                "stop_sequence".to_string(),
-                "departure_time".to_string(),
-                "arrival_time".to_string(),
+                "trip_id".into(),
+                "stop_id".into(),
+                "stop_sequence".into(),
+                "departure_time".into(),
+                "arrival_time".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S1".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S1".into(),
                     stop_sequence: 1,
                     departure_time: Some(GtfsTime::from_seconds(0)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S2".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S2".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(120)), // 2 minutes, very fast
                     ..Default::default()
@@ -560,26 +561,22 @@ mod tests {
     fn detects_fast_travel_far() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     stop_lat: Some(0.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     stop_lat: Some(0.05),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S3".to_string(),
+                    stop_id: "S3".into(),
                     stop_lat: Some(0.1),
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -588,50 +585,50 @@ mod tests {
             row_numbers: vec![2, 3, 4],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            headers: vec!["route_id".into(), "route_type".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_id".to_string(),
-                "stop_sequence".to_string(),
-                "departure_time".to_string(),
-                "arrival_time".to_string(),
+                "trip_id".into(),
+                "stop_id".into(),
+                "stop_sequence".into(),
+                "departure_time".into(),
+                "arrival_time".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S1".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S1".into(),
                     stop_sequence: 1,
                     departure_time: Some(GtfsTime::from_seconds(0)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S2".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S2".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(300)),
                     departure_time: Some(GtfsTime::from_seconds(300)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S3".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S3".into(),
                     stop_sequence: 3,
                     arrival_time: Some(GtfsTime::from_seconds(200)), // < 266s is fast (> 150 kph) for 11.1km
                     ..Default::default()
@@ -651,20 +648,16 @@ mod tests {
     fn passes_normal_speed() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".to_string(),
-                "stop_lat".to_string(),
-                "stop_lon".to_string(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     stop_lat: Some(0.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     stop_lat: Some(0.1),
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -673,42 +666,42 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_type".to_string()],
+            headers: vec!["route_id".into(), "route_type".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
+                route_id: "R1".into(),
                 route_type: RouteType::Bus,
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.trips = CsvTable {
-            headers: vec!["trip_id".to_string(), "route_id".to_string()],
+            headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".to_string(),
-                route_id: "R1".to_string(),
+                trip_id: "T1".into(),
+                route_id: "R1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_id".to_string(),
-                "stop_sequence".to_string(),
-                "departure_time".to_string(),
-                "arrival_time".to_string(),
+                "trip_id".into(),
+                "stop_id".into(),
+                "stop_sequence".into(),
+                "departure_time".into(),
+                "arrival_time".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S1".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S1".into(),
                     stop_sequence: 1,
                     departure_time: Some(GtfsTime::from_seconds(0)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
-                    stop_id: "S2".to_string(),
+                    trip_id: "T1".into(),
+                    stop_id: "S2".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(600)), // 10 minutes, normal speed
                     ..Default::default()

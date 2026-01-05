@@ -1,0 +1,761 @@
+    Blocking waiting for file lock on build directory
+   Compiling gtfs-guru-core v0.1.1 (/Users/akimov/Documents/GitHub/gtfs.guru/crates/gtfs_validator_core)
+warning: unused import: `std::collections::HashMap`
+ --> crates/gtfs_validator_core/src/rules/missing_trip_edge.rs:1:5
+  |
+1 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `HashMap`
+ --> crates/gtfs_validator_core/src/rules/shape_usage.rs:1:24
+  |
+1 | use std::collections::{HashMap, HashSet};
+  |                        ^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> crates/gtfs_validator_core/src/rules/stop_time_increasing_distance.rs:1:5
+  |
+1 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rayon::prelude`
+   --> crates/gtfs_validator_core/src/feed.rs:278:13
+    |
+278 |         use rayon::prelude::*;
+    |             ^^^^^^^^^^^^^^
+
+warning: unused variable: `closest_vec`
+    --> crates/gtfs_validator_core/src/rules/shape_to_stop_matching.rs:1171:27
+     |
+1171 |             let (closest, closest_vec, geo_distance_to_shape) = closest_point_on_segment_vec(
+     |                           ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_closest_vec`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `point`
+    --> crates/gtfs_validator_core/src/rules/shape_to_stop_matching.rs:1683:5
+     |
+1683 |     point: LatLng,
+     |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_point`
+
+warning: function `invalid_character_notice` is never used
+   --> crates/gtfs_validator_core/src/csv_validation.rs:676:4
+    |
+676 | fn invalid_character_notice(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `from_reader_sequential` is never used
+   --> crates/gtfs_validator_core/src/feed.rs:158:8
+    |
+120 | impl GtfsFeed {
+    | ------------- associated function in this implementation
+...
+158 |     fn from_reader_sequential(
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `location_vec` is never read
+    --> crates/gtfs_validator_core/src/rules/shape_to_stop_matching.rs:1275:5
+     |
+1271 | struct ShapePoint {
+     |        ---------- field in this struct
+...
+1275 |     location_vec: Vec3,
+     |     ^^^^^^^^^^^^
+     |
+     = note: `ShapePoint` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `closest_point_on_segment` is never used
+    --> crates/gtfs_validator_core/src/rules/shape_to_stop_matching.rs:1674:4
+     |
+1674 | fn closest_point_on_segment(point: LatLng, left: LatLng, right: LatLng) -> (LatLng, f64) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `gtfs-guru-core` (lib) generated 10 warnings (run `cargo fix --lib -p gtfs-guru-core` to apply 5 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.38s
+     Running tests/integration_tests.rs (target/debug/deps/integration_tests-bb8a4d15ebf515b4)
+
+running 3 tests
+Testing warning expectation: expired_calendar in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/calendar/expired_calendar"
+Testing error expectation: duplicate_geo_json_key in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/duplicate_geo_json_key"
+test test_base_valid ... ok
+Testing error expectation: invalid_geometry in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/invalid_geometry"
+Testing warning expectation: unexpected_enum_value in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/core/unexpected_enum_value"
+Testing warning expectation: missing_recommended_file in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/core/missing_recommended_file"
+Testing error expectation: unsupported_feature_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/unsupported_feature_type"
+Testing warning expectation: mixed_case_recommended_field in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/core/mixed_case_recommended_field"
+Testing error expectation: duplicate_geography_id in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/duplicate_geography_id"
+Testing error expectation: unsupported_geometry_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/unsupported_geometry_type"
+Testing warning expectation: missing_recommended_field in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/core/missing_recommended_field"
+Testing warning expectation: duplicate_fare_media in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/fare-media/duplicate_fare_media"
+Testing error expectation: malformed_json in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/malformed_json"
+Testing warning expectation: inconsistent_agency_lang in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/agency/inconsistent_agency_lang"
+Testing error expectation: geo_json_duplicated_element in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/geo_json_duplicated_element"
+Testing warning expectation: empty_row in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/csv-parsing/empty_row"
+Testing error expectation: missing_required_element in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/missing_required_element"
+Testing warning expectation: leading_or_trailing_whitespaces in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/csv-parsing/leading_or_trailing_whitespaces"
+Testing error expectation: unsupported_geo_json_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/geojson/unsupported_geo_json_type"
+Testing error expectation: overlapping_frequency in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/calendar-frequencies/overlapping_frequency"
+Testing warning expectation: non_ascii_or_non_printable_char in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/csv-parsing/non_ascii_or_non_printable_char"
+Testing error expectation: missing_calendar_and_calendar_date_files in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/calendar-frequencies/missing_calendar_and_calendar_date_files"
+Testing warning expectation: stops_match_shape_out_of_order in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/shapes/stops_match_shape_out_of_order"
+Testing error expectation: timeframe_only_start_or_end_time_specified in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/timeframes/timeframe_only_start_or_end_time_specified"
+Notices found: NoticeContainer {
+    notices: [
+        ValidationNotice {
+            code: "unknown_file",
+            severity: Info,
+            message: "unknown file in input",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "filename": String("README.txt"),
+            },
+            field_order: [
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("stop_headsign"),
+                "filename": String("stop_times.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("pickup_type"),
+                "filename": String("stop_times.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("drop_off_type"),
+                "filename": String("stop_times.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("shape_dist_traveled"),
+                "filename": String("stop_times.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("timepoint"),
+                "filename": String("stop_times.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "empty_row",
+            severity: Warning,
+            message: "row is empty",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "csvRowNumber": Number(4),
+                "filename": String("stop_times.txt"),
+            },
+            field_order: [
+                "csvRowNumber",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "empty_row",
+            severity: Warning,
+            message: "row is empty",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "csvRowNumber": Number(6),
+                "filename": String("shapes.txt"),
+            },
+            field_order: [
+                "csvRowNumber",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("trip_headsign"),
+                "filename": String("trips.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("trip_short_name"),
+                "filename": String("trips.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("direction_id"),
+                "filename": String("trips.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("block_id"),
+                "filename": String("trips.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("wheelchair_accessible"),
+                "filename": String("trips.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("bikes_allowed"),
+                "filename": String("trips.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "empty_row",
+            severity: Warning,
+            message: "row is empty",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "csvRowNumber": Number(3),
+                "filename": String("trips.txt"),
+            },
+            field_order: [
+                "csvRowNumber",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("stop_desc"),
+                "filename": String("stops.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("stop_url"),
+                "filename": String("stops.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("wheelchair_boarding"),
+                "filename": String("stops.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("level_id"),
+                "filename": String("stops.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("platform_code"),
+                "filename": String("stops.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "empty_row",
+            severity: Warning,
+            message: "row is empty",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "csvRowNumber": Number(4),
+                "filename": String("stops.txt"),
+            },
+            field_order: [
+                "csvRowNumber",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("route_desc"),
+                "filename": String("routes.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("route_url"),
+                "filename": String("routes.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("route_color"),
+                "filename": String("routes.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("route_text_color"),
+                "filename": String("routes.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "empty_row",
+            severity: Warning,
+            message: "row is empty",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "csvRowNumber": Number(3),
+                "filename": String("routes.txt"),
+            },
+            field_order: [
+                "csvRowNumber",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("agency_lang"),
+                "filename": String("agency.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("agency_phone"),
+                "filename": String("agency.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("agency_fare_url"),
+                "filename": String("agency.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_column",
+            severity: Warning,
+            message: "recommended column is missing",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "fieldName": String("agency_email"),
+                "filename": String("agency.txt"),
+            },
+            field_order: [
+                "fieldName",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "empty_row",
+            severity: Warning,
+            message: "row is empty",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "csvRowNumber": Number(3),
+                "filename": String("agency.txt"),
+            },
+            field_order: [
+                "csvRowNumber",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "empty_row",
+            severity: Warning,
+            message: "row is empty",
+            file: None,
+            row: None,
+            field: None,
+            context: {
+                "csvRowNumber": Number(3),
+                "filename": String("calendar.txt"),
+            },
+            field_order: [
+                "csvRowNumber",
+                "filename",
+            ],
+            fix: None,
+        },
+        ValidationNotice {
+            code: "missing_recommended_file",
+            severity: Warning,
+            message: "missing recommended GTFS file",
+            file: Some(
+                "feed_info.txt",
+            ),
+            row: None,
+            field: None,
+            context: {
+                "filename": String("feed_info.txt"),
+            },
+            field_order: [
+                "filename",
+            ],
+            fix: None,
+        },
+    ],
+}
+
+thread 'test_warnings' (112151) panicked at crates/gtfs_validator_core/tests/integration_tests.rs:119:17:
+Expected warning code 'stops_match_shape_out_of_order' not found in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/warnings/shapes/stops_match_shape_out_of_order"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+Testing error expectation: timeframe_overlap in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/timeframes/timeframe_overlap"
+test test_warnings ... FAILED
+Testing error expectation: timeframe_start_or_end_time_greater_than_twenty_four_hours in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/timeframes/timeframe_start_or_end_time_greater_than_twenty_four_hours"
+Testing error expectation: inconsistent_agency_timezone in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/foreign-keys/inconsistent_agency_timezone"
+Testing error expectation: foreign_key_violation in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/foreign-keys/foreign_key_violation"
+Testing error expectation: invalid_row_length in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/invalid_row_length"
+Testing error expectation: missing_stop_times_record in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/missing_stop_times_record"
+Testing error expectation: missing_required_field in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/missing_required_field"
+Testing error expectation: missing_required_file in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/missing_required_file"
+Testing error expectation: invalid_input_files_in_subfolder in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/invalid_input_files_in_subfolder"
+Testing error expectation: new_line_in_value in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/new_line_in_value"
+Testing error expectation: missing_required_column in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/missing_required_column"
+Testing error expectation: empty_column_name in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/empty_column_name"
+Testing error expectation: duplicated_column in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/duplicated_column"
+Testing error expectation: u_r_i_syntax_error in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/u_r_i_syntax_error"
+Testing error expectation: duplicate_key in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/duplicate_key"
+Testing error expectation: empty_file in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/core-files/empty_file"
+Testing error expectation: decreasing_shape_distance in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/shapes/decreasing_shape_distance"
+Testing error expectation: transfer_with_invalid_stop_location_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/transfers/transfer_with_invalid_stop_location_type"
+Testing error expectation: transfer_with_invalid_trip_and_route in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/transfers/transfer_with_invalid_trip_and_route"
+Testing error expectation: fare_product_with_multiple_default_rider_categories in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/fares/fare_product_with_multiple_default_rider_categories"
+Testing error expectation: fare_transfer_rule_invalid_transfer_count in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/fares/fare_transfer_rule_invalid_transfer_count"
+Testing error expectation: fare_transfer_rule_duration_limit_without_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/fares/fare_transfer_rule_duration_limit_without_type"
+Testing error expectation: fare_transfer_rule_missing_transfer_count in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/fares/fare_transfer_rule_missing_transfer_count"
+Testing error expectation: fare_transfer_rule_duration_limit_type_without_duration_limit in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/fares/fare_transfer_rule_duration_limit_type_without_duration_limit"
+Testing error expectation: fare_transfer_rule_with_forbidden_transfer_count in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/fares/fare_transfer_rule_with_forbidden_transfer_count"
+Testing error expectation: missing_stop_name in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stops/missing_stop_name"
+Testing error expectation: location_without_parent_station in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stops/location_without_parent_station"
+Testing error expectation: stop_without_location in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stops/stop_without_location"
+Testing error expectation: wrong_parent_location_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stops/wrong_parent_location_type"
+Testing error expectation: location_with_unexpected_stop_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stops/location_with_unexpected_stop_time"
+Testing error expectation: station_with_parent_station in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stops/station_with_parent_station"
+Testing error expectation: missing_prior_notice_last_day in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/missing_prior_notice_last_day"
+Testing error expectation: invalid_prior_notice_duration_min in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/invalid_prior_notice_duration_min"
+Testing error expectation: forbidden_prior_notice_start_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/forbidden_prior_notice_start_time"
+Testing error expectation: missing_prior_notice_last_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/missing_prior_notice_last_time"
+Testing error expectation: prior_notice_last_day_after_start_day in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/prior_notice_last_day_after_start_day"
+Testing error expectation: forbidden_prior_day_booking_field_value in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/forbidden_prior_day_booking_field_value"
+Testing error expectation: missing_prior_notice_start_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/missing_prior_notice_start_time"
+Testing error expectation: forbidden_real_time_booking_field_value in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/forbidden_real_time_booking_field_value"
+Testing error expectation: forbidden_prior_notice_start_day in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/forbidden_prior_notice_start_day"
+Testing error expectation: missing_prior_notice_duration_min in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/missing_prior_notice_duration_min"
+Testing error expectation: forbidden_same_day_booking_field_value in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/booking-rules/forbidden_same_day_booking_field_value"
+Testing error expectation: stop_time_with_arrival_before_previous_departure_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stop-times/stop_time_with_arrival_before_previous_departure_time"
+Testing error expectation: missing_trip_edge in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stop-times/missing_trip_edge"
+Testing error expectation: stop_time_with_only_arrival_or_departure_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stop-times/stop_time_with_only_arrival_or_departure_time"
+Testing error expectation: stop_time_timepoint_without_times in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stop-times/stop_time_timepoint_without_times"
+Testing error expectation: block_trips_with_overlapping_stop_times in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/stop-times/block_trips_with_overlapping_stop_times"
+Testing error expectation: route_networks_specified_in_more_than_one_file in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/trips/route_networks_specified_in_more_than_one_file"
+Testing error expectation: trip_distance_exceeds_shape_distance in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/trips/trip_distance_exceeds_shape_distance"
+Testing error expectation: invalid_pickup_drop_off_window in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/invalid_pickup_drop_off_window"
+Testing error expectation: forbidden_drop_off_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/forbidden_drop_off_type"
+Testing error expectation: overlapping_zone_and_pickup_drop_off_window in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/overlapping_zone_and_pickup_drop_off_window"
+Testing error expectation: missing_pickup_or_drop_off_window in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/missing_pickup_or_drop_off_window"
+Testing error expectation: forbidden_arrival_or_departure_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/forbidden_arrival_or_departure_time"
+Testing error expectation: forbidden_shape_dist_traveled in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/forbidden_shape_dist_traveled"
+Testing error expectation: forbidden_geography_id in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/forbidden_geography_id"
+Testing error expectation: forbidden_continuous_pickup_drop_off in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/forbidden_continuous_pickup_drop_off"
+Testing error expectation: forbidden_pickup_type in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/flex/forbidden_pickup_type"
+Testing error expectation: route_both_short_and_long_name_missing in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/routes/route_both_short_and_long_name_missing"
+Testing error expectation: translation_foreign_key_violation in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/translations/translation_foreign_key_violation"
+Testing error expectation: translation_unexpected_value in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/translations/translation_unexpected_value"
+Testing error expectation: invalid_time in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_time"
+Testing error expectation: invalid_language_code in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_language_code"
+Testing error expectation: invalid_color in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_color"
+Testing error expectation: start_and_end_range_equal in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/start_and_end_range_equal"
+Testing error expectation: invalid_url in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_url"
+Testing error expectation: invalid_float in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_float"
+Testing error expectation: invalid_integer in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_integer"
+Testing error expectation: point_near_origin in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/point_near_origin"
+Testing error expectation: number_out_of_range in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/number_out_of_range"
+Testing error expectation: start_and_end_range_out_of_order in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/start_and_end_range_out_of_order"
+Testing error expectation: invalid_timezone in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_timezone"
+Testing error expectation: invalid_date in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_date"
+Testing error expectation: point_near_pole in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/point_near_pole"
+Testing error expectation: invalid_email in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/field-validation/invalid_email"
+Testing error expectation: bidirectional_exit_gate in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/pathways/bidirectional_exit_gate"
+Testing error expectation: pathway_to_platform_with_boarding_areas in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/pathways/pathway_to_platform_with_boarding_areas"
+Testing error expectation: missing_level_id in "/Users/akimov/Documents/GitHub/gtfs.guru/test-gtfs-feeds/errors/pathways/missing_level_id"
+test test_errors ... ok
+
+failures:
+
+failures:
+    test_warnings
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+error: test failed, to rerun pass `-p gtfs-guru-core --test integration_tests`

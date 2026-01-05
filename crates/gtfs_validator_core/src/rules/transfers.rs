@@ -27,9 +27,9 @@ impl Validator for TransfersValidator {
                     );
                     notice.set_location(TRANSFERS_FILE, "min_transfer_time", row_number);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "fieldName".to_string(),
-                        "filename".to_string(),
+                        "csvRowNumber".into(),
+                        "fieldName".into(),
+                        "filename".into(),
                     ];
                     notices.push(notice);
                 }
@@ -48,8 +48,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![gtfs_guru_model::Transfer {
-                from_stop_id: Some("STOP1".to_string()),
-                to_stop_id: Some("STOP2".to_string()),
+                from_stop_id: Some("STOP1".into()),
+                to_stop_id: Some("STOP2".into()),
                 transfer_type: Some(gtfs_guru_model::TransferType::MinTime),
                 min_transfer_time: None,
                 ..Default::default()
@@ -72,8 +72,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![gtfs_guru_model::Transfer {
-                from_stop_id: Some("STOP1".to_string()),
-                to_stop_id: Some("STOP2".to_string()),
+                from_stop_id: Some("STOP1".into()),
+                to_stop_id: Some("STOP2".into()),
                 transfer_type: Some(gtfs_guru_model::TransferType::MinTime),
                 min_transfer_time: Some(120),
                 ..Default::default()

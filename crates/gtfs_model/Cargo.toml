@@ -8,5 +8,6 @@ repository = "https://github.com/abasis-ltd/gtfs.guru"
 homepage = "https://github.com/abasis-ltd/gtfs.guru"
 [dependencies]
 chrono = { workspace = true }
+compact_str = { version = "0.9.0", features = ["serde"] }
 serde = { workspace = true }
 thiserror = { workspace = true }

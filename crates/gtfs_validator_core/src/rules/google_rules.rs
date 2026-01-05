@@ -2,6 +2,7 @@ use crate::{
     google_rules_enabled, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
 };
 use chrono::Datelike;
+use compact_str::CompactString;
 use gtfs_guru_model::TransferType;
 
 const MAX_ROUTE_SHORT_NAME_LENGTH: usize = 6;
@@ -217,7 +218,7 @@ impl Validator for GoogleServiceGapValidator {
         }
 
         let mut active_services: std::collections::HashMap<
-            String,
+            CompactString,
             std::collections::HashSet<chrono::NaiveDate>,
         > = std::collections::HashMap::new();
 
@@ -304,7 +305,7 @@ impl Validator for GoogleServiceGapValidator {
                  );
                 notice.insert_context_field("firstDate", current.to_string());
                 notice.insert_context_field("nextDate", next.to_string());
-                notice.field_order = vec!["firstDate".to_string(), "nextDate".to_string()];
+                notice.field_order = vec!["firstDate".into(), "nextDate".into()];
                 notices.push(notice);
             }
         }
@@ -435,7 +436,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.calendar = Some(CsvTable {
             rows: vec![gtfs_guru_model::Calendar {
-                service_id: "WD".to_string(),
+                service_id: "WD".into(),
                 monday: gtfs_guru_model::ServiceAvailability::Available,
                 tuesday: gtfs_guru_model::ServiceAvailability::Available,
                 wednesday: gtfs_guru_model::ServiceAvailability::Available,
@@ -454,7 +455,7 @@ mod tests {
         let mut dates = vec![];
         for d in 2..=14 {
             dates.push(gtfs_guru_model::CalendarDate {
-                service_id: "WD".to_string(),
+                service_id: "WD".into(),
                 date: GtfsDate::parse(&format!("202401{:02}", d)).unwrap(),
                 exception_type: gtfs_guru_model::ExceptionType::Removed,
             });
@@ -481,15 +482,15 @@ mod tests {
         feed.trips = CsvTable {
             rows: vec![
                 gtfs_guru_model::Trip {
-                    trip_id: "T1".to_string(),
-                    route_id: "R1".to_string(),
-                    service_id: "S1".to_string(),
+                    trip_id: "T1".into(),
+                    route_id: "R1".into(),
+                    service_id: "S1".into(),
                     ..Default::default()
                 },
                 gtfs_guru_model::Trip {
-                    trip_id: "T2".to_string(),
-                    route_id: "R1".to_string(),
-                    service_id: "S1".to_string(),
+                    trip_id: "T2".into(),
+                    route_id: "R1".into(),
+                    service_id: "S1".into(),
                     ..Default::default()
                 },
             ],
@@ -509,10 +510,10 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             rows: vec![gtfs_guru_model::Agency {
-                agency_name: "A".to_string(),
-                agency_url: "u".to_string(),
-                agency_timezone: "z".to_string(),
-                agency_phone: Some("123".to_string()), // Invalid (less than 5 digits)
+                agency_name: "A".into(),
+                agency_url: "u".into(),
+                agency_timezone: "z".into(),
+                agency_phone: Some("123".into()), // Invalid (less than 5 digits)
                 ..Default::default()
             }],
             ..Default::default()
@@ -532,14 +533,14 @@ mod tests {
         feed.transfers = Some(CsvTable {
             rows: vec![
                 gtfs_guru_model::Transfer {
-                    from_stop_id: Some("S1".to_string()),
-                    to_stop_id: Some("S2".to_string()),
+                    from_stop_id: Some("S1".into()),
+                    to_stop_id: Some("S2".into()),
                     transfer_type: Some(gtfs_guru_model::TransferType::InSeat), // Invalid for Google
                     ..Default::default()
                 },
                 gtfs_guru_model::Transfer {
-                    from_stop_id: Some("S3".to_string()),
-                    to_stop_id: Some("S4".to_string()),
+                    from_stop_id: Some("S3".into()),
+                    to_stop_id: Some("S4".into()),
                     transfer_type: Some(gtfs_guru_model::TransferType::Recommended), // 0 - Valid
                     ..Default::default()
                 },
@@ -563,8 +564,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             rows: vec![gtfs_guru_model::Route {
-                route_id: "R1".to_string(),
-                route_short_name: Some("CrazyLongName".to_string()), // Too long (>6 chars)
+                route_id: "R1".into(),
+                route_short_name: Some("CrazyLongName".into()), // Too long (>6 chars)
                 ..Default::default()
             }],
             ..Default::default()
@@ -588,15 +589,15 @@ mod tests {
         feed.stop_times = CsvTable {
             rows: vec![
                 gtfs_guru_model::StopTime {
-                    stop_headsign: Some("Destination".to_string()), // Valid
+                    stop_headsign: Some("Destination".into()), // Valid
                     ..Default::default()
                 },
                 gtfs_guru_model::StopTime {
-                    stop_headsign: Some("Start vs End".to_string()), // Valid
+                    stop_headsign: Some("Start vs End".into()), // Valid
                     ..Default::default()
                 },
                 gtfs_guru_model::StopTime {
-                    stop_headsign: Some("Test!Special".to_string()), // Invalid - contains !
+                    stop_headsign: Some("Test!Special".into()), // Invalid - contains !
                     ..Default::default()
                 },
             ],

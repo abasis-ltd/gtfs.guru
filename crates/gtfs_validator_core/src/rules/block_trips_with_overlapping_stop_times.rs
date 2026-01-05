@@ -1,3 +1,4 @@
+use compact_str::CompactString;
 use std::collections::{HashMap, HashSet};
 
 use chrono::{Datelike, NaiveDate, Weekday};
@@ -102,14 +103,14 @@ impl Validator for BlockTripsWithOverlappingStopTimesValidator {
                     notice.insert_context_field("tripIdA", current.trip_id);
                     notice.insert_context_field("tripIdB", next.trip_id);
                     notice.field_order = vec![
-                        "blockId".to_string(),
-                        "csvRowNumberA".to_string(),
-                        "csvRowNumberB".to_string(),
-                        "intersection".to_string(),
-                        "serviceIdA".to_string(),
-                        "serviceIdB".to_string(),
-                        "tripIdA".to_string(),
-                        "tripIdB".to_string(),
+                        "blockId".into(),
+                        "csvRowNumberA".into(),
+                        "csvRowNumberB".into(),
+                        "intersection".into(),
+                        "serviceIdA".into(),
+                        "serviceIdB".into(),
+                        "tripIdA".into(),
+                        "tripIdB".into(),
                     ];
                     notices.push(notice);
                 }
@@ -194,7 +195,7 @@ fn overlap_label(current: &TripWindow<'_>, next: &TripWindow<'_>) -> String {
 fn services_overlap(
     left_service_id: &str,
     right_service_id: &str,
-    service_dates: &HashMap<String, HashSet<NaiveDate>>,
+    service_dates: &HashMap<CompactString, HashSet<NaiveDate>>,
 ) -> bool {
     if left_service_id == right_service_id {
         return true;
@@ -209,8 +210,8 @@ fn services_overlap(
     }
 }
 
-fn build_service_dates(feed: &GtfsFeed) -> HashMap<String, HashSet<NaiveDate>> {
-    let mut dates_by_service: HashMap<String, HashSet<NaiveDate>> = HashMap::new();
+fn build_service_dates(feed: &GtfsFeed) -> HashMap<CompactString, HashSet<NaiveDate>> {
+    let mut dates_by_service: HashMap<CompactString, HashSet<NaiveDate>> = HashMap::new();
 
     if let Some(calendar) = &feed.calendar {
         for row in &calendar.rows {
@@ -383,9 +384,9 @@ mod tests {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,
@@ -397,15 +398,15 @@ mod tests {
                 headers: Vec::new(),
                 rows: vec![
                     gtfs_guru_model::Stop {
-                        stop_id: "STOP1".to_string(),
-                        stop_name: Some("Stop 1".to_string()),
+                        stop_id: "STOP1".into(),
+                        stop_name: Some("Stop 1".into()),
                         stop_lat: Some(10.0),
                         stop_lon: Some(20.0),
                         ..Default::default()
                     },
                     gtfs_guru_model::Stop {
-                        stop_id: "STOP2".to_string(),
-                        stop_name: Some("Stop 2".to_string()),
+                        stop_id: "STOP2".into(),
+                        stop_name: Some("Stop 2".into()),
                         stop_lat: Some(10.1),
                         stop_lon: Some(20.1),
                         ..Default::default()
@@ -416,8 +417,8 @@ mod tests {
             routes: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Route {
-                    route_id: "R1".to_string(),
-                    route_short_name: Some("R1".to_string()),
+                    route_id: "R1".into(),
+                    route_short_name: Some("R1".into()),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 }],
@@ -462,10 +463,10 @@ mod tests {
 
     fn trip(trip_id: &str, service_id: &str, block_id: &str) -> gtfs_guru_model::Trip {
         gtfs_guru_model::Trip {
-            route_id: "R1".to_string(),
-            service_id: service_id.to_string(),
-            trip_id: trip_id.to_string(),
-            block_id: Some(block_id.to_string()),
+            route_id: "R1".into(),
+            service_id: service_id.into(),
+            trip_id: trip_id.into(),
+            block_id: Some(block_id.into()),
             ..Default::default()
         }
     }
@@ -473,16 +474,16 @@ mod tests {
     fn stop_times_for_trip(trip_id: &str, start: &str, end: &str) -> Vec<StopTime> {
         vec![
             StopTime {
-                trip_id: trip_id.to_string(),
-                stop_id: "STOP1".to_string(),
+                trip_id: trip_id.into(),
+                stop_id: "STOP1".into(),
                 stop_sequence: 1,
                 arrival_time: Some(GtfsTime::parse(start).unwrap()),
                 departure_time: Some(GtfsTime::parse(start).unwrap()),
                 ..Default::default()
             },
             StopTime {
-                trip_id: trip_id.to_string(),
-                stop_id: "STOP2".to_string(),
+                trip_id: trip_id.into(),
+                stop_id: "STOP2".into(),
                 stop_sequence: 2,
                 arrival_time: Some(GtfsTime::parse(end).unwrap()),
                 departure_time: Some(GtfsTime::parse(end).unwrap()),
@@ -494,7 +495,7 @@ mod tests {
     fn calendar_row(service_id: &str, date_str: &str, weekday: Weekday) -> Calendar {
         let date = GtfsDate::parse(date_str).unwrap();
         Calendar {
-            service_id: service_id.to_string(),
+            service_id: service_id.into(),
             monday: if weekday == Weekday::Mon {
                 ServiceAvailability::Available
             } else {

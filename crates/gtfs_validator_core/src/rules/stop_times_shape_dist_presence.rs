@@ -52,9 +52,9 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
                 }
                 notice.insert_context_field("tripId", stop_time.trip_id.as_str());
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "shapeDistTraveled".to_string(),
-                    "tripId".to_string(),
+                    "csvRowNumber".into(),
+                    "shapeDistTraveled".into(),
+                    "tripId".into(),
                 ];
                 notices.push(notice);
                 continue;
@@ -85,11 +85,11 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
                 }
                 notice.insert_context_field("tripId", stop_time.trip_id.as_str());
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "locationGroupId".to_string(),
-                    "locationId".to_string(),
-                    "shapeDistTraveled".to_string(),
-                    "tripId".to_string(),
+                    "csvRowNumber".into(),
+                    "locationGroupId".into(),
+                    "locationId".into(),
+                    "shapeDistTraveled".into(),
+                    "tripId".into(),
                 ];
                 notices.push(notice);
             }
@@ -112,12 +112,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "shape_dist_traveled".to_string(),
-                "start_pickup_drop_off_window".to_string(),
+                "trip_id".into(),
+                "shape_dist_traveled".into(),
+                "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 shape_dist_traveled: Some(10.0),
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 ..Default::default()
@@ -146,15 +146,15 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "shape_dist_traveled".to_string(),
-                "location_id".to_string(),
+                "trip_id".into(),
+                "shape_dist_traveled".into(),
+                "location_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 shape_dist_traveled: Some(10.0),
-                location_id: Some("L1".to_string()),
-                stop_id: "".to_string(),
+                location_id: Some("L1".into()),
+                stop_id: "".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -181,14 +181,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "shape_dist_traveled".to_string(),
-                "stop_id".to_string(),
+                "trip_id".into(),
+                "shape_dist_traveled".into(),
+                "stop_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 shape_dist_traveled: Some(10.0),
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

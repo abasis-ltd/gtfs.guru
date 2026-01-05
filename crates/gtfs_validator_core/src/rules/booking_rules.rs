@@ -308,9 +308,9 @@ fn populate_forbidden_fields_notice(
             .collect::<Vec<_>>(),
     );
     notice.field_order = vec![
-        "bookingRuleId".to_string(),
-        "csvRowNumber".to_string(),
-        "fieldNames".to_string(),
+        "bookingRuleId".into(),
+        "csvRowNumber".into(),
+        "fieldNames".into(),
     ];
 }
 
@@ -333,10 +333,10 @@ fn invalid_duration_min_notice(
     notice.insert_context_field("priorNoticeDurationMax", max);
     notice.insert_context_field("priorNoticeDurationMin", min);
     notice.field_order = vec![
-        "bookingRuleId".to_string(),
-        "csvRowNumber".to_string(),
-        "priorNoticeDurationMax".to_string(),
-        "priorNoticeDurationMin".to_string(),
+        "bookingRuleId".into(),
+        "csvRowNumber".into(),
+        "priorNoticeDurationMax".into(),
+        "priorNoticeDurationMin".into(),
     ];
     notice
 }
@@ -352,7 +352,7 @@ fn missing_prior_notice_duration_min_notice(
     );
     notice.insert_context_field("bookingRuleId", booking_rule_id.trim());
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.field_order = vec!["bookingRuleId".to_string(), "csvRowNumber".to_string()];
+    notice.field_order = vec!["bookingRuleId".into(), "csvRowNumber".into()];
     notice
 }
 
@@ -378,10 +378,10 @@ fn forbidden_prior_notice_start_day_notice(
         prior_notice_start_day.unwrap_or_default(),
     );
     notice.field_order = vec![
-        "bookingRuleId".to_string(),
-        "csvRowNumber".to_string(),
-        "priorNoticeDurationMax".to_string(),
-        "priorNoticeStartDay".to_string(),
+        "bookingRuleId".into(),
+        "csvRowNumber".into(),
+        "priorNoticeDurationMax".into(),
+        "priorNoticeStartDay".into(),
     ];
     notice
 }
@@ -400,9 +400,9 @@ fn prior_notice_last_day_after_start_day_notice(
     notice.insert_context_field("priorNoticeLastDay", prior_notice_last_day);
     notice.insert_context_field("priorNoticeStartDay", prior_notice_start_day);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "priorNoticeLastDay".to_string(),
-        "priorNoticeStartDay".to_string(),
+        "csvRowNumber".into(),
+        "priorNoticeLastDay".into(),
+        "priorNoticeStartDay".into(),
     ];
     notice
 }
@@ -426,9 +426,9 @@ fn forbidden_prior_notice_start_time_notice(
             .unwrap_or_default(),
     );
     notice.field_order = vec![
-        "bookingRuleId".to_string(),
-        "csvRowNumber".to_string(),
-        "priorNoticeStartTime".to_string(),
+        "bookingRuleId".into(),
+        "csvRowNumber".into(),
+        "priorNoticeStartTime".into(),
     ];
     notice
 }
@@ -450,9 +450,9 @@ fn missing_prior_notice_start_time_notice(
         prior_notice_start_day.unwrap_or_default(),
     );
     notice.field_order = vec![
-        "bookingRuleId".to_string(),
-        "csvRowNumber".to_string(),
-        "priorNoticeStartDay".to_string(),
+        "bookingRuleId".into(),
+        "csvRowNumber".into(),
+        "priorNoticeStartDay".into(),
     ];
     notice
 }
@@ -468,7 +468,7 @@ fn missing_prior_notice_last_day_notice(
     );
     notice.insert_context_field("bookingRuleId", booking_rule_id.trim());
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.field_order = vec!["bookingRuleId".to_string(), "csvRowNumber".to_string()];
+    notice.field_order = vec!["bookingRuleId".into(), "csvRowNumber".into()];
     notice
 }
 
@@ -483,7 +483,7 @@ fn missing_prior_notice_last_time_notice(
     );
     notice.insert_context_field("bookingRuleId", booking_rule_id.trim());
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.field_order = vec!["bookingRuleId".to_string(), "csvRowNumber".to_string()];
+    notice.field_order = vec!["bookingRuleId".into(), "csvRowNumber".into()];
     notice
 }
 
@@ -499,7 +499,7 @@ fn missing_prior_day_booking_field_value_notice(
     );
     notice.insert_context_field("bookingRuleId", booking_rule_id.trim());
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.field_order = vec!["bookingRuleId".to_string(), "csvRowNumber".to_string()];
+    notice.field_order = vec!["bookingRuleId".into(), "csvRowNumber".into()];
     notice
 }
 
@@ -513,7 +513,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.booking_rules = Some(CsvTable {
             rows: vec![BookingRules {
-                booking_rule_id: "R1".to_string(),
+                booking_rule_id: "R1".into(),
                 booking_type: BookingType::Realtime,
                 prior_notice_duration_min: Some(10), // Forbidden
                 ..Default::default()
@@ -536,7 +536,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.booking_rules = Some(CsvTable {
             rows: vec![BookingRules {
-                booking_rule_id: "R1".to_string(),
+                booking_rule_id: "R1".into(),
                 booking_type: BookingType::SameDay,
                 prior_notice_duration_min: None, // Required
                 ..Default::default()

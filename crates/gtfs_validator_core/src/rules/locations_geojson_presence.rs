@@ -49,10 +49,10 @@ mod tests {
     fn detects_missing_locations_geojson() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
-                location_id: Some("L1".to_string()),
+                stop_id: "S1".into(),
+                location_id: Some("L1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -74,10 +74,10 @@ mod tests {
     fn passes_when_locations_geojson_present() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
-                location_id: Some("L1".to_string()),
+                stop_id: "S1".into(),
+                location_id: Some("L1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -94,9 +94,9 @@ mod tests {
     fn passes_when_no_location_id_used() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_id".to_string()],
+            headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 location_id: None,
                 ..Default::default()
             }],

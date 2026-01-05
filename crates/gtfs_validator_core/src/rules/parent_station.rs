@@ -54,9 +54,9 @@ impl Validator for ParentStationValidator {
                     notice.insert_context_field("stopId", stop.stop_id.as_str());
                     notice.insert_context_field("parentStation", parent_station);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "stopId".to_string(),
-                        "parentStation".to_string(),
+                        "csvRowNumber".into(),
+                        "stopId".into(),
+                        "parentStation".into(),
                     ];
                     notices.push(notice);
                 }
@@ -84,9 +84,9 @@ impl Validator for ParentStationValidator {
                             location_type_value(location_type),
                         );
                         notice.field_order = vec![
-                            "csvRowNumber".to_string(),
-                            "stopId".to_string(),
-                            "locationType".to_string(),
+                            "csvRowNumber".into(),
+                            "stopId".into(),
+                            "locationType".into(),
                         ];
                         notices.push(notice);
                     }
@@ -128,12 +128,12 @@ impl Validator for ParentStationValidator {
                     );
                     notice.insert_context_field("distanceInMeters", distance_m);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "stopId".to_string(),
-                        "stopName".to_string(),
-                        "parentStation".to_string(),
-                        "parentStopName".to_string(),
-                        "distanceInMeters".to_string(),
+                        "csvRowNumber".into(),
+                        "stopId".into(),
+                        "stopName".into(),
+                        "parentStation".into(),
+                        "parentStopName".into(),
+                        "distanceInMeters".into(),
                     ];
                     notices.push(notice);
                 }
@@ -170,15 +170,15 @@ impl Validator for ParentStationValidator {
                     notice
                         .insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "expectedLocationType".to_string(),
-                        "locationType".to_string(),
-                        "parentCsvRowNumber".to_string(),
-                        "parentLocationType".to_string(),
-                        "parentStation".to_string(),
-                        "parentStopName".to_string(),
-                        "stopId".to_string(),
-                        "stopName".to_string(),
+                        "csvRowNumber".into(),
+                        "expectedLocationType".into(),
+                        "locationType".into(),
+                        "parentCsvRowNumber".into(),
+                        "parentLocationType".into(),
+                        "parentStation".into(),
+                        "parentStopName".into(),
+                        "stopId".into(),
+                        "stopName".into(),
                     ];
                     notices.push(notice);
                 }
@@ -204,11 +204,7 @@ impl Validator for ParentStationValidator {
                     .and_then(|stop| stop.stop_name.as_deref())
                     .unwrap_or(""),
             );
-            notice.field_order = vec![
-                "csvRowNumber".to_string(),
-                "stopId".to_string(),
-                "stopName".to_string(),
-            ];
+            notice.field_order = vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
             notices.push(notice);
         }
     }
@@ -264,11 +260,7 @@ fn unused_parent_station_notice(
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("stopId", stop_id);
     notice.insert_context_field("stopName", stop_name);
-    notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "stopId".to_string(),
-        "stopName".to_string(),
-    ];
+    notice.field_order = vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
     notice
 }
 
@@ -354,7 +346,7 @@ mod tests {
     #[test]
     fn emits_notice_for_station_with_parent() {
         let mut station1 = station("STATION1");
-        station1.parent_station = Some("STATION2".to_string());
+        station1.parent_station = Some("STATION2".into());
         let feed = feed_with_stops(vec![station1, station("STATION2")]);
 
         let mut notices = NoticeContainer::new();
@@ -401,8 +393,8 @@ mod tests {
 
     fn station(stop_id: &str) -> gtfs_guru_model::Stop {
         gtfs_guru_model::Stop {
-            stop_id: stop_id.to_string(),
-            stop_name: Some("Station".to_string()),
+            stop_id: stop_id.into(),
+            stop_name: Some("Station".into()),
             stop_lat: Some(10.0),
             stop_lon: Some(20.0),
             location_type: Some(LocationType::Station),
@@ -416,12 +408,12 @@ mod tests {
         location_type: Option<LocationType>,
     ) -> gtfs_guru_model::Stop {
         gtfs_guru_model::Stop {
-            stop_id: stop_id.to_string(),
-            stop_name: Some("Stop".to_string()),
+            stop_id: stop_id.into(),
+            stop_name: Some("Stop".into()),
             stop_lat: Some(10.0),
             stop_lon: Some(20.0),
             location_type,
-            parent_station: Some(parent_station.to_string()),
+            parent_station: Some(parent_station.into()),
             ..Default::default()
         }
     }
@@ -432,9 +424,9 @@ mod tests {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,

@@ -49,11 +49,11 @@ impl Validator for MatchingFeedAndAgencyLangValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("feedLang", feed_lang);
                 notice.field_order = vec![
-                    "agencyId".to_string(),
-                    "agencyLang".to_string(),
-                    "agencyName".to_string(),
-                    "csvRowNumber".to_string(),
-                    "feedLang".to_string(),
+                    "agencyId".into(),
+                    "agencyLang".into(),
+                    "agencyName".into(),
+                    "csvRowNumber".into(),
+                    "feedLang".into(),
                 ];
                 notices.push(notice);
             }
@@ -72,9 +72,9 @@ mod tests {
         feed.feed_info = Some(CsvTable {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::FeedInfo {
-                feed_publisher_name: "Publisher".to_string(),
-                feed_publisher_url: "https://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Publisher".into(),
+                feed_publisher_url: "https://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
@@ -83,7 +83,7 @@ mod tests {
             }],
             row_numbers: Vec::new(),
         });
-        feed.agency.rows[0].agency_lang = Some("fr".to_string());
+        feed.agency.rows[0].agency_lang = Some("fr".into());
 
         let mut notices = NoticeContainer::new();
         MatchingFeedAndAgencyLangValidator.validate(&feed, &mut notices);
@@ -104,9 +104,9 @@ mod tests {
         feed.feed_info = Some(CsvTable {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::FeedInfo {
-                feed_publisher_name: "Publisher".to_string(),
-                feed_publisher_url: "https://example.com".to_string(),
-                feed_lang: "mul".to_string(),
+                feed_publisher_name: "Publisher".into(),
+                feed_publisher_url: "https://example.com".into(),
+                feed_lang: "mul".into(),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
@@ -115,7 +115,7 @@ mod tests {
             }],
             row_numbers: Vec::new(),
         });
-        feed.agency.rows[0].agency_lang = Some("fr".to_string());
+        feed.agency.rows[0].agency_lang = Some("fr".into());
 
         let mut notices = NoticeContainer::new();
         MatchingFeedAndAgencyLangValidator.validate(&feed, &mut notices);
@@ -129,9 +129,9 @@ mod tests {
         feed.feed_info = Some(CsvTable {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::FeedInfo {
-                feed_publisher_name: "Publisher".to_string(),
-                feed_publisher_url: "https://example.com".to_string(),
-                feed_lang: "en".to_string(),
+                feed_publisher_name: "Publisher".into(),
+                feed_publisher_url: "https://example.com".into(),
+                feed_lang: "en".into(),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
@@ -140,7 +140,7 @@ mod tests {
             }],
             row_numbers: Vec::new(),
         });
-        feed.agency.rows[0].agency_lang = Some("EN".to_string());
+        feed.agency.rows[0].agency_lang = Some("EN".into());
 
         let mut notices = NoticeContainer::new();
         MatchingFeedAndAgencyLangValidator.validate(&feed, &mut notices);
@@ -153,10 +153,10 @@ mod tests {
             agency: CsvTable {
                 headers: Vec::new(),
                 rows: vec![gtfs_guru_model::Agency {
-                    agency_id: Some("A1".to_string()),
-                    agency_name: "Agency".to_string(),
-                    agency_url: "https://example.com".to_string(),
-                    agency_timezone: "UTC".to_string(),
+                    agency_id: Some("A1".into()),
+                    agency_name: "Agency".into(),
+                    agency_url: "https://example.com".into(),
+                    agency_timezone: "UTC".into(),
                     agency_lang: None,
                     agency_phone: None,
                     agency_fare_url: None,

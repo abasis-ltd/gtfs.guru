@@ -115,13 +115,13 @@ impl Validator for PathwayReachableLocationValidator {
                 notice
                     .insert_context_field("stopName", location.stop_name.as_deref().unwrap_or(""));
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "hasEntrance".to_string(),
-                    "hasExit".to_string(),
-                    "locationType".to_string(),
-                    "parentStation".to_string(),
-                    "stopId".to_string(),
-                    "stopName".to_string(),
+                    "csvRowNumber".into(),
+                    "hasEntrance".into(),
+                    "hasExit".into(),
+                    "locationType".into(),
+                    "parentStation".into(),
+                    "stopId".into(),
+                    "stopName".into(),
                 ];
                 notices.push(notice);
             }
@@ -251,26 +251,26 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![
-                "stop_id".to_string(),
-                "location_type".to_string(),
-                "parent_station".to_string(),
+                "stop_id".into(),
+                "location_type".into(),
+                "parent_station".into(),
             ],
             rows: vec![
                 Stop {
-                    stop_id: "ST1".to_string(),
+                    stop_id: "ST1".into(),
                     location_type: Some(LocationType::Station),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "E1".to_string(),
+                    stop_id: "E1".into(),
                     location_type: Some(LocationType::EntranceOrExit),
-                    parent_station: Some("ST1".to_string()),
+                    parent_station: Some("ST1".into()),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "P1".to_string(),
+                    stop_id: "P1".into(),
                     location_type: Some(LocationType::StopOrPlatform),
-                    parent_station: Some("ST1".to_string()),
+                    parent_station: Some("ST1".into()),
                     ..Default::default()
                 },
             ],
@@ -279,15 +279,15 @@ mod tests {
         // Pathway from E1 to P1, but no way back or to an exit
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "is_bidirectional".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "is_bidirectional".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "PW1".to_string(),
-                from_stop_id: "E1".to_string(),
-                to_stop_id: "P1".to_string(),
+                pathway_id: "PW1".into(),
+                from_stop_id: "E1".into(),
+                to_stop_id: "P1".into(),
                 is_bidirectional: Bidirectional::Unidirectional,
                 ..Default::default()
             }],
@@ -315,26 +315,26 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![
-                "stop_id".to_string(),
-                "location_type".to_string(),
-                "parent_station".to_string(),
+                "stop_id".into(),
+                "location_type".into(),
+                "parent_station".into(),
             ],
             rows: vec![
                 Stop {
-                    stop_id: "ST1".to_string(),
+                    stop_id: "ST1".into(),
                     location_type: Some(LocationType::Station),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "E1".to_string(),
+                    stop_id: "E1".into(),
                     location_type: Some(LocationType::EntranceOrExit),
-                    parent_station: Some("ST1".to_string()),
+                    parent_station: Some("ST1".into()),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "P1".to_string(),
+                    stop_id: "P1".into(),
                     location_type: Some(LocationType::StopOrPlatform),
-                    parent_station: Some("ST1".to_string()),
+                    parent_station: Some("ST1".into()),
                     ..Default::default()
                 },
             ],
@@ -343,15 +343,15 @@ mod tests {
         // Bidirectional pathway between E1 and P1
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "is_bidirectional".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "is_bidirectional".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "PW1".to_string(),
-                from_stop_id: "E1".to_string(),
-                to_stop_id: "P1".to_string(),
+                pathway_id: "PW1".into(),
+                from_stop_id: "E1".into(),
+                to_stop_id: "P1".into(),
                 is_bidirectional: Bidirectional::Bidirectional,
                 ..Default::default()
             }],

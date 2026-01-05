@@ -79,11 +79,11 @@ fn validate_stop_type(
         notice.insert_context_field("stopId", stop_id);
         notice.insert_context_field("stopIdFieldName", field_name);
         notice.field_order = vec![
-            "csvRowNumber".to_string(),
-            "locationTypeName".to_string(),
-            "locationTypeValue".to_string(),
-            "stopId".to_string(),
-            "stopIdFieldName".to_string(),
+            "csvRowNumber".into(),
+            "locationTypeName".into(),
+            "locationTypeValue".into(),
+            "stopId".into(),
+            "stopIdFieldName".into(),
         ];
         notices.push(notice);
     }
@@ -128,15 +128,15 @@ mod tests {
     fn detects_invalid_stop_type_in_transfer() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     location_type: Some(LocationType::EntranceOrExit), // Invalid for transfer
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
@@ -144,10 +144,10 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.transfers = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -165,15 +165,15 @@ mod tests {
     fn passes_valid_stop_types_in_transfer() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "location_type".to_string()],
+            headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
+                    stop_id: "S2".into(),
                     location_type: Some(LocationType::Station),
                     ..Default::default()
                 },
@@ -181,10 +181,10 @@ mod tests {
             row_numbers: vec![2, 3],
         };
         feed.transfers = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string(), "to_stop_id".to_string()],
+            headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

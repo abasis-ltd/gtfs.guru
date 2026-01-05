@@ -84,12 +84,12 @@ fn missing_ref_notice(field: &str, id: &str, row_number: u64) -> ValidationNotic
     notice.insert_context_field("parentFieldName", "network_id");
     notice.insert_context_field("parentFilename", "routes.txt or networks.txt");
     notice.field_order = vec![
-        "childFieldName".to_string(),
-        "childFilename".to_string(),
-        "csvRowNumber".to_string(),
-        "fieldValue".to_string(),
-        "parentFieldName".to_string(),
-        "parentFilename".to_string(),
+        "childFieldName".into(),
+        "childFilename".into(),
+        "csvRowNumber".into(),
+        "fieldValue".into(),
+        "parentFieldName".into(),
+        "parentFilename".into(),
     ];
     notice
 }
@@ -104,9 +104,9 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("filename", FARE_LEG_JOIN_RULES_FILE);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -121,18 +121,18 @@ mod tests {
     fn detects_missing_network_id() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "network_id".to_string()],
+            headers: vec!["route_id".into(), "network_id".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                network_id: Some("N1".to_string()),
+                route_id: "R1".into(),
+                network_id: Some("N1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.fare_leg_join_rules = Some(CsvTable {
-            headers: vec!["from_network_id".to_string()],
+            headers: vec!["from_network_id".into()],
             rows: vec![FareLegJoinRule {
-                from_network_id: "UNKNOWN".to_string(),
+                from_network_id: "UNKNOWN".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -152,9 +152,9 @@ mod tests {
     fn detects_missing_required_stop_id() {
         let mut feed = GtfsFeed::default();
         feed.fare_leg_join_rules = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string()],
+            headers: vec!["from_stop_id".into()],
             rows: vec![FareLegJoinRule {
-                from_stop_id: Some("S1".to_string()),
+                from_stop_id: Some("S1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -174,23 +174,23 @@ mod tests {
     fn passes_valid_rule() {
         let mut feed = GtfsFeed::default();
         feed.networks = Some(CsvTable {
-            headers: vec!["network_id".to_string()],
+            headers: vec!["network_id".into()],
             rows: vec![Network {
-                network_id: "N1".to_string(),
+                network_id: "N1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.fare_leg_join_rules = Some(CsvTable {
             headers: vec![
-                "from_network_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "from_network_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![FareLegJoinRule {
-                from_network_id: "N1".to_string(),
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
+                from_network_id: "N1".into(),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

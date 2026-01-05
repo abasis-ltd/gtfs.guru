@@ -1,3 +1,4 @@
+use compact_str::CompactString;
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
@@ -40,11 +41,11 @@ impl Validator for UrlConsistencyValidator {
                     notice.insert_context_field("routeUrl", route_url);
                     notice.insert_context_field("agencyCsvRowNumber", agency.row_number);
                     notice.field_order = vec![
-                        "agencyCsvRowNumber".to_string(),
-                        "agencyName".to_string(),
-                        "routeCsvRowNumber".to_string(),
-                        "routeId".to_string(),
-                        "routeUrl".to_string(),
+                        "agencyCsvRowNumber".into(),
+                        "agencyName".into(),
+                        "routeCsvRowNumber".into(),
+                        "routeId".into(),
+                        "routeUrl".into(),
                     ];
                     notices.push(notice);
                 }
@@ -73,11 +74,11 @@ impl Validator for UrlConsistencyValidator {
                     notice.insert_context_field("stopUrl", stop_url);
                     notice.insert_context_field("agencyCsvRowNumber", agency.row_number);
                     notice.field_order = vec![
-                        "agencyCsvRowNumber".to_string(),
-                        "agencyName".to_string(),
-                        "stopCsvRowNumber".to_string(),
-                        "stopId".to_string(),
-                        "stopUrl".to_string(),
+                        "agencyCsvRowNumber".into(),
+                        "agencyName".into(),
+                        "stopCsvRowNumber".into(),
+                        "stopId".into(),
+                        "stopUrl".into(),
                     ];
                     notices.push(notice);
                 }
@@ -95,11 +96,11 @@ impl Validator for UrlConsistencyValidator {
                     notice.insert_context_field("routeId", route_entry.route_id.as_str());
                     notice.insert_context_field("routeCsvRowNumber", route_entry.row_number);
                     notice.field_order = vec![
-                        "routeCsvRowNumber".to_string(),
-                        "routeId".to_string(),
-                        "stopCsvRowNumber".to_string(),
-                        "stopId".to_string(),
-                        "stopUrl".to_string(),
+                        "routeCsvRowNumber".into(),
+                        "routeId".into(),
+                        "stopCsvRowNumber".into(),
+                        "stopId".into(),
+                        "stopUrl".into(),
                     ];
                     notices.push(notice);
                 }
@@ -152,13 +153,13 @@ fn routes_by_url(
 #[derive(Debug, Clone)]
 struct AgencyEntry {
     row_number: u64,
-    name: String,
+    name: CompactString,
 }
 
 #[derive(Debug, Clone)]
 struct RouteEntry {
     row_number: u64,
-    route_id: String,
+    route_id: CompactString,
 }
 
 #[cfg(test)]
@@ -172,29 +173,29 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
-                "agency_id".to_string(),
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
+                "agency_id".into(),
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
             ],
             rows: vec![Agency {
-                agency_id: Some("A1".to_string()),
-                agency_name: "Agency A".to_string(),
-                agency_url: "http://example.com/agency".to_string(),
+                agency_id: Some("A1".into()),
+                agency_name: "Agency A".into(),
+                agency_url: "http://example.com/agency".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.routes = CsvTable {
             headers: vec![
-                "route_id".to_string(),
-                "agency_id".to_string(),
-                "route_url".to_string(),
+                "route_id".into(),
+                "agency_id".into(),
+                "route_url".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                agency_id: Some("A1".to_string()),
-                route_url: Some("http://example.com/agency".to_string()), // Same as agency
+                route_id: "R1".into(),
+                agency_id: Some("A1".into()),
+                route_url: Some("http://example.com/agency".into()), // Same as agency
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -213,24 +214,24 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
-                "agency_id".to_string(),
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
+                "agency_id".into(),
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
             ],
             rows: vec![Agency {
-                agency_id: Some("A1".to_string()),
-                agency_name: "Agency A".to_string(),
-                agency_url: "http://example.com/agency".to_string(),
+                agency_id: Some("A1".into()),
+                agency_name: "Agency A".into(),
+                agency_url: "http://example.com/agency".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "stop_url".to_string()],
+            headers: vec!["stop_id".into(), "stop_url".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
-                stop_url: Some("http://example.com/agency".to_string()), // Same as agency
+                stop_id: "S1".into(),
+                stop_url: Some("http://example.com/agency".into()), // Same as agency
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -248,19 +249,19 @@ mod tests {
     fn detects_identical_stop_and_route_url() {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            headers: vec!["route_id".to_string(), "route_url".to_string()],
+            headers: vec!["route_id".into(), "route_url".into()],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                route_url: Some("http://example.com/route".to_string()),
+                route_id: "R1".into(),
+                route_url: Some("http://example.com/route".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "stop_url".to_string()],
+            headers: vec!["stop_id".into(), "stop_url".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
-                stop_url: Some("http://example.com/route".to_string()), // Same as route
+                stop_id: "S1".into(),
+                stop_url: Some("http://example.com/route".into()), // Same as route
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -279,38 +280,38 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
-                "agency_id".to_string(),
-                "agency_name".to_string(),
-                "agency_url".to_string(),
-                "agency_timezone".to_string(),
+                "agency_id".into(),
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
             ],
             rows: vec![Agency {
-                agency_id: Some("A1".to_string()),
-                agency_name: "Agency A".to_string(),
-                agency_url: "http://example.com/agency".to_string(),
+                agency_id: Some("A1".into()),
+                agency_name: "Agency A".into(),
+                agency_url: "http://example.com/agency".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.routes = CsvTable {
             headers: vec![
-                "route_id".to_string(),
-                "agency_id".to_string(),
-                "route_url".to_string(),
+                "route_id".into(),
+                "agency_id".into(),
+                "route_url".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".to_string(),
-                agency_id: Some("A1".to_string()),
-                route_url: Some("http://example.com/route".to_string()),
+                route_id: "R1".into(),
+                agency_id: Some("A1".into()),
+                route_url: Some("http://example.com/route".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string(), "stop_url".to_string()],
+            headers: vec!["stop_id".into(), "stop_url".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
-                stop_url: Some("http://example.com/stop".to_string()),
+                stop_id: "S1".into(),
+                stop_url: Some("http://example.com/stop".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

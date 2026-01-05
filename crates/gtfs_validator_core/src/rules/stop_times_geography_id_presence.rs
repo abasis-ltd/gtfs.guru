@@ -55,9 +55,9 @@ impl Validator for StopTimesGeographyIdPresenceValidator {
                 notice.insert_context_field("fieldName", "stop_id");
                 notice.insert_context_field("filename", STOP_TIMES_FILE);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "fieldName".to_string(),
-                    "filename".to_string(),
+                    "csvRowNumber".into(),
+                    "fieldName".into(),
+                    "filename".into(),
                 ];
                 notices.push(notice);
             } else if presence_count > 1 {
@@ -77,10 +77,10 @@ impl Validator for StopTimesGeographyIdPresenceValidator {
                 );
                 notice.insert_context_field("stopId", stop_time.stop_id.as_str());
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "locationGroupId".to_string(),
-                    "locationId".to_string(),
-                    "stopId".to_string(),
+                    "csvRowNumber".into(),
+                    "locationGroupId".into(),
+                    "locationId".into(),
+                    "stopId".into(),
                 ];
                 notices.push(notice);
             }
@@ -98,17 +98,17 @@ mod tests {
     fn detects_missing_geography_id() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_sequence".to_string()],
+            headers: vec!["trip_id".into(), "stop_sequence".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
-                stop_id: "".to_string(), // Empty
+                stop_id: "".into(), // Empty
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         // Add one of relevant headers to trigger validation
-        feed.stop_times.headers.push("stop_id".to_string());
+        feed.stop_times.headers.push("stop_id".into());
 
         let mut notices = NoticeContainer::new();
         StopTimesGeographyIdPresenceValidator.validate(&feed, &mut notices);
@@ -125,14 +125,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_id".to_string(),
-                "location_id".to_string(),
+                "trip_id".into(),
+                "stop_id".into(),
+                "location_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
-                location_id: Some("L1".to_string()),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
+                location_id: Some("L1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -152,10 +152,10 @@ mod tests {
     fn passes_valid_geography_id() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec!["trip_id".to_string(), "stop_id".to_string()],
+            headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
-                stop_id: "S1".to_string(),
+                trip_id: "T1".into(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

@@ -32,9 +32,9 @@ impl Validator for PathwayLoopValidator {
                 notice.insert_context_field("pathwayId", pathway.pathway_id.as_str());
                 notice.insert_context_field("stopId", from_id);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "pathwayId".to_string(),
-                    "stopId".to_string(),
+                    "csvRowNumber".into(),
+                    "pathwayId".into(),
+                    "stopId".into(),
                 ];
                 notices.push(notice);
             }
@@ -53,14 +53,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
-                from_stop_id: "S1".to_string(),
-                to_stop_id: "S1".to_string(),
+                pathway_id: "P1".into(),
+                from_stop_id: "S1".into(),
+                to_stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -78,14 +78,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
-                from_stop_id: "S1".to_string(),
-                to_stop_id: "S2".to_string(),
+                pathway_id: "P1".into(),
+                from_stop_id: "S1".into(),
+                to_stop_id: "S2".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],

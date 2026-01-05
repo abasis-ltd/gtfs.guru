@@ -52,9 +52,9 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("filename", TRANSFERS_FILE);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -74,9 +74,9 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             headers: vec![
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "transfer_type".to_string(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "transfer_type".into(),
             ],
             rows: vec![Transfer {
                 from_stop_id: None, // Missing
@@ -104,9 +104,9 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             headers: vec![
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "transfer_type".to_string(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "transfer_type".into(),
             ],
             rows: vec![Transfer {
                 from_stop_id: None,
@@ -128,13 +128,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             headers: vec![
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
-                "transfer_type".to_string(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "transfer_type".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".to_string()),
-                to_stop_id: Some("S2".to_string()),
+                from_stop_id: Some("S1".into()),
+                to_stop_id: Some("S2".into()),
                 transfer_type: Some(TransferType::Recommended),
                 ..Default::default()
             }],

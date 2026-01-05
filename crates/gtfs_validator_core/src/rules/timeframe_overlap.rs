@@ -61,12 +61,12 @@ impl Validator for TimeframeOverlapValidator {
                     notice.insert_context_field("serviceId", service_id);
                     notice.insert_context_field("timeframeGroupId", group_id);
                     notice.field_order = vec![
-                        "currCsvRowNumber".to_string(),
-                        "currStartTime".to_string(),
-                        "prevCsvRowNumber".to_string(),
-                        "prevEndTime".to_string(),
-                        "serviceId".to_string(),
-                        "timeframeGroupId".to_string(),
+                        "currCsvRowNumber".into(),
+                        "currStartTime".into(),
+                        "prevCsvRowNumber".into(),
+                        "prevEndTime".into(),
+                        "serviceId".into(),
+                        "timeframeGroupId".into(),
                     ];
                     notices.push(notice);
                     break;
@@ -87,24 +87,24 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.timeframes = Some(CsvTable {
             headers: vec![
-                "timeframe_group_id".to_string(),
-                "start_time".to_string(),
-                "end_time".to_string(),
-                "service_id".to_string(),
+                "timeframe_group_id".into(),
+                "start_time".into(),
+                "end_time".into(),
+                "service_id".into(),
             ],
             rows: vec![
                 Timeframe {
-                    timeframe_group_id: Some("G1".to_string()),
+                    timeframe_group_id: Some("G1".into()),
                     start_time: Some(GtfsTime::from_seconds(3600)),
                     end_time: Some(GtfsTime::from_seconds(7200)),
-                    service_id: "S1".to_string(),
+                    service_id: "S1".into(),
                     ..Default::default()
                 },
                 Timeframe {
-                    timeframe_group_id: Some("G1".to_string()),
+                    timeframe_group_id: Some("G1".into()),
                     start_time: Some(GtfsTime::from_seconds(7000)), // Overlaps
                     end_time: Some(GtfsTime::from_seconds(10000)),
-                    service_id: "S1".to_string(),
+                    service_id: "S1".into(),
                     ..Default::default()
                 },
             ],
@@ -123,24 +123,24 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.timeframes = Some(CsvTable {
             headers: vec![
-                "timeframe_group_id".to_string(),
-                "start_time".to_string(),
-                "end_time".to_string(),
-                "service_id".to_string(),
+                "timeframe_group_id".into(),
+                "start_time".into(),
+                "end_time".into(),
+                "service_id".into(),
             ],
             rows: vec![
                 Timeframe {
-                    timeframe_group_id: Some("G1".to_string()),
+                    timeframe_group_id: Some("G1".into()),
                     start_time: Some(GtfsTime::from_seconds(3600)),
                     end_time: Some(GtfsTime::from_seconds(7200)),
-                    service_id: "S1".to_string(),
+                    service_id: "S1".into(),
                     ..Default::default()
                 },
                 Timeframe {
-                    timeframe_group_id: Some("G1".to_string()),
+                    timeframe_group_id: Some("G1".into()),
                     start_time: Some(GtfsTime::from_seconds(7200)), // Starts at end of previous
                     end_time: Some(GtfsTime::from_seconds(10000)),
-                    service_id: "S1".to_string(),
+                    service_id: "S1".into(),
                     ..Default::default()
                 },
             ],

@@ -43,9 +43,9 @@ impl Validator for FareAttributeAgencyIdValidator {
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", FARE_ATTRIBUTES_FILE);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "fieldName".to_string(),
-                    "filename".to_string(),
+                    "csvRowNumber".into(),
+                    "fieldName".into(),
+                    "filename".into(),
                 ];
                 notices.push(notice);
             }
@@ -67,17 +67,17 @@ mod tests {
     fn emits_warning_when_single_agency_missing_id() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_name".to_string()],
+            headers: vec!["agency_name".into()],
             rows: vec![Agency {
-                agency_name: "Agency".to_string(),
+                agency_name: "Agency".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.fare_attributes = Some(CsvTable {
-            headers: vec!["fare_id".to_string()],
+            headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".to_string(),
+                fare_id: "F1".into(),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -98,23 +98,23 @@ mod tests {
     fn emits_error_when_multiple_agencies_missing_id() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_name".to_string()],
+            headers: vec!["agency_name".into()],
             rows: vec![
                 Agency {
-                    agency_name: "Agency1".to_string(),
+                    agency_name: "Agency1".into(),
                     ..Default::default()
                 },
                 Agency {
-                    agency_name: "Agency2".to_string(),
+                    agency_name: "Agency2".into(),
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
         feed.fare_attributes = Some(CsvTable {
-            headers: vec!["fare_id".to_string()],
+            headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".to_string(),
+                fare_id: "F1".into(),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -135,19 +135,19 @@ mod tests {
     fn passes_when_agency_id_present() {
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            headers: vec!["agency_id".to_string(), "agency_name".to_string()],
+            headers: vec!["agency_id".into(), "agency_name".into()],
             rows: vec![Agency {
-                agency_id: Some("A1".to_string()),
-                agency_name: "Agency".to_string(),
+                agency_id: Some("A1".into()),
+                agency_name: "Agency".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.fare_attributes = Some(CsvTable {
-            headers: vec!["fare_id".to_string(), "agency_id".to_string()],
+            headers: vec!["fare_id".into(), "agency_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".to_string(),
-                agency_id: Some("A1".to_string()),
+                fare_id: "F1".into(),
+                agency_id: Some("A1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

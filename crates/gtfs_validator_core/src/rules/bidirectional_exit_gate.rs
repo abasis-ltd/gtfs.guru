@@ -34,9 +34,9 @@ impl Validator for BidirectionalExitGateValidator {
                 notice
                     .insert_context_field("pathwayMode", pathway_mode_value(pathway.pathway_mode));
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "isBidirectional".to_string(),
-                    "pathwayMode".to_string(),
+                    "csvRowNumber".into(),
+                    "isBidirectional".into(),
+                    "pathwayMode".into(),
                 ];
                 notices.push(notice);
             }
@@ -75,9 +75,9 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
             rows: vec![gtfs_guru_model::Pathway {
-                pathway_id: "P1".to_string(),
-                from_stop_id: "STOP1".to_string(),
-                to_stop_id: "STOP2".to_string(),
+                pathway_id: "P1".into(),
+                from_stop_id: "STOP1".into(),
+                to_stop_id: "STOP2".into(),
                 pathway_mode: PathwayMode::ExitGate,
                 is_bidirectional: Bidirectional::Bidirectional,
                 length: None,
@@ -107,9 +107,9 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
             rows: vec![gtfs_guru_model::Pathway {
-                pathway_id: "P1".to_string(),
-                from_stop_id: "STOP1".to_string(),
-                to_stop_id: "STOP2".to_string(),
+                pathway_id: "P1".into(),
+                from_stop_id: "STOP1".into(),
+                to_stop_id: "STOP2".into(),
                 pathway_mode: PathwayMode::Walkway,
                 is_bidirectional: Bidirectional::Bidirectional,
                 length: None,

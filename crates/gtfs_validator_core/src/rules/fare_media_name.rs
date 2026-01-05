@@ -34,9 +34,9 @@ impl Validator for FareMediaNameValidator {
                 );
                 notice.set_location(FARE_MEDIA_FILE, "fare_media_name", row_number);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "fieldName".to_string(),
-                    "filename".to_string(),
+                    "csvRowNumber".into(),
+                    "fieldName".into(),
+                    "filename".into(),
                 ];
                 notices.push(notice);
             }
@@ -61,9 +61,9 @@ mod tests {
     fn emits_warning_when_name_missing_for_transit_card() {
         let mut feed = GtfsFeed::default();
         feed.fare_media = Some(CsvTable {
-            headers: vec!["fare_media_id".to_string(), "fare_media_type".to_string()],
+            headers: vec!["fare_media_id".into(), "fare_media_type".into()],
             rows: vec![FareMedia {
-                fare_media_id: "M1".to_string(),
+                fare_media_id: "M1".into(),
                 fare_media_type: FareMediaType::TransitCard,
                 fare_media_name: None,
             }],
@@ -85,14 +85,14 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_media = Some(CsvTable {
             headers: vec![
-                "fare_media_id".to_string(),
-                "fare_media_type".to_string(),
-                "fare_media_name".to_string(),
+                "fare_media_id".into(),
+                "fare_media_type".into(),
+                "fare_media_name".into(),
             ],
             rows: vec![FareMedia {
-                fare_media_id: "M1".to_string(),
+                fare_media_id: "M1".into(),
                 fare_media_type: FareMediaType::TransitCard,
-                fare_media_name: Some("Pass".to_string()),
+                fare_media_name: Some("Pass".into()),
             }],
             row_numbers: vec![2],
         });
@@ -107,9 +107,9 @@ mod tests {
     fn passes_when_name_missing_for_other_type() {
         let mut feed = GtfsFeed::default();
         feed.fare_media = Some(CsvTable {
-            headers: vec!["fare_media_id".to_string(), "fare_media_type".to_string()],
+            headers: vec!["fare_media_id".into(), "fare_media_type".into()],
             rows: vec![FareMedia {
-                fare_media_id: "M1".to_string(),
+                fare_media_id: "M1".into(),
                 fare_media_type: FareMediaType::NoneType,
                 fare_media_name: None,
             }],

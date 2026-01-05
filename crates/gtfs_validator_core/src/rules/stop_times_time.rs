@@ -53,10 +53,10 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
                     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
                     notice.insert_context_field("tripId", trip_id);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "specifiedField".to_string(),
-                        "stopSequence".to_string(),
-                        "tripId".to_string(),
+                        "csvRowNumber".into(),
+                        "specifiedField".into(),
+                        "stopSequence".into(),
+                        "tripId".into(),
                     ];
                     notices.push(notice);
                 }
@@ -76,11 +76,11 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
                         notice.insert_context_field("prevCsvRowNumber", prev_row_number);
                         notice.insert_context_field("tripId", trip_id);
                         notice.field_order = vec![
-                            "arrivalTime".to_string(),
-                            "csvRowNumber".to_string(),
-                            "departureTime".to_string(),
-                            "prevCsvRowNumber".to_string(),
-                            "tripId".to_string(),
+                            "arrivalTime".into(),
+                            "csvRowNumber".into(),
+                            "departureTime".into(),
+                            "prevCsvRowNumber".into(),
+                            "tripId".into(),
                         ];
                         notices.push(notice);
                     }
@@ -129,9 +129,9 @@ impl Validator for TimepointTimeValidator {
                 notice.insert_context_field("stopSequence", stop_time.stop_sequence);
                 notice.insert_context_field("tripId", trip_id);
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "stopSequence".to_string(),
-                    "tripId".to_string(),
+                    "csvRowNumber".into(),
+                    "stopSequence".into(),
+                    "tripId".into(),
                 ];
                 notices.push(notice);
             }
@@ -148,10 +148,10 @@ impl Validator for TimepointTimeValidator {
                     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
                     notice.insert_context_field("tripId", trip_id);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "specifiedField".to_string(),
-                        "stopSequence".to_string(),
-                        "tripId".to_string(),
+                        "csvRowNumber".into(),
+                        "specifiedField".into(),
+                        "stopSequence".into(),
+                        "tripId".into(),
                     ];
                     notices.push(notice);
                 }
@@ -166,10 +166,10 @@ impl Validator for TimepointTimeValidator {
                     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
                     notice.insert_context_field("tripId", trip_id);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "specifiedField".to_string(),
-                        "stopSequence".to_string(),
-                        "tripId".to_string(),
+                        "csvRowNumber".into(),
+                        "specifiedField".into(),
+                        "stopSequence".into(),
+                        "tripId".into(),
                     ];
                     notices.push(notice);
                 }
@@ -189,12 +189,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "arrival_time".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "arrival_time".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 arrival_time: Some(GtfsTime::from_seconds(3600)),
                 departure_time: None,
@@ -216,21 +216,21 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "arrival_time".to_string(),
-                "departure_time".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "arrival_time".into(),
+                "departure_time".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(3650)), // Before 3700
                     departure_time: Some(GtfsTime::from_seconds(3800)),
@@ -253,12 +253,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "timepoint".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "timepoint".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 timepoint: Some(Timepoint::Exact),
                 arrival_time: None,
@@ -281,13 +281,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "arrival_time".to_string(),
-                "timepoint".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "arrival_time".into(),
+                "timepoint".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 arrival_time: Some(GtfsTime::from_seconds(3600)),
                 departure_time: Some(GtfsTime::from_seconds(3600)),
@@ -310,15 +310,15 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "arrival_time".to_string(),
-                "departure_time".to_string(),
-                "timepoint".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "arrival_time".into(),
+                "departure_time".into(),
+                "timepoint".into(),
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
@@ -326,7 +326,7 @@ mod tests {
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: Some(GtfsTime::from_seconds(4100)),

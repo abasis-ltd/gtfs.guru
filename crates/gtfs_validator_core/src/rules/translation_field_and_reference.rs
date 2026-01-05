@@ -174,9 +174,9 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("filename", TRANSLATIONS_FILE);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -195,9 +195,9 @@ fn translation_unexpected_value_notice(
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("fieldValue", value);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldValue".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
     ];
     notice
 }
@@ -210,7 +210,7 @@ fn translation_unknown_table_notice(table_name: &str, row_number: u64) -> Valida
     );
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("tableName", table_name);
-    notice.field_order = vec!["csvRowNumber".to_string(), "tableName".to_string()];
+    notice.field_order = vec!["csvRowNumber".into(), "tableName".into()];
     notice
 }
 
@@ -230,10 +230,10 @@ fn translation_foreign_key_violation_notice(
     notice.insert_context_field("recordSubId", record_sub_id.unwrap_or(""));
     notice.insert_context_field("tableName", table_name);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "recordId".to_string(),
-        "recordSubId".to_string(),
-        "tableName".to_string(),
+        "csvRowNumber".into(),
+        "recordId".into(),
+        "recordSubId".into(),
+        "tableName".into(),
     ];
     notice
 }
@@ -564,21 +564,21 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.translations = Some(CsvTable {
             headers: vec![
-                "table_name".to_string(),
-                "field_name".to_string(),
-                "language".to_string(),
+                "table_name".into(),
+                "field_name".into(),
+                "language".into(),
             ],
             rows: vec![
                 Translation {
-                    table_name: "stops".to_string(),
-                    field_name: "stop_name".to_string(),
-                    language: "".to_string(), // Missing language
+                    table_name: "stops".into(),
+                    field_name: "stop_name".into(),
+                    language: "".into(), // Missing language
                     ..Default::default()
                 },
                 Translation {
-                    table_name: "".to_string(), // Missing table_name
-                    field_name: "stop_name".to_string(),
-                    language: "en".to_string(),
+                    table_name: "".into(), // Missing table_name
+                    field_name: "stop_name".into(),
+                    language: "en".into(),
                     ..Default::default()
                 },
             ],
@@ -602,16 +602,16 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.translations = Some(CsvTable {
             headers: vec![
-                "table_name".to_string(),
-                "field_name".to_string(),
-                "language".to_string(),
-                "record_id".to_string(),
+                "table_name".into(),
+                "field_name".into(),
+                "language".into(),
+                "record_id".into(),
             ],
             rows: vec![Translation {
-                table_name: "unknown_table".to_string(),
-                field_name: "field".to_string(),
-                language: "en".to_string(),
-                record_id: Some("1".to_string()),
+                table_name: "unknown_table".into(),
+                field_name: "field".into(),
+                language: "en".into(),
+                record_id: Some("1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -629,25 +629,25 @@ mod tests {
     fn detects_foreign_key_violation() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             ..Default::default()
         };
         feed.translations = Some(CsvTable {
             headers: vec![
-                "table_name".to_string(),
-                "field_name".to_string(),
-                "language".to_string(),
-                "record_id".to_string(),
+                "table_name".into(),
+                "field_name".into(),
+                "language".into(),
+                "record_id".into(),
             ],
             rows: vec![Translation {
-                table_name: "stops".to_string(),
-                field_name: "stop_name".to_string(),
-                language: "en".to_string(),
-                record_id: Some("S2".to_string()), // Does not exist
+                table_name: "stops".into(),
+                field_name: "stop_name".into(),
+                language: "en".into(),
+                record_id: Some("S2".into()), // Does not exist
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -665,25 +665,25 @@ mod tests {
     fn passes_valid_translation() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 ..Default::default()
             }],
             ..Default::default()
         };
         feed.translations = Some(CsvTable {
             headers: vec![
-                "table_name".to_string(),
-                "field_name".to_string(),
-                "language".to_string(),
-                "record_id".to_string(),
+                "table_name".into(),
+                "field_name".into(),
+                "language".into(),
+                "record_id".into(),
             ],
             rows: vec![Translation {
-                table_name: "stops".to_string(),
-                field_name: "stop_name".to_string(),
-                language: "en".to_string(),
-                record_id: Some("S1".to_string()),
+                table_name: "stops".into(),
+                field_name: "stop_name".into(),
+                language: "en".into(),
+                record_id: Some("S1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

@@ -58,11 +58,11 @@ impl Validator for OverlappingFrequencyValidator {
                     notice.insert_context_field("prevEndTime", prev.end_time);
                     notice.insert_context_field("tripId", curr.trip_id.as_str());
                     notice.field_order = vec![
-                        "currCsvRowNumber".to_string(),
-                        "currStartTime".to_string(),
-                        "prevCsvRowNumber".to_string(),
-                        "prevEndTime".to_string(),
-                        "tripId".to_string(),
+                        "currCsvRowNumber".into(),
+                        "currStartTime".into(),
+                        "prevCsvRowNumber".into(),
+                        "prevEndTime".into(),
+                        "tripId".into(),
                     ];
                     notices.push(notice);
                 }
@@ -82,21 +82,21 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_time".to_string(),
-                "end_time".to_string(),
-                "headway_secs".to_string(),
+                "trip_id".into(),
+                "start_time".into(),
+                "end_time".into(),
+                "headway_secs".into(),
             ],
             rows: vec![
                 Frequency {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     start_time: GtfsTime::from_seconds(3600),
                     end_time: GtfsTime::from_seconds(7200),
                     headway_secs: 300,
                     ..Default::default()
                 },
                 Frequency {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     start_time: GtfsTime::from_seconds(7000), // Overlaps
                     end_time: GtfsTime::from_seconds(10000),
                     headway_secs: 300,
@@ -121,21 +121,21 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_time".to_string(),
-                "end_time".to_string(),
-                "headway_secs".to_string(),
+                "trip_id".into(),
+                "start_time".into(),
+                "end_time".into(),
+                "headway_secs".into(),
             ],
             rows: vec![
                 Frequency {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     start_time: GtfsTime::from_seconds(3600),
                     end_time: GtfsTime::from_seconds(7200),
                     headway_secs: 300,
                     ..Default::default()
                 },
                 Frequency {
-                    trip_id: "T1".to_string(),
+                    trip_id: "T1".into(),
                     start_time: GtfsTime::from_seconds(7200), // Starts at end of previous
                     end_time: GtfsTime::from_seconds(10000),
                     headway_secs: 300,

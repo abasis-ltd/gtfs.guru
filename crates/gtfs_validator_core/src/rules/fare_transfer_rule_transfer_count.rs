@@ -55,7 +55,7 @@ fn invalid_transfer_count_notice(row_number: u64, transfer_count: i32) -> Valida
     );
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("transferCount", transfer_count);
-    notice.field_order = vec!["csvRowNumber".to_string(), "transferCount".to_string()];
+    notice.field_order = vec!["csvRowNumber".into(), "transferCount".into()];
     notice
 }
 
@@ -66,7 +66,7 @@ fn missing_transfer_count_notice(row_number: u64) -> ValidationNotice {
         "transfer_count is required when from_leg_group_id equals to_leg_group_id",
     );
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.field_order = vec!["csvRowNumber".to_string()];
+    notice.field_order = vec!["csvRowNumber".into()];
     notice
 }
 
@@ -77,7 +77,7 @@ fn forbidden_transfer_count_notice(row_number: u64) -> ValidationNotice {
         "transfer_count is forbidden when leg group ids differ",
     );
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.field_order = vec!["csvRowNumber".to_string()];
+    notice.field_order = vec!["csvRowNumber".into()];
     notice
 }
 
@@ -92,13 +92,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
             headers: vec![
-                "from_leg_group_id".to_string(),
-                "to_leg_group_id".to_string(),
-                "transfer_count".to_string(),
+                "from_leg_group_id".into(),
+                "to_leg_group_id".into(),
+                "transfer_count".into(),
             ],
             rows: vec![FareTransferRule {
-                from_leg_group_id: Some("G1".to_string()),
-                to_leg_group_id: Some("G1".to_string()),
+                from_leg_group_id: Some("G1".into()),
+                to_leg_group_id: Some("G1".into()),
                 transfer_count: Some(0),
                 ..Default::default()
             }],
@@ -120,12 +120,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
             headers: vec![
-                "from_leg_group_id".to_string(),
-                "to_leg_group_id".to_string(),
+                "from_leg_group_id".into(),
+                "to_leg_group_id".into(),
             ],
             rows: vec![FareTransferRule {
-                from_leg_group_id: Some("G1".to_string()),
-                to_leg_group_id: Some("G1".to_string()),
+                from_leg_group_id: Some("G1".into()),
+                to_leg_group_id: Some("G1".into()),
                 transfer_count: None,
                 ..Default::default()
             }],
@@ -147,13 +147,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
             headers: vec![
-                "from_leg_group_id".to_string(),
-                "to_leg_group_id".to_string(),
-                "transfer_count".to_string(),
+                "from_leg_group_id".into(),
+                "to_leg_group_id".into(),
+                "transfer_count".into(),
             ],
             rows: vec![FareTransferRule {
-                from_leg_group_id: Some("G1".to_string()),
-                to_leg_group_id: Some("G2".to_string()),
+                from_leg_group_id: Some("G1".into()),
+                to_leg_group_id: Some("G2".into()),
                 transfer_count: Some(1),
                 ..Default::default()
             }],
@@ -175,20 +175,20 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
             headers: vec![
-                "from_leg_group_id".to_string(),
-                "to_leg_group_id".to_string(),
-                "transfer_count".to_string(),
+                "from_leg_group_id".into(),
+                "to_leg_group_id".into(),
+                "transfer_count".into(),
             ],
             rows: vec![
                 FareTransferRule {
-                    from_leg_group_id: Some("G1".to_string()),
-                    to_leg_group_id: Some("G1".to_string()),
+                    from_leg_group_id: Some("G1".into()),
+                    to_leg_group_id: Some("G1".into()),
                     transfer_count: Some(1),
                     ..Default::default()
                 },
                 FareTransferRule {
-                    from_leg_group_id: Some("G1".to_string()),
-                    to_leg_group_id: Some("G2".to_string()),
+                    from_leg_group_id: Some("G1".into()),
+                    to_leg_group_id: Some("G2".into()),
                     transfer_count: None,
                     ..Default::default()
                 },

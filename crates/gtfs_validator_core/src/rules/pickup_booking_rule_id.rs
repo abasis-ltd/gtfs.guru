@@ -87,9 +87,9 @@ fn missing_booking_rule_notice(
     );
     notice.insert_context_field("pickupType", pickup_drop_off_value(stop_time.pickup_type));
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "dropOffType".to_string(),
-        "pickupType".to_string(),
+        "csvRowNumber".into(),
+        "dropOffType".into(),
+        "pickupType".into(),
     ];
     notice
 }
@@ -117,12 +117,12 @@ mod tests {
         feed.booking_rules = Some(CsvTable::default());
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "start_pickup_drop_off_window".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_booking_rule_id: None,
@@ -145,12 +145,12 @@ mod tests {
         feed.booking_rules = Some(CsvTable::default());
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "end_pickup_drop_off_window".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "end_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 end_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 drop_off_booking_rule_id: None,
@@ -173,16 +173,16 @@ mod tests {
         feed.booking_rules = Some(CsvTable::default());
         feed.stop_times = CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "stop_sequence".to_string(),
-                "start_pickup_drop_off_window".to_string(),
-                "pickup_booking_rule_id".to_string(),
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "start_pickup_drop_off_window".into(),
+                "pickup_booking_rule_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
-                pickup_booking_rule_id: Some("B1".to_string()),
+                pickup_booking_rule_id: Some("B1".into()),
                 ..Default::default()
             }],
             row_numbers: vec![2],

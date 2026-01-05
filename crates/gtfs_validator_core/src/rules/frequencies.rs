@@ -15,12 +15,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_time".to_string(),
-                "end_time".to_string(),
+                "trip_id".into(),
+                "start_time".into(),
+                "end_time".into(),
             ],
             rows: vec![Frequency {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 start_time: GtfsTime::parse("10:00:00").unwrap(),
                 end_time: GtfsTime::parse("08:00:00").unwrap(),
                 headway_secs: 600,
@@ -44,12 +44,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_time".to_string(),
-                "end_time".to_string(),
+                "trip_id".into(),
+                "start_time".into(),
+                "end_time".into(),
             ],
             rows: vec![Frequency {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),
                 end_time: GtfsTime::parse("08:00:00").unwrap(),
                 headway_secs: 600,
@@ -73,12 +73,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
             headers: vec![
-                "trip_id".to_string(),
-                "start_time".to_string(),
-                "end_time".to_string(),
+                "trip_id".into(),
+                "start_time".into(),
+                "end_time".into(),
             ],
             rows: vec![Frequency {
-                trip_id: "T1".to_string(),
+                trip_id: "T1".into(),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),
                 end_time: GtfsTime::parse("10:00:00").unwrap(),
                 headway_secs: 600,
@@ -125,13 +125,13 @@ impl Validator for FrequenciesValidator {
                     notice.insert_context_field("startFieldName", "start_time");
                     notice.insert_context_field("startValue", start_value);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "endFieldName".to_string(),
-                        "endValue".to_string(),
-                        "entityId".to_string(),
-                        "filename".to_string(),
-                        "startFieldName".to_string(),
-                        "startValue".to_string(),
+                        "csvRowNumber".into(),
+                        "endFieldName".into(),
+                        "endValue".into(),
+                        "entityId".into(),
+                        "filename".into(),
+                        "startFieldName".into(),
+                        "startValue".into(),
                     ];
                     notices.push(notice);
                 } else if start == end {
@@ -147,12 +147,12 @@ impl Validator for FrequenciesValidator {
                     notice.insert_context_field("startFieldName", "start_time");
                     notice.insert_context_field("value", start_value);
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "endFieldName".to_string(),
-                        "entityId".to_string(),
-                        "filename".to_string(),
-                        "startFieldName".to_string(),
-                        "value".to_string(),
+                        "csvRowNumber".into(),
+                        "endFieldName".into(),
+                        "entityId".into(),
+                        "filename".into(),
+                        "startFieldName".into(),
+                        "value".into(),
                     ];
                     notices.push(notice);
                 }

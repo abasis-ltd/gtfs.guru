@@ -27,11 +27,8 @@ impl Validator for PathwaysValidator {
                         "pathway length is missing",
                     );
                     notice.set_location(PATHWAYS_FILE, "length", row_number);
-                    notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "fieldName".to_string(),
-                        "filename".to_string(),
-                    ];
+                    notice.field_order =
+                        vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                     notices.push(notice);
                 }
 
@@ -56,11 +53,8 @@ impl Validator for PathwaysValidator {
                         "stair_count should be provided for stairs",
                     );
                     notice.set_location(PATHWAYS_FILE, "stair_count", row_number);
-                    notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "fieldName".to_string(),
-                        "filename".to_string(),
-                    ];
+                    notice.field_order =
+                        vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                     notices.push(notice);
                 }
             }
@@ -83,11 +77,11 @@ fn number_out_of_range_notice(
     notice.insert_context_field("fieldType", field_type);
     notice.insert_context_field("fieldValue", field_value);
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "fieldType".to_string(),
-        "fieldValue".to_string(),
-        "filename".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldType".into(),
+        "fieldValue".into(),
+        "filename".into(),
     ];
     notice
 }
@@ -100,11 +94,12 @@ mod tests {
 
     #[test]
     fn detects_missing_length_for_non_exit_gate() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
-            headers: vec!["pathway_id".to_string(), "pathway_mode".to_string()],
+            headers: vec!["pathway_id".into(), "pathway_mode".into()],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
+                pathway_id: "P1".into(),
                 pathway_mode: PathwayMode::Walkway,
                 length: None,
                 ..Default::default()
@@ -124,9 +119,9 @@ mod tests {
     fn detects_zero_traversal_time() {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
-            headers: vec!["pathway_id".to_string(), "traversal_time".to_string()],
+            headers: vec!["pathway_id".into(), "traversal_time".into()],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
+                pathway_id: "P1".into(),
                 traversal_time: Some(0),
                 ..Default::default()
             }],
@@ -141,11 +136,12 @@ mod tests {
 
     #[test]
     fn detects_missing_stair_count_for_stairs() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
-            headers: vec!["pathway_id".to_string(), "pathway_mode".to_string()],
+            headers: vec!["pathway_id".into(), "pathway_mode".into()],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
+                pathway_id: "P1".into(),
                 pathway_mode: PathwayMode::Stairs,
                 stair_count: None,
                 ..Default::default()
@@ -169,13 +165,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "pathway_mode".to_string(),
-                "length".to_string(),
-                "traversal_time".to_string(),
+                "pathway_id".into(),
+                "pathway_mode".into(),
+                "length".into(),
+                "traversal_time".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
+                pathway_id: "P1".into(),
                 pathway_mode: PathwayMode::Walkway,
                 length: Some(10.0),
                 traversal_time: Some(5),

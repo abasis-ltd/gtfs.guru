@@ -33,9 +33,9 @@ impl Validator for StopsValidator {
                     .insert_context_field("locationType", location_type_label(stop.location_type));
                 notice.insert_context_field("stopId", stop.stop_id.as_str());
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "locationType".to_string(),
-                    "stopId".to_string(),
+                    "csvRowNumber".into(),
+                    "locationType".into(),
+                    "stopId".into(),
                 ];
                 notices.push(notice);
             }
@@ -51,9 +51,9 @@ impl Validator for StopsValidator {
                     .insert_context_field("locationType", location_type_label(stop.location_type));
                 notice.insert_context_field("stopId", stop.stop_id.as_str());
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "locationType".to_string(),
-                    "stopId".to_string(),
+                    "csvRowNumber".into(),
+                    "locationType".into(),
+                    "stopId".into(),
                 ];
                 notices.push(notice);
             }
@@ -69,9 +69,9 @@ impl Validator for StopsValidator {
                     notice.insert_context_field("stopId", stop.stop_id.as_str());
                     notice.insert_context_field("stopDesc", desc.as_str());
                     notice.field_order = vec![
-                        "csvRowNumber".to_string(),
-                        "stopDesc".to_string(),
-                        "stopId".to_string(),
+                        "csvRowNumber".into(),
+                        "stopDesc".into(),
+                        "stopId".into(),
                     ];
                     notices.push(notice);
                 }
@@ -113,9 +113,9 @@ mod tests {
     fn detects_missing_stop_name() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 stop_name: None,
                 stop_lat: Some(40.0),
                 stop_lon: Some(-74.0),
@@ -136,10 +136,10 @@ mod tests {
     fn detects_stop_without_location() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
-                stop_name: Some("Main St".to_string()),
+                stop_id: "S1".into(),
+                stop_name: Some("Main St".into()),
                 stop_lat: None,
                 stop_lon: None,
                 location_type: Some(LocationType::StopOrPlatform),
@@ -162,11 +162,11 @@ mod tests {
     fn detects_same_name_and_description() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
-                stop_name: Some("Main St".to_string()),
-                stop_desc: Some("Main St".to_string()),
+                stop_id: "S1".into(),
+                stop_name: Some("Main St".into()),
+                stop_desc: Some("Main St".into()),
                 stop_lat: Some(40.0),
                 stop_lon: Some(-74.0),
                 ..Default::default()
@@ -188,10 +188,10 @@ mod tests {
     fn passes_with_valid_stop() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
-                stop_name: Some("Main St".to_string()),
+                stop_id: "S1".into(),
+                stop_name: Some("Main St".into()),
                 stop_lat: Some(40.0),
                 stop_lon: Some(-74.0),
                 ..Default::default()
@@ -209,9 +209,9 @@ mod tests {
     fn generic_node_does_not_require_name() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 stop_name: None,
                 stop_lat: None,
                 stop_lon: None,

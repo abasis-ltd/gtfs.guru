@@ -71,9 +71,9 @@ impl Validator for MissingLevelIdValidator {
                 notice.insert_context_field("stopId", stop_id);
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                 notice.field_order = vec![
-                    "csvRowNumber".to_string(),
-                    "stopId".to_string(),
-                    "stopName".to_string(),
+                    "csvRowNumber".into(),
+                    "stopId".into(),
+                    "stopName".into(),
                 ];
                 notices.push(notice);
             }
@@ -91,38 +91,38 @@ mod tests {
     fn detects_missing_level_id_when_levels_present() {
         let mut feed = GtfsFeed::default();
         feed.levels = Some(CsvTable {
-            headers: vec!["level_id".to_string()],
+            headers: vec!["level_id".into()],
             rows: vec![Level {
-                level_id: "L1".to_string(),
+                level_id: "L1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.pathways = Some(CsvTable {
             headers: vec![
-                "pathway_id".to_string(),
-                "from_stop_id".to_string(),
-                "to_stop_id".to_string(),
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".to_string(),
-                from_stop_id: "S1".to_string(),
-                to_stop_id: "S2".to_string(),
+                pathway_id: "P1".into(),
+                from_stop_id: "S1".into(),
+                to_stop_id: "S2".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".to_string(),
+                    stop_id: "S1".into(),
                     level_id: None,
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".to_string(),
-                    level_id: Some("L1".to_string()),
+                    stop_id: "S2".into(),
+                    level_id: Some("L1".into()),
                     ..Default::default()
                 },
             ],
@@ -145,17 +145,17 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.levels = None;
         feed.pathways = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string()],
+            headers: vec!["from_stop_id".into()],
             rows: vec![Pathway {
-                from_stop_id: "S1".to_string(),
+                from_stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".to_string(),
+                stop_id: "S1".into(),
                 level_id: None,
                 ..Default::default()
             }],
@@ -172,22 +172,22 @@ mod tests {
     fn passes_when_stop_not_in_pathway() {
         let mut feed = GtfsFeed::default();
         feed.levels = Some(CsvTable {
-            headers: vec!["level_id".to_string()],
+            headers: vec!["level_id".into()],
             rows: vec![Level::default()],
             row_numbers: vec![2],
         });
         feed.pathways = Some(CsvTable {
-            headers: vec!["from_stop_id".to_string()],
+            headers: vec!["from_stop_id".into()],
             rows: vec![Pathway {
-                from_stop_id: "S1".to_string(),
+                from_stop_id: "S1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         });
         feed.stops = CsvTable {
-            headers: vec!["stop_id".to_string()],
+            headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S2".to_string(),
+                stop_id: "S2".into(),
                 level_id: None,
                 ..Default::default()
             }],

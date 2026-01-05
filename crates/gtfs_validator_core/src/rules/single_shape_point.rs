@@ -38,7 +38,7 @@ impl Validator for SingleShapePointValidator {
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("shapeId", shape_id);
-                notice.field_order = vec!["csvRowNumber".to_string(), "shapeId".to_string()];
+                notice.field_order = vec!["csvRowNumber".into(), "shapeId".into()];
                 notices.push(notice);
             }
         }
@@ -55,9 +55,9 @@ mod tests {
     fn detects_single_shape_point() {
         let mut feed = GtfsFeed::default();
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string()],
+            headers: vec!["shape_id".into()],
             rows: vec![Shape {
-                shape_id: "SH1".to_string(),
+                shape_id: "SH1".into(),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -73,14 +73,14 @@ mod tests {
     fn passes_multiple_shape_points() {
         let mut feed = GtfsFeed::default();
         feed.shapes = Some(CsvTable {
-            headers: vec!["shape_id".to_string()],
+            headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "SH1".to_string(),
+                    shape_id: "SH1".into(),
                     ..Default::default()
                 },
                 Shape {
-                    shape_id: "SH1".to_string(),
+                    shape_id: "SH1".into(),
                     ..Default::default()
                 },
             ],

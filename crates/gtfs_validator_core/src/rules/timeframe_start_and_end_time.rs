@@ -29,7 +29,7 @@ impl Validator for TimeframeStartAndEndTimeValidator {
                     "start_time and end_time must both be set or both empty",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.field_order = vec!["csvRowNumber".to_string()];
+                notice.field_order = vec!["csvRowNumber".into()];
                 notices.push(notice);
             }
 
@@ -67,9 +67,9 @@ fn time_greater_than_24_notice(
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("time", time.to_string());
     notice.field_order = vec![
-        "csvRowNumber".to_string(),
-        "fieldName".to_string(),
-        "time".to_string(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "time".into(),
     ];
     notice
 }
@@ -84,7 +84,7 @@ mod tests {
     fn detects_only_one_time_specified() {
         let mut feed = GtfsFeed::default();
         feed.timeframes = Some(CsvTable {
-            headers: vec!["start_time".to_string()],
+            headers: vec!["start_time".into()],
             rows: vec![Timeframe {
                 start_time: Some(GtfsTime::from_seconds(3600)),
                 end_time: None,
@@ -103,7 +103,7 @@ mod tests {
     fn detects_time_greater_than_24() {
         let mut feed = GtfsFeed::default();
         feed.timeframes = Some(CsvTable {
-            headers: vec!["start_time".to_string(), "end_time".to_string()],
+            headers: vec!["start_time".into(), "end_time".into()],
             rows: vec![Timeframe {
                 start_time: Some(GtfsTime::from_seconds(25 * 3600)),
                 end_time: Some(GtfsTime::from_seconds(26 * 3600)),
@@ -123,7 +123,7 @@ mod tests {
     fn passes_valid_times() {
         let mut feed = GtfsFeed::default();
         feed.timeframes = Some(CsvTable {
-            headers: vec!["start_time".to_string(), "end_time".to_string()],
+            headers: vec!["start_time".into(), "end_time".into()],
             rows: vec![Timeframe {
                 start_time: Some(GtfsTime::from_seconds(3600)),
                 end_time: Some(GtfsTime::from_seconds(7200)),
