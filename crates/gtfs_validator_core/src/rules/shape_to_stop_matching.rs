@@ -52,9 +52,12 @@ impl Validator for ShapeToStopMatchingValidator {
         }
 
         let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
-        let mut stop_time_rows: HashMap<*const gtfs_guru_model::StopTime, u64> = HashMap::new();
+        let mut stop_time_rows: HashMap<usize, u64> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            stop_time_rows.insert(stop_time as *const _, feed.stop_times.row_number(index));
+            stop_time_rows.insert(
+                stop_time as *const _ as usize,
+                feed.stop_times.row_number(index),
+            );
             let trip_id = stop_time.trip_id.trim();
             if trip_id.is_empty() {
                 continue;
@@ -94,74 +97,161 @@ impl Validator for ShapeToStopMatchingValidator {
             shapes_by_id.entry(shape_id).or_default().push(shape);
         }
 
-        let matcher = StopToShapeMatcher::default();
-        for (shape_id, shape_points_raw) in shapes_by_id {
-            let trips = match trips_by_shape.get(shape_id) {
-                Some(trips) => trips,
-                None => continue,
-            };
-            let shape_points = ShapePoints::from_shapes(shape_points_raw);
-            if shape_points.is_empty() {
-                continue;
-            }
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            let results: Vec<NoticeContainer> = shapes_by_id
+                .into_par_iter()
+                .filter_map(|(shape_id, shape_points_raw)| {
+                    let trips = trips_by_shape.get(shape_id)?;
+                    let shape_points = ShapePoints::from_shapes(shape_points_raw);
+                    if shape_points.is_empty() {
+                        return None;
+                    }
 
-            let mut processed_trip_hashes = HashSet::new();
-            let mut reported_stop_ids = HashSet::new();
-            for trip in trips {
-                let trip_id = trip.trip_id.trim();
-                if trip_id.is_empty() {
-                    continue;
-                }
-                let stop_times = match stop_times_by_trip.get(trip_id) {
-                    Some(stop_times) if !stop_times.is_empty() => stop_times,
-                    _ => continue,
-                };
-                if !processed_trip_hashes.insert(trip_hash(stop_times)) {
-                    continue;
-                }
-                let route_id = trip.route_id.trim();
-                if route_id.is_empty() {
-                    continue;
-                }
-                let route = match routes_by_id.get(route_id) {
-                    Some(route) => *route,
+                    let mut local_notices = NoticeContainer::new();
+                    let mut processed_trip_hashes = HashSet::new();
+                    let mut reported_stop_ids = HashSet::new();
+                    let matcher = StopToShapeMatcher::default();
+
+                    for trip in trips {
+                        let trip_id = trip.trip_id.trim();
+                        if trip_id.is_empty() {
+                            continue;
+                        }
+                        let stop_times = match stop_times_by_trip.get(trip_id) {
+                            Some(stop_times) if !stop_times.is_empty() => stop_times,
+                            _ => continue,
+                        };
+                        if !processed_trip_hashes.insert(trip_hash(stop_times)) {
+                            continue;
+                        }
+                        let route_id = trip.route_id.trim();
+                        if route_id.is_empty() {
+                            continue;
+                        }
+                        let route = match routes_by_id.get(route_id) {
+                            Some(route) => *route,
+                            None => continue,
+                        };
+
+                        let station_size = StopPoints::route_type_to_station_size(route.route_type);
+                        let stop_points =
+                            StopPoints::from_stop_times(stop_times, &stops_by_id, station_size);
+                        let geo_result =
+                            matcher.match_using_geo_distance(&stop_points, &shape_points);
+                        let trip_row_number = trip_rows.get(trip_id).copied().unwrap_or(2);
+                        let shape_id = trip.shape_id.as_deref().unwrap_or("").trim();
+                        report_problems(
+                            trip,
+                            trip_row_number,
+                            shape_id,
+                            &stops_by_id,
+                            &geo_result.problems,
+                            MatchingDistance::Geo,
+                            &mut reported_stop_ids,
+                            &stop_time_rows,
+                            &shape_points,
+                            &mut local_notices,
+                        );
+
+                        if stop_points.has_user_distance() && shape_points.has_user_distance() {
+                            let user_result =
+                                matcher.match_using_user_distance(&stop_points, &shape_points);
+                            report_problems(
+                                trip,
+                                trip_row_number,
+                                shape_id,
+                                &stops_by_id,
+                                &user_result.problems,
+                                MatchingDistance::User,
+                                &mut reported_stop_ids,
+                                &stop_time_rows,
+                                &shape_points,
+                                &mut local_notices,
+                            );
+                        }
+                    }
+                    Some(local_notices)
+                })
+                .collect();
+
+            for local_notices in results {
+                notices.merge(local_notices);
+            }
+        }
+
+        #[cfg(not(feature = "parallel"))]
+        {
+            let matcher = StopToShapeMatcher::default();
+            for (shape_id, shape_points_raw) in shapes_by_id {
+                let trips = match trips_by_shape.get(shape_id) {
+                    Some(trips) => trips,
                     None => continue,
                 };
+                let shape_points = ShapePoints::from_shapes(shape_points_raw);
+                if shape_points.is_empty() {
+                    continue;
+                }
 
-                let station_size = StopPoints::route_type_to_station_size(route.route_type);
-                let stop_points =
-                    StopPoints::from_stop_times(stop_times, &stops_by_id, station_size);
-                let geo_result = matcher.match_using_geo_distance(&stop_points, &shape_points);
-                let trip_row_number = trip_rows.get(trip_id).copied().unwrap_or(2);
-                let shape_id = trip.shape_id.as_deref().unwrap_or("").trim();
-                report_problems(
-                    trip,
-                    trip_row_number,
-                    shape_id,
-                    &stops_by_id,
-                    &geo_result.problems,
-                    MatchingDistance::Geo,
-                    &mut reported_stop_ids,
-                    &stop_time_rows,
-                    &shape_points,
-                    notices,
-                );
+                let mut processed_trip_hashes = HashSet::new();
+                let mut reported_stop_ids = HashSet::new();
+                for trip in trips {
+                    let trip_id = trip.trip_id.trim();
+                    if trip_id.is_empty() {
+                        continue;
+                    }
+                    let stop_times = match stop_times_by_trip.get(trip_id) {
+                        Some(stop_times) if !stop_times.is_empty() => stop_times,
+                        _ => continue,
+                    };
+                    if !processed_trip_hashes.insert(trip_hash(stop_times)) {
+                        continue;
+                    }
+                    let route_id = trip.route_id.trim();
+                    if route_id.is_empty() {
+                        continue;
+                    }
+                    let route = match routes_by_id.get(route_id) {
+                        Some(route) => *route,
+                        None => continue,
+                    };
 
-                if stop_points.has_user_distance() && shape_points.has_user_distance() {
-                    let user_result =
-                        matcher.match_using_user_distance(&stop_points, &shape_points);
+                    let station_size = StopPoints::route_type_to_station_size(route.route_type);
+                    let stop_points =
+                        StopPoints::from_stop_times(stop_times, &stops_by_id, station_size);
+                    let geo_result = matcher.match_using_geo_distance(&stop_points, &shape_points);
+                    let trip_row_number = trip_rows.get(trip_id).copied().unwrap_or(2);
+                    let shape_id = trip.shape_id.as_deref().unwrap_or("").trim();
                     report_problems(
                         trip,
                         trip_row_number,
                         shape_id,
                         &stops_by_id,
-                        &user_result.problems,
-                        MatchingDistance::User,
+                        &geo_result.problems,
+                        MatchingDistance::Geo,
                         &mut reported_stop_ids,
                         &stop_time_rows,
                         &shape_points,
                         notices,
                     );
+
+                    if stop_points.has_user_distance() && shape_points.has_user_distance() {
+                        let user_result =
+                            matcher.match_using_user_distance(&stop_points, &shape_points);
+                        report_problems(
+                            trip,
+                            trip_row_number,
+                            shape_id,
+                            &stops_by_id,
+                            &user_result.problems,
+                            MatchingDistance::User,
+                            &mut reported_stop_ids,
+                            &stop_time_rows,
+                            &shape_points,
+                            notices,
+                        );
+                    }
                 }
             }
         }
@@ -176,7 +266,7 @@ fn report_problems(
     problems: &[Problem<'_>],
     matching_distance: MatchingDistance,
     reported_stop_ids: &mut HashSet<String>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
     notices: &mut NoticeContainer,
 ) {
@@ -213,7 +303,7 @@ fn problem_notice(
     trip_row_number: u64,
     shape_id: &str,
     stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
 ) -> ValidationNotice {
     match problem.problem_type {
@@ -262,7 +352,7 @@ fn stop_too_far_from_shape_notice(
     trip_row_number: u64,
     shape_id: &str,
     stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -289,7 +379,7 @@ fn stop_too_far_from_shape_user_notice(
     trip_row_number: u64,
     shape_id: &str,
     stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -316,7 +406,7 @@ fn stop_has_too_many_matches_notice(
     trip_row_number: u64,
     shape_id: &str,
     stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOP_HAS_TOO_MANY_MATCHES,
@@ -356,7 +446,7 @@ fn stops_match_out_of_order_notice(
     trip_row_number: u64,
     shape_id: &str,
     stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOPS_MATCH_OUT_OF_ORDER,
@@ -411,7 +501,7 @@ fn populate_stop_too_far_notice(
     trip_row_number: u64,
     shape_id: &str,
     stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
 ) {
     notice.insert_context_field("tripCsvRowNumber", trip_row_number);
@@ -502,11 +592,11 @@ fn extract_shape_path_segment(shape_points: &ShapePoints, match_index: usize) ->
 }
 
 fn stop_time_row(
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time_rows: &HashMap<usize, u64>,
     stop_time: &gtfs_guru_model::StopTime,
 ) -> u64 {
     stop_time_rows
-        .get(&(stop_time as *const _))
+        .get(&(stop_time as *const _ as usize))
         .copied()
         .unwrap_or(2)
 }
@@ -832,7 +922,9 @@ struct ShapePoints {
 struct ShapeSegment {
     index: usize,
     p1: LatLng,
+    p1_vec: Vec3,
     p2: LatLng,
+    p2_vec: Vec3,
 }
 
 impl RTreeObject for ShapeSegment {
@@ -883,19 +975,25 @@ impl ShapePoints {
                 let prev = shapes[idx - 1];
                 let prev_loc = lat_lng(prev);
                 let curr_loc = lat_lng(shape);
-                geo_distance += haversine_meters(prev_loc, curr_loc).max(0.0);
+                let prev_vec = lat_lng_to_vec(prev_loc);
+                let curr_vec = lat_lng_to_vec(curr_loc);
+                geo_distance += distance_meters_vec(prev_vec, curr_vec).max(0.0);
 
                 segments.push(ShapeSegment {
                     index: idx - 1,
                     p1: prev_loc,
+                    p1_vec: prev_vec,
                     p2: curr_loc,
+                    p2_vec: curr_vec,
                 });
             }
             user_distance = user_distance.max(shape.shape_dist_traveled.unwrap_or(0.0));
+            let loc = lat_lng(shape);
             points.push(ShapePoint {
                 geo_distance,
                 user_distance,
-                location: lat_lng(shape),
+                location: loc,
+                location_vec: lat_lng_to_vec(loc),
             });
         }
 
@@ -932,13 +1030,21 @@ impl ShapePoints {
         // Use RTree nearest neighbor to find the closest segment quickly
         // Note: The distance_2 impl uses Euclidean degrees, so it's an approximation.
         // We might want to check a few neighbors or verify, but usually it's good enough for "closest".
-        // However, to be strictly correct with Haversine, nearest neighbor in lat/lon space
-        // is very likely the nearest in Haversine unless distortion is extreme.
+        // however, to be strictly correct with haversine, nearest neighbor in lat/lon space
+        // is very likely the nearest in haversine unless distortion is extreme.
         let closest_segment = self.rtree.nearest_neighbor(&[location.lat, location.lon]);
+        let location_vec = lat_lng_to_vec(location);
 
         if let Some(segment) = closest_segment {
             let mut best_match = StopToShapeMatch::new();
-            let (closest, distance) = closest_point_on_segment(location, segment.p1, segment.p2);
+            let (closest, _closest_vec, distance) = closest_point_on_segment_vec(
+                location,
+                location_vec,
+                segment.p1,
+                segment.p1_vec,
+                segment.p2,
+                segment.p2_vec,
+            );
             best_match.keep_best_match(closest, distance, segment.index);
 
             // Check neighbors in RTree just in case (optional, but safer)
@@ -1004,6 +1110,8 @@ impl ShapePoints {
             ],
         );
 
+        let location_vec = lat_lng_to_vec(location);
+
         // Query RTree for candidate segments
         let candidates = self.rtree.locate_in_envelope_intersecting(&envelope);
 
@@ -1038,8 +1146,17 @@ impl ShapePoints {
             last_index = segment.index;
 
             let left = segment.p1;
+            let left_vec = segment.p1_vec;
             let right = segment.p2;
-            let (closest, geo_distance_to_shape) = closest_point_on_segment(location, left, right);
+            let right_vec = segment.p2_vec;
+            let (closest, closest_vec, geo_distance_to_shape) = closest_point_on_segment_vec(
+                location,
+                location_vec,
+                left,
+                left_vec,
+                right,
+                right_vec,
+            );
 
             if geo_distance_to_shape <= max_distance_from_shape {
                 if local_match.has_best_match()
@@ -1056,7 +1173,7 @@ impl ShapePoints {
                 local_match.clear_best_match();
             }
 
-            distance_to_end_previous_segment = haversine_meters(location, right);
+            distance_to_end_previous_segment = distance_meters_vec(location_vec, right_vec);
             previous_segment_getting_further_away =
                 distance_to_end_previous_segment > geo_distance_to_shape;
         }
@@ -1136,6 +1253,7 @@ struct ShapePoint {
     geo_distance: f64,
     user_distance: f64,
     location: LatLng,
+    location_vec: Vec3,
 }
 
 impl ShapePoint {
@@ -1538,11 +1656,23 @@ fn closest_point_on_segment(point: LatLng, left: LatLng, right: LatLng) -> (LatL
     let p = lat_lng_to_vec(point);
     let a = lat_lng_to_vec(left);
     let b = lat_lng_to_vec(right);
+    let (res_latlng, _res_vec, dist) = closest_point_on_segment_vec(point, p, left, a, right, b);
+    (res_latlng, dist)
+}
+
+fn closest_point_on_segment_vec(
+    point: LatLng,
+    p: Vec3,
+    left: LatLng,
+    a: Vec3,
+    right: LatLng,
+    b: Vec3,
+) -> (LatLng, Vec3, f64) {
     let n = a.cross(b);
     let n_norm = n.norm();
     if n_norm == 0.0 {
         let distance = distance_meters_vec(p, a);
-        return (left, distance);
+        return (left, a, distance);
     }
     let n_unit = n.scale(1.0 / n_norm);
     let m = n_unit.cross(p);
@@ -1551,9 +1681,9 @@ fn closest_point_on_segment(point: LatLng, left: LatLng, right: LatLng) -> (LatL
         let dist_a = distance_meters_vec(p, a);
         let dist_b = distance_meters_vec(p, b);
         return if dist_a <= dist_b {
-            (left, dist_a)
+            (left, a, dist_a)
         } else {
-            (right, dist_b)
+            (right, b, dist_b)
         };
     }
     let mut q = m.cross(n_unit).normalize();
@@ -1573,9 +1703,15 @@ fn closest_point_on_segment(point: LatLng, left: LatLng, right: LatLng) -> (LatL
         b
     };
 
-    let matched = vec_to_lat_lng(closest);
+    let matched = if closest.x == a.x && closest.y == a.y && closest.z == a.z {
+        left
+    } else if closest.x == b.x && closest.y == b.y && closest.z == b.z {
+        right
+    } else {
+        vec_to_lat_lng(closest)
+    };
     let distance = distance_meters_vec(p, closest);
-    (matched, distance)
+    (matched, closest, distance)
 }
 
 fn haversine_meters(a: LatLng, b: LatLng) -> f64 {

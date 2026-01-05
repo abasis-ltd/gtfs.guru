@@ -53,7 +53,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState::default())
-        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             validate_gtfs,
             get_version,

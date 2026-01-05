@@ -29,9 +29,19 @@ pub fn set_validation_date(date: Option<NaiveDate>) -> ValidationDateGuard {
 }
 
 pub fn validation_date() -> NaiveDate {
-    VALIDATION_DATE
-        .with(|cell| cell.get())
-        .unwrap_or_else(|| Utc::now().date_naive())
+    VALIDATION_DATE.with(|cell| {
+        cell.get().unwrap_or_else(|| {
+            #[cfg(target_arch = "wasm32")]
+            {
+                // Fallback for WASM where Utc::now() might panic without wasm-bindgen feature
+                chrono::NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                Utc::now().date_naive()
+            }
+        })
+    })
 }
 
 pub struct ValidationCountryCodeGuard {

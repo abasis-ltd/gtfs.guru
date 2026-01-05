@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GTFS Schedule Validation Report</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8; width=device-width, initial-scale=1"/>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+      $(document).ready(function () {
+        $(document).tooltip();
+      });
+    </script>
+    <style>
+    body {
+
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        min-width: 800px;
+        padding: 1em 2em;
+    }
+
+    .error:before {
+        content: "\1F534  ";
+    }
+
+    .warning:before {
+        content: "\1F7E0  ";
+    }
+
+    .info:before {
+        content: "\26AA  ";
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    .version-update {
+        font-weight: bold;
+        color: red;
+    }
+
+    table {
+        width: 100%;
+    }
+
+    table caption {
+        text-align: left;
+        margin: 0.5em 0;
+    }
+
+    table th {
+        text-align: left;
+        border-bottom: 2px solid #000;
+        padding: 0.5em;
+        white-space: nowrap;
+    }
+
+    table td {
+        border-bottom: 1px solid #ddd;
+        padding: 0.5em;
+    }
+
+    .desc-content {
+        padding: 0.5em;
+        border-bottom: 5px solid #000;
+        border-top: 5px solid #000;
+    }
+
+    .desc-content h3 {
+        margin-top: 0;
+    }
+
+    .summary {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .summary-row {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .summary-cell {
+        padding: 5px;
+        box-sizing: border-box;
+        flex: 1;
+    }
+
+    .summary h4 {
+        white-space: nowrap;
+    }
+
+    .summary dt,
+    .summary dd {
+        display: inline-block;
+    }
+
+    .summary dd {
+        font-weight: bold;
+        width: 130px;
+        margin-inline-start: 0;
+    }
+
+    .summary ul,
+    .summary ol {
+        padding-left: 20px;
+    }
+
+    .summary li {
+        padding-left: 0px;
+    }
+
+    hr {
+        border: none;
+        border-top: 2px solid #000;
+        margin-top: 5px;
+        margin-bottom: 15px;
+    }
+
+    .spec-feature {
+        background-color: #d4d4d4;
+        padding: 2px 5px;
+        margin-right: 2px;
+        margin-bottom: 2px;
+        text-align: center;
+    }
+
+    .tooltip {
+        text-decoration: none;
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+    }
+
+    .tooltip .tooltiptext {
+        background-color: #555;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px 5px;
+        position: absolute;
+        z-index: 1;
+        bottom: 100%;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        max-width: 400px;
+        min-width: 100px;
+        width: max-content;
+        white-space: normal;
+    }
+
+    .tooltip {
+        position: relative;
+        display: inline-block;
+        cursor: help;
+    }
+
+    .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    /* Responsive behavior */
+    @media (max-width: 767px) {
+        .summary .summary_info,
+        .summary .summary_list {
+            flex-basis: 100%;
+        }
+    }
+
+    table.accordion > tbody > tr.notice td,
+    table.accordion > tbody > tr.view th {
+        cursor: auto;
+    }
+
+    table.accordion > tbody > tr.notice td:first-child,
+    table.accordion > tbody > tr.notice th:first-child {
+        position: relative;
+        padding-left: 20px;
+    }
+
+    table.accordion > tbody > tr.notice td:first-child:before,
+    table.accordion > tbody > tr.notice th:first-child:before {
+        position: absolute;
+        top: 50%;
+        left: 5px;
+        width: 9px;
+        height: 16px;
+        margin-top: -8px;
+        color: #000;
+        content: "+";
+    }
+
+    table.accordion > tbody > tr.notice.open td:first-child:before,
+    table.accordion > tbody > tr.notice.open th:first-child:before {
+        content: "\2013";
+    }
+
+    table.accordion > tbody > tr.notice:hover {
+        background: #ddd;
+    }
+
+    table.accordion > tbody > tr.notice.open {
+        background: #ddd;
+        color: black;
+    }
+
+    table.accordion > tbody > tr.description {
+        display: none;
+    }
+
+    table.accordion > tbody > tr.description.open {
+        display: table-row;
+    }
+
+    #gtfs-features-container > div {
+        display: flex;
+        justify-content: center;
+        align-content: center;
+        flex-wrap: wrap;
+    }
+
+    /* Map visualization styles */
+    #map-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.7);
+    }
+    #map-modal.open {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #map-container {
+        width: 90%;
+        max-width: 1000px;
+        height: 70vh;
+        background: #fff;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+    }
+    #map {
+        width: 100%;
+        height: calc(100% - 50px);
+    }
+    #map-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 15px;
+        background: #f5f5f5;
+        border-bottom: 1px solid #ddd;
+    }
+    #map-header h3 {
+        margin: 0;
+        font-size: 16px;
+    }
+    #close-map {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+    }
+    #close-map:hover {
+        color: #000;
+    }
+    .view-map-btn {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-left: 8px;
+    }
+    .view-map-btn:hover {
+        background: #45a049;
+    }
+</style>
+
+</head>
+<body>
+    <h1>GTFS Schedule Validation Report</h1>
+    <p>This report was generated by the <a href="https://github.com/MobilityData/gtfs-validator">Canonical GTFS Schedule
+        validator</a>, version 0.1.1 at 2026-01-05T17:55:14+02:00,
+        <br/>
+        for the dataset
+        benchmark-feeds/nysubway.zip. No country code was provided.
+        </br>
+        </p>
+
+    <p>Use this report alongside our <a href="https://gtfs-validator.mobilitydata.org/rules.html">documentation</a>.</p>
+
+    <h2>Summary</h2>
+
+    <div class="summary">
+        <div class="summary-row">
+            <div class="summary-cell summary_info">
+                <h4>Agencies included</h4>
+                <hr />
+                <ul>
+                    <li>MTA New York City Transit
+                        <ul>
+                            <li><b>website: </b><a href="http://www.mta.info">http://www.mta.info</a></li>
+                            <li><b>phone number: </b>718-330-1234</li>
+                            <li><b>email: </b>Not provided</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+            <div class="summary-cell summary_info">
+                <h4>Feed Info</h4>
+                <hr />
+                <dl>
+                    <dd>Publisher Name:</dd>
+                    <dt>
+                        N/A
+                    </dt>
+                    <dd>Publisher URL:</dd>
+                    <dt>
+                        N/A
+                    </dt>
+                    <dd>Feed Email:</dd>
+                    <dt>
+                        N/A
+                    </dt>
+                    <dd>Feed Language:</dd>
+                    <dt>
+                        N/A
+                    </dt>
+                    <dd>Service Window:</dd>
+                    <dt>
+                        2025-12-08 to 2026-05-16
+                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                            <span class="tooltiptext" style="transform: translateX(-100%)">The range of service dates covered by the feed, based on trips with an associated service_id in calendar.txt and/or calendar_dates.txt</span>
+                        </a>
+                    </dt>
+                </dl>
+            </div>
+            <div class="summary-cell summary_list">
+                <h4>Files included</h4>
+                <hr />
+                <ol>
+                    <li>agency.txt</li>
+                    <li>calendar.txt</li>
+                    <li>calendar_dates.txt</li>
+                    <li>routes.txt</li>
+                    <li>shapes.txt</li>
+                    <li>stop_times.txt</li>
+                    <li>stops.txt</li>
+                    <li>transfers.txt</li>
+                    <li>trips.txt</li>
+                </ol>
+            </div>
+            <div class="summary-cell summary_list">
+                <h4>Counts</h4>
+                <hr />
+                <ul>
+                    <li>Agencies: 1</li>
+                    <li>Blocks: 0</li>
+                    <li>Routes: 29</li>
+                    <li>Shapes: 253</li>
+                    <li>Stops: 1488</li>
+                    <li>Trips: 20304</li>
+                </ul>
+            </div>
+            <div class="summary-cell summary_list" id="gtfs-features-container">
+                <h4>
+                    GTFS Features included
+                    <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                        <span class="tooltiptext" style="transform: translateX(-100%)">GTFS features provide a standardized vocabulary to define and describe features that are officially adopted in GTFS.</span>
+                    </a>
+                </h4>
+                <hr />
+                <div>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/base_add-ons/#transfers" target="_blank">Transfers</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/base_add-ons/#shapes" target="_blank">Shapes</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/base_add-ons/#route-colors" target="_blank">Route Colors</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/base_add-ons/#headsigns" target="_blank">Headsigns</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/base_add-ons/#location-types" target="_blank">Location Types</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2>Specification Compliance report</h2>
+
+    <h3><span>18</span> notices reported
+        (<span>0</span> errors,
+        <span>18</span> warnings,
+        <span>0</span> infos)
+    </h3>
+
+    <table class="accordion">
+        <thead>
+        <tr>
+            <th>Notice Code</th>
+            <th>Severity</th>
+            <th>Total</th>
+        </tr>
+        </thead>
+        <tbody>
+            <tr class="notice">
+                <td>missing_recommended_file</td>
+                <td class="warning">WARNING</td>
+                <td>1</td>
+            </tr>
+            <tr class="description">
+                <td colspan="4">
+                    <div class="desc-content">
+                        <h3>missing_recommended_file</h3>
+                        <p>missing recommended GTFS file</p>
+                        <p> You can see more about this notice <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#missing_recommended_file-rule">here</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>filename</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>feed_info.txt</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="notice">
+                <td>mixed_case_recommended_field</td>
+                <td class="warning">WARNING</td>
+                <td>2</td>
+            </tr>
+            <tr class="description">
+                <td colspan="4">
+                    <div class="desc-content">
+                        <h3>mixed_case_recommended_field</h3>
+                        <p>field should use mixed case</p>
+                        <p> You can see more about this notice <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#mixed_case_recommended_field-rule">here</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>csvRowNumber</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>fieldName</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>fieldValue</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>filename</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>8</td>
+                                    <td>route_short_name</td>
+                                    <td>FX</td>
+                                    <td>routes.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>30</td>
+                                    <td>route_short_name</td>
+                                    <td>SIR</td>
+                                    <td>routes.txt</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="notice">
+                <td>stop_too_far_from_shape</td>
+                <td class="warning">WARNING</td>
+                <td>12</td>
+            </tr>
+            <tr class="description">
+                <td colspan="4">
+                    <div class="desc-content">
+                        <h3>stop_too_far_from_shape</h3>
+                        <p>stop is too far from shape</p>
+                        <p> You can see more about this notice <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#stop_too_far_from_shape-rule">here</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>tripCsvRowNumber</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>shapeId</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>tripId</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopTimeCsvRowNumber</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopId</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopName</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopLocation</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>match</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>geoDistanceToShape</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>shapePath</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>matchIndex</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th><span>Map</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>15521</td>
+                                    <td>Q..S39R</td>
+                                    <td>BFA25GEN-Q071-Weekday-00_001300_Q..S39R</td>
+                                    <td>403063</td>
+                                    <td>Q05S</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.783471,-73.947656]]</td>
+                                    <td>0</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.783471,-73.947656]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>15552</td>
+                                    <td>Q..S36R</td>
+                                    <td>BFA25GEN-Q071-Weekday-00_033500_Q..S36R</td>
+                                    <td>404107</td>
+                                    <td>Q05S</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.783471,-73.947656]]</td>
+                                    <td>0</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.783471,-73.947656]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>14977</td>
+                                    <td>Q..S19R</td>
+                                    <td>BFA25GEN-Q022-Saturday-00_001300_Q..S19R</td>
+                                    <td>386872</td>
+                                    <td>Q05S</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.783471,-73.947656]]</td>
+                                    <td>0</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.783471,-73.947656]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>15549</td>
+                                    <td>Q..N36R</td>
+                                    <td>BFA25GEN-Q071-Weekday-00_032000_Q..N36R</td>
+                                    <td>404043</td>
+                                    <td>Q05N</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.777215,-73.952225],[40.777873,-73.951745]]</td>
+                                    <td>626</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.777215,-73.952225],[40.777873,-73.951745]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>17468</td>
+                                    <td>R..N76R</td>
+                                    <td>L0S1-R-1096-S02_041850_R..N76R</td>
+                                    <td>468795</td>
+                                    <td>Q05N</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.777215,-73.952225]]</td>
+                                    <td>518</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.777215,-73.952225]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>15008</td>
+                                    <td>Q..S16R</td>
+                                    <td>BFA25GEN-Q022-Saturday-00_034500_Q..S16R</td>
+                                    <td>387916</td>
+                                    <td>Q05S</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.783471,-73.947656]]</td>
+                                    <td>0</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.783471,-73.947656]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>15006</td>
+                                    <td>Q..N16R</td>
+                                    <td>BFA25GEN-Q022-Saturday-00_033100_Q..N16R</td>
+                                    <td>387886</td>
+                                    <td>Q05N</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.777215,-73.952225]]</td>
+                                    <td>624</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.777215,-73.952225]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>14572</td>
+                                    <td>N..N16R</td>
+                                    <td>BFA25GEN-N101-Weekday-00_045450_N..N16R</td>
+                                    <td>375989</td>
+                                    <td>Q05N</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.777215,-73.952225],[40.777873,-73.951745]]</td>
+                                    <td>626</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.777215,-73.952225],[40.777873,-73.951745]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>15526</td>
+                                    <td>Q..N39R</td>
+                                    <td>BFA25GEN-Q071-Weekday-00_010100_Q..N39R</td>
+                                    <td>403266</td>
+                                    <td>Q05N</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.777215,-73.952225],[40.777873,-73.951745]]</td>
+                                    <td>626</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.777215,-73.952225],[40.777873,-73.951745]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>14982</td>
+                                    <td>Q..N19R</td>
+                                    <td>BFA25GEN-Q022-Saturday-00_010100_Q..N19R</td>
+                                    <td>387075</td>
+                                    <td>Q05N</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.777215,-73.952225]]</td>
+                                    <td>624</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.777215,-73.952225]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>14607</td>
+                                    <td>N..S16R</td>
+                                    <td>BFA25GEN-N101-Weekday-00_052550_N..S16R</td>
+                                    <td>376872</td>
+                                    <td>Q05S</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.783471,-73.947656]]</td>
+                                    <td>0</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.783471,-73.947656]]' >📍 View</button></td>
+                                </tr>
+                                <tr>
+                                    <td>15793</td>
+                                    <td>Q..S37R</td>
+                                    <td>BFA25GEN-Q071-Weekday-00_124800_Q..S37R</td>
+                                    <td>411096</td>
+                                    <td>Q05S</td>
+                                    <td>96 St</td>
+                                    <td>[40.784318,-73.947152]</td>
+                                    <td>[40.783471,-73.947656]</td>
+                                    <td>103.30026974411231</td>
+                                    <td>[[40.783471,-73.947656]]</td>
+                                    <td>0</td>
+                                    <td><button class="view-map-btn" data-stop-name="96 St" data-stop-lat="40.784318" data-stop-lon="-73.947152" data-match-lat="40.783471" data-match-lon="-73.947656" data-shape-path='[[40.783471,-73.947656]]' >📍 View</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="notice">
+                <td>stop_without_stop_time</td>
+                <td class="warning">WARNING</td>
+                <td>3</td>
+            </tr>
+            <tr class="description">
+                <td colspan="4">
+                    <div class="desc-content">
+                        <h3>stop_without_stop_time</h3>
+                        <p>stop has no stop_times entries</p>
+                        <p> You can see more about this notice <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#stop_without_stop_time-rule">here</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>csvRowNumber</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopId</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopName</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>490</td>
+                                    <td>711S</td>
+                                    <td>69 St</td>
+                                </tr>
+                                <tr>
+                                    <td>496</td>
+                                    <td>713S</td>
+                                    <td>52 St</td>
+                                </tr>
+                                <tr>
+                                    <td>1045</td>
+                                    <td>H01S</td>
+                                    <td>Aqueduct Racetrack</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <br>
+
+    <!-- Map Modal -->
+    <div id="map-modal">
+        <div id="map-container">
+            <div id="map-header">
+                <h3 id="map-title">Geographic Error</h3>
+                <button id="close-map">&times;</button>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <footer class="footer text-center text-muted mt-5">
+        Made with ♥ by <a href="https://mobilitydata.org/">MobilityData</a>
+    </footer>
+</body>
+    <script>
+        $(function () {
+            $(".accordion tr.notice").on("click", function () {
+                $(this).toggleClass("open").next(".description").toggleClass("open")
+            });
+        });
+
+        // Map functionality
+        var map = null;
+        var mapModal = document.getElementById('map-modal');
+        var closeBtn = document.getElementById('close-map');
+
+        function showMap(stopName, stopLat, stopLon, matchLat, matchLon, shapePath) {
+            if (!map) {
+                map = L.map('map');
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+            } else {
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                        map.removeLayer(layer);
+                    }
+                });
+            }
+
+            var bounds = [[stopLat, stopLon], [matchLat, matchLon]];
+
+            // Draw shape path if available (gray background line)
+            if (shapePath && shapePath.length > 0) {
+                L.polyline(shapePath, {
+                    color: '#3498db',
+                    weight: 4,
+                    opacity: 0.7
+                }).addTo(map);
+                // Add shape points to bounds
+                shapePath.forEach(function(pt) {
+                    bounds.push(pt);
+                });
+            }
+
+            var stopIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div style="background: #e74c3c; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            var matchIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div style="background: #2ecc71; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+
+            L.marker([stopLat, stopLon], {icon: stopIcon})
+                .bindPopup('<b>Stop:</b> ' + stopName + '<br><b>Location:</b> ' + stopLat.toFixed(6) + ', ' + stopLon.toFixed(6))
+                .addTo(map);
+
+            L.marker([matchLat, matchLon], {icon: matchIcon})
+                .bindPopup('<b>Closest point on shape</b><br><b>Location:</b> ' + matchLat.toFixed(6) + ', ' + matchLon.toFixed(6))
+                .addTo(map);
+
+            // Draw error line (dashed red line from stop to match)
+            L.polyline([[stopLat, stopLon], [matchLat, matchLon]], {
+                color: '#e74c3c',
+                weight: 2,
+                dashArray: '5, 5'
+            }).addTo(map);
+
+            map.fitBounds(bounds, {padding: [50, 50]});
+
+            document.getElementById('map-title').textContent = 'Stop: ' + stopName;
+            mapModal.classList.add('open');
+            setTimeout(function() { map.invalidateSize(); }, 100);
+        }
+
+        closeBtn.onclick = function() {
+            mapModal.classList.remove('open');
+        };
+        mapModal.onclick = function(e) {
+            if (e.target === mapModal) {
+                mapModal.classList.remove('open');
+            }
+        };
+
+        // Handle view map button clicks
+        $(document).on('click', '.view-map-btn', function(e) {
+            e.stopPropagation();
+            var btn = $(this);
+            var shapePath = btn.data('shape-path');
+            showMap(
+                btn.data('stop-name'),
+                btn.data('stop-lat'),
+                btn.data('stop-lon'),
+                btn.data('match-lat'),
+                btn.data('match-lon'),
+                shapePath ? shapePath : null
+            );
+        });
+    </script>
+
+</html>

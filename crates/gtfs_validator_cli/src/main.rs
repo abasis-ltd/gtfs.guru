@@ -509,9 +509,11 @@ fn validate_with_metrics(
         }
     }
 
+    let load_start = std::time::Instant::now();
     let load_result = catch_unwind(AssertUnwindSafe(|| {
         GtfsFeed::from_input_with_notices(input, &mut notices)
     }));
+    eprintln!("[PERF] Feed loading took: {:?}", load_start.elapsed());
 
     match load_result {
         Ok(Ok(feed)) => {
@@ -520,7 +522,9 @@ fn validate_with_metrics(
                 last_used_bytes,
                 "GtfsFeedLoader.executeMultiFileValidators",
             );
+            let validate_start = std::time::Instant::now();
             runner.run_with(&feed, &mut notices);
+            eprintln!("[PERF] Validation took: {:?}", validate_start.elapsed());
             record_memory_usage(
                 memory_usage_records,
                 last_used_bytes,

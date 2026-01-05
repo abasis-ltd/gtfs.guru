@@ -114,9 +114,14 @@ impl ValidatorRunner {
 
     fn run_single_validator(&self, validator: &dyn Validator, feed: &GtfsFeed) -> NoticeContainer {
         let mut local_notices = NoticeContainer::new();
+        let start = std::time::Instant::now();
         let result = catch_unwind(AssertUnwindSafe(|| {
             validator.validate(feed, &mut local_notices)
         }));
+        let elapsed = start.elapsed();
+        if elapsed.as_millis() > 500 {
+            eprintln!("[PERF] Validator {} took: {:?}", validator.name(), elapsed);
+        }
 
         if let Err(panic) = result {
             local_notices.push(runtime_exception_in_validator_error_notice(

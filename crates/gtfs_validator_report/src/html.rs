@@ -91,347 +91,435 @@ fn render_html(
       });
     </script>
     <style>
+    :root {
+        --primary: #4f46e5;
+        --primary-hover: #4338ca;
+        --bg: #f8fafc;
+        --card-bg: #ffffff;
+        --text-main: #1e293b;
+        --text-muted: #64748b;
+        --border: #e2e8f0;
+        --error: #ef4444;
+        --warning: #f59e0b;
+        --info: #06b6d4;
+        --success: #10b981;
+    }
+
     body {
-
-        font-family: Helvetica, Arial, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         font-size: 14px;
-        min-width: 800px;
-        padding: 1em 2em;
-    }
-
-    .error:before {
-        content: "\1F534  ";
-    }
-
-    .warning:before {
-        content: "\1F7E0  ";
-    }
-
-    .info:before {
-        content: "\26AA  ";
+        line-height: 1.5;
+        color: var(--text-main);
+        background-color: var(--bg);
+        margin: 0;
+        padding: 0;
     }
 
     * {
         box-sizing: border-box;
     }
 
-    .version-update {
-        font-weight: bold;
-        color: red;
+    a {
+        color: var(--primary);
+        text-decoration: none;
+    }
+
+    a:hover {
+        text-decoration: underline;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    header {
+        margin-bottom: 1.5rem;
+        background: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-left: 4px solid var(--primary);
+    }
+
+    header h1 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--text-main);
+    }
+
+    header p {
+        margin: 0.25rem 0;
+        color: var(--text-muted);
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+
+    .error-badge { background: #fee2e2; color: #b91c1c; }
+    .warning-badge { background: #fef3c7; color: #92400e; }
+    .info-badge { background: #e0f2fe; color: #0369a1; }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+    }
+
+    .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .card h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.95rem;
+        font-weight: 700;
+        border-bottom: 1px solid var(--bg);
+        padding-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .card dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.5rem 1rem;
+    }
+
+    .card dt {
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+
+    .card dd {
+        margin: 0;
+        font-weight: 600;
+        word-break: break-all;
+    }
+
+    .card ul, .card ol {
+        margin: 0;
+        padding-left: 1.25rem;
+    }
+
+    .card li {
+        margin-bottom: 0.25rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 1.5rem 0 0.75rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .compliance-stats {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .stat-pill {
+        background: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .stat-pill .count {
+        font-size: 1.1rem;
+        font-weight: 800;
     }
 
     table {
         width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
 
-    table caption {
+    th {
+        background: #f1f5f9;
         text-align: left;
-        margin: 0.5em 0;
+        padding: 0.6rem 0.75rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border);
     }
 
-    table th {
-        text-align: left;
-        border-bottom: 2px solid #000;
-        padding: 0.5em;
-        white-space: nowrap;
+    td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--border);
     }
 
-    table td {
-        border-bottom: 1px solid #ddd;
-        padding: 0.5em;
+    tr:last-child td {
+        border-bottom: none;
+    }
+
+    .accordion tr.notice {
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .accordion tr.notice:hover {
+        background: #f8fafc;
+    }
+
+    .accordion tr.notice.open {
+        background: #f1f5f9;
+    }
+
+    .notice-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-weight: 600;
+        color: var(--primary);
     }
 
     .desc-content {
-        padding: 0.5em;
-        border-bottom: 5px solid #000;
-        border-top: 5px solid #000;
+        padding: 1.5rem;
+        background: #f8fafc;
+        border-radius: 8px;
+        margin: 0.5rem;
+        border-left: 4px solid var(--primary);
     }
 
     .desc-content h3 {
-        margin-top: 0;
-    }
-
-    .summary {
-        display: flex;
-        flex-wrap: wrap;
-    }
-
-    .summary-row {
-        display: flex;
-        flex-wrap: wrap;
-        width: 100%;
-    }
-
-    .summary-cell {
-        padding: 5px;
-        box-sizing: border-box;
-        flex: 1;
-    }
-
-    .summary h4 {
-        white-space: nowrap;
-    }
-
-    .summary dt,
-    .summary dd {
-        display: inline-block;
-    }
-
-    .summary dd {
-        font-weight: bold;
-        width: 130px;
-        margin-inline-start: 0;
-    }
-
-    .summary ul,
-    .summary ol {
-        padding-left: 20px;
-    }
-
-    .summary li {
-        padding-left: 0px;
-    }
-
-    hr {
-        border: none;
-        border-top: 2px solid #000;
-        margin-top: 5px;
-        margin-bottom: 15px;
+        margin: 0 0 0.75rem 0;
     }
 
     .spec-feature {
-        background-color: #d4d4d4;
-        padding: 2px 5px;
-        margin-right: 2px;
-        margin-bottom: 2px;
-        text-align: center;
-    }
-
-    .tooltip {
-        text-decoration: none;
-        position: relative;
         display: inline-block;
-        cursor: pointer;
+        padding: 0.2rem 0.5rem;
+        background: #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        margin: 0.2rem;
     }
 
-    .tooltip .tooltiptext {
-        background-color: #555;
-        color: #fff;
-        text-align: center;
+    .view-map-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
         border-radius: 6px;
-        padding: 5px 5px;
-        position: absolute;
-        z-index: 1;
-        bottom: 100%;
-        transform: translateX(-50%);
-        opacity: 0;
-        transition: opacity 0.3s;
-        max-width: 400px;
-        min-width: 100px;
-        width: max-content;
-        white-space: normal;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
     }
 
-    .tooltip {
-        position: relative;
-        display: inline-block;
-        cursor: help;
+    .view-map-btn:hover {
+        background: var(--primary-hover);
     }
 
-    .tooltip:hover .tooltiptext {
-        visibility: visible;
-        opacity: 1;
+    footer {
+        margin-top: 4rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+        text-align: center;
+        color: var(--text-muted);
+        padding-bottom: 4rem;
     }
 
-    /* Responsive behavior */
-    @media (max-width: 767px) {
-        .summary .summary_info,
-        .summary .summary_list {
-            flex-basis: 100%;
-        }
-    }
-
-    table.accordion > tbody > tr.notice td,
-    table.accordion > tbody > tr.view th {
-        cursor: auto;
-    }
-
-    table.accordion > tbody > tr.notice td:first-child,
-    table.accordion > tbody > tr.notice th:first-child {
-        position: relative;
-        padding-left: 20px;
-    }
-
-    table.accordion > tbody > tr.notice td:first-child:before,
-    table.accordion > tbody > tr.notice th:first-child:before {
-        position: absolute;
-        top: 50%;
-        left: 5px;
-        width: 9px;
-        height: 16px;
-        margin-top: -8px;
-        color: #000;
-        content: "+";
-    }
-
-    table.accordion > tbody > tr.notice.open td:first-child:before,
-    table.accordion > tbody > tr.notice.open th:first-child:before {
-        content: "\2013";
-    }
-
-    table.accordion > tbody > tr.notice:hover {
-        background: #ddd;
-    }
-
-    table.accordion > tbody > tr.notice.open {
-        background: #ddd;
-        color: black;
-    }
-
-    table.accordion > tbody > tr.description {
-        display: none;
-    }
-
-    table.accordion > tbody > tr.description.open {
-        display: table-row;
-    }
-
-    #gtfs-features-container > div {
+    .footer-links {
+        margin-top: 1rem;
         display: flex;
         justify-content: center;
-        align-content: center;
-        flex-wrap: wrap;
+        gap: 1.5rem;
     }
 
-    /* Map visualization styles */
+    .footer-links a {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    /* Map Modal */
     #map-modal {
         display: none;
         position: fixed;
+        inset: 0;
         z-index: 1000;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0,0,0,0.7);
-    }
-    #map-modal.open {
-        display: flex;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(4px);
         align-items: center;
         justify-content: center;
+        padding: 2rem;
     }
+
+    #map-modal.open {
+        display: flex;
+    }
+
     #map-container {
-        width: 90%;
+        width: 100%;
         max-width: 1000px;
         height: 70vh;
-        background: #fff;
-        border-radius: 8px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
-        position: relative;
     }
-    #map {
-        width: 100%;
-        height: calc(100% - 50px);
-    }
+
     #map-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border);
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 15px;
-        background: #f5f5f5;
-        border-bottom: 1px solid #ddd;
     }
-    #map-header h3 {
-        margin: 0;
-        font-size: 16px;
-    }
-    #close-map {
-        background: none;
-        border: none;
-        font-size: 24px;
-        cursor: pointer;
-        color: #666;
-    }
-    #close-map:hover {
-        color: #000;
-    }
-    .view-map-btn {
-        background: #4CAF50;
-        color: white;
-        border: none;
-        padding: 4px 8px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-        margin-left: 8px;
-    }
-    .view-map-btn:hover {
-        background: #45a049;
+
+    #map {
+        flex: 1;
     }
 </style>
 
 </head>
 <body>
-    <h1>GTFS Schedule Validation Report</h1>
-    <p>This report was generated by the <a href="https://github.com/MobilityData/gtfs-validator">Canonical GTFS Schedule
-        validator</a>"#,
+    <div class="container">
+    <header>
+        <h1>GTFS Schedule Validation Report</h1>
+        <p>Generated by <strong>GTFS.guru Validator</strong>"#
     );
     if let Some(version) = &context.validator_version {
-        out.push_str(", ");
-        out.push_str("version ");
+        out.push_str(" (version ");
         push_escaped(&mut out, version);
+        out.push(')');
     }
     out.push_str(" at ");
     push_escaped(&mut out, &context.validated_at);
-    out.push_str(",\n        <br/>\n        for the dataset\n        ");
+    out.push_str(
+        r#"</p>
+        <p>Dataset: <strong>"#,
+    );
     push_escaped(&mut out, &context.gtfs_source);
+    out.push_str("</strong>");
+
     if is_unknown_country_code(&context.country_code) {
-        out.push_str(". No country code was provided.");
+        out.push_str(". <span class='badge bg-slate-100'>No country code provided</span>");
     } else {
-        out.push_str(", with the country code: ");
+        out.push_str(", Country: <strong>");
         push_escaped(&mut out, &context.country_code);
-        out.push('.');
+        out.push_str("</strong>");
     }
-    out.push_str("\n        </br>\n        ");
+
     if is_different_date(&context.date_for_validation) {
-        out.push_str("The date used during validation was ");
+        out.push_str("<br/>Validation Date: <strong>");
         push_escaped(&mut out, &context.date_for_validation);
-        out.push('.');
+        out.push_str("</strong>");
     }
-    out.push_str("</p>\n\n    <p>Use this report alongside our <a href=\"https://gtfs-validator.mobilitydata.org/rules.html\">documentation</a>.</p>\n\n");
+    out.push_str("</p>");
+
     if context.new_version_available {
         out.push_str(
-            "    <p class=\"version-update\">A new version of the <a\n            href=\"https://github.com/MobilityData/gtfs-validator/releases\">Canonical GTFS Schedule validator</a> is available!\n        Please update to get the latest/best validation results.</p>\n\n",
+            r#"<p class="version-update" style="color: var(--error); font-weight: bold; margin-top: 1rem;">
+               A new version of the <a href="https://github.com/abasis-ltd/gtfs.guru/releases">GTFS.guru Validator</a> is available!
+               Please update for the latest validation rules.
+            </p>"#,
         );
     }
+    out.push_str("</header>\n\n");
 
-    out.push_str("    <h2>Summary</h2>\n\n");
+    out.push_str("    <h2 class=\"section-title\">Summary</h2>\n\n");
 
     if has_metadata(summary) {
-        out.push_str("    <div class=\"summary\">\n        <div class=\"summary-row\">\n");
+        out.push_str("    <div class=\"summary-grid\">\n");
         render_agencies(&mut out, summary);
         render_feed_info(&mut out, summary);
         render_files(&mut out, summary);
         render_counts(&mut out, summary);
         render_features(&mut out, summary);
-        out.push_str("        </div>\n    </div>\n\n");
+        out.push_str("    </div>\n\n");
     }
 
     let notice_counts = NoticeCounts::from_container(notices);
-    out.push_str("    <h2>Specification Compliance report</h2>\n\n    <h3><span>");
-    write!(&mut out, "{}", notice_counts.total).ok();
-    out.push_str("</span> notices reported\n        (<span>");
-    write!(&mut out, "{}", notice_counts.errors).ok();
-    out.push_str("</span> errors,\n        <span>");
-    write!(&mut out, "{}", notice_counts.warnings).ok();
-    out.push_str("</span> warnings,\n        <span>");
-    write!(&mut out, "{}", notice_counts.infos).ok();
-    out.push_str("</span> infos)\n    </h3>\n\n");
+    out.push_str("    <h2 class=\"section-title\">Specification Compliance</h2>\n\n");
+    out.push_str("    <div class=\"compliance-stats\">\n");
 
-    out.push_str("    <table class=\"accordion\">\n        <thead>\n        <tr>\n            <th>Notice Code</th>\n            <th>Severity</th>\n            <th>Total</th>\n        </tr>\n        </thead>\n        <tbody>\n");
+    write!(
+        &mut out,
+        r#"<div class="stat-pill"><span class="count">{}</span> Total Notices</div>"#,
+        notice_counts.total
+    )
+    .ok();
+    write!(&mut out, r#"<div class="stat-pill"><span class="badge error-badge">ERROR</span> <span class="count">{}</span></div>"#, notice_counts.errors).ok();
+    write!(&mut out, r#"<div class="stat-pill"><span class="badge warning-badge">WARNING</span> <span class="count">{}</span></div>"#, notice_counts.warnings).ok();
+    write!(&mut out, r#"<div class="stat-pill"><span class="badge info-badge">INFO</span> <span class="count">{}</span></div>"#, notice_counts.infos).ok();
+
+    out.push_str("    </div>\n\n");
+
+    out.push_str(
+        r#"    <table class="accordion">
+        <thead>
+        <tr>
+            <th>Notice Code</th>
+            <th>Severity</th>
+            <th>Total</th>
+        </tr>
+        </thead>
+        <tbody>
+"#,
+    );
     render_notice_groups(&mut out, notices);
-    out.push_str("        </tbody>\n    </table>\n    <br>\n\n    <!-- Map Modal -->\n    <div id=\"map-modal\">\n        <div id=\"map-container\">\n            <div id=\"map-header\">\n                <h3 id=\"map-title\">Geographic Error</h3>\n                <button id=\"close-map\">&times;</button>\n            </div>\n            <div id=\"map\"></div>\n        </div>\n    </div>\n\n    <footer class=\"footer text-center text-muted mt-5\">\n        Made with ");
-    out.push('\u{2665}');
-    out.push_str(" by <a href=\"https://mobilitydata.org/\">MobilityData</a>\n    </footer>\n</body>\n    <script>\n        $(function () {\n            $(\".accordion tr.notice\").on(\"click\", function () {\n                $(this).toggleClass(\"open\").next(\".description\").toggleClass(\"open\")\n            });\n        });\n\n        // Map functionality\n        var map = null;\n        var mapModal = document.getElementById('map-modal');\n        var closeBtn = document.getElementById('close-map');\n\n        function showMap(stopName, stopLat, stopLon, matchLat, matchLon, shapePath) {\n            if (!map) {\n                map = L.map('map');\n                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {\n                    attribution: '&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors'\n                }).addTo(map);\n            } else {\n                map.eachLayer(function(layer) {\n                    if (layer instanceof L.Marker || layer instanceof L.Polyline) {\n                        map.removeLayer(layer);\n                    }\n                });\n            }\n\n            var bounds = [[stopLat, stopLon], [matchLat, matchLon]];\n\n            // Draw shape path if available (gray background line)\n            if (shapePath && shapePath.length > 0) {\n                L.polyline(shapePath, {\n                    color: '#3498db',\n                    weight: 4,\n                    opacity: 0.7\n                }).addTo(map);\n                // Add shape points to bounds\n                shapePath.forEach(function(pt) {\n                    bounds.push(pt);\n                });\n            }\n\n            var stopIcon = L.divIcon({\n                className: 'custom-div-icon',\n                html: '<div style=\"background: #e74c3c; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;\"></div>',\n                iconSize: [12, 12],\n                iconAnchor: [6, 6]\n            });\n            var matchIcon = L.divIcon({\n                className: 'custom-div-icon',\n                html: '<div style=\"background: #2ecc71; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;\"></div>',\n                iconSize: [12, 12],\n                iconAnchor: [6, 6]\n            });\n\n            L.marker([stopLat, stopLon], {icon: stopIcon})\n                .bindPopup('<b>Stop:</b> ' + stopName + '<br><b>Location:</b> ' + stopLat.toFixed(6) + ', ' + stopLon.toFixed(6))\n                .addTo(map);\n\n            L.marker([matchLat, matchLon], {icon: matchIcon})\n                .bindPopup('<b>Closest point on shape</b><br><b>Location:</b> ' + matchLat.toFixed(6) + ', ' + matchLon.toFixed(6))\n                .addTo(map);\n\n            // Draw error line (dashed red line from stop to match)\n            L.polyline([[stopLat, stopLon], [matchLat, matchLon]], {\n                color: '#e74c3c',\n                weight: 2,\n                dashArray: '5, 5'\n            }).addTo(map);\n\n            map.fitBounds(bounds, {padding: [50, 50]});\n\n            document.getElementById('map-title').textContent = 'Stop: ' + stopName;\n            mapModal.classList.add('open');\n            setTimeout(function() { map.invalidateSize(); }, 100);\n        }\n\n        closeBtn.onclick = function() {\n            mapModal.classList.remove('open');\n        };\n        mapModal.onclick = function(e) {\n            if (e.target === mapModal) {\n                mapModal.classList.remove('open');\n            }\n        };\n\n        // Handle view map button clicks\n        $(document).on('click', '.view-map-btn', function(e) {\n            e.stopPropagation();\n            var btn = $(this);\n            var shapePath = btn.data('shape-path');\n            showMap(\n                btn.data('stop-name'),\n                btn.data('stop-lat'),\n                btn.data('stop-lon'),\n                btn.data('match-lat'),\n                btn.data('match-lon'),\n                shapePath ? shapePath : null\n            );\n        });\n    </script>\n\n</html>\n");
+    out.push_str(r#"        </tbody>
+    </table>
+    <br>
+
+    <!-- Map Modal -->
+    <div id="map-modal">
+        <div id="map-container">
+            <div id="map-header">
+                <h3 id="map-title">Geographic Error</h3>
+                <button id="close-map" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p><strong>GTFS.guru</strong> - The Gold Standard for GTFS Validation</p>
+        <div class="footer-links">
+            <a href="https://gtfs.guru" target="_blank">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                Website
+            </a>
+            <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                GitHub
+            </a>
+        </div>
+        <p style="font-size: 0.75rem; margin-top: 1.5rem;">Report generated using GTFS.guru ruleset. Based on open standards.</p>
+    </footer>
+    </div>
+"#);
 
     out
 }
@@ -445,7 +533,7 @@ fn has_metadata(summary: &ReportSummary) -> bool {
 }
 
 fn render_agencies(out: &mut String, summary: &ReportSummary) {
-    out.push_str("            <div class=\"summary-cell summary_info\">\n                <h4>Agencies included</h4>\n                <hr />\n                <ul>\n");
+    out.push_str("            <div class=\"card\">\n                <h4>Agencies Included</h4>\n                <ul>\n");
     if let Some(agencies) = summary.agencies.as_ref() {
         for agency in agencies {
             out.push_str("                    <li>");
@@ -469,7 +557,7 @@ fn render_agencies(out: &mut String, summary: &ReportSummary) {
 }
 
 fn render_feed_info(out: &mut String, summary: &ReportSummary) {
-    out.push_str("            <div class=\"summary-cell summary_info\">\n                <h4>Feed Info</h4>\n                <hr />\n                <dl>\n");
+    out.push_str("            <div class=\"card\">\n                <h4>Feed Info</h4>\n                <dl>\n");
     if let Some(info) = summary.feed_info.as_ref() {
         for (key, value) in build_feed_info_entries(info) {
             out.push_str("                    <dd>");
@@ -500,7 +588,7 @@ fn render_feed_info(out: &mut String, summary: &ReportSummary) {
 }
 
 fn render_files(out: &mut String, summary: &ReportSummary) {
-    out.push_str("            <div class=\"summary-cell summary_list\">\n                <h4>Files included</h4>\n                <hr />\n                <ol>\n");
+    out.push_str("            <div class=\"card\">\n                <h4>Files Included</h4>\n                <ol>\n");
     if let Some(files) = summary.files.as_ref() {
         for file in files {
             out.push_str("                    <li>");
@@ -512,7 +600,9 @@ fn render_files(out: &mut String, summary: &ReportSummary) {
 }
 
 fn render_counts(out: &mut String, summary: &ReportSummary) {
-    out.push_str("            <div class=\"summary-cell summary_list\">\n                <h4>Counts</h4>\n                <hr />\n                <ul>\n");
+    out.push_str(
+        "            <div class=\"card\">\n                <h4>Counts</h4>\n                <ul>\n",
+    );
     if let Some(counts) = summary.counts.as_ref() {
         for (key, value) in build_counts_entries(counts) {
             out.push_str("                    <li>");
@@ -524,7 +614,7 @@ fn render_counts(out: &mut String, summary: &ReportSummary) {
 }
 
 fn render_features(out: &mut String, summary: &ReportSummary) {
-    out.push_str("            <div class=\"summary-cell summary_list\" id=\"gtfs-features-container\">\n                <h4>\n                    GTFS Features included\n                    <a href=\"#\" class=\"tooltip\" onclick=\"event.preventDefault();\"><span>(?)</span>\n                        <span class=\"tooltiptext\" style=\"transform: translateX(-100%)\">GTFS features provide a standardized vocabulary to define and describe features that are officially adopted in GTFS.</span>\n                    </a>\n                </h4>\n                <hr />\n                <div>\n");
+    out.push_str("            <div class=\"card\">\n                <h4>GTFS Features Included</h4>\n                <div style=\"display: flex; flex-wrap: wrap; gap: 4px;\">\n");
     if let Some(features) = summary.gtfs_features.as_ref() {
         for feature in build_feature_entries(features) {
             out.push_str("                    <span class=\"spec-feature\">");
@@ -755,21 +845,23 @@ fn render_notice_group(
         .iter()
         .any(|n| n.context.contains_key("stopLocation") && n.context.contains_key("match"));
 
-    out.push_str("            <tr class=\"notice\">\n                <td>");
+    out.push_str("            <tr class=\"notice\">\n                <td style='position:relative; padding-left: 2rem;'>\n                    <span style='position:absolute; left: 0.75rem;'>+</span>\n                    <span class='notice-code'>");
     push_escaped(out, code);
-    out.push_str("</td>\n                <td class=\"");
+    out.push_str("</span>\n                </td>\n                <td><span class=\"badge ");
     out.push_str(severity.css_class());
-    out.push_str("\">");
+    out.push_str("-badge\">");
     out.push_str(severity.label());
-    out.push_str("</td>\n                <td>");
+    out.push_str("</span></td>\n                <td style='font-weight: 700;'>");
     write!(out, "{}", notices.len()).ok();
-    out.push_str("</td>\n            </tr>\n            <tr class=\"description\">\n                <td colspan=\"4\">\n                    <div class=\"desc-content\">\n                        <h3>");
+    out.push_str("</td>\n            </tr>\n            <tr class=\"description\">\n                <td colspan=\"3\">\n                    <div class=\"desc-content\">\n                        <h3>");
     push_escaped(out, code);
-    out.push_str("</h3>\n                        <p>");
+    out.push_str("</h3>\n                        <p style='font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;'>");
     push_escaped(out, description);
-    out.push_str("</p>\n                        <p> You can see more about this notice <a\n                                href=\"https://gtfs-validator.mobilitydata.org/rules.html#");
+    out.push_str("</p>\n                        <p> View documentation for <a\n                                href=\"https://gtfs-validator.mobilitydata.org/rules.html#");
     push_escaped(out, code);
-    out.push_str("-rule\">here</a>.\n                        </p>\n");
+    out.push_str("-rule\" target='_blank'>");
+    push_escaped(out, code);
+    out.push_str("</a>.\n                        </p>\n");
     if notices.len() > NOTICE_ROW_LIMIT {
         out.push_str("                         <p>Only the first 50 of ");
         write!(out, "{}", notices.len()).ok();
