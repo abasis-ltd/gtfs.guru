@@ -4,6 +4,11 @@ on:
   push:
     branches: [ "main" ]
     tags: [ "v*" ]
+    paths-ignore:
+      - 'website/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '**/*.md'
   pull_request:
     branches: [ "main" ]
 
@@ -85,28 +90,4 @@ jobs:
           name: wasm-pkg
           path: crates/gtfs_validator_wasm/pkg/
 
-  publish-npm:
-    name: Publish to npm
-    needs: [build, wasm]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Download WASM artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: wasm-pkg
-          path: crates/gtfs_validator_wasm/pkg
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Publish to npm
-        run: npm publish --access public
-        working-directory: crates/gtfs_validator_wasm/pkg
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

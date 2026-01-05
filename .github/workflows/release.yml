@@ -144,6 +144,9 @@ jobs:
       - run: sleep 30
       - name: Publish gtfs-guru-cli
         run: cargo publish -p gtfs-guru-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - run: sleep 30
+      - name: Publish gtfs-guru-web
+        run: cargo publish -p gtfs-guru-web --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   publish-pypi:
     needs: build-and-release

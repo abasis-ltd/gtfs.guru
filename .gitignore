@@ -11,3 +11,6 @@ __pycache__/
 
 # Local config
 .env
+
+# Local test files
+/tmp/

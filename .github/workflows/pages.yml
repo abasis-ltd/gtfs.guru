@@ -3,6 +3,11 @@ name: Deploy Website & Docs
 on:
   push:
     branches: [main]
+    paths:
+      - 'website/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
