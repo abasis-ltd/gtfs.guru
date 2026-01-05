@@ -1,0 +1,17 @@
+{
+  "name": "gtfs-guru-wasm",
+  "type": "module",
+  "description": "GTFS validator compiled to WebAssembly for browser-based validation",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "files": [
+    "gtfs_guru_wasm_bg.wasm",
+    "gtfs_guru_wasm.js",
+    "gtfs_guru_wasm.d.ts"
+  ],
+  "main": "gtfs_guru_wasm.js",
+  "types": "gtfs_guru_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
