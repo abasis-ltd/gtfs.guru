@@ -17,7 +17,7 @@ impl Validator for TransfersValidator {
                 let row_number = transfers.row_number(index);
                 if matches!(
                     transfer.transfer_type,
-                    Some(gtfs_model::TransferType::MinTime)
+                    Some(gtfs_guru_model::TransferType::MinTime)
                 ) && transfer.min_transfer_time.is_none()
                 {
                     let mut notice = ValidationNotice::new(
@@ -47,10 +47,10 @@ mod tests {
     fn emits_notice_when_min_time_missing() {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
-            rows: vec![gtfs_model::Transfer {
+            rows: vec![gtfs_guru_model::Transfer {
                 from_stop_id: Some("STOP1".to_string()),
                 to_stop_id: Some("STOP2".to_string()),
-                transfer_type: Some(gtfs_model::TransferType::MinTime),
+                transfer_type: Some(gtfs_guru_model::TransferType::MinTime),
                 min_transfer_time: None,
                 ..Default::default()
             }],
@@ -71,10 +71,10 @@ mod tests {
     fn passes_when_min_time_present() {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
-            rows: vec![gtfs_model::Transfer {
+            rows: vec![gtfs_guru_model::Transfer {
                 from_stop_id: Some("STOP1".to_string()),
                 to_stop_id: Some("STOP2".to_string()),
-                transfer_type: Some(gtfs_model::TransferType::MinTime),
+                transfer_type: Some(gtfs_guru_model::TransferType::MinTime),
                 min_transfer_time: Some(120),
                 ..Default::default()
             }],

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::FareMediaType;
+use gtfs_guru_model::FareMediaType;
 
 const CODE_DUPLICATE_FARE_MEDIA: &str = "duplicate_fare_media";
 
@@ -54,7 +54,7 @@ struct MediaKey {
 }
 
 impl MediaKey {
-    fn new(media: &gtfs_model::FareMedia) -> Self {
+    fn new(media: &gtfs_guru_model::FareMedia) -> Self {
         Self {
             name: media
                 .fare_media_name
@@ -71,7 +71,7 @@ impl MediaKey {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::FareMedia;
+    use gtfs_guru_model::FareMedia;
 
     #[test]
     fn detects_duplicate_fare_media() {

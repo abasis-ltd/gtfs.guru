@@ -18,7 +18,7 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut by_trip: HashMap<&str, Vec<(usize, &gtfs_model::StopTime)>> = HashMap::new();
+        let mut by_trip: HashMap<&str, Vec<(usize, &gtfs_guru_model::StopTime)>> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let trip_id = stop_time.trip_id.trim();
             if trip_id.is_empty() {
@@ -31,7 +31,7 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
         }
 
         for stop_times in by_trip.values() {
-            let mut previous_departure: Option<(gtfs_model::GtfsTime, u64)> = None;
+            let mut previous_departure: Option<(gtfs_guru_model::GtfsTime, u64)> = None;
             for (index, stop_time) in stop_times {
                 let row_number = feed.stop_times.row_number(*index);
                 let trip_id = stop_time.trip_id.trim();
@@ -136,7 +136,7 @@ impl Validator for TimepointTimeValidator {
                 notices.push(notice);
             }
 
-            if matches!(stop_time.timepoint, Some(gtfs_model::Timepoint::Exact)) {
+            if matches!(stop_time.timepoint, Some(gtfs_guru_model::Timepoint::Exact)) {
                 if !has_arrival {
                     let mut notice = ValidationNotice::new(
                         CODE_STOP_TIME_TIMEPOINT_WITHOUT_TIMES,
@@ -182,7 +182,7 @@ impl Validator for TimepointTimeValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, StopTime, Timepoint};
+    use gtfs_guru_model::{GtfsTime, StopTime, Timepoint};
 
     #[test]
     fn detects_only_one_time_specified() {

@@ -49,7 +49,7 @@ impl Validator for FareTransferRuleDurationLimitTypeValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{DurationLimitType, FareTransferRule};
+    use gtfs_guru_model::{DurationLimitType, FareTransferRule};
 
     #[test]
     fn detects_duration_limit_without_type() {

@@ -7,7 +7,7 @@
 
 use wasm_bindgen_test::*;
 
-use gtfs_validator_wasm::{init, validate_gtfs, validate_gtfs_json, version};
+use gtfs_guru_wasm::{init, validate_gtfs, validate_gtfs_json, version};
 
 #[wasm_bindgen_test]
 fn test_init() {

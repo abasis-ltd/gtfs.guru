@@ -1,4 +1,4 @@
-use gtfs_validator_core::{input::GtfsInput, NoticeSeverity};
+use gtfs_guru_core::{input::GtfsInput, NoticeSeverity};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -25,14 +25,14 @@ fn test_base_valid() {
     );
 
     let input = GtfsInput::from_path(&feed_path).expect("Failed to create input");
-    let runner = gtfs_validator_core::rules::default_runner();
+    let runner = gtfs_guru_core::rules::default_runner();
 
     // Set validation date to a date within the valid range of the feed if necessary,
     // or rely on today if the feed is dynamic.
     // The base-valid README or content might specify dates.
     // For now, let's assume it's designed to pass or we might need to mock date.
 
-    let outcome = gtfs_validator_core::engine::validate_input(&input, &runner);
+    let outcome = gtfs_guru_core::engine::validate_input(&input, &runner);
 
     // Filter out INFO/WARNING notices. Base valid might have warnings.
     let unexpected_notices: Vec<_> = outcome
@@ -62,15 +62,15 @@ fn test_errors() {
             let error_code = path.file_name().unwrap().to_str().unwrap();
             println!("Testing error expectation: {} in {:?}", error_code, path);
 
-            let _date_guard = gtfs_validator_core::set_validation_date(Some(
+            let _date_guard = gtfs_guru_core::set_validation_date(Some(
                 chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             ));
             let is_google = path.to_string_lossy().contains("google");
-            let _google_guard = gtfs_validator_core::set_google_rules_enabled(is_google);
+            let _google_guard = gtfs_guru_core::set_google_rules_enabled(is_google);
 
             let input = GtfsInput::from_path(path).expect("Failed to create input");
-            let runner = gtfs_validator_core::rules::default_runner();
-            let outcome = gtfs_validator_core::engine::validate_input(&input, &runner);
+            let runner = gtfs_guru_core::rules::default_runner();
+            let outcome = gtfs_guru_core::engine::validate_input(&input, &runner);
 
             let found = outcome.notices.iter().any(|n| n.code == error_code);
 
@@ -99,16 +99,16 @@ fn test_warnings() {
                 warning_code, path
             );
 
-            let _date_guard = gtfs_validator_core::set_validation_date(Some(
+            let _date_guard = gtfs_guru_core::set_validation_date(Some(
                 chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             ));
 
             let is_google = path.to_string_lossy().contains("google");
-            let _google_guard = gtfs_validator_core::set_google_rules_enabled(is_google);
+            let _google_guard = gtfs_guru_core::set_google_rules_enabled(is_google);
 
             let input = GtfsInput::from_path(path).expect("Failed to create input");
-            let runner = gtfs_validator_core::rules::default_runner();
-            let outcome = gtfs_validator_core::engine::validate_input(&input, &runner);
+            let runner = gtfs_guru_core::rules::default_runner();
+            let outcome = gtfs_guru_core::engine::validate_input(&input, &runner);
 
             let found = outcome.notices.iter().any(|n| n.code == warning_code);
 

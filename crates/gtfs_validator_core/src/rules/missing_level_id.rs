@@ -37,7 +37,7 @@ impl Validator for MissingLevelIdValidator {
             return;
         }
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         let mut rows_by_id: HashMap<&str, u64> = HashMap::new();
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let stop_id = stop.stop_id.trim();
@@ -85,7 +85,7 @@ impl Validator for MissingLevelIdValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Level, Pathway, Stop};
+    use gtfs_guru_model::{Level, Pathway, Stop};
 
     #[test]
     fn detects_missing_level_id_when_levels_present() {

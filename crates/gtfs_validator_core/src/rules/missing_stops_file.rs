@@ -47,7 +47,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec!["stop_id".to_string()],
-            rows: vec![gtfs_model::Stop::default()],
+            rows: vec![gtfs_guru_model::Stop::default()],
             row_numbers: vec![2],
         };
         feed.locations = None;

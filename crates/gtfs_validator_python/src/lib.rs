@@ -7,11 +7,11 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use gtfs_validator_core::{
+use gtfs_guru_core::{
     default_runner, set_validation_country_code, set_validation_date, validate_input, GtfsInput,
     NoticeSeverity,
 };
-use gtfs_validator_report::{ReportSummary, ReportSummaryContext, ValidationReport};
+use gtfs_guru_report::{ReportSummary, ReportSummaryContext, ValidationReport};
 
 /// A single validation notice (error, warning, or info).
 #[pyclass]
@@ -430,7 +430,7 @@ fn version() -> &'static str {
 /// Get list of all available notice codes.
 #[pyfunction]
 fn notice_codes(py: Python<'_>) -> PyObject {
-    let schema = gtfs_validator_core::build_notice_schema_map();
+    let schema = gtfs_guru_core::build_notice_schema_map();
     let list = PyList::empty_bound(py);
     for code in schema.keys() {
         list.append(code).ok();
@@ -441,7 +441,7 @@ fn notice_codes(py: Python<'_>) -> PyObject {
 /// Get schema for all notice types.
 #[pyfunction]
 fn notice_schema(py: Python<'_>) -> PyResult<PyObject> {
-    let schema = gtfs_validator_core::build_notice_schema_map();
+    let schema = gtfs_guru_core::build_notice_schema_map();
     let json = serde_json::to_value(&schema).map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(json_to_py(py, &json))
 }

@@ -47,7 +47,7 @@ impl Validator for RouteColorContrastValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsColor, Route};
+    use gtfs_guru_model::{GtfsColor, Route};
 
     #[test]
     fn detects_poor_contrast() {

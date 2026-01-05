@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use chrono::{Datelike, NaiveDate};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{ExceptionType, GtfsDate, ServiceAvailability};
+use gtfs_guru_model::{ExceptionType, GtfsDate, ServiceAvailability};
 
 const CODE_EXPIRED_CALENDAR: &str = "expired_calendar";
 
@@ -164,7 +164,7 @@ fn gtfs_date_to_naive(date: GtfsDate) -> Option<NaiveDate> {
     NaiveDate::from_ymd_opt(date.year(), date.month() as u32, date.day() as u32)
 }
 
-fn service_available_on_date(calendar: &gtfs_model::Calendar, date: NaiveDate) -> bool {
+fn service_available_on_date(calendar: &gtfs_guru_model::Calendar, date: NaiveDate) -> bool {
     match date.weekday() {
         chrono::Weekday::Mon => is_available(calendar.monday),
         chrono::Weekday::Tue => is_available(calendar.tuesday),
@@ -234,7 +234,7 @@ mod tests {
         feed.calendar = None;
         feed.calendar_dates = Some(CsvTable {
             headers: Vec::new(),
-            rows: vec![gtfs_model::CalendarDate {
+            rows: vec![gtfs_guru_model::CalendarDate {
                 service_id: "SVC1".to_string(),
                 date: gtfs_date(past),
                 exception_type: ExceptionType::Added,
@@ -263,12 +263,12 @@ mod tests {
         feed.calendar_dates = Some(CsvTable {
             headers: Vec::new(),
             rows: vec![
-                gtfs_model::CalendarDate {
+                gtfs_guru_model::CalendarDate {
                     service_id: "SVC1".to_string(),
                     date: gtfs_date(past),
                     exception_type: ExceptionType::Added,
                 },
-                gtfs_model::CalendarDate {
+                gtfs_guru_model::CalendarDate {
                     service_id: "SVC2".to_string(),
                     date: gtfs_date(future),
                     exception_type: ExceptionType::Added,
@@ -283,8 +283,8 @@ mod tests {
         assert!(notices.is_empty());
     }
 
-    fn calendar_row(service_id: &str, start: NaiveDate, end: NaiveDate) -> gtfs_model::Calendar {
-        gtfs_model::Calendar {
+    fn calendar_row(service_id: &str, start: NaiveDate, end: NaiveDate) -> gtfs_guru_model::Calendar {
+        gtfs_guru_model::Calendar {
             service_id: service_id.to_string(),
             monday: ServiceAvailability::Available,
             tuesday: ServiceAvailability::Available,
@@ -306,7 +306,7 @@ mod tests {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: Some("A1".to_string()),
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),

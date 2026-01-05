@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_WRONG_PARENT_LOCATION_TYPE: &str = "wrong_parent_location_type";
 const CODE_UNUSED_STATION: &str = "unused_station";
@@ -19,7 +19,7 @@ impl Validator for ParentStationValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         let mut rows_by_id: HashMap<&str, u64> = HashMap::new();
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let stop_id = stop.stop_id.trim();
@@ -399,8 +399,8 @@ mod tests {
             .any(|n| n.code == CODE_STOP_TOO_FAR_FROM_PARENT_STATION));
     }
 
-    fn station(stop_id: &str) -> gtfs_model::Stop {
-        gtfs_model::Stop {
+    fn station(stop_id: &str) -> gtfs_guru_model::Stop {
+        gtfs_guru_model::Stop {
             stop_id: stop_id.to_string(),
             stop_name: Some("Station".to_string()),
             stop_lat: Some(10.0),
@@ -414,8 +414,8 @@ mod tests {
         stop_id: &str,
         parent_station: &str,
         location_type: Option<LocationType>,
-    ) -> gtfs_model::Stop {
-        gtfs_model::Stop {
+    ) -> gtfs_guru_model::Stop {
+        gtfs_guru_model::Stop {
             stop_id: stop_id.to_string(),
             stop_name: Some("Stop".to_string()),
             stop_lat: Some(10.0),
@@ -426,11 +426,11 @@ mod tests {
         }
     }
 
-    fn feed_with_stops(stops: Vec<gtfs_model::Stop>) -> GtfsFeed {
+    fn feed_with_stops(stops: Vec<gtfs_guru_model::Stop>) -> GtfsFeed {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),

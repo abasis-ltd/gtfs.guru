@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use gtfs_validator_core::rules::shape_to_stop_matching::ShapeToStopMatchingValidator;
+use gtfs_guru_core::rules::shape_to_stop_matching::ShapeToStopMatchingValidator;
 // Note: We need to access internal logic or just benchmark the public API.
 // Since the validator struct itself is public, we can use it, but `validate` takes a full feed.
 // However, the rule logic might be private or not easily exposed.
@@ -8,8 +8,8 @@ use gtfs_validator_core::rules::shape_to_stop_matching::ShapeToStopMatchingValid
 // we might need to expose it or just benchmark the validator on a constructed feed.
 // Given the constraints, let's benchmark the `validate` method on a feed with many shapes and stops.
 
-use gtfs_model::{Route, RouteType, Shape, Stop, StopTime, Trip};
-use gtfs_validator_core::{CsvTable, GtfsFeed, NoticeContainer, Validator};
+use gtfs_guru_model::{Route, RouteType, Shape, Stop, StopTime, Trip};
+use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, Validator};
 
 fn generate_complex_feed(
     num_shapes: usize,

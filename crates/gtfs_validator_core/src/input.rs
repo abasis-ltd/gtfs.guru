@@ -865,7 +865,7 @@ mod tests {
         let reader = input.reader();
         let mut notices = NoticeContainer::new();
         let table = reader
-            .read_csv_with_notices::<gtfs_model::Route>("routes.txt", &mut notices)
+            .read_csv_with_notices::<gtfs_guru_model::Route>("routes.txt", &mut notices)
             .expect("read csv");
 
         assert!(table.rows.is_empty());

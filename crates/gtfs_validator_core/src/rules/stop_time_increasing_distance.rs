@@ -24,7 +24,7 @@ impl Validator for StopTimeIncreasingDistanceValidator {
             return;
         }
 
-        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_model::StopTime)>> = HashMap::new();
+        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_guru_model::StopTime)>> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             let trip_id = stop_time.trip_id.trim();
@@ -41,7 +41,7 @@ impl Validator for StopTimeIncreasingDistanceValidator {
         }
 
         for stop_times in by_trip.values() {
-            let mut prev: Option<(u64, &gtfs_model::StopTime)> = None;
+            let mut prev: Option<(u64, &gtfs_guru_model::StopTime)> = None;
             for (row_number, curr) in stop_times {
                 if !has_stop_id(curr)
                     || curr.location_group_id.is_some()
@@ -89,7 +89,7 @@ impl Validator for StopTimeIncreasingDistanceValidator {
     }
 }
 
-fn has_stop_id(stop_time: &gtfs_model::StopTime) -> bool {
+fn has_stop_id(stop_time: &gtfs_guru_model::StopTime) -> bool {
     !stop_time.stop_id.trim().is_empty()
 }
 
@@ -97,7 +97,7 @@ fn has_stop_id(stop_time: &gtfs_model::StopTime) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::StopTime;
+    use gtfs_guru_model::StopTime;
 
     #[test]
     fn detects_decreasing_distance() {

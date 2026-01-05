@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{PickupDropOffType, StopTime};
+use gtfs_guru_model::{PickupDropOffType, StopTime};
 
 const CODE_OVERLAPPING_ZONE_AND_WINDOW: &str = "overlapping_zone_and_pickup_drop_off_window";
 
@@ -158,16 +158,16 @@ fn has_unknown_type(stop_time: &StopTime) -> bool {
 }
 
 fn windows_overlap(
-    start_a: gtfs_model::GtfsTime,
-    end_a: gtfs_model::GtfsTime,
-    start_b: gtfs_model::GtfsTime,
-    end_b: gtfs_model::GtfsTime,
+    start_a: gtfs_guru_model::GtfsTime,
+    end_a: gtfs_guru_model::GtfsTime,
+    start_b: gtfs_guru_model::GtfsTime,
+    end_b: gtfs_guru_model::GtfsTime,
 ) -> bool {
     start_a.total_seconds() < end_b.total_seconds()
         && end_a.total_seconds() > start_b.total_seconds()
 }
 
-fn time_value(value: gtfs_model::GtfsTime) -> String {
+fn time_value(value: gtfs_guru_model::GtfsTime) -> String {
     value.to_string()
 }
 
@@ -175,7 +175,7 @@ fn time_value(value: gtfs_model::GtfsTime) -> String {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, PickupDropOffType, StopTime};
+    use gtfs_guru_model::{GtfsTime, PickupDropOffType, StopTime};
 
     #[test]
     fn detects_overlapping_windows_for_same_location() {

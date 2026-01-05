@@ -8,7 +8,7 @@ const CODE_START_AND_END_RANGE_EQUAL: &str = "start_and_end_range_equal";
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Frequency, GtfsTime};
+    use gtfs_guru_model::{Frequency, GtfsTime};
 
     #[test]
     fn detects_start_after_end() {

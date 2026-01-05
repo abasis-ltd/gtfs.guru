@@ -1,5 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::PickupDropOffType;
+use gtfs_guru_model::PickupDropOffType;
 
 const CODE_FORBIDDEN_PICKUP_TYPE: &str = "forbidden_pickup_type";
 const CODE_FORBIDDEN_DROP_OFF_TYPE: &str = "forbidden_drop_off_type";
@@ -64,8 +64,8 @@ fn normalized_pickup_drop_off_type(value: Option<PickupDropOffType>) -> PickupDr
 
 fn forbidden_pickup_type_notice(
     row_number: u64,
-    start_window: Option<gtfs_model::GtfsTime>,
-    end_window: Option<gtfs_model::GtfsTime>,
+    start_window: Option<gtfs_guru_model::GtfsTime>,
+    end_window: Option<gtfs_guru_model::GtfsTime>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FORBIDDEN_PICKUP_TYPE,
@@ -85,8 +85,8 @@ fn forbidden_pickup_type_notice(
 
 fn forbidden_drop_off_type_notice(
     row_number: u64,
-    start_window: Option<gtfs_model::GtfsTime>,
-    end_window: Option<gtfs_model::GtfsTime>,
+    start_window: Option<gtfs_guru_model::GtfsTime>,
+    end_window: Option<gtfs_guru_model::GtfsTime>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FORBIDDEN_DROP_OFF_TYPE,
@@ -104,7 +104,7 @@ fn forbidden_drop_off_type_notice(
     notice
 }
 
-fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
+fn time_value(value: Option<gtfs_guru_model::GtfsTime>) -> String {
     value.map(|time| time.to_string()).unwrap_or_default()
 }
 
@@ -112,7 +112,7 @@ fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, PickupDropOffType, StopTime};
+    use gtfs_guru_model::{GtfsTime, PickupDropOffType, StopTime};
 
     #[test]
     fn detects_forbidden_pickup_type() {

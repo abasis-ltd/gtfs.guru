@@ -1,6 +1,6 @@
 use crate::feed::FARE_MEDIA_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::FareMediaType;
+use gtfs_guru_model::FareMediaType;
 
 const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
 
@@ -55,7 +55,7 @@ fn should_have_name(media_type: FareMediaType) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::FareMedia;
+    use gtfs_guru_model::FareMedia;
 
     #[test]
     fn emits_warning_when_name_missing_for_transit_card() {

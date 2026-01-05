@@ -17,7 +17,7 @@ impl Validator for OverlappingFrequencyValidator {
             return;
         };
 
-        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_model::Frequency)>> = HashMap::new();
+        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_guru_model::Frequency)>> = HashMap::new();
         for (index, freq) in frequencies.rows.iter().enumerate() {
             let row_number = frequencies.row_number(index);
             let trip_id = freq.trip_id.trim();
@@ -75,7 +75,7 @@ impl Validator for OverlappingFrequencyValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Frequency, GtfsTime};
+    use gtfs_guru_model::{Frequency, GtfsTime};
 
     #[test]
     fn detects_overlapping_frequency() {

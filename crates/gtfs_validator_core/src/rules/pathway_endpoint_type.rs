@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_PATHWAY_TO_WRONG_LOCATION_TYPE: &str = "pathway_to_wrong_location_type";
 const CODE_PATHWAY_TO_PLATFORM_WITH_BOARDING_AREAS: &str =
@@ -20,8 +20,8 @@ impl Validator for PathwayEndpointTypeValidator {
             return;
         };
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
-        let mut children_by_parent: HashMap<&str, Vec<&gtfs_model::Stop>> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
+        let mut children_by_parent: HashMap<&str, Vec<&gtfs_guru_model::Stop>> = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id.trim();
             if stop_id.is_empty() {
@@ -64,8 +64,8 @@ fn check_endpoint(
     field_name: &str,
     pathway_id: &str,
     stop_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    children_by_parent: &HashMap<&str, Vec<&gtfs_model::Stop>>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    children_by_parent: &HashMap<&str, Vec<&gtfs_guru_model::Stop>>,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -128,7 +128,7 @@ fn check_endpoint(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{LocationType, Pathway, Stop};
+    use gtfs_guru_model::{LocationType, Pathway, Stop};
 
     #[test]
     fn detects_pathway_to_station() {

@@ -66,7 +66,7 @@ impl Validator for UnusedAgencyValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Agency, Route};
+    use gtfs_guru_model::{Agency, Route};
 
     #[test]
     fn detects_unused_agency() {

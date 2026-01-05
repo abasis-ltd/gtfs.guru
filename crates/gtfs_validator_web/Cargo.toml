@@ -15,8 +15,8 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-[dependencies.gtfs_validator_core]
+[dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
 
-[dependencies.gtfs_validator_report]
+[dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"

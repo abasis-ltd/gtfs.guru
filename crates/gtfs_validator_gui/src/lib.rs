@@ -9,10 +9,10 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use gtfs_validator_core::{
+use gtfs_guru_core::{
     default_runner, set_validation_country_code, validate_input, GtfsInput, NoticeSeverity,
 };
-use gtfs_validator_report::{
+use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
 

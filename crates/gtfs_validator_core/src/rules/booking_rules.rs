@@ -1,5 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{BookingRules, BookingType};
+use gtfs_guru_model::{BookingRules, BookingType};
 
 const CODE_FORBIDDEN_REALTIME_FIELDS: &str = "forbidden_real_time_booking_field_value";
 const CODE_FORBIDDEN_SAME_DAY_FIELDS: &str = "forbidden_same_day_booking_field_value";
@@ -410,7 +410,7 @@ fn prior_notice_last_day_after_start_day_notice(
 fn forbidden_prior_notice_start_time_notice(
     booking_rule_id: &str,
     row_number: u64,
-    prior_notice_start_time: Option<gtfs_model::GtfsTime>,
+    prior_notice_start_time: Option<gtfs_guru_model::GtfsTime>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FORBIDDEN_PRIOR_NOTICE_START_TIME,

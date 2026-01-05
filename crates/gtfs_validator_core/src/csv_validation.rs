@@ -8,7 +8,7 @@ use crate::csv_schema::schema_for_file;
 use crate::feed::FARE_PRODUCTS_FILE;
 use crate::validation_context::validation_country_code;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
-use gtfs_model::{GtfsColor, GtfsDate, GtfsTime};
+use gtfs_guru_model::{GtfsColor, GtfsDate, GtfsTime};
 
 const MAX_ROW_NUMBER: u64 = 1_000_000_000;
 

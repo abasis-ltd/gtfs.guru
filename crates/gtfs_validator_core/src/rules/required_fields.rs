@@ -517,7 +517,7 @@ mod tests {
                 "agency_url".to_string(),
                 "agency_timezone".to_string(),
             ],
-            rows: vec![gtfs_model::Agency {
+            rows: vec![gtfs_guru_model::Agency {
                 agency_name: "".to_string(), // Empty
                 agency_url: "https://example.com".to_string(),
                 agency_timezone: "UTC".to_string(),
@@ -544,7 +544,7 @@ mod tests {
                 "agency_url".to_string(),
                 "agency_timezone".to_string(),
             ],
-            rows: vec![gtfs_model::Agency {
+            rows: vec![gtfs_guru_model::Agency {
                 agency_name: "Test".to_string(),
                 agency_url: "https://example.com".to_string(),
                 agency_timezone: "UTC".to_string(),

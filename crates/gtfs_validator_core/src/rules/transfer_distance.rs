@@ -23,7 +23,7 @@ impl Validator for TransferDistanceValidator {
             return;
         }
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id.trim();
             if stop_id.is_empty() {
@@ -93,7 +93,7 @@ fn trimmed_non_empty(value: Option<&str>) -> Option<&str> {
 
 fn stop_or_parent_coords(
     stop_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
 ) -> Option<(f64, f64)> {
     let mut current = stop_id;
     for _ in 0..3 {
@@ -158,7 +158,7 @@ fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Stop, Transfer};
+    use gtfs_guru_model::{Stop, Transfer};
 
     #[test]
     fn detects_distance_too_large() {

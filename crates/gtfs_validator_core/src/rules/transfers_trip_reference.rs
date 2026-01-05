@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_TRANSFER_WITH_INVALID_TRIP_AND_ROUTE: &str = "transfer_with_invalid_trip_and_route";
 const CODE_TRANSFER_WITH_INVALID_TRIP_AND_STOP: &str = "transfer_with_invalid_trip_and_stop";
@@ -19,7 +19,7 @@ impl Validator for TransfersTripReferenceValidator {
             return;
         };
 
-        let mut trips_by_id: HashMap<&str, &gtfs_model::Trip> = HashMap::new();
+        let mut trips_by_id: HashMap<&str, &gtfs_guru_model::Trip> = HashMap::new();
         for trip in &feed.trips.rows {
             let trip_id = trip.trip_id.trim();
             if trip_id.is_empty() {
@@ -44,8 +44,8 @@ impl Validator for TransfersTripReferenceValidator {
                 .insert(stop_id);
         }
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
-        let mut stops_by_parent: HashMap<&str, Vec<&gtfs_model::Stop>> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
+        let mut stops_by_parent: HashMap<&str, Vec<&gtfs_guru_model::Stop>> = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id.trim();
             if stop_id.is_empty() {
@@ -96,21 +96,21 @@ enum TransferSide {
 }
 
 impl TransferSide {
-    fn trip_id<'a>(&self, transfer: &'a gtfs_model::Transfer) -> Option<&'a str> {
+    fn trip_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
         match self {
             TransferSide::From => transfer.from_trip_id.as_deref(),
             TransferSide::To => transfer.to_trip_id.as_deref(),
         }
     }
 
-    fn route_id<'a>(&self, transfer: &'a gtfs_model::Transfer) -> Option<&'a str> {
+    fn route_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
         match self {
             TransferSide::From => transfer.from_route_id.as_deref(),
             TransferSide::To => transfer.to_route_id.as_deref(),
         }
     }
 
-    fn stop_id<'a>(&self, transfer: &'a gtfs_model::Transfer) -> Option<&'a str> {
+    fn stop_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
         match self {
             TransferSide::From => transfer.from_stop_id.as_ref().map(|value| value.as_str()),
             TransferSide::To => transfer.to_stop_id.as_ref().map(|value| value.as_str()),
@@ -140,12 +140,12 @@ impl TransferSide {
 }
 
 fn validate_trip_side(
-    transfer: &gtfs_model::Transfer,
+    transfer: &gtfs_guru_model::Transfer,
     side: TransferSide,
-    trips_by_id: &HashMap<&str, &gtfs_model::Trip>,
+    trips_by_id: &HashMap<&str, &gtfs_guru_model::Trip>,
     stop_times_by_trip: &HashMap<&str, HashSet<&str>>,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stops_by_parent: &HashMap<&str, Vec<&gtfs_model::Stop>>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stops_by_parent: &HashMap<&str, Vec<&gtfs_guru_model::Stop>>,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -237,8 +237,8 @@ fn validate_trip_side(
 }
 
 fn expand_stop_ids<'a>(
-    stop: &'a gtfs_model::Stop,
-    stops_by_parent: &'a HashMap<&str, Vec<&'a gtfs_model::Stop>>,
+    stop: &'a gtfs_guru_model::Stop,
+    stops_by_parent: &'a HashMap<&str, Vec<&'a gtfs_guru_model::Stop>>,
 ) -> Vec<&'a str> {
     let location_type = stop.location_type.unwrap_or(LocationType::StopOrPlatform);
     match location_type {
@@ -255,7 +255,7 @@ fn expand_stop_ids<'a>(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Stop, StopTime, Transfer, Trip};
+    use gtfs_guru_model::{Stop, StopTime, Transfer, Trip};
 
     #[test]
     fn detects_mismatched_trip_and_route() {

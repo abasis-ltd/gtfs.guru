@@ -56,7 +56,7 @@ impl Validator for DuplicateStopSequenceValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::StopTime;
+    use gtfs_guru_model::StopTime;
 
     #[test]
     fn detects_duplicate_stop_sequence() {

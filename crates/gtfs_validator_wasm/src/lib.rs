@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 
-use gtfs_validator_core::{
+use gtfs_guru_core::{
     default_runner, set_validation_country_code, set_validation_date, validate_bytes,
     NoticeContainer, NoticeSeverity,
 };

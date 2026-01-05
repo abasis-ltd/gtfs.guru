@@ -8,12 +8,12 @@ use clap::Parser;
 use reqwest::blocking::Client;
 use tracing::info;
 
-use gtfs_validator_core::{
+use gtfs_guru_core::{
     build_notice_schema_map, collect_input_notices, default_runner, set_validation_country_code,
     set_validation_date, GtfsFeed, GtfsInput, GtfsInputError, NoticeContainer, NoticeSeverity,
     ValidationNotice, ValidatorRunner,
 };
-use gtfs_validator_report::{
+use gtfs_guru_report::{
     write_html_report, HtmlReportContext, MemoryUsageRecord, ReportSummary, ReportSummaryContext,
     SarifReport, ValidationReport,
 };
@@ -122,7 +122,7 @@ fn main() -> anyhow::Result<()> {
         _ => None,
     };
     let _google_rules_guard = if args.google_rules {
-        Some(gtfs_validator_core::set_google_rules_enabled(true))
+        Some(gtfs_guru_core::set_google_rules_enabled(true))
     } else {
         None
     };
@@ -226,7 +226,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> anyhow::Result<()> {
-    use gtfs_validator_core::{FixOperation, FixSafety};
+    use gtfs_guru_core::{FixOperation, FixSafety};
     use std::collections::HashMap;
 
     // Collect all fixes, grouped by file
@@ -490,7 +490,7 @@ fn validate_with_metrics(
     runner: &ValidatorRunner,
     memory_usage_records: &mut Vec<MemoryUsageRecord>,
     last_used_bytes: &mut Option<u64>,
-) -> gtfs_validator_core::ValidationOutcome {
+) -> gtfs_guru_core::ValidationOutcome {
     let mut notices = NoticeContainer::new();
 
     if let Ok(input_notices) = collect_input_notices(input) {
@@ -516,14 +516,14 @@ fn validate_with_metrics(
                 last_used_bytes,
                 "org.mobilitydata.gtfsvalidator.table.GtfsFeedLoader.loadAndValidate",
             );
-            gtfs_validator_core::ValidationOutcome {
+            gtfs_guru_core::ValidationOutcome {
                 feed: Some(feed),
                 notices,
             }
         }
         Ok(Err(err)) => {
             push_input_error_notice(&mut notices, err);
-            gtfs_validator_core::ValidationOutcome {
+            gtfs_guru_core::ValidationOutcome {
                 feed: None,
                 notices,
             }
@@ -533,7 +533,7 @@ fn validate_with_metrics(
                 input.path().display().to_string(),
                 panic_payload_message(&*panic),
             ));
-            gtfs_validator_core::ValidationOutcome {
+            gtfs_guru_core::ValidationOutcome {
                 feed: None,
                 notices,
             }

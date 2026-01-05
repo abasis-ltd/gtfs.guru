@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{Bidirectional, LocationType};
+use gtfs_guru_model::{Bidirectional, LocationType};
 
 const CODE_PATHWAY_UNREACHABLE_LOCATION: &str = "pathway_unreachable_location";
 
@@ -18,9 +18,9 @@ impl Validator for PathwayReachableLocationValidator {
             return;
         };
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         let mut stop_rows: HashMap<String, u64> = HashMap::new();
-        let mut children_by_parent: HashMap<&str, Vec<&gtfs_model::Stop>> = HashMap::new();
+        let mut children_by_parent: HashMap<&str, Vec<&gtfs_guru_model::Stop>> = HashMap::new();
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
             let stop_id = stop.stop_id.trim();
@@ -37,8 +37,8 @@ impl Validator for PathwayReachableLocationValidator {
             }
         }
 
-        let mut by_from: HashMap<&str, Vec<&gtfs_model::Pathway>> = HashMap::new();
-        let mut by_to: HashMap<&str, Vec<&gtfs_model::Pathway>> = HashMap::new();
+        let mut by_from: HashMap<&str, Vec<&gtfs_guru_model::Pathway>> = HashMap::new();
+        let mut by_to: HashMap<&str, Vec<&gtfs_guru_model::Pathway>> = HashMap::new();
         for pathway in &pathways.rows {
             let from_id = pathway.from_stop_id.trim();
             if !from_id.is_empty() {
@@ -137,8 +137,8 @@ enum SearchDirection {
 
 fn including_station<'a>(
     stop_id: &str,
-    stops_by_id: &HashMap<&str, &'a gtfs_model::Stop>,
-) -> Option<&'a gtfs_model::Stop> {
+    stops_by_id: &HashMap<&str, &'a gtfs_guru_model::Stop>,
+) -> Option<&'a gtfs_guru_model::Stop> {
     let mut current = stop_id;
     for _ in 0..3 {
         let stop = *stops_by_id.get(current)?;
@@ -160,7 +160,7 @@ fn including_station<'a>(
 
 fn find_stations_with_pathways(
     pathway_endpoints: &HashSet<&str>,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
 ) -> HashSet<String> {
     let mut stations_with_pathways = HashSet::new();
     for stop_id in pathway_endpoints {
@@ -176,9 +176,9 @@ fn find_stations_with_pathways(
 
 fn traverse_pathways(
     direction: SearchDirection,
-    stops: &[gtfs_model::Stop],
-    by_from: &HashMap<&str, Vec<&gtfs_model::Pathway>>,
-    by_to: &HashMap<&str, Vec<&gtfs_model::Pathway>>,
+    stops: &[gtfs_guru_model::Stop],
+    by_from: &HashMap<&str, Vec<&gtfs_guru_model::Pathway>>,
+    by_to: &HashMap<&str, Vec<&gtfs_guru_model::Pathway>>,
 ) -> HashSet<String> {
     let mut visited: HashSet<String> = HashSet::new();
     let mut queue: VecDeque<String> = VecDeque::new();
@@ -244,7 +244,7 @@ fn maybe_visit(stop_id: &str, visited: &mut HashSet<String>, queue: &mut VecDequ
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Bidirectional, LocationType, Pathway, Stop};
+    use gtfs_guru_model::{Bidirectional, LocationType, Pathway, Stop};
 
     #[test]
     fn detects_unreachable_location() {

@@ -2,7 +2,7 @@ use crate::{
     google_rules_enabled, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
 };
 use chrono::Datelike;
-use gtfs_model::TransferType;
+use gtfs_guru_model::TransferType;
 
 const MAX_ROUTE_SHORT_NAME_LENGTH: usize = 6;
 const MAX_HEADWAY_SECS: u32 = 3600; // 1 hour warning
@@ -256,12 +256,12 @@ impl Validator for GoogleServiceGapValidator {
                     row.date.month() as u32,
                     row.date.day() as u32,
                 ) {
-                    if row.exception_type == gtfs_model::ExceptionType::Added {
+                    if row.exception_type == gtfs_guru_model::ExceptionType::Added {
                         active_services
                             .entry(row.service_id.clone())
                             .or_default()
                             .insert(date);
-                    } else if row.exception_type == gtfs_model::ExceptionType::Removed {
+                    } else if row.exception_type == gtfs_guru_model::ExceptionType::Removed {
                         if let Some(dates) = active_services.get_mut(&row.service_id) {
                             dates.remove(&date);
                         }
@@ -311,8 +311,8 @@ impl Validator for GoogleServiceGapValidator {
     }
 }
 
-fn is_service_active(calendar: &gtfs_model::Calendar, date: chrono::NaiveDate) -> bool {
-    use gtfs_model::ServiceAvailability;
+fn is_service_active(calendar: &gtfs_guru_model::Calendar, date: chrono::NaiveDate) -> bool {
+    use gtfs_guru_model::ServiceAvailability;
     match date.weekday() {
         chrono::Weekday::Mon => calendar.monday == ServiceAvailability::Available,
         chrono::Weekday::Tue => calendar.tuesday == ServiceAvailability::Available,
@@ -343,8 +343,8 @@ impl Validator for DuplicateTripValidator {
             Vec<(
                 &str,
                 u32,
-                Option<gtfs_model::GtfsTime>,
-                Option<gtfs_model::GtfsTime>,
+                Option<gtfs_guru_model::GtfsTime>,
+                Option<gtfs_guru_model::GtfsTime>,
             )>,
         > = std::collections::HashMap::new();
         for stop_time in &feed.stop_times.rows {
@@ -423,7 +423,7 @@ impl Validator for DuplicateTripValidator {
 mod tests {
     use super::*;
     use crate::{set_google_rules_enabled, CsvTable};
-    use gtfs_model::GtfsDate;
+    use gtfs_guru_model::GtfsDate;
 
     fn enable_google_rules() -> crate::ValidationGoogleRulesGuard {
         set_google_rules_enabled(true)
@@ -434,15 +434,15 @@ mod tests {
         let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.calendar = Some(CsvTable {
-            rows: vec![gtfs_model::Calendar {
+            rows: vec![gtfs_guru_model::Calendar {
                 service_id: "WD".to_string(),
-                monday: gtfs_model::ServiceAvailability::Available,
-                tuesday: gtfs_model::ServiceAvailability::Available,
-                wednesday: gtfs_model::ServiceAvailability::Available,
-                thursday: gtfs_model::ServiceAvailability::Available,
-                friday: gtfs_model::ServiceAvailability::Available,
-                saturday: gtfs_model::ServiceAvailability::Available,
-                sunday: gtfs_model::ServiceAvailability::Available,
+                monday: gtfs_guru_model::ServiceAvailability::Available,
+                tuesday: gtfs_guru_model::ServiceAvailability::Available,
+                wednesday: gtfs_guru_model::ServiceAvailability::Available,
+                thursday: gtfs_guru_model::ServiceAvailability::Available,
+                friday: gtfs_guru_model::ServiceAvailability::Available,
+                saturday: gtfs_guru_model::ServiceAvailability::Available,
+                sunday: gtfs_guru_model::ServiceAvailability::Available,
                 start_date: GtfsDate::parse("20240101").unwrap(), // Jan 1
                 end_date: GtfsDate::parse("20240131").unwrap(),   // Jan 31
             }],
@@ -453,10 +453,10 @@ mod tests {
         // Remove Jan 2 to Jan 14 (13 days of gap)
         let mut dates = vec![];
         for d in 2..=14 {
-            dates.push(gtfs_model::CalendarDate {
+            dates.push(gtfs_guru_model::CalendarDate {
                 service_id: "WD".to_string(),
                 date: GtfsDate::parse(&format!("202401{:02}", d)).unwrap(),
-                exception_type: gtfs_model::ExceptionType::Removed,
+                exception_type: gtfs_guru_model::ExceptionType::Removed,
             });
         }
         feed.calendar_dates = Some(CsvTable {
@@ -480,13 +480,13 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
             rows: vec![
-                gtfs_model::Trip {
+                gtfs_guru_model::Trip {
                     trip_id: "T1".to_string(),
                     route_id: "R1".to_string(),
                     service_id: "S1".to_string(),
                     ..Default::default()
                 },
-                gtfs_model::Trip {
+                gtfs_guru_model::Trip {
                     trip_id: "T2".to_string(),
                     route_id: "R1".to_string(),
                     service_id: "S1".to_string(),
@@ -508,7 +508,7 @@ mod tests {
         let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
-            rows: vec![gtfs_model::Agency {
+            rows: vec![gtfs_guru_model::Agency {
                 agency_name: "A".to_string(),
                 agency_url: "u".to_string(),
                 agency_timezone: "z".to_string(),
@@ -531,16 +531,16 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![
-                gtfs_model::Transfer {
+                gtfs_guru_model::Transfer {
                     from_stop_id: Some("S1".to_string()),
                     to_stop_id: Some("S2".to_string()),
-                    transfer_type: Some(gtfs_model::TransferType::InSeat), // Invalid for Google
+                    transfer_type: Some(gtfs_guru_model::TransferType::InSeat), // Invalid for Google
                     ..Default::default()
                 },
-                gtfs_model::Transfer {
+                gtfs_guru_model::Transfer {
                     from_stop_id: Some("S3".to_string()),
                     to_stop_id: Some("S4".to_string()),
-                    transfer_type: Some(gtfs_model::TransferType::Recommended), // 0 - Valid
+                    transfer_type: Some(gtfs_guru_model::TransferType::Recommended), // 0 - Valid
                     ..Default::default()
                 },
             ],
@@ -562,7 +562,7 @@ mod tests {
         let _guard = enable_google_rules();
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
-            rows: vec![gtfs_model::Route {
+            rows: vec![gtfs_guru_model::Route {
                 route_id: "R1".to_string(),
                 route_short_name: Some("CrazyLongName".to_string()), // Too long (>6 chars)
                 ..Default::default()
@@ -587,15 +587,15 @@ mod tests {
         // The validator checks for invalid characters: !, $, %, \, *, =, _
         feed.stop_times = CsvTable {
             rows: vec![
-                gtfs_model::StopTime {
+                gtfs_guru_model::StopTime {
                     stop_headsign: Some("Destination".to_string()), // Valid
                     ..Default::default()
                 },
-                gtfs_model::StopTime {
+                gtfs_guru_model::StopTime {
                     stop_headsign: Some("Start vs End".to_string()), // Valid
                     ..Default::default()
                 },
-                gtfs_model::StopTime {
+                gtfs_guru_model::StopTime {
                     stop_headsign: Some("Test!Special".to_string()), // Invalid - contains !
                     ..Default::default()
                 },

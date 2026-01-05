@@ -1,5 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_MISSING_STOP_NAME: &str = "missing_stop_name";
 const CODE_STOP_WITHOUT_LOCATION: &str = "stop_without_location";
@@ -107,7 +107,7 @@ fn location_type_label(location_type: Option<LocationType>) -> &'static str {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::Stop;
+    use gtfs_guru_model::Stop;
 
     #[test]
     fn detects_missing_stop_name() {

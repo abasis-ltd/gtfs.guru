@@ -1,6 +1,6 @@
 use crate::feed::TRANSFERS_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::TransferType;
+use gtfs_guru_model::TransferType;
 
 const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
 
@@ -67,7 +67,7 @@ fn is_blank(value: Option<&str>) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Transfer, TransferType};
+    use gtfs_guru_model::{Transfer, TransferType};
 
     #[test]
     fn detects_missing_stop_ids_for_regular_transfer() {

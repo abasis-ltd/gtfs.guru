@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::feed::TRANSFERS_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{LocationType, TransferType};
+use gtfs_guru_model::{LocationType, TransferType};
 
 const CODE_TRANSFER_WITH_INVALID_STOP_LOCATION_TYPE: &str =
     "transfer_with_invalid_stop_location_type";
@@ -23,7 +23,7 @@ impl Validator for TransfersInSeatTransferTypeValidator {
             return;
         };
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id.trim();
             if stop_id.is_empty() {
@@ -32,7 +32,7 @@ impl Validator for TransfersInSeatTransferTypeValidator {
             stops_by_id.insert(stop_id, stop);
         }
 
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_model::StopTime>> = HashMap::new();
+        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
         for stop_time in &feed.stop_times.rows {
             let trip_id = stop_time.trip_id.trim();
             if trip_id.is_empty() {
@@ -84,14 +84,14 @@ enum TransferSide {
 }
 
 impl TransferSide {
-    fn trip_id<'a>(&self, transfer: &'a gtfs_model::Transfer) -> Option<&'a str> {
+    fn trip_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
         match self {
             TransferSide::From => transfer.from_trip_id.as_deref(),
             TransferSide::To => transfer.to_trip_id.as_deref(),
         }
     }
 
-    fn stop_id<'a>(&self, transfer: &'a gtfs_model::Transfer) -> Option<&'a str> {
+    fn stop_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
         match self {
             TransferSide::From => transfer.from_stop_id.as_deref(),
             TransferSide::To => transfer.to_stop_id.as_deref(),
@@ -114,11 +114,11 @@ impl TransferSide {
 }
 
 fn validate_stop(
-    transfer: &gtfs_model::Transfer,
+    transfer: &gtfs_guru_model::Transfer,
     side: TransferSide,
     trip_id: Option<&str>,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_times_by_trip: &HashMap<&str, Vec<&gtfs_model::StopTime>>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_times_by_trip: &HashMap<&str, Vec<&gtfs_guru_model::StopTime>>,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -247,7 +247,7 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{LocationType, Stop, StopTime, Transfer, TransferType};
+    use gtfs_guru_model::{LocationType, Stop, StopTime, Transfer, TransferType};
 
     #[test]
     fn detects_missing_required_trip_ids() {

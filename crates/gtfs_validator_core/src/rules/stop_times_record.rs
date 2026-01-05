@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::PickupDropOffType;
+use gtfs_guru_model::PickupDropOffType;
 
 const CODE_MISSING_STOP_TIMES_RECORD: &str = "missing_stop_times_record";
 
@@ -83,7 +83,7 @@ impl Validator for StopTimesRecordValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, PickupDropOffType, StopTime};
+    use gtfs_guru_model::{GtfsTime, PickupDropOffType, StopTime};
 
     #[test]
     fn detects_single_record_with_window() {

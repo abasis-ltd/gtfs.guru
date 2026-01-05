@@ -7,7 +7,7 @@ use anyhow::Context;
 use chrono::{Local, NaiveDate, SecondsFormat};
 use serde_json::{Number, Value};
 
-use gtfs_validator_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
+use gtfs_guru_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
 
 use crate::{ReportCounts, ReportFeedInfo, ReportSummary};
 

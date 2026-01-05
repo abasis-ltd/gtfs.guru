@@ -46,7 +46,7 @@ impl Validator for PathwayLoopValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::Pathway;
+    use gtfs_guru_model::Pathway;
 
     #[test]
     fn detects_pathway_loop() {

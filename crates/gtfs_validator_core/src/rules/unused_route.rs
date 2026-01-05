@@ -61,7 +61,7 @@ impl Validator for UnusedRouteValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Route, Trip};
+    use gtfs_guru_model::{Route, Trip};
 
     #[test]
     fn detects_unused_route() {

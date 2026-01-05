@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{BikesAllowed, RouteType};
+use gtfs_guru_model::{BikesAllowed, RouteType};
 
 const CODE_MISSING_BIKE_ALLOWANCE: &str = "missing_bike_allowance";
 
@@ -111,7 +111,7 @@ mod tests {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),
@@ -125,7 +125,7 @@ mod tests {
             },
             stops: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Stop {
+                rows: vec![gtfs_guru_model::Stop {
                     stop_id: "STOP1".to_string(),
                     stop_name: Some("Stop".to_string()),
                     stop_lat: Some(10.0),
@@ -136,7 +136,7 @@ mod tests {
             },
             routes: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Route {
+                rows: vec![gtfs_guru_model::Route {
                     route_id: "R1".to_string(),
                     route_short_name: Some("R1".to_string()),
                     route_type,
@@ -146,7 +146,7 @@ mod tests {
             },
             trips: CsvTable {
                 headers: vec!["bikes_allowed".to_string()],
-                rows: vec![gtfs_model::Trip {
+                rows: vec![gtfs_guru_model::Trip {
                     route_id: "R1".to_string(),
                     service_id: "SVC1".to_string(),
                     trip_id: "T1".to_string(),

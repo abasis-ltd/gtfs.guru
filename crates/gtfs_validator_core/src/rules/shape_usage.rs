@@ -52,7 +52,7 @@ impl Validator for ShapeUsageValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Shape, Trip};
+    use gtfs_guru_model::{Shape, Trip};
 
     #[test]
     fn detects_unused_shape() {

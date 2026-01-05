@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::geojson::LocationsGeoJson;
     use crate::{CsvTable, GtfsFeed, NoticeContainer};
-    use gtfs_model::StopTime;
+    use gtfs_guru_model::StopTime;
     use std::collections::HashSet;
 
     #[test]

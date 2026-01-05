@@ -97,7 +97,7 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
     }
 }
 
-fn has_stop_id(stop_time: &gtfs_model::StopTime) -> bool {
+fn has_stop_id(stop_time: &gtfs_guru_model::StopTime) -> bool {
     !stop_time.stop_id.trim().is_empty()
 }
 
@@ -105,7 +105,7 @@ fn has_stop_id(stop_time: &gtfs_model::StopTime) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, StopTime};
+    use gtfs_guru_model::{GtfsTime, StopTime};
 
     #[test]
     fn detects_shape_dist_with_flex_window() {

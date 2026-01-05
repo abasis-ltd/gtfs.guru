@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_STOP_WITHOUT_ZONE_ID: &str = "stop_without_zone_id";
 
@@ -102,11 +102,11 @@ impl Validator for StopZoneIdValidator {
     }
 }
 
-fn fare_rules_use_zones(fare_rules: &crate::CsvTable<gtfs_model::FareRule>) -> bool {
+fn fare_rules_use_zones(fare_rules: &crate::CsvTable<gtfs_guru_model::FareRule>) -> bool {
     fare_rules.rows.iter().any(fare_rule_has_zone_fields)
 }
 
-fn fare_rule_has_zone_fields(rule: &gtfs_model::FareRule) -> bool {
+fn fare_rule_has_zone_fields(rule: &gtfs_guru_model::FareRule) -> bool {
     has_value(rule.origin_id.as_deref())
         || has_value(rule.destination_id.as_deref())
         || has_value(rule.contains_id.as_deref())
@@ -120,7 +120,7 @@ fn has_value(value: Option<&str>) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{FareRule, Stop, StopTime, Trip};
+    use gtfs_guru_model::{FareRule, Stop, StopTime, Trip};
 
     #[test]
     fn detects_missing_zone_id() {

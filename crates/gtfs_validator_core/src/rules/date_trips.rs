@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use chrono::{Datelike, Duration, NaiveDate};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{ExceptionType, GtfsDate, ServiceAvailability};
+use gtfs_guru_model::{ExceptionType, GtfsDate, ServiceAvailability};
 
 const CODE_TRIP_COVERAGE_NOT_ACTIVE_FOR_NEXT_7_DAYS: &str =
     "trip_coverage_not_active_for_next7_days";
@@ -94,7 +94,7 @@ fn count_trips_for_each_service_date(
         return trip_count_by_date;
     }
 
-    let mut frequencies_by_trip: HashMap<&str, Vec<&gtfs_model::Frequency>> = HashMap::new();
+    let mut frequencies_by_trip: HashMap<&str, Vec<&gtfs_guru_model::Frequency>> = HashMap::new();
     if let Some(frequencies) = &feed.frequencies {
         for frequency in &frequencies.rows {
             let trip_id = frequency.trip_id.trim();
@@ -136,7 +136,7 @@ fn count_trips_for_each_service_date(
 
 fn compute_trip_count(
     trip_id: &str,
-    frequencies_by_trip: &HashMap<&str, Vec<&gtfs_model::Frequency>>,
+    frequencies_by_trip: &HashMap<&str, Vec<&gtfs_guru_model::Frequency>>,
 ) -> i32 {
     let Some(frequencies) = frequencies_by_trip.get(trip_id) else {
         return 1;
@@ -216,7 +216,7 @@ fn build_service_dates(feed: &GtfsFeed) -> HashMap<String, BTreeSet<NaiveDate>> 
     dates_by_service
 }
 
-fn service_available_on_date(calendar: &gtfs_model::Calendar, date: NaiveDate) -> bool {
+fn service_available_on_date(calendar: &gtfs_guru_model::Calendar, date: NaiveDate) -> bool {
     let availability = match date.weekday() {
         chrono::Weekday::Mon => calendar.monday,
         chrono::Weekday::Tue => calendar.tuesday,
@@ -246,7 +246,7 @@ mod tests {
     fn test_date_trips_no_coverage() {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
-            rows: vec![gtfs_model::Trip {
+            rows: vec![gtfs_guru_model::Trip {
                 trip_id: "T1".to_string(),
                 service_id: "S1".to_string(),
                 ..Default::default()

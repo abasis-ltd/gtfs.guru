@@ -92,7 +92,7 @@ impl Validator for StopTimesGeographyIdPresenceValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::StopTime;
+    use gtfs_guru_model::StopTime;
 
     #[test]
     fn detects_missing_geography_id() {

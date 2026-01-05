@@ -13,7 +13,7 @@ use std::path::Path;
 use anyhow::Context;
 use serde::Serialize;
 
-use gtfs_validator_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
+use gtfs_guru_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
 
 /// SARIF schema URL
 const SARIF_SCHEMA: &str =
@@ -285,7 +285,7 @@ fn code_to_name(code: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtfs_validator_core::NoticeContainer;
+    use gtfs_guru_core::NoticeContainer;
 
     #[test]
     fn test_empty_report() {

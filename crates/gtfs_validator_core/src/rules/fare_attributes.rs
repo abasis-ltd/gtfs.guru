@@ -53,7 +53,7 @@ fn number_out_of_range_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::FareAttribute;
+    use gtfs_guru_model::FareAttribute;
 
     #[test]
     fn detects_negative_price() {

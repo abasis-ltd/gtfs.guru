@@ -19,7 +19,7 @@ impl Validator for ContinuousPickupDropOffValidator {
             return;
         }
 
-        let mut stop_times_by_trip: HashMap<&str, Vec<(u64, &gtfs_model::StopTime)>> =
+        let mut stop_times_by_trip: HashMap<&str, Vec<(u64, &gtfs_guru_model::StopTime)>> =
             HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
@@ -108,7 +108,7 @@ fn has_stop_time_headers(headers: &[String]) -> bool {
             .any(|header| header.eq_ignore_ascii_case("end_pickup_drop_off_window"))
 }
 
-fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
+fn time_value(value: Option<gtfs_guru_model::GtfsTime>) -> String {
     value.map(|time| time.to_string()).unwrap_or_default()
 }
 
@@ -116,7 +116,7 @@ fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{ContinuousPickupDropOff, GtfsTime, Route, StopTime, Trip};
+    use gtfs_guru_model::{ContinuousPickupDropOff, GtfsTime, Route, StopTime, Trip};
 
     #[test]
     fn detects_forbidden_windows() {

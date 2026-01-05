@@ -349,7 +349,7 @@ fn duplicate_key_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Route, RouteType, Stop, Trip};
+    use gtfs_guru_model::{Route, RouteType, Stop, Trip};
 
     #[test]
     fn detects_duplicate_stop_id() {

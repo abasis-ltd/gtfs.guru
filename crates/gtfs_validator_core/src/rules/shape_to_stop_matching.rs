@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::RouteType;
+use gtfs_guru_model::RouteType;
 
 const CODE_STOP_TOO_FAR_FROM_SHAPE: &str = "stop_too_far_from_shape";
 const CODE_STOP_TOO_FAR_FROM_SHAPE_USER_DISTANCE: &str =
@@ -49,8 +49,8 @@ impl Validator for ShapeToStopMatchingValidator {
             routes_by_id.insert(route_id, route);
         }
 
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_model::StopTime>> = HashMap::new();
-        let mut stop_time_rows: HashMap<*const gtfs_model::StopTime, u64> = HashMap::new();
+        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
+        let mut stop_time_rows: HashMap<*const gtfs_guru_model::StopTime, u64> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             stop_time_rows.insert(stop_time as *const _, feed.stop_times.row_number(index));
             let trip_id = stop_time.trip_id.trim();
@@ -67,7 +67,7 @@ impl Validator for ShapeToStopMatchingValidator {
         }
 
         let mut trip_rows = HashMap::new();
-        let mut trips_by_shape: HashMap<&str, Vec<&gtfs_model::Trip>> = HashMap::new();
+        let mut trips_by_shape: HashMap<&str, Vec<&gtfs_guru_model::Trip>> = HashMap::new();
         for (index, trip) in feed.trips.rows.iter().enumerate() {
             let trip_id = trip.trip_id.trim();
             if !trip_id.is_empty() {
@@ -83,7 +83,7 @@ impl Validator for ShapeToStopMatchingValidator {
             trips_by_shape.entry(shape_id).or_default().push(trip);
         }
 
-        let mut shapes_by_id: HashMap<&str, Vec<&gtfs_model::Shape>> = HashMap::new();
+        let mut shapes_by_id: HashMap<&str, Vec<&gtfs_guru_model::Shape>> = HashMap::new();
         for shape in &shapes.rows {
             let shape_id = shape.shape_id.trim();
             if shape_id.is_empty() {
@@ -167,14 +167,14 @@ impl Validator for ShapeToStopMatchingValidator {
 }
 
 fn report_problems(
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
     shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
     problems: &[Problem<'_>],
     matching_distance: MatchingDistance,
     reported_stop_ids: &mut HashSet<String>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
     shape_points: &ShapePoints,
     notices: &mut NoticeContainer,
 ) {
@@ -204,11 +204,11 @@ fn report_problems(
 fn problem_notice(
     problem: &Problem<'_>,
     matching_distance: MatchingDistance,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
     shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
     shape_points: &ShapePoints,
 ) -> ValidationNotice {
     match problem.problem_type {
@@ -253,11 +253,11 @@ fn problem_notice(
 
 fn stop_too_far_from_shape_notice(
     problem: &Problem<'_>,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
     shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
     shape_points: &ShapePoints,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -280,11 +280,11 @@ fn stop_too_far_from_shape_notice(
 
 fn stop_too_far_from_shape_user_notice(
     problem: &Problem<'_>,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
     shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
     shape_points: &ShapePoints,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -307,11 +307,11 @@ fn stop_too_far_from_shape_user_notice(
 
 fn stop_has_too_many_matches_notice(
     problem: &Problem<'_>,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
     shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOP_HAS_TOO_MANY_MATCHES,
@@ -347,11 +347,11 @@ fn stop_has_too_many_matches_notice(
 
 fn stops_match_out_of_order_notice(
     problem: &Problem<'_>,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
     shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOPS_MATCH_OUT_OF_ORDER,
@@ -402,11 +402,11 @@ fn stops_match_out_of_order_notice(
 fn populate_stop_too_far_notice(
     notice: &mut ValidationNotice,
     problem: &Problem<'_>,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
     shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
     shape_points: &ShapePoints,
 ) {
     notice.insert_context_field("tripCsvRowNumber", trip_row_number);
@@ -497,8 +497,8 @@ fn extract_shape_path_segment(shape_points: &ShapePoints, match_index: usize) ->
 }
 
 fn stop_time_row(
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
-    stop_time: &gtfs_model::StopTime,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time: &gtfs_guru_model::StopTime,
 ) -> u64 {
     stop_time_rows
         .get(&(stop_time as *const _))
@@ -506,7 +506,7 @@ fn stop_time_row(
         .unwrap_or(2)
 }
 
-fn trip_hash(stop_times: &[&gtfs_model::StopTime]) -> u64 {
+fn trip_hash(stop_times: &[&gtfs_guru_model::StopTime]) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     stop_times.len().hash(&mut hasher);
     for stop_time in stop_times {
@@ -523,7 +523,7 @@ fn lat_lng_array(lat_lng: LatLng) -> [f64; 2] {
 }
 
 fn stop_name_by_id<'a>(
-    stops_by_id: &'a HashMap<&str, &'a gtfs_model::Stop>,
+    stops_by_id: &'a HashMap<&str, &'a gtfs_guru_model::Stop>,
     stop_id: &str,
 ) -> &'a str {
     let key = stop_id.trim();
@@ -537,7 +537,7 @@ fn stop_name_by_id<'a>(
 }
 
 fn stop_location_by_id(
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
     stop_id: &str,
 ) -> Option<LatLng> {
     let key = stop_id.trim();
@@ -743,8 +743,8 @@ struct StopPoints<'a> {
 
 impl<'a> StopPoints<'a> {
     fn from_stop_times(
-        stop_times: &[&'a gtfs_model::StopTime],
-        stops_by_id: &HashMap<&str, &'a gtfs_model::Stop>,
+        stop_times: &[&'a gtfs_guru_model::StopTime],
+        stops_by_id: &HashMap<&str, &'a gtfs_guru_model::Stop>,
         station_size: StationSize,
     ) -> Self {
         let mut points = Vec::with_capacity(stop_times.len());
@@ -807,7 +807,7 @@ enum StationSize {
 struct StopPoint<'a> {
     location: LatLng,
     user_distance: f64,
-    stop_time: &'a gtfs_model::StopTime,
+    stop_time: &'a gtfs_guru_model::StopTime,
     is_large_station: bool,
 }
 
@@ -823,7 +823,7 @@ struct ShapePoints {
 }
 
 impl ShapePoints {
-    fn from_shapes(mut shapes: Vec<&gtfs_model::Shape>) -> Self {
+    fn from_shapes(mut shapes: Vec<&gtfs_guru_model::Shape>) -> Self {
         shapes.sort_by_key(|shape| shape.shape_pt_sequence);
         let mut points = Vec::with_capacity(shapes.len());
         let mut geo_distance = 0.0_f64;
@@ -1072,16 +1072,16 @@ enum ProblemType {
 #[allow(dead_code)]
 struct Problem<'a> {
     problem_type: ProblemType,
-    stop_time: &'a gtfs_model::StopTime,
+    stop_time: &'a gtfs_guru_model::StopTime,
     match_result: StopToShapeMatch,
     match_count: usize,
-    prev_stop_time: Option<&'a gtfs_model::StopTime>,
+    prev_stop_time: Option<&'a gtfs_guru_model::StopTime>,
     prev_match: Option<StopToShapeMatch>,
 }
 
 impl<'a> Problem<'a> {
     fn stop_too_far_from_shape(
-        stop_time: &'a gtfs_model::StopTime,
+        stop_time: &'a gtfs_guru_model::StopTime,
         match_result: StopToShapeMatch,
     ) -> Self {
         Self {
@@ -1095,7 +1095,7 @@ impl<'a> Problem<'a> {
     }
 
     fn stop_has_too_many_matches(
-        stop_time: &'a gtfs_model::StopTime,
+        stop_time: &'a gtfs_guru_model::StopTime,
         match_result: StopToShapeMatch,
         match_count: usize,
     ) -> Self {
@@ -1110,9 +1110,9 @@ impl<'a> Problem<'a> {
     }
 
     fn stop_match_out_of_order(
-        stop_time: &'a gtfs_model::StopTime,
+        stop_time: &'a gtfs_guru_model::StopTime,
         match_result: StopToShapeMatch,
-        prev_stop_time: &'a gtfs_model::StopTime,
+        prev_stop_time: &'a gtfs_guru_model::StopTime,
         prev_match: StopToShapeMatch,
     ) -> Self {
         Self {
@@ -1324,7 +1324,7 @@ fn cmp_f64(a: f64, b: f64) -> Ordering {
 }
 
 fn stop_or_parent_location(
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
     stop_id: &str,
 ) -> Option<LatLng> {
     let mut current_id = stop_id;
@@ -1349,7 +1349,7 @@ fn stop_or_parent_location(
     None
 }
 
-fn lat_lng(shape: &gtfs_model::Shape) -> LatLng {
+fn lat_lng(shape: &gtfs_guru_model::Shape) -> LatLng {
     LatLng {
         lat: shape.shape_pt_lat,
         lon: shape.shape_pt_lon,
@@ -1472,7 +1472,7 @@ fn near_by_fraction_or_margin(x: f64, y: f64) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Route, Shape, Stop, StopTime, Trip};
+    use gtfs_guru_model::{Route, Shape, Stop, StopTime, Trip};
 
     #[test]
     fn detects_stop_too_far_from_shape() {

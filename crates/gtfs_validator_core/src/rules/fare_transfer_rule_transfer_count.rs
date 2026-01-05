@@ -85,7 +85,7 @@ fn forbidden_transfer_count_notice(row_number: u64) -> ValidationNotice {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::FareTransferRule;
+    use gtfs_guru_model::FareTransferRule;
 
     #[test]
     fn detects_invalid_transfer_count() {

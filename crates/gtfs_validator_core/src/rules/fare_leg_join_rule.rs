@@ -115,7 +115,7 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{FareLegJoinRule, Network, Route};
+    use gtfs_guru_model::{FareLegJoinRule, Network, Route};
 
     #[test]
     fn detects_missing_network_id() {

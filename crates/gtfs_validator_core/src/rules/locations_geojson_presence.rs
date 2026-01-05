@@ -43,7 +43,7 @@ mod tests {
     use super::*;
     use crate::geojson::LocationsGeoJson;
     use crate::{CsvTable, NoticeContainer};
-    use gtfs_model::StopTime;
+    use gtfs_guru_model::StopTime;
 
     #[test]
     fn detects_missing_locations_geojson() {

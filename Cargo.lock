@@ -1578,12 +1578,31 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
- "gtfs_validator_core",
- "gtfs_validator_report",
+ "gtfs-guru-core",
+ "gtfs-guru-report",
  "reqwest 0.12.28",
  "serde_json",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "gtfs-guru-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "criterion",
+ "csv",
+ "gtfs-guru-model",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tracing",
+ "url",
+ "zip",
 ]
 
 [[package]]
@@ -1592,8 +1611,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "gtfs_validator_core",
- "gtfs_validator_report",
+ "gtfs-guru-core",
+ "gtfs-guru-report",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
@@ -1605,12 +1624,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gtfs-guru-model"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "gtfs-guru-python"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "gtfs_validator_core",
- "gtfs_validator_report",
+ "gtfs-guru-core",
+ "gtfs-guru-report",
  "pyo3",
  "pyo3-async-runtimes",
  "serde_json",
@@ -1618,11 +1646,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gtfs-guru-report"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "gtfs-guru-core",
+ "gtfs-guru-model",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gtfs-guru-wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "gtfs_validator_core",
+ "gtfs-guru-core",
  "js-sys",
  "serde",
  "serde_json",
@@ -1637,54 +1677,14 @@ dependencies = [
  "anyhow",
  "axum",
  "base64 0.22.1",
- "gtfs_validator_core",
- "gtfs_validator_report",
+ "gtfs-guru-core",
+ "gtfs-guru-report",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "gtfs_model"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "gtfs_validator_core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "criterion",
- "csv",
- "gtfs_model",
- "rayon",
- "regex",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tracing",
- "url",
- "zip",
-]
-
-[[package]]
-name = "gtfs_validator_report"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "gtfs_model",
- "gtfs_validator_core",
- "serde",
- "serde_json",
 ]
 
 [[package]]

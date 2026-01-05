@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_PATHWAY_DANGLING_GENERIC_NODE: &str = "pathway_dangling_generic_node";
 
@@ -73,7 +73,7 @@ impl Validator for PathwayDanglingGenericNodeValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{LocationType, Pathway, Stop};
+    use gtfs_guru_model::{LocationType, Pathway, Stop};
 
     #[test]
     fn detects_dangling_generic_node() {

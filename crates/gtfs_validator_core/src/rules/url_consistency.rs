@@ -113,7 +113,7 @@ fn normalize_url(value: &str) -> String {
 }
 
 fn agencies_by_url(
-    agencies: &crate::CsvTable<gtfs_model::Agency>,
+    agencies: &crate::CsvTable<gtfs_guru_model::Agency>,
 ) -> HashMap<String, Vec<AgencyEntry>> {
     let mut map = HashMap::new();
     for (index, agency) in agencies.rows.iter().enumerate() {
@@ -129,7 +129,7 @@ fn agencies_by_url(
     map
 }
 
-fn routes_by_url(routes: &crate::CsvTable<gtfs_model::Route>) -> HashMap<String, Vec<RouteEntry>> {
+fn routes_by_url(routes: &crate::CsvTable<gtfs_guru_model::Route>) -> HashMap<String, Vec<RouteEntry>> {
     let mut map = HashMap::new();
     for (index, route) in routes.rows.iter().enumerate() {
         let Some(route_url) = route.route_url.as_deref() else {
@@ -163,7 +163,7 @@ struct RouteEntry {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Agency, Route, Stop};
+    use gtfs_guru_model::{Agency, Route, Stop};
 
     #[test]
     fn detects_identical_route_and_agency_url() {

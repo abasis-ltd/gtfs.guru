@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_TRANSFER_WITH_INVALID_STOP_LOCATION_TYPE: &str =
     "transfer_with_invalid_stop_location_type";
@@ -19,7 +19,7 @@ impl Validator for TransfersStopTypeValidator {
             return;
         };
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id.trim();
             if stop_id.is_empty() {
@@ -51,7 +51,7 @@ impl Validator for TransfersStopTypeValidator {
 fn validate_stop_type(
     stop_id: Option<&str>,
     field_name: &str,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -122,7 +122,7 @@ fn location_type_name(location_type: LocationType) -> &'static str {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{LocationType, Stop, Transfer};
+    use gtfs_guru_model::{LocationType, Stop, Transfer};
 
     #[test]
     fn detects_invalid_stop_type_in_transfer() {

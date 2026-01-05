@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::GtfsTime;
+use gtfs_guru_model::GtfsTime;
 
 const CODE_TIMEFRAME_OVERLAP: &str = "timeframe_overlap";
 
@@ -80,7 +80,7 @@ impl Validator for TimeframeOverlapValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::Timeframe;
+    use gtfs_guru_model::Timeframe;
 
     #[test]
     fn detects_timeframe_overlap() {

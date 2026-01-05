@@ -49,7 +49,7 @@ impl Validator for SingleShapePointValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::Shape;
+    use gtfs_guru_model::Shape;
 
     #[test]
     fn detects_single_shape_point() {

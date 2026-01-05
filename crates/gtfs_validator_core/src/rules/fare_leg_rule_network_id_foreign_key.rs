@@ -75,7 +75,7 @@ impl Validator for FareLegRuleNetworkIdForeignKeyValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{FareLegRule, Network, Route};
+    use gtfs_guru_model::{FareLegRule, Network, Route};
 
     #[test]
     fn detects_missing_network_id() {

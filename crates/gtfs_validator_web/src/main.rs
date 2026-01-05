@@ -18,8 +18,8 @@ use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 
-use gtfs_validator_core::{default_runner, validate_input, GtfsInput};
-use gtfs_validator_report::{
+use gtfs_guru_core::{default_runner, validate_input, GtfsInput};
+use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
 

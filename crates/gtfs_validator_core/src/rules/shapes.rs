@@ -19,7 +19,7 @@ impl Validator for ShapeIncreasingDistanceValidator {
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         if let Some(shapes) = &feed.shapes {
-            let mut by_shape: HashMap<&str, Vec<(u64, &gtfs_model::Shape)>> = HashMap::new();
+            let mut by_shape: HashMap<&str, Vec<(u64, &gtfs_guru_model::Shape)>> = HashMap::new();
             for (index, shape) in shapes.rows.iter().enumerate() {
                 let row_number = shapes.row_number(index);
                 let shape_id = shape.shape_id.trim();
@@ -127,9 +127,9 @@ fn shape_notice(
     severity: NoticeSeverity,
     message: &str,
     prev_row: u64,
-    prev: &gtfs_model::Shape,
+    prev: &gtfs_guru_model::Shape,
     row_number: u64,
-    curr: &gtfs_model::Shape,
+    curr: &gtfs_guru_model::Shape,
     prev_dist: f64,
     curr_dist: f64,
     distance: Option<f64>,
@@ -185,7 +185,7 @@ fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::Shape;
+    use gtfs_guru_model::Shape;
 
     #[test]
     fn detects_decreasing_shape_distance() {

@@ -35,7 +35,7 @@ mod tests {
     use super::*;
     use crate::notice::NOTICE_CODE_EMPTY_TABLE;
     use crate::{GtfsFeed, NoticeContainer};
-    use gtfs_model::{Agency, Route, Stop, StopTime, Trip};
+    use gtfs_guru_model::{Agency, Route, Stop, StopTime, Trip};
 
     #[test]
     fn detects_empty_required_tables() {

@@ -71,7 +71,7 @@ mod tests {
         let mut feed = base_feed();
         feed.feed_info = Some(CsvTable {
             headers: Vec::new(),
-            rows: vec![gtfs_model::FeedInfo {
+            rows: vec![gtfs_guru_model::FeedInfo {
                 feed_publisher_name: "Publisher".to_string(),
                 feed_publisher_url: "https://example.com".to_string(),
                 feed_lang: "en".to_string(),
@@ -103,7 +103,7 @@ mod tests {
         let mut feed = base_feed();
         feed.feed_info = Some(CsvTable {
             headers: Vec::new(),
-            rows: vec![gtfs_model::FeedInfo {
+            rows: vec![gtfs_guru_model::FeedInfo {
                 feed_publisher_name: "Publisher".to_string(),
                 feed_publisher_url: "https://example.com".to_string(),
                 feed_lang: "mul".to_string(),
@@ -128,7 +128,7 @@ mod tests {
         let mut feed = base_feed();
         feed.feed_info = Some(CsvTable {
             headers: Vec::new(),
-            rows: vec![gtfs_model::FeedInfo {
+            rows: vec![gtfs_guru_model::FeedInfo {
                 feed_publisher_name: "Publisher".to_string(),
                 feed_publisher_url: "https://example.com".to_string(),
                 feed_lang: "en".to_string(),
@@ -152,7 +152,7 @@ mod tests {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: Some("A1".to_string()),
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),

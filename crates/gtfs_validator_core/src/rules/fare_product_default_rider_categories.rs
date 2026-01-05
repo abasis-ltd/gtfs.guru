@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::RiderFareCategory;
+use gtfs_guru_model::RiderFareCategory;
 
 const CODE_MULTIPLE_DEFAULT_RIDER_CATEGORIES: &str =
     "fare_product_with_multiple_default_rider_categories";
@@ -148,7 +148,7 @@ fn multiple_default_categories_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{FareProduct, RiderCategory, RiderFareCategory};
+    use gtfs_guru_model::{FareProduct, RiderCategory, RiderFareCategory};
 
     #[test]
     fn detects_multiple_global_defaults() {

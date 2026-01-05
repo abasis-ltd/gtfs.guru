@@ -16,8 +16,8 @@ use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use serde_json::{Number, Value};
 
-use gtfs_model::ExceptionType;
-use gtfs_validator_core::feed::{
+use gtfs_guru_model::ExceptionType;
+use gtfs_guru_core::feed::{
     AGENCY_FILE, AREAS_FILE, ATTRIBUTIONS_FILE, BOOKING_RULES_FILE, CALENDAR_DATES_FILE,
     CALENDAR_FILE, FARE_ATTRIBUTES_FILE, FARE_LEG_JOIN_RULES_FILE, FARE_LEG_RULES_FILE,
     FARE_MEDIA_FILE, FARE_PRODUCTS_FILE, FARE_RULES_FILE, FARE_TRANSFER_RULES_FILE, FEED_INFO_FILE,
@@ -26,7 +26,7 @@ use gtfs_validator_core::feed::{
     ROUTE_NETWORKS_FILE, SHAPES_FILE, STOPS_FILE, STOP_AREAS_FILE, STOP_TIMES_FILE,
     TIMEFRAMES_FILE, TRANSFERS_FILE, TRANSLATIONS_FILE, TRIPS_FILE,
 };
-use gtfs_validator_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
+use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
 
 mod html;
 pub use html::{write_html_report, HtmlReportContext};
@@ -1250,7 +1250,7 @@ fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDa
         let calendar = feed.calendar.as_ref().unwrap();
         let calendar_dates = feed.calendar_dates.as_ref().unwrap();
 
-        let mut dates_by_service: BTreeMap<&str, Vec<&gtfs_model::CalendarDate>> = BTreeMap::new();
+        let mut dates_by_service: BTreeMap<&str, Vec<&gtfs_guru_model::CalendarDate>> = BTreeMap::new();
         for row in &calendar_dates.rows {
             let service_id = row.service_id.trim();
             if service_id.is_empty() {
@@ -1326,7 +1326,7 @@ fn update_naive_bounds(
     }
 }
 
-fn format_gtfs_date(date: gtfs_model::GtfsDate) -> String {
+fn format_gtfs_date(date: gtfs_guru_model::GtfsDate) -> String {
     format!("{:04}-{:02}-{:02}", date.year(), date.month(), date.day())
 }
 
@@ -1343,7 +1343,7 @@ fn format_service_window(start: Option<NaiveDate>, end: Option<NaiveDate>) -> (S
     }
 }
 
-fn gtfs_date_to_naive(date: gtfs_model::GtfsDate) -> NaiveDate {
+fn gtfs_date_to_naive(date: gtfs_guru_model::GtfsDate) -> NaiveDate {
     NaiveDate::from_ymd_opt(date.year(), date.month() as u32, date.day() as u32)
         .expect("valid gtfs date")
 }
@@ -1360,8 +1360,8 @@ struct ServicePeriodData {
 }
 
 fn create_service_period(
-    calendar: Option<&gtfs_model::Calendar>,
-    calendar_dates: &[&gtfs_model::CalendarDate],
+    calendar: Option<&gtfs_guru_model::Calendar>,
+    calendar_dates: &[&gtfs_guru_model::CalendarDate],
 ) -> ServicePeriodData {
     let mut service_start = calendar.map(|row| gtfs_date_to_naive(row.start_date));
     let mut service_end = calendar.map(|row| gtfs_date_to_naive(row.end_date));
@@ -1407,7 +1407,7 @@ fn path_to_file_url(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtfs_validator_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
+    use gtfs_guru_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
     use std::collections::HashMap;
 
     #[test]

@@ -67,10 +67,10 @@ fn has_pickup_drop_off_window_headers(headers: &[String]) -> bool {
 
 fn forbidden_arrival_or_departure_notice(
     row_number: u64,
-    arrival: Option<gtfs_model::GtfsTime>,
-    departure: Option<gtfs_model::GtfsTime>,
-    start: Option<gtfs_model::GtfsTime>,
-    end: Option<gtfs_model::GtfsTime>,
+    arrival: Option<gtfs_guru_model::GtfsTime>,
+    departure: Option<gtfs_guru_model::GtfsTime>,
+    start: Option<gtfs_guru_model::GtfsTime>,
+    end: Option<gtfs_guru_model::GtfsTime>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FORBIDDEN_ARRIVAL_OR_DEPARTURE_TIME,
@@ -94,8 +94,8 @@ fn forbidden_arrival_or_departure_notice(
 
 fn missing_pickup_or_drop_off_window_notice(
     row_number: u64,
-    start: Option<gtfs_model::GtfsTime>,
-    end: Option<gtfs_model::GtfsTime>,
+    start: Option<gtfs_guru_model::GtfsTime>,
+    end: Option<gtfs_guru_model::GtfsTime>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_MISSING_PICKUP_OR_DROP_OFF_WINDOW,
@@ -115,8 +115,8 @@ fn missing_pickup_or_drop_off_window_notice(
 
 fn invalid_pickup_drop_off_window_notice(
     row_number: u64,
-    start: Option<gtfs_model::GtfsTime>,
-    end: Option<gtfs_model::GtfsTime>,
+    start: Option<gtfs_guru_model::GtfsTime>,
+    end: Option<gtfs_guru_model::GtfsTime>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_INVALID_PICKUP_DROP_OFF_WINDOW,
@@ -134,7 +134,7 @@ fn invalid_pickup_drop_off_window_notice(
     notice
 }
 
-fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
+fn time_value(value: Option<gtfs_guru_model::GtfsTime>) -> String {
     value.map(|time| time.to_string()).unwrap_or_default()
 }
 
@@ -142,7 +142,7 @@ fn time_value(value: Option<gtfs_model::GtfsTime>) -> String {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, StopTime};
+    use gtfs_guru_model::{GtfsTime, StopTime};
 
     #[test]
     fn detects_forbidden_arrival_departure() {

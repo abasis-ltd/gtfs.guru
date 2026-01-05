@@ -17,7 +17,7 @@ impl Validator for PathwaysValidator {
             for (index, pathway) in pathways.rows.iter().enumerate() {
                 let row_number = pathways.row_number(index);
                 if pathway.length.is_none()
-                    && !matches!(pathway.pathway_mode, gtfs_model::PathwayMode::ExitGate)
+                    && !matches!(pathway.pathway_mode, gtfs_guru_model::PathwayMode::ExitGate)
                 {
                     let mut notice = ValidationNotice::new(
                         CODE_MISSING_RECOMMENDED_FIELD,
@@ -44,7 +44,7 @@ impl Validator for PathwaysValidator {
                     }
                 }
 
-                if matches!(pathway.pathway_mode, gtfs_model::PathwayMode::Stairs)
+                if matches!(pathway.pathway_mode, gtfs_guru_model::PathwayMode::Stairs)
                     && pathway.stair_count.is_none()
                 {
                     let mut notice = ValidationNotice::new(
@@ -93,7 +93,7 @@ fn number_out_of_range_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Pathway, PathwayMode};
+    use gtfs_guru_model::{Pathway, PathwayMode};
 
     #[test]
     fn detects_missing_length_for_non_exit_gate() {

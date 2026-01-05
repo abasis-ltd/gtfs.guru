@@ -659,7 +659,7 @@ fn missing_ref_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Route, RouteType, Stop, StopTime, Trip};
+    use gtfs_guru_model::{Route, RouteType, Stop, StopTime, Trip};
 
     #[test]
     fn detects_missing_trip_id_in_stop_times() {

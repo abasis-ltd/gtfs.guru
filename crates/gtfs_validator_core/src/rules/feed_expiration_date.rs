@@ -2,7 +2,7 @@ use chrono::{Duration, NaiveDate};
 
 use crate::feed::FEED_INFO_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::GtfsDate;
+use gtfs_guru_model::GtfsDate;
 
 const CODE_FEED_EXPIRATION_DATE_7_DAYS: &str = "feed_expiration_date7_days";
 const CODE_FEED_EXPIRATION_DATE_30_DAYS: &str = "feed_expiration_date30_days";
@@ -79,7 +79,7 @@ fn populate_expiration_notice(notice: &mut ValidationNotice, row_number: u64) {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::FeedInfo;
+    use gtfs_guru_model::FeedInfo;
 
     #[test]
     fn detects_expiration_within_7_days() {

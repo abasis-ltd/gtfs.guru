@@ -55,7 +55,7 @@ impl Validator for TimeframeStartAndEndTimeValidator {
 
 fn time_greater_than_24_notice(
     field: &str,
-    time: gtfs_model::GtfsTime,
+    time: gtfs_guru_model::GtfsTime,
     row_number: u64,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -78,7 +78,7 @@ fn time_greater_than_24_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, Timeframe};
+    use gtfs_guru_model::{GtfsTime, Timeframe};
 
     #[test]
     fn detects_only_one_time_specified() {

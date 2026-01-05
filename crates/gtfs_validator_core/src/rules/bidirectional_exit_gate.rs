@@ -1,5 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{Bidirectional, PathwayMode};
+use gtfs_guru_model::{Bidirectional, PathwayMode};
 
 const CODE_BIDIRECTIONAL_EXIT_GATE: &str = "bidirectional_exit_gate";
 
@@ -74,7 +74,7 @@ mod tests {
     fn emits_notice_for_bidirectional_exit_gate() {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
-            rows: vec![gtfs_model::Pathway {
+            rows: vec![gtfs_guru_model::Pathway {
                 pathway_id: "P1".to_string(),
                 from_stop_id: "STOP1".to_string(),
                 to_stop_id: "STOP2".to_string(),
@@ -106,7 +106,7 @@ mod tests {
     fn passes_for_non_exit_gate() {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
-            rows: vec![gtfs_model::Pathway {
+            rows: vec![gtfs_guru_model::Pathway {
                 pathway_id: "P1".to_string(),
                 from_stop_id: "STOP1".to_string(),
                 to_stop_id: "STOP2".to_string(),

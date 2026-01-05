@@ -123,7 +123,7 @@ fn is_blank(value: Option<&str>) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{FeedInfo, GtfsDate};
+    use gtfs_guru_model::{FeedInfo, GtfsDate};
 
     #[test]
     fn detects_start_date_after_end_date() {

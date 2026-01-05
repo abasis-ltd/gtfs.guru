@@ -1,5 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::PickupDropOffType;
+use gtfs_guru_model::PickupDropOffType;
 
 const CODE_MISSING_BOOKING_RULE_ID: &str = "missing_pickup_drop_off_booking_rule_id";
 
@@ -71,7 +71,7 @@ fn has_value(value: Option<&str>) -> bool {
 }
 
 fn missing_booking_rule_notice(
-    stop_time: &gtfs_model::StopTime,
+    stop_time: &gtfs_guru_model::StopTime,
     row_number: u64,
     message: &str,
 ) -> ValidationNotice {
@@ -109,7 +109,7 @@ fn pickup_drop_off_value(value: Option<PickupDropOffType>) -> Option<i32> {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, StopTime};
+    use gtfs_guru_model::{GtfsTime, StopTime};
 
     #[test]
     fn detects_missing_pickup_booking_rule_id() {

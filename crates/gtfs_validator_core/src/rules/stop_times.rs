@@ -47,7 +47,7 @@ impl Validator for TripUsageValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{StopTime, Trip};
+    use gtfs_guru_model::{StopTime, Trip};
 
     #[test]
     fn detects_unused_trip() {

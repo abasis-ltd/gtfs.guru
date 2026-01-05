@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38", "generate-import-lib"] }
 pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
-gtfs_validator_core = { path = "../gtfs_validator_core" }
-gtfs_validator_report = { path = "../gtfs_validator_report" }
+gtfs-guru-core = { path = "../gtfs_validator_core" }
+gtfs-guru-report = { path = "../gtfs_validator_report" }
 serde_json = "1.0"
 chrono = "0.4"

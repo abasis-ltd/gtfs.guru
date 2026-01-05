@@ -1,5 +1,5 @@
 [package]
-name = "gtfs_validator_core"
+name = "gtfs-guru-core"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -20,7 +20,7 @@ chrono = { workspace = true }
 url = { workspace = true }
 rayon = { version = "1.11.0", optional = true }
 
-[dependencies.gtfs_model]
+[dependencies.gtfs-guru-model]
 path = "../gtfs_model"
 
 [build-dependencies]

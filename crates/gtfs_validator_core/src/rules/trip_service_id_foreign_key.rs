@@ -69,7 +69,7 @@ impl Validator for TripServiceIdForeignKeyValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Calendar, CalendarDate, Trip};
+    use gtfs_guru_model::{Calendar, CalendarDate, Trip};
 
     #[test]
     fn detects_missing_service_id() {

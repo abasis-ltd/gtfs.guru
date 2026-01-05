@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn errors_when_multiple_agencies_missing_id() {
         let mut feed = base_feed();
-        feed.agency.rows.push(gtfs_model::Agency {
+        feed.agency.rows.push(gtfs_guru_model::Agency {
             agency_id: None,
             agency_name: "Agency2".to_string(),
             agency_url: "https://example.com".to_string(),
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn errors_when_timezones_inconsistent() {
         let mut feed = base_feed();
-        feed.agency.rows.push(gtfs_model::Agency {
+        feed.agency.rows.push(gtfs_guru_model::Agency {
             agency_id: Some("A2".to_string()),
             agency_name: "Agency2".to_string(),
             agency_url: "https://example.com".to_string(),
@@ -188,7 +188,7 @@ mod tests {
     fn warns_when_languages_inconsistent() {
         let mut feed = base_feed();
         feed.agency.rows[0].agency_lang = Some("en".to_string());
-        feed.agency.rows.push(gtfs_model::Agency {
+        feed.agency.rows.push(gtfs_guru_model::Agency {
             agency_id: Some("A2".to_string()),
             agency_name: "Agency2".to_string(),
             agency_url: "https://example.com".to_string(),
@@ -211,7 +211,7 @@ mod tests {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: Some("A1".to_string()),
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),

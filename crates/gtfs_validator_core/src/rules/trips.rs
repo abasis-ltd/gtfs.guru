@@ -59,7 +59,7 @@ impl Validator for TripUsabilityValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{StopTime, Trip};
+    use gtfs_guru_model::{StopTime, Trip};
 
     #[test]
     fn detects_trip_with_no_stop_times() {

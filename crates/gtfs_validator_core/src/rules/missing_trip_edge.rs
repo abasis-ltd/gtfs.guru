@@ -13,7 +13,7 @@ impl Validator for MissingTripEdgeValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_model::StopTime)>> = HashMap::new();
+        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_guru_model::StopTime)>> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             let trip_id = stop_time.trip_id.trim();
@@ -42,7 +42,7 @@ impl Validator for MissingTripEdgeValidator {
 }
 
 fn check_trip_edge(
-    stop_time: &gtfs_model::StopTime,
+    stop_time: &gtfs_guru_model::StopTime,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -69,7 +69,7 @@ fn check_trip_edge(
 }
 
 fn missing_trip_edge_notice(
-    stop_time: &gtfs_model::StopTime,
+    stop_time: &gtfs_guru_model::StopTime,
     row_number: u64,
     field: &str,
 ) -> ValidationNotice {
@@ -95,7 +95,7 @@ fn missing_trip_edge_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, StopTime};
+    use gtfs_guru_model::{GtfsTime, StopTime};
 
     #[test]
     fn detects_missing_arrival_at_start() {

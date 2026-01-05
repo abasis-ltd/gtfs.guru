@@ -24,7 +24,7 @@ impl Validator for UnusedStopValidator {
 
         // Also check parent stations of used stops
         let mut all_used_ids = used_stop_ids.clone();
-        let stops_by_id: std::collections::HashMap<&str, &gtfs_model::Stop> = feed
+        let stops_by_id: std::collections::HashMap<&str, &gtfs_guru_model::Stop> = feed
             .stops
             .rows
             .iter()
@@ -75,7 +75,7 @@ impl Validator for UnusedStopValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{LocationType, Stop, StopTime};
+    use gtfs_guru_model::{LocationType, Stop, StopTime};
 
     #[test]
     fn detects_unused_stop() {

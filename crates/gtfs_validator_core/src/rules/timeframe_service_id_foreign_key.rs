@@ -69,7 +69,7 @@ impl Validator for TimeframeServiceIdForeignKeyValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Calendar, CalendarDate, Timeframe};
+    use gtfs_guru_model::{Calendar, CalendarDate, Timeframe};
 
     #[test]
     fn detects_missing_service_id() {

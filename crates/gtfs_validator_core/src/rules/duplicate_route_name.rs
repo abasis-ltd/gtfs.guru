@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::RouteType;
+use gtfs_guru_model::RouteType;
 
 const CODE_DUPLICATE_ROUTE_NAME: &str = "duplicate_route_name";
 
@@ -70,7 +70,7 @@ struct RouteEntry {
 }
 
 impl RouteEntry {
-    fn new(route: &gtfs_model::Route, row_number: u64) -> Self {
+    fn new(route: &gtfs_guru_model::Route, row_number: u64) -> Self {
         Self {
             row_number,
             route_id: route.route_id.clone(),
@@ -93,7 +93,7 @@ impl RouteEntry {
 }
 
 impl RouteKey {
-    fn new(route: &gtfs_model::Route) -> Self {
+    fn new(route: &gtfs_guru_model::Route) -> Self {
         Self {
             route_short_name: route
                 .route_short_name
@@ -141,14 +141,14 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec![],
             rows: vec![
-                gtfs_model::Route {
+                gtfs_guru_model::Route {
                     route_id: "R1".to_string(),
                     route_short_name: Some("1".to_string()),
                     route_long_name: Some("Route One".to_string()),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 },
-                gtfs_model::Route {
+                gtfs_guru_model::Route {
                     route_id: "R2".to_string(),
                     route_short_name: Some("1".to_string()),
                     route_long_name: Some("Route One".to_string()),

@@ -1,5 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_STATION_WITH_PARENT_STATION: &str = "station_with_parent_station";
 const CODE_LOCATION_WITHOUT_PARENT_STATION: &str = "location_without_parent_station";
@@ -52,7 +52,7 @@ fn has_platform_code(value: Option<&str>) -> bool {
 }
 
 fn station_with_parent_station_notice(
-    stop: &gtfs_model::Stop,
+    stop: &gtfs_guru_model::Stop,
     row_number: u64,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -77,7 +77,7 @@ fn station_with_parent_station_notice(
 }
 
 fn location_without_parent_station_notice(
-    stop: &gtfs_model::Stop,
+    stop: &gtfs_guru_model::Stop,
     row_number: u64,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -99,7 +99,7 @@ fn location_without_parent_station_notice(
 }
 
 fn platform_without_parent_station_notice(
-    stop: &gtfs_model::Stop,
+    stop: &gtfs_guru_model::Stop,
     row_number: u64,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn emits_notice_for_station_with_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_model::Stop {
+        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
             stop_id: "STATION1".to_string(),
             stop_code: None,
             stop_name: Some("Station".to_string()),
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn emits_notice_for_location_missing_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_model::Stop {
+        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
             stop_id: "ENTRANCE1".to_string(),
             stop_code: None,
             stop_name: Some("Entrance".to_string()),
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn emits_notice_for_platform_without_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_model::Stop {
+        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
             stop_id: "STOP1".to_string(),
             stop_code: None,
             stop_name: Some("Platform".to_string()),
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn skips_stop_without_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_model::Stop {
+        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
             stop_id: "STOP1".to_string(),
             stop_code: None,
             stop_name: Some("Stop".to_string()),
@@ -295,11 +295,11 @@ mod tests {
         assert!(notices.is_empty());
     }
 
-    fn feed_with_stops(stops: Vec<gtfs_model::Stop>) -> GtfsFeed {
+    fn feed_with_stops(stops: Vec<gtfs_guru_model::Stop>) -> GtfsFeed {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),

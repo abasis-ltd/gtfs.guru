@@ -88,13 +88,13 @@ impl Validator for CalendarValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::GtfsDate;
+    use gtfs_guru_model::GtfsDate;
 
     #[test]
     fn test_calendar_start_after_end() {
         let mut feed = GtfsFeed::default();
         feed.calendar = Some(CsvTable {
-            rows: vec![gtfs_model::Calendar {
+            rows: vec![gtfs_guru_model::Calendar {
                 service_id: "S1".to_string(),
                 start_date: GtfsDate::parse("20240102").unwrap(),
                 end_date: GtfsDate::parse("20240101").unwrap(),

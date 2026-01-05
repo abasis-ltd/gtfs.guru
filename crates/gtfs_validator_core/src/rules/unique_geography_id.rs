@@ -145,7 +145,7 @@ fn duplicate_id_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{LocationGroupStop, Stop};
+    use gtfs_guru_model::{LocationGroupStop, Stop};
 
     #[test]
     fn detects_duplicate_id_between_stops_and_location_groups() {

@@ -1,5 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::YesNo;
+use gtfs_guru_model::YesNo;
 
 const CODE_ATTRIBUTION_WITHOUT_ROLE: &str = "attribution_without_role";
 
@@ -41,7 +41,7 @@ fn has_role_headers(headers: &[String]) -> bool {
             .any(|header| header.eq_ignore_ascii_case("is_authority"))
 }
 
-fn has_some_role(attribution: &gtfs_model::Attribution) -> bool {
+fn has_some_role(attribution: &gtfs_guru_model::Attribution) -> bool {
     matches!(attribution.is_producer, Some(YesNo::Yes))
         || matches!(attribution.is_operator, Some(YesNo::Yes))
         || matches!(attribution.is_authority, Some(YesNo::Yes))
@@ -63,7 +63,7 @@ fn attribution_without_role_notice(attribution_id: &str, row_number: u64) -> Val
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::RouteType;
+    use gtfs_guru_model::RouteType;
 
     #[test]
     fn emits_notice_when_no_roles_set() {
@@ -74,7 +74,7 @@ mod tests {
                 "is_operator".to_string(),
                 "is_authority".to_string(),
             ],
-            rows: vec![gtfs_model::Attribution {
+            rows: vec![gtfs_guru_model::Attribution {
                 attribution_id: None,
                 agency_id: None,
                 route_id: None,
@@ -105,7 +105,7 @@ mod tests {
         let mut feed = base_feed();
         feed.attributions = Some(CsvTable {
             headers: Vec::new(),
-            rows: vec![gtfs_model::Attribution {
+            rows: vec![gtfs_guru_model::Attribution {
                 attribution_id: None,
                 agency_id: None,
                 route_id: None,
@@ -132,7 +132,7 @@ mod tests {
         let mut feed = base_feed();
         feed.attributions = Some(CsvTable {
             headers: vec!["is_producer".to_string()],
-            rows: vec![gtfs_model::Attribution {
+            rows: vec![gtfs_guru_model::Attribution {
                 attribution_id: None,
                 agency_id: None,
                 route_id: None,
@@ -158,7 +158,7 @@ mod tests {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),
@@ -172,7 +172,7 @@ mod tests {
             },
             stops: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Stop {
+                rows: vec![gtfs_guru_model::Stop {
                     stop_id: "STOP1".to_string(),
                     stop_name: Some("Stop".to_string()),
                     stop_lat: Some(10.0),
@@ -183,7 +183,7 @@ mod tests {
             },
             routes: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Route {
+                rows: vec![gtfs_guru_model::Route {
                     route_id: "R1".to_string(),
                     route_short_name: Some("R1".to_string()),
                     route_type: RouteType::Bus,

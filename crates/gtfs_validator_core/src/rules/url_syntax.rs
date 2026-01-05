@@ -136,7 +136,7 @@ fn validate_url(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::Agency;
+    use gtfs_guru_model::Agency;
 
     #[test]
     fn detects_invalid_agency_url() {

@@ -61,7 +61,7 @@ fn has_value(value: Option<&str>) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Agency, FareAttribute};
+    use gtfs_guru_model::{Agency, FareAttribute};
 
     #[test]
     fn emits_warning_when_single_agency_missing_id() {

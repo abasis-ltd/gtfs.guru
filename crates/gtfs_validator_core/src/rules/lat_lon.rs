@@ -186,7 +186,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![],
-            rows: vec![gtfs_model::Stop {
+            rows: vec![gtfs_guru_model::Stop {
                 stop_id: "S1".to_string(),
                 stop_lat: Some(95.0),  // Too high
                 stop_lon: Some(200.0), // Too high
@@ -216,7 +216,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![],
-            rows: vec![gtfs_model::Stop {
+            rows: vec![gtfs_guru_model::Stop {
                 stop_id: "S1".to_string(),
                 stop_lat: Some(0.5),
                 stop_lon: Some(0.5),

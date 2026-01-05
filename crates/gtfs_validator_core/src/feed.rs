@@ -1,4 +1,4 @@
-use gtfs_model::{
+use gtfs_guru_model::{
     Agency, Area, Attribution, BookingRules, Calendar, CalendarDate, FareAttribute,
     FareLegJoinRule, FareLegRule, FareMedia, FareProduct, FareRule, FareTransferRule, FeedInfo,
     Frequency, Level, LocationGroup, LocationGroupStop, Network, Pathway, RiderCategory, Route,

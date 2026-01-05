@@ -110,7 +110,7 @@ fn foreign_key_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{FareAttribute, FareRule, Route};
+    use gtfs_guru_model::{FareAttribute, FareRule, Route};
 
     #[test]
     fn detects_missing_fare_id() {

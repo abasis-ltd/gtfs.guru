@@ -1,6 +1,6 @@
 use crate::feed::TRANSLATIONS_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{GtfsDate, GtfsTime};
+use gtfs_guru_model::{GtfsDate, GtfsTime};
 
 const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
 const CODE_TRANSLATION_UNEXPECTED_VALUE: &str = "translation_unexpected_value";
@@ -40,7 +40,7 @@ impl Validator for TranslationFieldAndReferenceValidator {
 }
 
 fn validate_standard_required_fields(
-    translations: &crate::CsvTable<gtfs_model::Translation>,
+    translations: &crate::CsvTable<gtfs_guru_model::Translation>,
     notices: &mut NoticeContainer,
 ) -> bool {
     let mut is_valid = true;
@@ -63,7 +63,7 @@ fn validate_standard_required_fields(
 }
 
 fn validate_translation(
-    translation: &gtfs_model::Translation,
+    translation: &gtfs_guru_model::Translation,
     feed: &GtfsFeed,
     row_number: u64,
     notices: &mut NoticeContainer,
@@ -557,7 +557,7 @@ fn route_network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Stop, Translation};
+    use gtfs_guru_model::{Stop, Translation};
 
     #[test]
     fn detects_missing_required_fields() {

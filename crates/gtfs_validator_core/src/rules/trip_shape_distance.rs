@@ -21,7 +21,7 @@ impl Validator for TripAndShapeDistanceValidator {
             None => return,
         };
 
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_model::StopTime>> = HashMap::new();
+        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
         for stop_time in &feed.stop_times.rows {
             let trip_id = stop_time.trip_id.trim();
             if trip_id.is_empty() {
@@ -36,7 +36,7 @@ impl Validator for TripAndShapeDistanceValidator {
             stop_times.sort_by_key(|stop_time| stop_time.stop_sequence);
         }
 
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id.trim();
             if stop_id.is_empty() {
@@ -75,7 +75,7 @@ impl Validator for TripAndShapeDistanceValidator {
 
             let max_stop_time_dist = last_stop_time.shape_dist_traveled.unwrap_or(0.0);
 
-            let mut max_shape: Option<&gtfs_model::Shape> = None;
+            let mut max_shape: Option<&gtfs_guru_model::Shape> = None;
             let mut max_shape_dist = 0.0;
             for shape in shapes
                 .rows
@@ -153,7 +153,7 @@ fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Shape, Stop, StopTime, Trip};
+    use gtfs_guru_model::{Shape, Stop, StopTime, Trip};
 
     #[test]
     fn detects_trip_exceeds_shape_distance_above_threshold() {

@@ -46,7 +46,7 @@ fn missing_feed_info_date_notice(field: &str, row_number: u64) -> ValidationNoti
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{FeedInfo, GtfsDate};
+    use gtfs_guru_model::{FeedInfo, GtfsDate};
 
     #[test]
     fn detects_missing_end_date() {

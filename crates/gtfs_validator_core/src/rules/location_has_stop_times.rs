@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::LocationType;
+use gtfs_guru_model::LocationType;
 
 const CODE_STOP_WITHOUT_STOP_TIME: &str = "stop_without_stop_time";
 const CODE_LOCATION_WITH_UNEXPECTED_STOP_TIME: &str = "location_with_unexpected_stop_time";
@@ -118,7 +118,7 @@ impl Validator for LocationHasStopTimesValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{LocationType, Stop, StopTime};
+    use gtfs_guru_model::{LocationType, Stop, StopTime};
 
     #[test]
     fn detects_stop_without_stop_time() {

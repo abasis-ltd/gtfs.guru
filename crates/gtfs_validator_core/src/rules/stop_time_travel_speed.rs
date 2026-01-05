@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::RouteType;
+use gtfs_guru_model::RouteType;
 
 const CODE_FAST_TRAVEL_CONSECUTIVE: &str = "fast_travel_between_consecutive_stops";
 const CODE_FAST_TRAVEL_FAR: &str = "fast_travel_between_far_stops";
@@ -18,7 +18,7 @@ impl Validator for StopTimeTravelSpeedValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut stops_by_id: HashMap<&str, &gtfs_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id.trim();
             if stop_id.is_empty() {
@@ -27,7 +27,7 @@ impl Validator for StopTimeTravelSpeedValidator {
             stops_by_id.insert(stop_id, stop);
         }
 
-        let mut routes_by_id: HashMap<&str, &gtfs_model::Route> = HashMap::new();
+        let mut routes_by_id: HashMap<&str, &gtfs_guru_model::Route> = HashMap::new();
         for route in &feed.routes.rows {
             let route_id = route.route_id.trim();
             if route_id.is_empty() {
@@ -36,8 +36,8 @@ impl Validator for StopTimeTravelSpeedValidator {
             routes_by_id.insert(route_id, route);
         }
 
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_model::StopTime>> = HashMap::new();
-        let mut stop_time_rows: HashMap<*const gtfs_model::StopTime, u64> = HashMap::new();
+        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
+        let mut stop_time_rows: HashMap<*const gtfs_guru_model::StopTime, u64> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             stop_time_rows.insert(stop_time as *const _, feed.stop_times.row_number(index));
             let trip_id = stop_time.trip_id.trim();
@@ -120,13 +120,13 @@ impl Validator for StopTimeTravelSpeedValidator {
 
 fn validate_consecutive_stops(
     notices: &mut NoticeContainer,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    stop_times: &[&gtfs_model::StopTime],
+    stop_times: &[&gtfs_guru_model::StopTime],
     distances_km: &[f64],
     max_speed_kph: f64,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
 ) {
     for i in 0..distances_km.len() {
         let first = stop_times[i];
@@ -163,13 +163,13 @@ fn validate_consecutive_stops(
 
 fn validate_far_stops(
     notices: &mut NoticeContainer,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    stop_times: &[&gtfs_model::StopTime],
+    stop_times: &[&gtfs_guru_model::StopTime],
     distances_km: &[f64],
     max_speed_kph: f64,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
 ) {
     for end_idx in 0..stop_times.len() {
         let end = stop_times[end_idx];
@@ -213,15 +213,15 @@ fn validate_far_stops(
 }
 
 fn fast_travel_between_consecutive_notice(
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    stop_time1: &gtfs_model::StopTime,
-    stop_time2: &gtfs_model::StopTime,
-    stop1: &gtfs_model::Stop,
-    stop2: &gtfs_model::Stop,
+    stop_time1: &gtfs_guru_model::StopTime,
+    stop_time2: &gtfs_guru_model::StopTime,
+    stop1: &gtfs_guru_model::Stop,
+    stop2: &gtfs_guru_model::Stop,
     speed_kph: f64,
     distance_km: f64,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FAST_TRAVEL_CONSECUTIVE,
@@ -244,15 +244,15 @@ fn fast_travel_between_consecutive_notice(
 }
 
 fn fast_travel_between_far_notice(
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    stop_time1: &gtfs_model::StopTime,
-    stop_time2: &gtfs_model::StopTime,
-    stop1: &gtfs_model::Stop,
-    stop2: &gtfs_model::Stop,
+    stop_time1: &gtfs_guru_model::StopTime,
+    stop_time2: &gtfs_guru_model::StopTime,
+    stop1: &gtfs_guru_model::Stop,
+    stop2: &gtfs_guru_model::Stop,
     speed_kph: f64,
     distance_km: f64,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FAST_TRAVEL_FAR,
@@ -276,15 +276,15 @@ fn fast_travel_between_far_notice(
 
 fn populate_travel_speed_notice(
     notice: &mut ValidationNotice,
-    trip: &gtfs_model::Trip,
+    trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    stop_time1: &gtfs_model::StopTime,
-    stop_time2: &gtfs_model::StopTime,
-    stop1: &gtfs_model::Stop,
-    stop2: &gtfs_model::Stop,
+    stop_time1: &gtfs_guru_model::StopTime,
+    stop_time2: &gtfs_guru_model::StopTime,
+    stop1: &gtfs_guru_model::Stop,
+    stop2: &gtfs_guru_model::Stop,
     speed_kph: f64,
     distance_km: f64,
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
 ) {
     notice.insert_context_field("tripCsvRowNumber", trip_row_number);
     notice.insert_context_field("tripId", trip.trip_id.as_str());
@@ -325,8 +325,8 @@ fn populate_travel_speed_notice(
 }
 
 fn stop_time_row(
-    stop_time_rows: &HashMap<*const gtfs_model::StopTime, u64>,
-    stop_time: &gtfs_model::StopTime,
+    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
+    stop_time: &gtfs_guru_model::StopTime,
 ) -> u64 {
     stop_time_rows
         .get(&(stop_time as *const _))
@@ -335,8 +335,8 @@ fn stop_time_row(
 }
 
 fn stop_coords(
-    stop_time: &gtfs_model::StopTime,
-    stops_by_id: &HashMap<&str, &gtfs_model::Stop>,
+    stop_time: &gtfs_guru_model::StopTime,
+    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
 ) -> Option<(f64, f64)> {
     let mut current_id = stop_time.stop_id.trim();
     if current_id.is_empty() {
@@ -364,9 +364,9 @@ fn stop_coords(
 }
 
 fn stop_by_id<'a>(
-    stops_by_id: &'a HashMap<&str, &gtfs_model::Stop>,
+    stops_by_id: &'a HashMap<&str, &gtfs_guru_model::Stop>,
     stop_id: &str,
-) -> Option<&'a gtfs_model::Stop> {
+) -> Option<&'a gtfs_guru_model::Stop> {
     let key = stop_id.trim();
     if key.is_empty() {
         return None;
@@ -419,7 +419,7 @@ fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsTime, Route, RouteType, Stop, StopTime, Trip};
+    use gtfs_guru_model::{GtfsTime, Route, RouteType, Stop, StopTime, Trip};
 
     #[test]
     fn detects_fast_travel_consecutive() {

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{Datelike, NaiveDate, Weekday};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_model::{Calendar, ExceptionType, GtfsDate, GtfsTime, ServiceAvailability};
+use gtfs_guru_model::{Calendar, ExceptionType, GtfsDate, GtfsTime, ServiceAvailability};
 
 const CODE_BLOCK_TRIPS_WITH_OVERLAPPING_STOP_TIMES: &str =
     "block_trips_with_overlapping_stop_times";
@@ -17,7 +17,7 @@ impl Validator for BlockTripsWithOverlappingStopTimesValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_model::StopTime>> = HashMap::new();
+        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
         for stop_time in &feed.stop_times.rows {
             let trip_id = stop_time.trip_id.trim();
             if trip_id.is_empty() {
@@ -128,7 +128,7 @@ struct TripWindow<'a> {
     row_number: u64,
 }
 
-fn trip_time_window(stop_times: &[&gtfs_model::StopTime]) -> Option<(GtfsTime, GtfsTime)> {
+fn trip_time_window(stop_times: &[&gtfs_guru_model::StopTime]) -> Option<(GtfsTime, GtfsTime)> {
     let mut start = None;
     let mut end = None;
 
@@ -147,7 +147,7 @@ fn trip_time_window(stop_times: &[&gtfs_model::StopTime]) -> Option<(GtfsTime, G
     }
 }
 
-fn stop_time_start_time(stop_time: &gtfs_model::StopTime) -> Option<GtfsTime> {
+fn stop_time_start_time(stop_time: &gtfs_guru_model::StopTime) -> Option<GtfsTime> {
     match (stop_time.arrival_time, stop_time.departure_time) {
         (Some(arrival), Some(departure)) => {
             if arrival.total_seconds() <= departure.total_seconds() {
@@ -162,7 +162,7 @@ fn stop_time_start_time(stop_time: &gtfs_model::StopTime) -> Option<GtfsTime> {
     }
 }
 
-fn stop_time_end_time(stop_time: &gtfs_model::StopTime) -> Option<GtfsTime> {
+fn stop_time_end_time(stop_time: &gtfs_guru_model::StopTime) -> Option<GtfsTime> {
     match (stop_time.arrival_time, stop_time.departure_time) {
         (Some(arrival), Some(departure)) => {
             if arrival.total_seconds() >= departure.total_seconds() {
@@ -281,7 +281,7 @@ fn is_available(availability: ServiceAvailability) -> bool {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{GtfsDate, RouteType, StopTime};
+    use gtfs_guru_model::{GtfsDate, RouteType, StopTime};
 
     #[test]
     fn emits_notice_for_overlapping_trips_in_same_block() {
@@ -381,7 +381,7 @@ mod tests {
         GtfsFeed {
             agency: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Agency {
+                rows: vec![gtfs_guru_model::Agency {
                     agency_id: None,
                     agency_name: "Agency".to_string(),
                     agency_url: "https://example.com".to_string(),
@@ -396,14 +396,14 @@ mod tests {
             stops: CsvTable {
                 headers: Vec::new(),
                 rows: vec![
-                    gtfs_model::Stop {
+                    gtfs_guru_model::Stop {
                         stop_id: "STOP1".to_string(),
                         stop_name: Some("Stop 1".to_string()),
                         stop_lat: Some(10.0),
                         stop_lon: Some(20.0),
                         ..Default::default()
                     },
-                    gtfs_model::Stop {
+                    gtfs_guru_model::Stop {
                         stop_id: "STOP2".to_string(),
                         stop_name: Some("Stop 2".to_string()),
                         stop_lat: Some(10.1),
@@ -415,7 +415,7 @@ mod tests {
             },
             routes: CsvTable {
                 headers: Vec::new(),
-                rows: vec![gtfs_model::Route {
+                rows: vec![gtfs_guru_model::Route {
                     route_id: "R1".to_string(),
                     route_short_name: Some("R1".to_string()),
                     route_type: RouteType::Bus,
@@ -459,8 +459,8 @@ mod tests {
         }
     }
 
-    fn trip(trip_id: &str, service_id: &str, block_id: &str) -> gtfs_model::Trip {
-        gtfs_model::Trip {
+    fn trip(trip_id: &str, service_id: &str, block_id: &str) -> gtfs_guru_model::Trip {
+        gtfs_guru_model::Trip {
             route_id: "R1".to_string(),
             service_id: service_id.to_string(),
             trip_id: trip_id.to_string(),

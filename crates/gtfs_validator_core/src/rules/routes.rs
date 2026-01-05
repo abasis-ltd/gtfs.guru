@@ -9,7 +9,7 @@ const CODE_ROUTE_DESC_SAME_AS_NAME: &str = "same_name_and_description_for_route"
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_model::{Route, RouteType};
+    use gtfs_guru_model::{Route, RouteType};
 
     #[test]
     fn detects_both_names_missing() {
