@@ -8,8 +8,8 @@ use gtfs_guru_core::rules::shape_to_stop_matching::ShapeToStopMatchingValidator;
 // we might need to expose it or just benchmark the validator on a constructed feed.
 // Given the constraints, let's benchmark the `validate` method on a feed with many shapes and stops.
 
-use gtfs_guru_model::{Route, RouteType, Shape, Stop, StopTime, Trip};
 use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, Validator};
+use gtfs_guru_model::{Route, RouteType, Shape, Stop, StopTime, Trip};
 
 fn generate_complex_feed(
     num_shapes: usize,

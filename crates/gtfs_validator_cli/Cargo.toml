@@ -19,6 +19,8 @@ tracing-subscriber = { workspace = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
+version = "0.1.0"
 
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
+version = "0.1.0"

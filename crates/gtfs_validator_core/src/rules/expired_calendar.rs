@@ -283,7 +283,11 @@ mod tests {
         assert!(notices.is_empty());
     }
 
-    fn calendar_row(service_id: &str, start: NaiveDate, end: NaiveDate) -> gtfs_guru_model::Calendar {
+    fn calendar_row(
+        service_id: &str,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> gtfs_guru_model::Calendar {
         gtfs_guru_model::Calendar {
             service_id: service_id.to_string(),
             monday: ServiceAvailability::Available,

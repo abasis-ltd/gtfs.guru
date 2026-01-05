@@ -18,8 +18,8 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-gtfs-guru-core = { path = "../gtfs_validator_core" }
-gtfs-guru-report = { path = "../gtfs_validator_report" }
+gtfs-guru-core = { path = "../gtfs_validator_core", version = "0.1.0" }
+gtfs-guru-report = { path = "../gtfs_validator_report", version = "0.1.0" }
 
 # Tauri
 tauri = { version = "2", features = [] }

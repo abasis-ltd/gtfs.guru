@@ -129,7 +129,9 @@ fn agencies_by_url(
     map
 }
 
-fn routes_by_url(routes: &crate::CsvTable<gtfs_guru_model::Route>) -> HashMap<String, Vec<RouteEntry>> {
+fn routes_by_url(
+    routes: &crate::CsvTable<gtfs_guru_model::Route>,
+) -> HashMap<String, Vec<RouteEntry>> {
     let mut map = HashMap::new();
     for (index, route) in routes.rows.iter().enumerate() {
         let Some(route_url) = route.route_url.as_deref() else {

@@ -26,6 +26,7 @@ console_error_panic_hook = { version = "0.1", optional = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
+version = "0.1.0"
 default-features = false  # Disable rayon for WASM
 
 [dev-dependencies]

@@ -16,7 +16,6 @@ use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use serde_json::{Number, Value};
 
-use gtfs_guru_model::ExceptionType;
 use gtfs_guru_core::feed::{
     AGENCY_FILE, AREAS_FILE, ATTRIBUTIONS_FILE, BOOKING_RULES_FILE, CALENDAR_DATES_FILE,
     CALENDAR_FILE, FARE_ATTRIBUTES_FILE, FARE_LEG_JOIN_RULES_FILE, FARE_LEG_RULES_FILE,
@@ -27,6 +26,7 @@ use gtfs_guru_core::feed::{
     TIMEFRAMES_FILE, TRANSFERS_FILE, TRANSLATIONS_FILE, TRIPS_FILE,
 };
 use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
+use gtfs_guru_model::ExceptionType;
 
 mod html;
 pub use html::{write_html_report, HtmlReportContext};
@@ -1250,7 +1250,8 @@ fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDa
         let calendar = feed.calendar.as_ref().unwrap();
         let calendar_dates = feed.calendar_dates.as_ref().unwrap();
 
-        let mut dates_by_service: BTreeMap<&str, Vec<&gtfs_guru_model::CalendarDate>> = BTreeMap::new();
+        let mut dates_by_service: BTreeMap<&str, Vec<&gtfs_guru_model::CalendarDate>> =
+            BTreeMap::new();
         for row in &calendar_dates.rows {
             let service_id = row.service_id.trim();
             if service_id.is_empty() {

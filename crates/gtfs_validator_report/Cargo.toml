@@ -9,7 +9,8 @@ anyhow = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-gtfs-guru-model = { path = "../gtfs_model" }
+gtfs-guru-model = { path = "../gtfs_model", version = "0.1.0" }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
+version = "0.1.0"
