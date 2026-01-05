@@ -12,6 +12,14 @@ pub struct ValidationOutcome {
 }
 
 pub fn validate_input(input: &GtfsInput, runner: &ValidatorRunner) -> ValidationOutcome {
+    validate_input_and_progress(input, runner, None)
+}
+
+pub fn validate_input_and_progress(
+    input: &GtfsInput,
+    runner: &ValidatorRunner,
+    progress: Option<&dyn crate::ProgressHandler>,
+) -> ValidationOutcome {
     let mut notices = NoticeContainer::new();
 
     if let Ok(input_notices) = collect_input_notices(input) {
@@ -21,12 +29,12 @@ pub fn validate_input(input: &GtfsInput, runner: &ValidatorRunner) -> Validation
     }
 
     let load_result = catch_unwind(AssertUnwindSafe(|| {
-        GtfsFeed::from_input_with_notices(input, &mut notices)
+        GtfsFeed::from_input_with_notices_and_progress(input, &mut notices, progress)
     }));
 
     match load_result {
         Ok(Ok(feed)) => {
-            runner.run_with(&feed, &mut notices);
+            runner.run_with_progress(&feed, &mut notices, progress);
             ValidationOutcome {
                 feed: Some(feed),
                 notices,
@@ -63,6 +71,14 @@ pub fn validate_bytes_reader(
     reader: &GtfsBytesReader,
     runner: &ValidatorRunner,
 ) -> ValidationOutcome {
+    validate_bytes_reader_and_progress(reader, runner, None)
+}
+
+pub fn validate_bytes_reader_and_progress(
+    reader: &GtfsBytesReader,
+    runner: &ValidatorRunner,
+    progress: Option<&dyn crate::ProgressHandler>,
+) -> ValidationOutcome {
     let mut notices = NoticeContainer::new();
 
     // Collect input notices (unknown files, etc.)
@@ -81,12 +97,12 @@ pub fn validate_bytes_reader(
     }
 
     let load_result = catch_unwind(AssertUnwindSafe(|| {
-        GtfsFeed::from_bytes_reader_with_notices(reader, &mut notices)
+        GtfsFeed::from_bytes_reader_with_notices_and_progress(reader, &mut notices, progress)
     }));
 
     match load_result {
         Ok(Ok(feed)) => {
-            runner.run_with(&feed, &mut notices);
+            runner.run_with_progress(&feed, &mut notices, progress);
             ValidationOutcome {
                 feed: Some(feed),
                 notices,
@@ -180,11 +196,7 @@ fn runtime_exception_in_loader_error_notice(file: String, message: String) -> Va
     notice.insert_context_field("exception", "panic");
     notice.insert_context_field("filename", file);
     notice.insert_context_field("message", message);
-    notice.field_order = vec![
-        "exception".into(),
-        "filename".into(),
-        "message".into(),
-    ];
+    notice.field_order = vec!["exception".into(), "filename".into(), "message".into()];
     notice
 }
 
@@ -225,11 +237,7 @@ fn runtime_exception_in_validator_error_notice(
     notice.insert_context_field("exception", exception);
     notice.insert_context_field("message", message);
     notice.insert_context_field("validator", validator);
-    notice.field_order = vec![
-        "exception".into(),
-        "message".into(),
-        "validator".into(),
-    ];
+    notice.field_order = vec!["exception".into(), "message".into(), "validator".into()];
     notice
 }
 

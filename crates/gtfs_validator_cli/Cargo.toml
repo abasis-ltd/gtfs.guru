@@ -18,6 +18,8 @@ reqwest = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+mimalloc = { version = "0.1", default-features = false }
+indicatif = "0.18.3"
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"

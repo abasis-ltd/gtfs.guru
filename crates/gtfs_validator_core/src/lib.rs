@@ -26,6 +26,7 @@ pub mod geojson;
 pub mod input;
 pub mod notice;
 pub mod notice_schema;
+pub mod progress;
 pub mod rules;
 mod validation_context;
 pub mod validator;
@@ -39,6 +40,7 @@ pub use input::{
 };
 pub use notice::{Fix, FixOperation, FixSafety, NoticeContainer, NoticeSeverity, ValidationNotice};
 pub use notice_schema::build_notice_schema_map;
+pub use progress::{NoOpProgressHandler, ProgressHandler};
 pub use rules::default_runner;
 pub use validation_context::{
     google_rules_enabled, set_google_rules_enabled, set_thorough_mode_enabled,

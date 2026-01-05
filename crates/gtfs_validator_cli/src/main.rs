@@ -8,6 +8,9 @@ use clap::Parser;
 use reqwest::blocking::Client;
 use tracing::info;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use gtfs_guru_core::{
     build_notice_schema_map, collect_input_notices, default_runner, set_validation_country_code,
     set_validation_date, GtfsFeed, GtfsInput, GtfsInputError, NoticeContainer, NoticeSeverity,
@@ -495,6 +498,81 @@ fn parse_validation_date(value: &str) -> anyhow::Result<NaiveDate> {
         .with_context(|| format!("invalid --date-for-validation {}", value))
 }
 
+use gtfs_guru_core::progress::ProgressHandler;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use std::sync::Arc;
+
+struct IndicatifHandler {
+    _multi: MultiProgress,
+    loading_pb: ProgressBar,
+    validation_pb: ProgressBar,
+}
+
+impl IndicatifHandler {
+    fn new() -> Self {
+        let multi = MultiProgress::new();
+
+        let loading_pb = multi.add(ProgressBar::new(0));
+        loading_pb.set_style(
+            ProgressStyle::with_template(
+                "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}",
+            )
+            .unwrap()
+            .progress_chars("#>-"),
+        );
+        loading_pb.set_message("Waiting to load files...");
+
+        let validation_pb = multi.add(ProgressBar::new(0));
+        validation_pb.set_style(
+            ProgressStyle::with_template(
+                "{spinner:.green} [{elapsed_precise}] {bar:40.magenta/magenta} {pos}/{len} {msg}",
+            )
+            .unwrap()
+            .progress_chars("#>-"),
+        );
+        validation_pb.set_message("Waiting to validate...");
+
+        Self {
+            _multi: multi,
+            loading_pb,
+            validation_pb,
+        }
+    }
+}
+
+impl ProgressHandler for IndicatifHandler {
+    fn on_start_file_load(&self, file: &str) {
+        self.loading_pb.set_message(format!("Loading {}", file));
+    }
+
+    fn on_finish_file_load(&self, _file: &str) {
+        self.loading_pb.inc(1);
+    }
+
+    fn on_start_validation(&self, validator_name: &str) {
+        self.validation_pb
+            .set_message(format!("Running {}", validator_name));
+    }
+
+    fn on_finish_validation(&self, _validator_name: &str) {
+        // Increment handled in increment_validator_progress
+    }
+
+    fn set_total_files(&self, count: usize) {
+        self.loading_pb.set_length(count as u64);
+        self.loading_pb.set_message("Starting load...");
+    }
+
+    fn set_total_validators(&self, count: usize) {
+        self.validation_pb.set_length(count as u64);
+        self.validation_pb.set_message("Starting validation...");
+    }
+
+    fn increment_validator_progress(&self) {
+        self.validation_pb.inc(1);
+    }
+}
+
 fn validate_with_metrics(
     input: &GtfsInput,
     runner: &ValidatorRunner,
@@ -509,10 +587,21 @@ fn validate_with_metrics(
         }
     }
 
+    let progress_handler = Arc::new(IndicatifHandler::new());
+
     let load_start = std::time::Instant::now();
+    let handler_clone = progress_handler.clone();
     let load_result = catch_unwind(AssertUnwindSafe(|| {
-        GtfsFeed::from_input_with_notices(input, &mut notices)
+        GtfsFeed::from_input_with_notices_and_progress(
+            input,
+            &mut notices,
+            Some(handler_clone.as_ref()),
+        )
     }));
+
+    progress_handler
+        .loading_pb
+        .finish_with_message("Loading complete");
     eprintln!("[PERF] Feed loading took: {:?}", load_start.elapsed());
 
     match load_result {
@@ -523,7 +612,12 @@ fn validate_with_metrics(
                 "GtfsFeedLoader.executeMultiFileValidators",
             );
             let validate_start = std::time::Instant::now();
-            runner.run_with(&feed, &mut notices);
+            let handler_clone = progress_handler.clone();
+            runner.run_with_progress(&feed, &mut notices, Some(handler_clone.as_ref()));
+
+            progress_handler
+                .validation_pb
+                .finish_with_message("Validation complete");
             eprintln!("[PERF] Validation took: {:?}", validate_start.elapsed());
             record_memory_usage(
                 memory_usage_records,

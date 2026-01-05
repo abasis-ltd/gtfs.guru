@@ -2,6 +2,7 @@
 use rayon::prelude::*;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+use crate::progress::ProgressHandler;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
 
 pub trait Validator: Send + Sync {
@@ -35,11 +36,24 @@ impl ValidatorRunner {
     }
 
     pub fn run_with(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        self.run_with_progress(feed, notices, None)
+    }
+
+    pub fn run_with_progress(
+        &self,
+        feed: &GtfsFeed,
+        notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
+    ) {
         // Capture thread-local context before execution
         let captured_date = crate::validation_date();
         let captured_country = crate::validation_country_code();
         let captured_google_rules = crate::google_rules_enabled();
         let captured_thorough = crate::thorough_mode_enabled();
+
+        if let Some(p) = progress {
+            p.set_total_validators(self.validators.len());
+        }
 
         #[cfg(feature = "parallel")]
         let new_notices = self.run_parallel(
@@ -48,6 +62,7 @@ impl ValidatorRunner {
             captured_country,
             captured_google_rules,
             captured_thorough,
+            progress,
         );
 
         #[cfg(not(feature = "parallel"))]
@@ -57,6 +72,7 @@ impl ValidatorRunner {
             captured_country,
             captured_google_rules,
             captured_thorough,
+            progress,
         );
 
         notices.merge(new_notices);
@@ -70,6 +86,7 @@ impl ValidatorRunner {
         captured_country: Option<String>,
         captured_google_rules: bool,
         captured_thorough: bool,
+        progress: Option<&dyn ProgressHandler>,
     ) -> NoticeContainer {
         self.validators
             .par_iter()
@@ -80,7 +97,18 @@ impl ValidatorRunner {
                 let _google_rules_guard = crate::set_google_rules_enabled(captured_google_rules);
                 let _thorough_guard = crate::set_thorough_mode_enabled(captured_thorough);
 
-                self.run_single_validator(validator.as_ref(), feed)
+                if let Some(p) = progress {
+                    p.on_start_validation(validator.name());
+                }
+
+                let res = self.run_single_validator(validator.as_ref(), feed);
+
+                if let Some(p) = progress {
+                    p.on_finish_validation(validator.name());
+                    p.increment_validator_progress();
+                }
+
+                res
             })
             .reduce(NoticeContainer::new, |mut a, b| {
                 a.merge(b);
@@ -96,6 +124,7 @@ impl ValidatorRunner {
         captured_country: Option<String>,
         captured_google_rules: bool,
         captured_thorough: bool,
+        progress: Option<&dyn ProgressHandler>,
     ) -> NoticeContainer {
         // Set context once for sequential execution
         let _date_guard = crate::set_validation_date(Some(captured_date));
@@ -105,7 +134,19 @@ impl ValidatorRunner {
 
         self.validators
             .iter()
-            .map(|validator| self.run_single_validator(validator.as_ref(), feed))
+            .map(|validator| {
+                if let Some(p) = progress {
+                    p.on_start_validation(validator.name());
+                }
+
+                let res = self.run_single_validator(validator.as_ref(), feed);
+
+                if let Some(p) = progress {
+                    p.on_finish_validation(validator.name());
+                    p.increment_validator_progress();
+                }
+                res
+            })
             .fold(NoticeContainer::new(), |mut a, b| {
                 a.merge(b);
                 a
@@ -149,11 +190,7 @@ fn runtime_exception_in_validator_error_notice(
     notice.insert_context_field("exception", "panic");
     notice.insert_context_field("message", message);
     notice.insert_context_field("validator", validator);
-    notice.field_order = vec![
-        "exception".into(),
-        "message".into(),
-        "validator".into(),
-    ];
+    notice.field_order = vec!["exception".into(), "message".into(), "validator".into()];
     notice
 }
 

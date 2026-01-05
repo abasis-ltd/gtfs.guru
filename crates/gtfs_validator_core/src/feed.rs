@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use crate::geojson::{GeoJsonFeatureCollection, LocationsGeoJson};
 use crate::input::GtfsBytesReader;
+use crate::progress::ProgressHandler;
 use crate::{CsvTable, GtfsInput, GtfsInputError, GtfsInputReader, NoticeContainer};
 
 pub const AGENCY_FILE: &str = "agency.txt";
@@ -137,83 +138,107 @@ impl GtfsFeed {
         input: &GtfsInput,
         notices: &mut NoticeContainer,
     ) -> Result<Self, GtfsInputError> {
+        Self::from_input_with_notices_and_progress(input, notices, None)
+    }
+
+    pub fn from_input_with_notices_and_progress(
+        input: &GtfsInput,
+        notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
+    ) -> Result<Self, GtfsInputError> {
         let reader = input.reader();
-        Self::from_reader_with_notices(&reader, notices)
+        Self::from_reader_with_notices_and_progress(&reader, notices, progress)
     }
 
     pub fn from_reader_with_notices(
         reader: &GtfsInputReader,
         notices: &mut NoticeContainer,
     ) -> Result<Self, GtfsInputError> {
+        Self::from_reader_with_notices_and_progress(reader, notices, None)
+    }
+
+    pub fn from_reader_with_notices_and_progress(
+        reader: &GtfsInputReader,
+        notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
+    ) -> Result<Self, GtfsInputError> {
         #[cfg(feature = "parallel")]
         {
-            Self::from_reader_parallel(reader, notices)
+            Self::from_reader_parallel(reader, notices, progress)
         }
         #[cfg(not(feature = "parallel"))]
         {
-            Self::from_reader_sequential(reader, notices)
+            Self::from_reader_sequential(reader, notices, progress)
         }
     }
 
+    #[cfg(not(feature = "parallel"))]
     fn from_reader_sequential(
         reader: &GtfsInputReader,
         notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
     ) -> Result<Self, GtfsInputError> {
-        let agency = reader
-            .read_optional_csv_with_notices(AGENCY_FILE, notices)?
-            .unwrap_or_else(|| {
-                notices.push_missing_file(AGENCY_FILE);
-                CsvTable::default()
-            });
-        let stops = reader
-            .read_optional_csv_with_notices(STOPS_FILE, notices)?
-            .unwrap_or_else(|| {
-                notices.push_missing_file(STOPS_FILE);
-                CsvTable::default()
-            });
-        let routes = reader
-            .read_optional_csv_with_notices(ROUTES_FILE, notices)?
-            .unwrap_or_else(|| {
-                notices.push_missing_file(ROUTES_FILE);
-                CsvTable::default()
-            });
-        let trips = reader
-            .read_optional_csv_with_notices(TRIPS_FILE, notices)?
-            .unwrap_or_else(|| {
-                notices.push_missing_file(TRIPS_FILE);
-                CsvTable::default()
-            });
-        let stop_times = reader
-            .read_optional_csv_with_notices(STOP_TIMES_FILE, notices)?
-            .unwrap_or_else(|| {
-                notices.push_missing_file(STOP_TIMES_FILE);
-                CsvTable::default()
-            });
+        if let Some(p) = progress {
+            p.set_total_files(GTFS_FILE_NAMES.len());
+        }
 
-        let calendar = reader.read_optional_csv_with_notices(CALENDAR_FILE, notices)?;
-        let calendar_dates = reader.read_optional_csv_with_notices(CALENDAR_DATES_FILE, notices)?;
-        let fare_attributes =
-            reader.read_optional_csv_with_notices(FARE_ATTRIBUTES_FILE, notices)?;
-        let fare_rules = reader.read_optional_csv_with_notices(FARE_RULES_FILE, notices)?;
-        let fare_media = reader.read_optional_csv_with_notices(FARE_MEDIA_FILE, notices)?;
-        let fare_products = reader.read_optional_csv_with_notices(FARE_PRODUCTS_FILE, notices)?;
-        let fare_leg_rules = reader.read_optional_csv_with_notices(FARE_LEG_RULES_FILE, notices)?;
-        let fare_transfer_rules =
-            reader.read_optional_csv_with_notices(FARE_TRANSFER_RULES_FILE, notices)?;
-        let fare_leg_join_rules =
-            reader.read_optional_csv_with_notices(FARE_LEG_JOIN_RULES_FILE, notices)?;
-        let areas = reader.read_optional_csv_with_notices(AREAS_FILE, notices)?;
-        let stop_areas = reader.read_optional_csv_with_notices(STOP_AREAS_FILE, notices)?;
-        let timeframes = reader.read_optional_csv_with_notices(TIMEFRAMES_FILE, notices)?;
-        let rider_categories =
-            reader.read_optional_csv_with_notices(RIDER_CATEGORIES_FILE, notices)?;
-        let shapes = reader.read_optional_csv_with_notices(SHAPES_FILE, notices)?;
-        let frequencies = reader.read_optional_csv_with_notices(FREQUENCIES_FILE, notices)?;
-        let transfers = reader.read_optional_csv_with_notices(TRANSFERS_FILE, notices)?;
-        let location_groups =
-            reader.read_optional_csv_with_notices(LOCATION_GROUPS_FILE, notices)?;
-        let location_group_stops =
-            reader.read_optional_csv_with_notices(LOCATION_GROUP_STOPS_FILE, notices)?;
+        macro_rules! load_file {
+            ($file:expr, $notices:expr) => {{
+                if let Some(p) = progress {
+                    p.on_start_file_load($file);
+                }
+                let res = reader.read_optional_csv_with_notices($file, $notices);
+                if let Some(p) = progress {
+                    p.on_finish_file_load($file);
+                }
+                res
+            }};
+        }
+
+        let agency = load_file!(AGENCY_FILE, notices)?.unwrap_or_else(|| {
+            notices.push_missing_file(AGENCY_FILE);
+            CsvTable::default()
+        });
+        let stops = load_file!(STOPS_FILE, notices)?.unwrap_or_else(|| {
+            notices.push_missing_file(STOPS_FILE);
+            CsvTable::default()
+        });
+        let routes = load_file!(ROUTES_FILE, notices)?.unwrap_or_else(|| {
+            notices.push_missing_file(ROUTES_FILE);
+            CsvTable::default()
+        });
+        let trips = load_file!(TRIPS_FILE, notices)?.unwrap_or_else(|| {
+            notices.push_missing_file(TRIPS_FILE);
+            CsvTable::default()
+        });
+        let stop_times = load_file!(STOP_TIMES_FILE, notices)?.unwrap_or_else(|| {
+            notices.push_missing_file(STOP_TIMES_FILE);
+            CsvTable::default()
+        });
+
+        let calendar = load_file!(CALENDAR_FILE, notices)?;
+        let calendar_dates = load_file!(CALENDAR_DATES_FILE, notices)?;
+        let fare_attributes = load_file!(FARE_ATTRIBUTES_FILE, notices)?;
+        let fare_rules = load_file!(FARE_RULES_FILE, notices)?;
+        let fare_media = load_file!(FARE_MEDIA_FILE, notices)?;
+        let fare_products = load_file!(FARE_PRODUCTS_FILE, notices)?;
+        let fare_leg_rules = load_file!(FARE_LEG_RULES_FILE, notices)?;
+        let fare_transfer_rules = load_file!(FARE_TRANSFER_RULES_FILE, notices)?;
+        let fare_leg_join_rules = load_file!(FARE_LEG_JOIN_RULES_FILE, notices)?;
+        let areas = load_file!(AREAS_FILE, notices)?;
+        let stop_areas = load_file!(STOP_AREAS_FILE, notices)?;
+        let timeframes = load_file!(TIMEFRAMES_FILE, notices)?;
+        let rider_categories = load_file!(RIDER_CATEGORIES_FILE, notices)?;
+        let shapes = load_file!(SHAPES_FILE, notices)?;
+        let frequencies = load_file!(FREQUENCIES_FILE, notices)?;
+        let transfers = load_file!(TRANSFERS_FILE, notices)?;
+        let location_groups = load_file!(LOCATION_GROUPS_FILE, notices)?;
+        let location_group_stops = load_file!(LOCATION_GROUP_STOPS_FILE, notices)?;
+
+        // GeoJSON special case
+        if let Some(p) = progress {
+            p.on_start_file_load(LOCATIONS_GEOJSON_FILE);
+        }
         let locations =
             match reader.read_optional_json::<GeoJsonFeatureCollection>(LOCATIONS_GEOJSON_FILE) {
                 Ok(data) => data.map(LocationsGeoJson::from),
@@ -222,14 +247,18 @@ impl GtfsFeed {
                 }
                 Err(err) => return Err(err),
             };
-        let booking_rules = reader.read_optional_csv_with_notices(BOOKING_RULES_FILE, notices)?;
-        let networks = reader.read_optional_csv_with_notices(NETWORKS_FILE, notices)?;
-        let route_networks = reader.read_optional_csv_with_notices(ROUTE_NETWORKS_FILE, notices)?;
-        let feed_info = reader.read_optional_csv_with_notices(FEED_INFO_FILE, notices)?;
-        let attributions = reader.read_optional_csv_with_notices(ATTRIBUTIONS_FILE, notices)?;
-        let levels = reader.read_optional_csv_with_notices(LEVELS_FILE, notices)?;
-        let pathways = reader.read_optional_csv_with_notices(PATHWAYS_FILE, notices)?;
-        let translations = reader.read_optional_csv_with_notices(TRANSLATIONS_FILE, notices)?;
+        if let Some(p) = progress {
+            p.on_finish_file_load(LOCATIONS_GEOJSON_FILE);
+        }
+
+        let booking_rules = load_file!(BOOKING_RULES_FILE, notices)?;
+        let networks = load_file!(NETWORKS_FILE, notices)?;
+        let route_networks = load_file!(ROUTE_NETWORKS_FILE, notices)?;
+        let feed_info = load_file!(FEED_INFO_FILE, notices)?;
+        let attributions = load_file!(ATTRIBUTIONS_FILE, notices)?;
+        let levels = load_file!(LEVELS_FILE, notices)?;
+        let pathways = load_file!(PATHWAYS_FILE, notices)?;
+        let translations = load_file!(TRANSLATIONS_FILE, notices)?;
 
         let stop_times_by_trip = Self::build_stop_times_index(&stop_times);
 
@@ -274,8 +303,11 @@ impl GtfsFeed {
     fn from_reader_parallel(
         reader: &GtfsInputReader,
         notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
     ) -> Result<Self, GtfsInputError> {
-        use rayon::prelude::*;
+        if let Some(p) = progress {
+            p.set_total_files(GTFS_FILE_NAMES.len());
+        }
 
         // Capture context from the main thread
         let thorough = crate::validation_context::thorough_mode_enabled();
@@ -285,6 +317,7 @@ impl GtfsFeed {
 
         struct ParallelLoader<'a> {
             reader: &'a GtfsInputReader,
+            progress: Option<&'a dyn ProgressHandler>,
             thorough: bool,
             google: bool,
             country: Option<String>,
@@ -303,16 +336,26 @@ impl GtfsFeed {
                     crate::validation_context::set_validation_country_code(self.country.clone());
                 let _g4 = crate::validation_context::set_validation_date(Some(self.date));
 
+                if let Some(p) = self.progress {
+                    p.on_start_file_load(filename);
+                }
+
                 let mut local_notices = NoticeContainer::new();
                 let result = self
                     .reader
                     .read_optional_csv_with_notices(filename, &mut local_notices);
+
+                if let Some(p) = self.progress {
+                    p.on_finish_file_load(filename);
+                }
+
                 (result, local_notices)
             }
         }
 
         let loader = ParallelLoader {
             reader,
+            progress,
             thorough,
             google,
             country,
@@ -472,6 +515,11 @@ impl GtfsFeed {
                                                         let (location_group_stops, n3) =
                                                             loader.load(LOCATION_GROUP_STOPS_FILE);
 
+                                                        if let Some(p) = loader.progress {
+                                                            p.on_start_file_load(
+                                                                LOCATIONS_GEOJSON_FILE,
+                                                            );
+                                                        }
                                                         let (locations, n4) = match reader
                                                             .read_optional_json::<GeoJsonFeatureCollection>(
                                                                 LOCATIONS_GEOJSON_FILE,
@@ -487,6 +535,11 @@ impl GtfsFeed {
                                                             }
                                                             Err(err) => (Err(err), NoticeContainer::new()),
                                                         };
+                                                        if let Some(p) = loader.progress {
+                                                            p.on_finish_file_load(
+                                                                LOCATIONS_GEOJSON_FILE,
+                                                            );
+                                                        }
 
                                                         let (booking_rules, n5) =
                                                             loader.load(BOOKING_RULES_FILE);
@@ -735,12 +788,36 @@ impl GtfsFeed {
         reader: &GtfsBytesReader,
         notices: &mut NoticeContainer,
     ) -> Result<Self, GtfsInputError> {
-        let agency = reader
-            .read_optional_csv_with_notices(AGENCY_FILE, notices)?
-            .unwrap_or_else(|| {
-                notices.push_missing_file(AGENCY_FILE);
-                CsvTable::default()
-            });
+        Self::from_bytes_reader_with_notices_and_progress(reader, notices, None)
+    }
+
+    /// Load GTFS feed from in-memory bytes with notice collection and progress reporting
+    pub fn from_bytes_reader_with_notices_and_progress(
+        reader: &GtfsBytesReader,
+        notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
+    ) -> Result<Self, GtfsInputError> {
+        if let Some(p) = progress {
+            p.set_total_files(GTFS_FILE_NAMES.len());
+        }
+
+        macro_rules! load_file {
+            ($file:expr, $notices:expr) => {{
+                if let Some(p) = progress {
+                    p.on_start_file_load($file);
+                }
+                let res = reader.read_optional_csv_with_notices($file, $notices);
+                if let Some(p) = progress {
+                    p.on_finish_file_load($file);
+                }
+                res
+            }};
+        }
+
+        let agency = load_file!(AGENCY_FILE, notices)?.unwrap_or_else(|| {
+            notices.push_missing_file(AGENCY_FILE);
+            CsvTable::default()
+        });
         let stops = reader
             .read_optional_csv_with_notices(STOPS_FILE, notices)?
             .unwrap_or_else(|| {
@@ -798,14 +875,14 @@ impl GtfsFeed {
                 }
                 Err(err) => return Err(err),
             };
-        let booking_rules = reader.read_optional_csv_with_notices(BOOKING_RULES_FILE, notices)?;
-        let networks = reader.read_optional_csv_with_notices(NETWORKS_FILE, notices)?;
-        let route_networks = reader.read_optional_csv_with_notices(ROUTE_NETWORKS_FILE, notices)?;
-        let feed_info = reader.read_optional_csv_with_notices(FEED_INFO_FILE, notices)?;
-        let attributions = reader.read_optional_csv_with_notices(ATTRIBUTIONS_FILE, notices)?;
-        let levels = reader.read_optional_csv_with_notices(LEVELS_FILE, notices)?;
-        let pathways = reader.read_optional_csv_with_notices(PATHWAYS_FILE, notices)?;
-        let translations = reader.read_optional_csv_with_notices(TRANSLATIONS_FILE, notices)?;
+        let booking_rules = load_file!(BOOKING_RULES_FILE, notices)?;
+        let networks = load_file!(NETWORKS_FILE, notices)?;
+        let route_networks = load_file!(ROUTE_NETWORKS_FILE, notices)?;
+        let feed_info = load_file!(FEED_INFO_FILE, notices)?;
+        let attributions = load_file!(ATTRIBUTIONS_FILE, notices)?;
+        let levels = load_file!(LEVELS_FILE, notices)?;
+        let pathways = load_file!(PATHWAYS_FILE, notices)?;
+        let translations = load_file!(TRANSLATIONS_FILE, notices)?;
 
         let stop_times_by_trip = Self::build_stop_times_index(&stop_times);
 
@@ -930,6 +1007,74 @@ mod tests {
 
         assert_eq!(locations.notices.len(), 1);
         assert_eq!(locations.notices[0].code, "malformed_json");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn triggers_progress_handler_callbacks() {
+        use crate::progress::ProgressHandler;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        #[derive(Default)]
+        struct MockHandler {
+            started: AtomicUsize,
+            finished: AtomicUsize,
+            total_files: AtomicUsize,
+        }
+
+        impl ProgressHandler for MockHandler {
+            fn on_start_file_load(&self, _file: &str) {
+                self.started.fetch_add(1, Ordering::SeqCst);
+            }
+            fn on_finish_file_load(&self, _file: &str) {
+                self.finished.fetch_add(1, Ordering::SeqCst);
+            }
+            fn on_start_validation(&self, _validator_name: &str) {}
+            fn on_finish_validation(&self, _validator_name: &str) {}
+            fn set_total_validators(&self, _count: usize) {}
+            fn increment_validator_progress(&self) {}
+            fn set_total_files(&self, count: usize) {
+                self.total_files.store(count, Ordering::SeqCst);
+            }
+        }
+
+        let dir = temp_dir("gtfs_progress");
+        fs::create_dir_all(&dir).expect("create dir");
+        write_file(
+            &dir,
+            AGENCY_FILE,
+            "agency_name,agency_url,agency_timezone\nTest,https://example.com,UTC\n",
+        );
+        write_file(&dir, STOPS_FILE, "stop_id\nSTOP1\n");
+        write_file(&dir, ROUTES_FILE, "route_id,route_type\nR1,3\n");
+        write_file(
+            &dir,
+            TRIPS_FILE,
+            "route_id,service_id,trip_id\nR1,SVC1,T1\n",
+        );
+        write_file(&dir, STOP_TIMES_FILE, "trip_id,stop_id,stop_sequence,arrival_time,departure_time\nT1,STOP1,1,08:00:00,08:00:00\n");
+
+        let input = GtfsInput::from_path(&dir).expect("input");
+        let handler = Arc::new(MockHandler::default());
+        let mut notices = NoticeContainer::new();
+
+        GtfsFeed::from_input_with_notices_and_progress(
+            &input,
+            &mut notices,
+            Some(handler.as_ref()),
+        )
+        .expect("load");
+
+        // We load many files (defined in GTFS_FILE_NAMES), some exist some don't.
+        // Each attempt to load a file should trigger start/finish.
+        assert!(handler.total_files.load(Ordering::SeqCst) > 0);
+        assert!(handler.started.load(Ordering::SeqCst) >= 5);
+        assert_eq!(
+            handler.started.load(Ordering::SeqCst),
+            handler.finished.load(Ordering::SeqCst)
+        );
 
         fs::remove_dir_all(&dir).ok();
     }

@@ -8,8 +8,10 @@ use gtfs_guru_core::rules::shape_to_stop_matching::ShapeToStopMatchingValidator;
 // we might need to expose it or just benchmark the validator on a constructed feed.
 // Given the constraints, let's benchmark the `validate` method on a feed with many shapes and stops.
 
+use gtfs_guru_core::rules::shape_to_stop_matching::LatLng;
 use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, Validator};
 use gtfs_guru_model::{Route, RouteType, Shape, Stop, StopTime, Trip};
+use std::collections::HashMap;
 
 fn generate_complex_feed(
     num_shapes: usize,
@@ -25,7 +27,7 @@ fn generate_complex_feed(
 
     // Create one route
     routes.push(Route {
-        route_id: "R1".to_string(),
+        route_id: "R1".into(),
         agency_id: None,
         route_short_name: Some("R1".to_string()),
         route_long_name: None,
@@ -51,7 +53,7 @@ fn generate_complex_feed(
             let lat = (i as f64) * 0.001;
             let lon = if i % 2 == 0 { 0.0 } else { 0.001 };
             shapes.push(Shape {
-                shape_id: shape_id.clone(),
+                shape_id: shape_id.clone().into(),
                 shape_pt_lat: lat,
                 shape_pt_lon: lon,
                 shape_pt_sequence: i as u32,
@@ -62,11 +64,11 @@ fn generate_complex_feed(
         // Generate stops along the shape
         // For simplicity, every 10th point has a stop near it
         for i in (0..points_per_shape).step_by(10) {
-            let stop_id = format!("STOP_{}_{}", shape_id, i);
+            let stop_id_str = stop_id.clone();
             stops.push(Stop {
-                stop_id: stop_id.clone(),
+                stop_id: stop_id.into(),
                 stop_code: None,
-                stop_name: Some(stop_id.clone()),
+                stop_name: Some(stop_id_str.into()),
                 tts_stop_name: None,
                 stop_desc: None,
                 stop_lat: Some((i as f64) * 0.001),
@@ -92,14 +94,14 @@ fn generate_complex_feed(
         for t in 0..trips_per_shape {
             let trip_id = format!("T_{}_{}", shape_id, t);
             trips.push(Trip {
-                route_id: "R1".to_string(),
-                service_id: "SVC1".to_string(),
-                trip_id: trip_id.clone(),
+                route_id: "R1".into(),
+                service_id: "SVC1".into(),
+                trip_id: trip_id.clone().into(),
                 trip_headsign: None,
                 trip_short_name: None,
                 direction_id: None,
                 block_id: None,
-                shape_id: Some(shape_id.clone()),
+                shape_id: Some(shape_id.clone().into()),
                 wheelchair_accessible: None,
                 bikes_allowed: None,
                 continuous_pickup: None,
@@ -111,10 +113,10 @@ fn generate_complex_feed(
             for i in (0..points_per_shape).step_by(10) {
                 let stop_id = format!("STOP_{}_{}", shape_id, i);
                 stop_times.push(StopTime {
-                    trip_id: trip_id.clone(),
+                    trip_id: trip_id.clone().into(),
                     arrival_time: None,
                     departure_time: None,
-                    stop_id,
+                    stop_id: stop_id.into(),
                     location_group_id: None,
                     location_id: None,
                     stop_sequence: (i / 10) as u32,
@@ -192,7 +194,10 @@ fn generate_complex_feed(
         levels: None,
         pathways: None,
         translations: None,
-    }
+        stop_times_by_trip: HashMap::new(),
+    };
+    feed.rebuild_stop_times_index();
+    feed
 }
 
 fn benchmark_validation(c: &mut Criterion) {
