@@ -274,41 +274,282 @@ impl GtfsFeed {
         notices: &mut NoticeContainer,
     ) -> Result<Self, GtfsInputError> {
         use rayon::prelude::*;
-        use std::sync::Mutex;
 
-        let notices_mutex = Mutex::new(NoticeContainer::new());
+        // Helper to load a CSV table and capture its local notices
+        fn load<T: serde::de::DeserializeOwned + Send>(
+            reader: &GtfsInputReader,
+            filename: &str,
+        ) -> (Result<Option<CsvTable<T>>, GtfsInputError>, NoticeContainer) {
+            let mut local_notices = NoticeContainer::new();
+            let result = reader.read_optional_csv_with_notices(filename, &mut local_notices);
+            (result, local_notices)
+        }
 
-        // Define file reading tasks
-        let tasks: Vec<(
-            &str,
-            Box<
-                dyn Fn(
-                        &Mutex<NoticeContainer>,
-                    ) -> Result<Box<dyn std::any::Any + Send>, GtfsInputError>
-                    + Send
-                    + Sync,
-            >,
-        )> = vec![(
-            AGENCY_FILE,
-            Box::new(|n| {
-                let mut local = NoticeContainer::new();
-                let result: CsvTable<Agency> = reader
-                    .read_optional_csv_with_notices(AGENCY_FILE, &mut local)?
-                    .unwrap_or_else(|| {
-                        local.push_missing_file(AGENCY_FILE);
-                        CsvTable::default()
-                    });
-                n.lock().unwrap().merge(local);
-                Ok(Box::new(result))
-            }),
-        )];
+        // Parallelize loading:
+        // Group 1: Stop Times (Index built in parallel)
+        // Group 2: Shapes
+        // Group 3: Trips, Calendar Dates
+        // Group 4: Stops, Routes
+        // Group 5: All others (sequential)
 
-        // For now, fall back to sequential loading but build index in parallel
-        // Full parallel loading requires significant refactoring of the reader API
-        let mut feed = Self::from_reader_sequential(reader, notices)?;
+        let (
+            (stop_times_result, index, n1),
+            (
+                (shapes_res, n2),
+                (
+                    ((trips_res, n3), (calendar_dates_res, n4)),
+                    (((stops_res, n5), (routes_res, n6)), (others, n7)),
+                ),
+            ),
+        ) = rayon::join(
+            || {
+                let (res, notices) = load(reader, STOP_TIMES_FILE);
+                let (res, index) = match res {
+                    Ok(Some(table)) => {
+                        let idx = Self::build_stop_times_index(&table);
+                        (Ok(Some(table)), idx)
+                    }
+                    r => (r, HashMap::new()),
+                };
+                (res, index, notices)
+            },
+            || {
+                rayon::join(
+                    || load(reader, SHAPES_FILE),
+                    || {
+                        rayon::join(
+                            || {
+                                rayon::join(
+                                    || load(reader, TRIPS_FILE),
+                                    || load(reader, CALENDAR_DATES_FILE),
+                                )
+                            },
+                            || {
+                                rayon::join(
+                                    || {
+                                        rayon::join(
+                                            || load(reader, STOPS_FILE),
+                                            || load(reader, ROUTES_FILE),
+                                        )
+                                    },
+                                    || {
+                                        let mut n = NoticeContainer::new();
 
-        // Build stop_times index (already done in sequential)
-        Ok(feed)
+                                        macro_rules! load_seq {
+                                            ($file:expr) => {
+                                                reader.read_optional_csv_with_notices($file, &mut n)
+                                            };
+                                        }
+
+                                        let agency = load_seq!(AGENCY_FILE);
+                                        let calendar = load_seq!(CALENDAR_FILE);
+                                        let fare_attributes = load_seq!(FARE_ATTRIBUTES_FILE);
+                                        let fare_rules = load_seq!(FARE_RULES_FILE);
+                                        let fare_media = load_seq!(FARE_MEDIA_FILE);
+                                        let fare_products = load_seq!(FARE_PRODUCTS_FILE);
+                                        let fare_leg_rules = load_seq!(FARE_LEG_RULES_FILE);
+                                        let fare_transfer_rules =
+                                            load_seq!(FARE_TRANSFER_RULES_FILE);
+                                        let fare_leg_join_rules =
+                                            load_seq!(FARE_LEG_JOIN_RULES_FILE);
+                                        let areas = load_seq!(AREAS_FILE);
+                                        let stop_areas = load_seq!(STOP_AREAS_FILE);
+                                        let timeframes = load_seq!(TIMEFRAMES_FILE);
+                                        let rider_categories = load_seq!(RIDER_CATEGORIES_FILE);
+                                        let frequencies = load_seq!(FREQUENCIES_FILE);
+                                        let transfers = load_seq!(TRANSFERS_FILE);
+                                        let location_groups = load_seq!(LOCATION_GROUPS_FILE);
+                                        let location_group_stops =
+                                            load_seq!(LOCATION_GROUP_STOPS_FILE);
+                                        let locations = match reader
+                                            .read_optional_json::<GeoJsonFeatureCollection>(
+                                                LOCATIONS_GEOJSON_FILE,
+                                            ) {
+                                            Ok(data) => Ok(data.map(LocationsGeoJson::from)),
+                                            Err(GtfsInputError::Json { file, source })
+                                                if file == LOCATIONS_GEOJSON_FILE =>
+                                            {
+                                                Ok(Some(LocationsGeoJson::malformed_json(
+                                                    source.to_string(),
+                                                )))
+                                            }
+                                            Err(err) => Err(err),
+                                        };
+                                        let booking_rules = load_seq!(BOOKING_RULES_FILE);
+                                        let networks = load_seq!(NETWORKS_FILE);
+                                        let route_networks = load_seq!(ROUTE_NETWORKS_FILE);
+                                        let feed_info = load_seq!(FEED_INFO_FILE);
+                                        let attributions = load_seq!(ATTRIBUTIONS_FILE);
+                                        let levels = load_seq!(LEVELS_FILE);
+                                        let pathways = load_seq!(PATHWAYS_FILE);
+                                        let translations = load_seq!(TRANSLATIONS_FILE);
+
+                                        (
+                                            (
+                                                agency,
+                                                calendar,
+                                                fare_attributes,
+                                                fare_rules,
+                                                fare_media,
+                                                fare_products,
+                                                fare_leg_rules,
+                                                fare_transfer_rules,
+                                                fare_leg_join_rules,
+                                                areas,
+                                                stop_areas,
+                                                timeframes,
+                                                rider_categories,
+                                                frequencies,
+                                                transfers,
+                                                location_groups,
+                                                location_group_stops,
+                                                locations,
+                                                booking_rules,
+                                                networks,
+                                                route_networks,
+                                                feed_info,
+                                                attributions,
+                                                levels,
+                                                pathways,
+                                                translations,
+                                            ),
+                                            n,
+                                        )
+                                    },
+                                )
+                            },
+                        )
+                    },
+                )
+            },
+        );
+
+        // Merge all notices
+        notices.merge(n1);
+        notices.merge(n2);
+        notices.merge(n3);
+        notices.merge(n4);
+        notices.merge(n5);
+        notices.merge(n6);
+        notices.merge(n7);
+
+        // Unpack "others"
+        let (
+            agency,
+            calendar,
+            fare_attributes,
+            fare_rules,
+            fare_media,
+            fare_products,
+            fare_leg_rules,
+            fare_transfer_rules,
+            fare_leg_join_rules,
+            areas,
+            stop_areas,
+            timeframes,
+            rider_categories,
+            frequencies,
+            transfers,
+            location_groups,
+            location_group_stops,
+            locations,
+            booking_rules,
+            networks,
+            route_networks,
+            feed_info,
+            attributions,
+            levels,
+            pathways,
+            translations,
+        ) = others;
+
+        // Helper to unwrap optional tables or return default if missing + add notice
+        fn unwrap_required<T: Default>(
+            res: Result<Option<T>, GtfsInputError>,
+            filename: &str,
+            notices: &mut NoticeContainer,
+        ) -> Result<T, GtfsInputError> {
+            match res {
+                Ok(Some(v)) => Ok(v),
+                Ok(None) => {
+                    notices.push_missing_file(filename);
+                    Ok(T::default())
+                }
+                Err(e) => Err(e),
+            }
+        }
+
+        // Required files
+        let agency = unwrap_required(agency, AGENCY_FILE, notices)?;
+        let stops = unwrap_required(stops_res, STOPS_FILE, notices)?;
+        let routes = unwrap_required(routes_res, ROUTES_FILE, notices)?;
+        let trips = unwrap_required(trips_res, TRIPS_FILE, notices)?;
+        let stop_times = unwrap_required(stop_times_result, STOP_TIMES_FILE, notices)?;
+
+        // Optional files (propagate errors)
+        let calendar = calendar?;
+        let calendar_dates = calendar_dates_res?;
+        let fare_attributes = fare_attributes?;
+        let fare_rules = fare_rules?;
+        let fare_media = fare_media?;
+        let fare_products = fare_products?;
+        let fare_leg_rules = fare_leg_rules?;
+        let fare_transfer_rules = fare_transfer_rules?;
+        let fare_leg_join_rules = fare_leg_join_rules?;
+        let areas = areas?;
+        let stop_areas = stop_areas?;
+        let timeframes = timeframes?;
+        let rider_categories = rider_categories?;
+        let shapes = shapes_res?;
+        let frequencies = frequencies?;
+        let transfers = transfers?;
+        let location_groups = location_groups?;
+        let location_group_stops = location_group_stops?;
+        let locations = locations?;
+        let booking_rules = booking_rules?;
+        let networks = networks?;
+        let route_networks = route_networks?;
+        let feed_info = feed_info?;
+        let attributions = attributions?;
+        let levels = levels?;
+        let pathways = pathways?;
+        let translations = translations?;
+
+        Ok(Self {
+            agency,
+            stops,
+            routes,
+            trips,
+            stop_times,
+            calendar,
+            calendar_dates,
+            fare_attributes,
+            fare_rules,
+            fare_media,
+            fare_products,
+            fare_leg_rules,
+            fare_transfer_rules,
+            fare_leg_join_rules,
+            areas,
+            stop_areas,
+            timeframes,
+            rider_categories,
+            shapes,
+            frequencies,
+            transfers,
+            location_groups,
+            location_group_stops,
+            locations,
+            booking_rules,
+            networks,
+            route_networks,
+            feed_info,
+            attributions,
+            levels,
+            pathways,
+            translations,
+            stop_times_by_trip: index,
+        })
     }
 
     fn build_stop_times_index(stop_times: &CsvTable<StopTime>) -> HashMap<String, Vec<usize>> {

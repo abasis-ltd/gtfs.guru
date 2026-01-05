@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.getElementById('close-modal-btn');
     const downloadJsonBtn = document.getElementById('download-json-btn');
     const downloadJsonModalBtn = document.getElementById('download-json-modal-btn');
+    const openWindowBtn = document.getElementById('open-window-btn');
 
     // Store validation result
     let lastValidationResult = null;
@@ -196,6 +197,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (downloadJsonModalBtn) {
             downloadJsonModalBtn.addEventListener('click', downloadValidationJSON);
+        }
+
+        // Open in new window
+        if (openWindowBtn) {
+            openWindowBtn.addEventListener('click', () => {
+                if (lastValidationResult) {
+                    openReportWindow(lastValidationResult);
+                }
+            });
         }
 
         // Close modal on Escape
@@ -377,6 +387,115 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    function openReportWindow(result) {
+        let notices = [];
+        try {
+            notices = JSON.parse(result.json);
+        } catch (e) {
+            console.error('Failed to parse notices:', e);
+            return;
+        }
+
+        const groups = {
+            error: notices.filter(n => n.severity === 'error'),
+            warning: notices.filter(n => n.severity === 'warning'),
+            info: notices.filter(n => n.severity === 'info')
+        };
+
+        const win = window.open('', '_blank');
+        if (!win) {
+            alert('Pop-up blocked. Please allow pop-ups for this site.');
+            return;
+        }
+
+        let reportContent = '';
+
+        let headerTotals = [];
+        if (groups.error.length > 0) headerTotals.push(`${groups.error.length} Errors`);
+        if (groups.warning.length > 0) headerTotals.push(`${groups.warning.length} Warnings`);
+        if (groups.info.length > 0) headerTotals.push(`${groups.info.length} Info`);
+
+        const summaryText = headerTotals.join(', ') || 'No issues found';
+
+        if (notices.length === 0) {
+            reportContent = `
+                <div class="empty-state">
+                    <div style="font-size: 48px; color: var(--success); margin-bottom: 1rem;">✓</div>
+                    <h4>Perfect!</h4>
+                    <p>No issues found in your GTFS feed.</p>
+                </div>
+            `;
+        } else {
+            if (groups.error.length > 0) {
+                reportContent += renderNoticeGroup('Errors', 'error', groups.error);
+            }
+            if (groups.warning.length > 0) {
+                reportContent += renderNoticeGroup('Warnings', 'warning', groups.warning);
+            }
+            if (groups.info.length > 0) {
+                reportContent += renderNoticeGroup('Info', 'info', groups.info);
+            }
+        }
+
+        const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation Report - GTFS.guru</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .report-header-window {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-name {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="report-header-window">
+        <div>
+            <h1>Validation Report</h1>
+            <div class="file-name">File: ${lastFileName}.zip</div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 1.2rem; font-weight: bold;">${summaryText}</div>
+            <div style="font-size: 0.9rem; color: var(--text-secondary);">${new Date().toLocaleString()}</div>
+        </div>
+    </div>
+
+    <div class="report-body">
+        ${reportContent}
+    </div>
+
+    <script>
+        // Auto-scroll logic if needed
+    </script>
+</body>
+</html>
+        `;
+
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
     }
 });
 
