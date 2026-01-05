@@ -8,3 +8,6 @@ google-transitfeed/
 # Python
 __pycache__/
 *.pyc
+
+# Local config
+.env

@@ -46,11 +46,11 @@
     <header class="hero-section">
         <div class="container hero-container">
             <div class="hero-content fade-up">
-                <div class="badge">Powered by Abasis.AI</div>
+                <div class="badge">Open Source • Apache 2.0</div>
                 <h1>The Gold Standard for <br><span class="gradient-text">GTFS Validation</span></h1>
                 <p class="hero-sub">
-                    Ensure your transit data is accurate, compliant, and ready for the world.
-                    Validate entire countries in seconds with the precision of Rust.
+                    Secure, fast, and local. Validate your transit data instantly in your browser using our WebAssembly
+                    engine. No uploads, no waiting.
                 </p>
                 <div class="hero-actions">
                     <a href="#download" class="btn btn-primary btn-lg">
@@ -78,29 +78,36 @@
                 </div>
             </div>
             <div class="hero-visual fade-up delay-200">
-                <div class="code-window glass-card">
-                    <div class="window-header">
+                <div class="validator-ui glass-card" id="drop-zone">
+                    <div class="validator-header">
                         <div class="dots">
                             <span class="dot red"></span>
                             <span class="dot yellow"></span>
                             <span class="dot green"></span>
                         </div>
-                        <span class="window-title">terminal — zsh</span>
+                        <span class="window-title">Browser Validator (WASM)</span>
                     </div>
-                    <div class="window-body">
-                        <div class="command-line">
-                            <span class="prompt">➜</span> <span class="cmd">gtfs-guru</span> <span
-                                class="arg">--url</span> value_feed.zip
+                    <div class="validator-body">
+                        <div class="upload-state" id="upload-state">
+                            <i data-lucide="upload-cloud" class="upload-icon"></i>
+                            <p>Drag & Drop GTFS.zip here</p>
+                            <p class="sub-text">or click to browse</p>
+                            <input type="file" id="file-input" accept=".zip" hidden>
                         </div>
-                        <div class="output">
-                            <div class="line">Validating value_feed.zip...</div>
-                            <div class="line success">✔ Feed structure valid</div>
-                            <div class="line success">✔ Agency check passed</div>
-                            <div class="line success">✔ Routes check passed</div>
-                            <div class="line success">✔ Schedule consistency verified</div>
-                            <div class="line dim">----------------------------------------</div>
-                            <div class="line result">Validation successful (0.42s)</div>
-                            <div class="line">Report generated: <a href="#">./report.html</a></div>
+                        <div class="processing-state hidden" id="processing-state">
+                            <div class="spinner"></div>
+                            <p>Validating locally...</p>
+                        </div>
+                        <div class="result-state hidden" id="result-state">
+                            <div class="score-ring" id="score-ring">
+                                <span class="score-number" id="score-number">100</span>
+                                <span class="score-label">Score</span>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat"><span class="red" id="error-count">0</span> Errors</div>
+                                <div class="stat"><span class="yellow" id="warning-count">0</span> Warnings</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="reset-btn">Validate Another</button>
                         </div>
                     </div>
                 </div>
@@ -248,7 +255,7 @@ else:
         </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script src="script.js" type="module"></script>
     <script>
         lucide.createIcons();
     </script>
