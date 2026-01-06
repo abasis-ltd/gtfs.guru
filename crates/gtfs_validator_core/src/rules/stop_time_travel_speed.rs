@@ -1,4 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::RouteType;
@@ -54,16 +56,36 @@ impl Validator for StopTimeTravelSpeedValidator {
             trips_by_id,
         };
 
+        let mut trips_by_pattern: HashMap<u64, Vec<gtfs_guru_model::StringId>> = HashMap::new();
+        for (trip_id, indices) in &feed.stop_times_by_trip {
+            let (_, trip) = match context.trips_by_id.get(trip_id) {
+                Some(t) => *t,
+                None => continue,
+            };
+            let route_id = trip.route_id;
+            if route_id.0 == 0 || !context.routes_by_id.contains_key(&route_id) {
+                continue;
+            }
+            let fingerprint = Self::trip_fingerprint(trip, indices, feed);
+            trips_by_pattern
+                .entry(fingerprint)
+                .or_default()
+                .push(*trip_id);
+        }
+
+        let pattern_groups: Vec<Vec<gtfs_guru_model::StringId>> =
+            trips_by_pattern.into_values().collect();
+
         #[cfg(feature = "parallel")]
         {
             let results: Vec<NoticeContainer> = {
                 use rayon::prelude::*;
                 let ctx = crate::ValidationContextState::capture();
-                feed.stop_times_by_trip
+                pattern_groups
                     .par_iter()
-                    .map(|(trip_id, indices)| {
+                    .map(|trip_ids| {
                         let _guards = ctx.apply();
-                        Self::check_trip(feed, *trip_id, indices, &context)
+                        Self::check_pattern_group(feed, trip_ids, &context)
                     })
                     .collect()
             };
@@ -75,9 +97,8 @@ impl Validator for StopTimeTravelSpeedValidator {
 
         #[cfg(not(feature = "parallel"))]
         {
-            // Use pre-built index - indices are already sorted by stop_sequence
-            for (trip_id, indices) in &feed.stop_times_by_trip {
-                let result = Self::check_trip(feed, *trip_id, indices, &context);
+            for trip_ids in &pattern_groups {
+                let result = Self::check_pattern_group(feed, trip_ids, &context);
                 notices.merge(result);
             }
         }
@@ -97,104 +118,185 @@ unsafe impl<'a> Sync for ValidationContext<'a> {}
 unsafe impl<'a> Send for ValidationContext<'a> {}
 
 impl StopTimeTravelSpeedValidator {
-    fn check_trip(
+    fn check_pattern_group(
         feed: &GtfsFeed,
-        trip_id: gtfs_guru_model::StringId,
-        indices: &[usize],
+        trip_ids: &[gtfs_guru_model::StringId],
         context: &ValidationContext,
     ) -> NoticeContainer {
         let mut notices = NoticeContainer::new();
-        if indices.len() <= 1 {
+        let Some(first_trip_id) = trip_ids.first().copied() else {
             return notices;
-        }
-        let (trip_index, trip) = match context.trips_by_id.get(&trip_id) {
+        };
+        let (_, first_trip) = match context.trips_by_id.get(&first_trip_id) {
             Some(t) => *t,
             None => return notices,
         };
-        let route_id = trip.route_id;
-        if route_id.0 == 0 {
+        let first_route_id = first_trip.route_id;
+        if first_route_id.0 == 0 {
             return notices;
         }
-        let route = match context.routes_by_id.get(&route_id) {
+        let route = match context.routes_by_id.get(&first_route_id) {
             Some(route) => *route,
             None => return notices,
         };
         let max_speed_kph = max_speed_kph(route.route_type);
-        let trip_row_number = feed.trips.row_number(trip_index);
 
-        // Collect stop_times as references for validation functions
-        let stop_times: Vec<&gtfs_guru_model::StopTime> =
-            indices.iter().map(|&i| &feed.stop_times.rows[i]).collect();
-
-        // Build row number lookup
-        let stop_time_rows: HashMap<*const gtfs_guru_model::StopTime, u64> = indices
-            .iter()
-            .map(|&i| {
-                (
-                    &feed.stop_times.rows[i] as *const _,
-                    feed.stop_times.row_number(i),
-                )
-            })
-            .collect();
-
-        let mut distances_km = Vec::with_capacity(stop_times.len() - 1);
-        let mut coords = Vec::with_capacity(stop_times.len());
-        let mut missing_coords = false;
-        for stop_time in stop_times.iter() {
-            match stop_coords(stop_time, &context.stops_by_id) {
-                Some(coords_for_stop) => coords.push(coords_for_stop),
-                None => {
-                    missing_coords = true;
-                    break;
-                }
-            }
-        }
-        if missing_coords {
+        let first_indices = match feed.stop_times_by_trip.get(&first_trip_id) {
+            Some(indices) => indices,
+            None => return notices,
+        };
+        if first_indices.len() <= 1 {
             return notices;
         }
+        let distances_km = match Self::distances_for_pattern(first_indices, feed, context) {
+            Some(distances) => distances,
+            None => return notices,
+        };
+
+        let stop_times: Vec<&gtfs_guru_model::StopTime> = first_indices
+            .iter()
+            .map(|&i| &feed.stop_times.rows[i])
+            .collect();
+
+        let violations = collect_violations(&stop_times, &distances_km, max_speed_kph);
+
+        if violations.is_empty() {
+            return notices;
+        }
+
+        for trip_id in trip_ids {
+            let (trip_index, trip) = match context.trips_by_id.get(trip_id) {
+                Some(t) => *t,
+                None => continue,
+            };
+            if trip.route_id != first_route_id {
+                continue;
+            }
+            let indices = match feed.stop_times_by_trip.get(trip_id) {
+                Some(indices) => indices,
+                None => continue,
+            };
+            // Ensure indices match the pattern (they should if fingerprint is correct)
+            if indices.len() != first_indices.len() {
+                continue;
+            }
+
+            let trip_row_number = feed.trips.row_number(trip_index);
+
+            for violation in &violations {
+                let start_idx = violation.start_idx;
+                let end_idx = violation.end_idx;
+                let stop_time1 = &feed.stop_times.rows[indices[start_idx]];
+                let stop_time2 = &feed.stop_times.rows[indices[end_idx]];
+                let row_num1 = feed.stop_times.row_number(indices[start_idx]);
+                let row_num2 = feed.stop_times.row_number(indices[end_idx]);
+
+                let Some(stop1) = stop_by_id(&context.stops_by_id, stop_time1.stop_id) else {
+                    continue;
+                };
+                let Some(stop2) = stop_by_id(&context.stops_by_id, stop_time2.stop_id) else {
+                    continue;
+                };
+
+                let mut notice = match violation.kind {
+                    ViolationType::Consecutive => ValidationNotice::new(
+                        CODE_FAST_TRAVEL_CONSECUTIVE,
+                        NoticeSeverity::Warning,
+                        "fast travel between consecutive stops",
+                    ),
+                    ViolationType::Far => ValidationNotice::new(
+                        CODE_FAST_TRAVEL_FAR,
+                        NoticeSeverity::Warning,
+                        "fast travel between far stops",
+                    ),
+                };
+
+                populate_travel_speed_notice(
+                    &mut notice,
+                    trip,
+                    trip_row_number,
+                    stop_time1,
+                    stop_time2,
+                    stop1,
+                    stop2,
+                    violation.speed_kph,
+                    violation.distance_km,
+                    row_num1,
+                    row_num2,
+                    feed,
+                );
+                notices.push(notice);
+            }
+        }
+        notices
+    }
+
+    fn trip_fingerprint(trip: &gtfs_guru_model::Trip, indices: &[usize], feed: &GtfsFeed) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        trip.route_id.hash(&mut hasher);
+        indices.len().hash(&mut hasher);
+        for &index in indices {
+            let stop_time = &feed.stop_times.rows[index];
+            stop_time.stop_id.hash(&mut hasher);
+            stop_time
+                .arrival_time
+                .map(|time| time.total_seconds())
+                .unwrap_or(-1)
+                .hash(&mut hasher);
+            stop_time
+                .departure_time
+                .map(|time| time.total_seconds())
+                .unwrap_or(-1)
+                .hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    fn distances_for_pattern(
+        indices: &[usize],
+        feed: &GtfsFeed,
+        context: &ValidationContext,
+    ) -> Option<Vec<f64>> {
+        if indices.len() <= 1 {
+            return Some(Vec::new());
+        }
+        let mut coords = Vec::with_capacity(indices.len());
+        for &index in indices {
+            let stop_time = &feed.stop_times.rows[index];
+            let coords_for_stop = stop_coords(stop_time, &context.stops_by_id)?;
+            coords.push(coords_for_stop);
+        }
+        let mut distances_km = Vec::with_capacity(coords.len() - 1);
         for i in 0..coords.len() - 1 {
             let (lat1, lon1) = coords[i];
             let (lat2, lon2) = coords[i + 1];
             distances_km.push(haversine_km(lat1, lon1, lat2, lon2));
         }
-
-        validate_consecutive_stops(
-            &mut notices,
-            trip,
-            trip_row_number,
-            &stop_times,
-            &distances_km,
-            max_speed_kph,
-            &context.stops_by_id,
-            &stop_time_rows,
-            feed,
-        );
-        validate_far_stops(
-            &mut notices,
-            trip,
-            trip_row_number,
-            &stop_times,
-            &distances_km,
-            max_speed_kph,
-            &context.stops_by_id,
-            &stop_time_rows,
-            feed,
-        );
-        notices
+        Some(distances_km)
     }
 }
 
-fn validate_consecutive_stops(
-    notices: &mut NoticeContainer,
-    trip: &gtfs_guru_model::Trip,
-    trip_row_number: u64,
+enum ViolationType {
+    Consecutive,
+    Far,
+}
+
+struct SpeedViolation {
+    kind: ViolationType,
+    start_idx: usize,
+    end_idx: usize,
+    speed_kph: f64,
+    distance_km: f64,
+}
+
+fn collect_violations(
     stop_times: &[&gtfs_guru_model::StopTime],
     distances_km: &[f64],
     max_speed_kph: f64,
-    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
-    feed: &GtfsFeed,
-) {
+) -> Vec<SpeedViolation> {
+    let mut violations = Vec::new();
+
+    // Check consecutive stops
     for i in 0..distances_km.len() {
         let first = stop_times[i];
         let second = stop_times[i + 1];
@@ -207,38 +309,17 @@ fn validate_consecutive_stops(
             arrival.total_seconds(),
         );
         if speed_kph > max_speed_kph {
-            let Some(stop1) = stop_by_id(stops_by_id, first.stop_id) else {
-                return;
-            };
-            let Some(stop2) = stop_by_id(stops_by_id, second.stop_id) else {
-                return;
-            };
-            notices.push(fast_travel_between_consecutive_notice(
-                trip,
-                trip_row_number,
-                first,
-                second,
-                stop1,
-                stop2,
+            violations.push(SpeedViolation {
+                kind: ViolationType::Consecutive,
+                start_idx: i,
+                end_idx: i + 1,
                 speed_kph,
-                distances_km[i],
-                stop_time_rows,
-             feed));
+                distance_km: distances_km[i],
+            });
         }
     }
-}
 
-fn validate_far_stops(
-    notices: &mut NoticeContainer,
-    trip: &gtfs_guru_model::Trip,
-    trip_row_number: u64,
-    stop_times: &[&gtfs_guru_model::StopTime],
-    distances_km: &[f64],
-    max_speed_kph: f64,
-    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
-    feed: &GtfsFeed,
-) {
+    // Check far stops
     for end_idx in 0..stop_times.len() {
         let end = stop_times[end_idx];
         let Some(arrival) = end.arrival_time else {
@@ -257,90 +338,45 @@ fn validate_far_stops(
                 arrival.total_seconds(),
             );
             if speed_kph > max_speed_kph && distance_to_end > MAX_DISTANCE_OVER_MAX_SPEED_KM {
-                let Some(stop1) = stop_by_id(stops_by_id, start.stop_id) else {
-                    return;
-                };
-                let Some(stop2) = stop_by_id(stops_by_id, end.stop_id) else {
-                    return;
-                };
-                notices.push(fast_travel_between_far_notice(
-                    trip,
-                    trip_row_number,
-                    start,
-                    end,
-                    stop1,
-                    stop2,
+                violations.push(SpeedViolation {
+                    kind: ViolationType::Far,
+                    start_idx,
+                    end_idx,
                     speed_kph,
-                    distance_to_end,
-                    stop_time_rows,
-                    feed,
-                ));
-                return;
+                    distance_km: distance_to_end,
+                });
+                // Optimization: if we found a far warning ending at 'end', we might not need to check other starts?
+                // The original code had `return;` inside the inner loop, breaking the inner loop for this 'end_idx'.
+                // Yes, "return" in original `validate_far_stops` inside the inner loop breaks the inner loop (function return? No, validate_far_stops returns void).
+                // Wait, original has `return;` inside the loop. It returns from the FUNCTION `validate_far_stops`.
+                // That means for a given trip, it reports at most ONE "far" notice and then stops checking ENTIRELY?
+                // No, it's `validate_far_stops`. If it returns, it stops checking ANY more far stops for that trip.
+                // THAT seems like a bug or a specific design choice to avoid spam.
+                // "limit to one far notice per trip" makes sense to avoid thousands of notices.
+                // Let's replicate that behavior.
+                break;
             }
         }
+        // If we broke out of the inner loop due to finding a violation, we should probably stop the outer loop too if the original behavior was "return".
+        // Original: `return;` (line 348) -> Returns from `validate_far_stops`.
+        // So yes, one violation per trip.
+        // So if `violations` has a Far violation, we should stop?
+        // But `collect_violations` does consecutive too.
+        // Actually, `validate_far_stops` and `validate_consecutive` are separate calls in original check_pattern_group.
+        // So we can have consecutive notices AND one far notice.
+        // So here: if we find a violation in inner loop, break inner loop.
+        // But wait, if we break inner loop, we just go to next end_idx.
+        // The original code returned from the whole function, skipping remaining `end_idx` check.
+        // So we should break the outer loop too?
+        // Let's check line 348: `return;`
+        // Yes.
+        if !violations.is_empty() && matches!(violations.last().unwrap().kind, ViolationType::Far) {
+            // If we just added a Far violation, stop scanning for more Far violations.
+            break;
+        }
     }
-}
 
-fn fast_travel_between_consecutive_notice(
-    trip: &gtfs_guru_model::Trip,
-    trip_row_number: u64,
-    stop_time1: &gtfs_guru_model::StopTime,
-    stop_time2: &gtfs_guru_model::StopTime,
-    stop1: &gtfs_guru_model::Stop,
-    stop2: &gtfs_guru_model::Stop,
-    speed_kph: f64,
-    distance_km: f64,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
- feed: &GtfsFeed) -> ValidationNotice {
-    let mut notice = ValidationNotice::new(
-        CODE_FAST_TRAVEL_CONSECUTIVE,
-        NoticeSeverity::Warning,
-        "fast travel between consecutive stops",
-    );
-    populate_travel_speed_notice(
-        &mut notice,
-        trip,
-        trip_row_number,
-        stop_time1,
-        stop_time2,
-        stop1,
-        stop2,
-        speed_kph,
-        distance_km,
-        stop_time_rows,
-     feed);
-    notice
-}
-
-fn fast_travel_between_far_notice(
-    trip: &gtfs_guru_model::Trip,
-    trip_row_number: u64,
-    stop_time1: &gtfs_guru_model::StopTime,
-    stop_time2: &gtfs_guru_model::StopTime,
-    stop1: &gtfs_guru_model::Stop,
-    stop2: &gtfs_guru_model::Stop,
-    speed_kph: f64,
-    distance_km: f64,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
- feed: &GtfsFeed) -> ValidationNotice {
-    let mut notice = ValidationNotice::new(
-        CODE_FAST_TRAVEL_FAR,
-        NoticeSeverity::Warning,
-        "fast travel between far stops",
-    );
-    populate_travel_speed_notice(
-        &mut notice,
-        trip,
-        trip_row_number,
-        stop_time1,
-        stop_time2,
-        stop1,
-        stop2,
-        speed_kph,
-        distance_km,
-        stop_time_rows,
-     feed);
-    notice
+    violations
 }
 
 fn populate_travel_speed_notice(
@@ -353,21 +389,23 @@ fn populate_travel_speed_notice(
     stop2: &gtfs_guru_model::Stop,
     speed_kph: f64,
     distance_km: f64,
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
- feed: &GtfsFeed) {
+    row_num1: u64,
+    row_num2: u64,
+    feed: &GtfsFeed,
+) {
     notice.insert_context_field("tripCsvRowNumber", trip_row_number);
     notice.insert_context_field("tripId", feed.pool.resolve(trip.trip_id).as_str());
     notice.insert_context_field("routeId", feed.pool.resolve(trip.route_id).as_str());
     notice.insert_context_field("speedKph", speed_kph);
     notice.insert_context_field("distanceKm", distance_km);
-    notice.insert_context_field("csvRowNumber1", stop_time_row(stop_time_rows, stop_time1));
+    notice.insert_context_field("csvRowNumber1", row_num1);
     notice.insert_context_field("stopSequence1", stop_time1.stop_sequence);
     notice.insert_context_field("stopId1", feed.pool.resolve(stop_time1.stop_id).as_str());
     notice.insert_context_field("stopName1", stop1.stop_name.as_deref().unwrap_or(""));
     if let Some(departure) = stop_time1.departure_time {
         notice.insert_context_field("departureTime1", departure);
     }
-    notice.insert_context_field("csvRowNumber2", stop_time_row(stop_time_rows, stop_time2));
+    notice.insert_context_field("csvRowNumber2", row_num2);
     notice.insert_context_field("stopSequence2", stop_time2.stop_sequence);
     notice.insert_context_field("stopId2", feed.pool.resolve(stop_time2.stop_id).as_str());
     notice.insert_context_field("stopName2", stop2.stop_name.as_deref().unwrap_or(""));
@@ -391,16 +429,6 @@ fn populate_travel_speed_notice(
         "stopName2".into(),
         "arrivalTime2".into(),
     ];
-}
-
-fn stop_time_row(
-    stop_time_rows: &HashMap<*const gtfs_guru_model::StopTime, u64>,
-    stop_time: &gtfs_guru_model::StopTime,
-) -> u64 {
-    stop_time_rows
-        .get(&(stop_time as *const _))
-        .copied()
-        .unwrap_or(2)
 }
 
 fn stop_coords(

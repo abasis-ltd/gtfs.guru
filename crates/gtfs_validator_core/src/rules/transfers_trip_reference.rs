@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::LocationType;
@@ -29,31 +29,10 @@ impl Validator for TransfersTripReferenceValidator {
             trips_by_id.insert(trip_id, trip);
         }
 
-        let mut stop_times_by_trip: HashMap<
-            gtfs_guru_model::StringId,
-            HashSet<gtfs_guru_model::StringId>,
-        > = HashMap::new();
-        for stop_time in &feed.stop_times.rows {
-            let stop_id = stop_time.stop_id;
-            if stop_id.0 == 0 {
-                continue;
-            }
-            let trip_id = stop_time.trip_id;
-            if trip_id.0 == 0 {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .insert(stop_id);
-        }
-
         let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
             HashMap::new();
-        let mut stops_by_parent: HashMap<
-            gtfs_guru_model::StringId,
-            Vec<&gtfs_guru_model::Stop>,
-        > = HashMap::new();
+        let mut stops_by_parent: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>> =
+            HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id;
             if stop_id.0 == 0 {
@@ -62,7 +41,10 @@ impl Validator for TransfersTripReferenceValidator {
             stops_by_id.insert(stop_id, stop);
             if let Some(parent_station) = stop.parent_station {
                 if parent_station.0 != 0 {
-                    stops_by_parent.entry(parent_station).or_default().push(stop);
+                    stops_by_parent
+                        .entry(parent_station)
+                        .or_default()
+                        .push(stop);
                 }
             }
         }
@@ -73,7 +55,6 @@ impl Validator for TransfersTripReferenceValidator {
                 transfer,
                 TransferSide::From,
                 &trips_by_id,
-                &stop_times_by_trip,
                 &stops_by_id,
                 &stops_by_parent,
                 row_number,
@@ -84,7 +65,6 @@ impl Validator for TransfersTripReferenceValidator {
                 transfer,
                 TransferSide::To,
                 &trips_by_id,
-                &stop_times_by_trip,
                 &stops_by_id,
                 &stops_by_parent,
                 row_number,
@@ -109,10 +89,7 @@ impl TransferSide {
         }
     }
 
-    fn route_id(
-        &self,
-        transfer: &gtfs_guru_model::Transfer,
-    ) -> Option<gtfs_guru_model::StringId> {
+    fn route_id(&self, transfer: &gtfs_guru_model::Transfer) -> Option<gtfs_guru_model::StringId> {
         match self {
             TransferSide::From => transfer.from_route_id,
             TransferSide::To => transfer.to_route_id,
@@ -152,7 +129,6 @@ fn validate_trip_side(
     transfer: &gtfs_guru_model::Transfer,
     side: TransferSide,
     trips_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Trip>,
-    stop_times_by_trip: &HashMap<gtfs_guru_model::StringId, HashSet<gtfs_guru_model::StringId>>,
     stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stops_by_parent: &HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>>,
     row_number: u64,
@@ -210,11 +186,14 @@ fn validate_trip_side(
         return;
     }
 
-    let trip_stop_ids = stop_times_by_trip.get(&trip_id);
-    let has_match = match trip_stop_ids {
-        Some(trip_stop_ids) => stop_ids.iter().any(|id| trip_stop_ids.contains(id)),
+    let has_match = match feed.stop_times_by_trip.get(&trip_id) {
+        Some(indices) => indices.iter().any(|&index| {
+            let st = &feed.stop_times.rows[index];
+            stop_ids.contains(&st.stop_id)
+        }),
         None => false,
     };
+
     if !has_match {
         let stop_id_value = feed.pool.resolve(stop_id);
         let trip_id_value = feed.pool.resolve(trip_id);
@@ -332,6 +311,7 @@ mod tests {
             }],
             row_numbers: vec![2],
         };
+        feed.rebuild_stop_times_index();
         feed.transfers = Some(CsvTable {
             headers: vec![
                 "from_stop_id".into(),
@@ -390,6 +370,7 @@ mod tests {
             }],
             row_numbers: vec![2],
         };
+        feed.rebuild_stop_times_index();
         feed.transfers = Some(CsvTable {
             headers: vec![
                 "from_stop_id".into(),

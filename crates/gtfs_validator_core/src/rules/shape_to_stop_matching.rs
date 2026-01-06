@@ -34,6 +34,14 @@ impl Validator for ShapeToStopMatchingValidator {
             return;
         }
 
+        let mut stop_time_rows: HashMap<usize, u64> = HashMap::new();
+        for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
+            stop_time_rows.insert(
+                stop_time as *const _ as usize,
+                feed.stop_times.row_number(index),
+            );
+        }
+
         let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
             HashMap::new();
         for stop in &feed.stops.rows {
@@ -52,29 +60,6 @@ impl Validator for ShapeToStopMatchingValidator {
                 continue;
             }
             routes_by_id.insert(route_id, route);
-        }
-
-        let mut stop_times_by_trip: HashMap<
-            gtfs_guru_model::StringId,
-            Vec<&gtfs_guru_model::StopTime>,
-        > = HashMap::new();
-        let mut stop_time_rows: HashMap<usize, u64> = HashMap::new();
-        for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            stop_time_rows.insert(
-                stop_time as *const _ as usize,
-                feed.stop_times.row_number(index),
-            );
-            let trip_id = stop_time.trip_id;
-            if trip_id.0 == 0 {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .push(stop_time);
-        }
-        for stop_times in stop_times_by_trip.values_mut() {
-            stop_times.sort_by_key(|stop_time| stop_time.stop_sequence);
         }
 
         let mut trip_rows: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
@@ -125,10 +110,15 @@ impl Validator for ShapeToStopMatchingValidator {
                         if trip_id.0 == 0 {
                             continue;
                         }
-                        let stop_times = match stop_times_by_trip.get(&trip_id) {
-                            Some(stop_times) if !stop_times.is_empty() => stop_times,
+                        let stop_time_indices = match feed.stop_times_by_trip.get(&trip_id) {
+                            Some(indices) if !indices.is_empty() => indices,
                             _ => continue,
                         };
+                        let stop_times: Vec<&gtfs_guru_model::StopTime> = stop_time_indices
+                            .iter()
+                            .map(|&i| &feed.stop_times.rows[i])
+                            .collect();
+                        let stop_times = stop_times.as_slice();
                         if !processed_trip_hashes.insert(trip_hash(stop_times)) {
                             continue;
                         }
@@ -209,10 +199,15 @@ impl Validator for ShapeToStopMatchingValidator {
                     if trip_id.0 == 0 {
                         continue;
                     }
-                    let stop_times = match stop_times_by_trip.get(&trip_id) {
-                        Some(stop_times) if !stop_times.is_empty() => stop_times,
+                    let stop_time_indices = match feed.stop_times_by_trip.get(&trip_id) {
+                        Some(indices) if !indices.is_empty() => indices,
                         _ => continue,
                     };
+                    let stop_times: Vec<&gtfs_guru_model::StopTime> = stop_time_indices
+                        .iter()
+                        .map(|&i| &feed.stop_times.rows[i])
+                        .collect();
+                    let stop_times = stop_times.as_slice();
                     if !processed_trip_hashes.insert(trip_hash(stop_times)) {
                         continue;
                     }
@@ -1889,6 +1884,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         ShapeToStopMatchingValidator.validate(&feed, &mut notices);

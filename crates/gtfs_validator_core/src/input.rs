@@ -6,9 +6,11 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use zip::ZipArchive;
 
-use crate::csv_reader::{
-    read_csv_from_reader, read_csv_from_reader_with_errors, CsvParseError, CsvTable,
-};
+#[cfg(feature = "parallel")]
+use crate::csv_reader::read_csv_from_reader_parallel;
+#[cfg(not(feature = "parallel"))]
+use crate::csv_reader::read_csv_from_reader_with_errors;
+use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
 use crate::csv_validation::{is_value_validated_field, validate_csv_data};
 use crate::feed::GTFS_FILE_NAMES;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
@@ -174,6 +176,26 @@ impl GtfsInputReader {
         read_csv_from_reader(data.as_slice(), file_name).map_err(GtfsInputError::Csv)
     }
 
+    #[cfg(feature = "parallel")]
+    pub fn read_csv_with_notices<T: DeserializeOwned + Send>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<CsvTable<T>, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        validate_csv_data(file_name, &data, notices);
+        let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
+            .map_err(GtfsInputError::Csv)?;
+        for error in errors {
+            if skip_csv_parse_error(&table, &error) {
+                continue;
+            }
+            notices.push_csv_error(&error);
+        }
+        Ok(table)
+    }
+
+    #[cfg(not(feature = "parallel"))]
     pub fn read_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,
@@ -205,6 +227,31 @@ impl GtfsInputReader {
         }
     }
 
+    #[cfg(feature = "parallel")]
+    pub fn read_optional_csv_with_notices<T: DeserializeOwned + Send>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => {
+                validate_csv_data(file_name, &data, notices);
+                let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
+                    .map_err(GtfsInputError::Csv)?;
+                for error in errors {
+                    if skip_csv_parse_error(&table, &error) {
+                        continue;
+                    }
+                    notices.push_csv_error(&error);
+                }
+                Ok(Some(table))
+            }
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    #[cfg(not(feature = "parallel"))]
     pub fn read_optional_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,
@@ -616,6 +663,26 @@ impl GtfsBytesReader {
         read_csv_from_reader(data.as_slice(), file_name).map_err(GtfsInputError::Csv)
     }
 
+    #[cfg(feature = "parallel")]
+    pub fn read_csv_with_notices<T: DeserializeOwned + Send>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<CsvTable<T>, GtfsInputError> {
+        let data = self.read_file(file_name)?;
+        validate_csv_data(file_name, &data, notices);
+        let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
+            .map_err(GtfsInputError::Csv)?;
+        for error in errors {
+            if skip_csv_parse_error(&table, &error) {
+                continue;
+            }
+            notices.push_csv_error(&error);
+        }
+        Ok(table)
+    }
+
+    #[cfg(not(feature = "parallel"))]
     pub fn read_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,
@@ -647,6 +714,31 @@ impl GtfsBytesReader {
         }
     }
 
+    #[cfg(feature = "parallel")]
+    pub fn read_optional_csv_with_notices<T: DeserializeOwned + Send>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
+        match self.read_file(file_name) {
+            Ok(data) => {
+                validate_csv_data(file_name, &data, notices);
+                let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
+                    .map_err(GtfsInputError::Csv)?;
+                for error in errors {
+                    if skip_csv_parse_error(&table, &error) {
+                        continue;
+                    }
+                    notices.push_csv_error(&error);
+                }
+                Ok(Some(table))
+            }
+            Err(GtfsInputError::MissingFile(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    #[cfg(not(feature = "parallel"))]
     pub fn read_optional_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,

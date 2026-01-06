@@ -18,27 +18,15 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut by_trip: HashMap<gtfs_guru_model::StringId, Vec<(usize, &gtfs_guru_model::StopTime)>> =
-            HashMap::new();
-        for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            let trip_id = stop_time.trip_id;
-            if trip_id.0 == 0 {
-                continue;
-            }
-            by_trip.entry(trip_id).or_default().push((index, stop_time));
-        }
-        for stop_times in by_trip.values_mut() {
-            stop_times.sort_by_key(|(_, stop_time)| stop_time.stop_sequence);
-        }
-
-        for stop_times in by_trip.values() {
+        for (trip_id, indices) in &feed.stop_times_by_trip {
             let mut previous_departure: Option<(gtfs_guru_model::GtfsTime, u64)> = None;
-            for (index, stop_time) in stop_times {
-                let row_number = feed.stop_times.row_number(*index);
+            for &index in indices {
+                let stop_time = &feed.stop_times.rows[index];
+                let row_number = feed.stop_times.row_number(index);
                 let has_arrival = stop_time.arrival_time.is_some();
                 let has_departure = stop_time.departure_time.is_some();
                 if has_arrival != has_departure {
-                    let trip_id = feed.pool.resolve(stop_time.trip_id);
+                    let trip_id = feed.pool.resolve(*trip_id);
                     let specified_field = if has_arrival {
                         "arrival_time"
                     } else {
@@ -66,7 +54,7 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
                     (stop_time.arrival_time, previous_departure)
                 {
                     if arrival.total_seconds() < prev_departure.total_seconds() {
-                        let trip_id = feed.pool.resolve(stop_time.trip_id);
+                        let trip_id = feed.pool.resolve(*trip_id);
                         let mut notice = ValidationNotice::new(
                             CODE_STOP_TIME_WITH_ARRIVAL_BEFORE_PREVIOUS_DEPARTURE_TIME,
                             NoticeSeverity::Error,
@@ -206,6 +194,7 @@ mod tests {
             }],
             row_numbers: vec![2],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         StopTimeArrivalAndDepartureTimeValidator.validate(&feed, &mut notices);
@@ -243,6 +232,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         StopTimeArrivalAndDepartureTimeValidator.validate(&feed, &mut notices);
@@ -256,11 +246,7 @@ mod tests {
     fn detects_timepoint_without_times() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "stop_sequence".into(),
-                "timepoint".into(),
-            ],
+            headers: vec!["trip_id".into(), "stop_sequence".into(), "timepoint".into()],
             rows: vec![StopTime {
                 trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
@@ -340,6 +326,7 @@ mod tests {
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         StopTimeArrivalAndDepartureTimeValidator.validate(&feed, &mut notices);
