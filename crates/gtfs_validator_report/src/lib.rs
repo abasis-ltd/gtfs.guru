@@ -6,6 +6,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::unnecessary_lazy_evaluations)]
 #![allow(clippy::manual_pattern_char_comparison)]
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -612,12 +613,7 @@ fn build_counts(feed: &GtfsFeed) -> ReportCounts {
     let stops = unique_id_count(feed.stops.rows.iter(), |row| Some(row.stop_id));
     let routes = unique_id_count(feed.routes.rows.iter(), |row| Some(row.route_id));
     let trips = unique_id_count(feed.trips.rows.iter(), |row| Some(row.trip_id));
-    let agencies = if feed
-        .agency
-        .rows
-        .iter()
-        .any(|row| has_id_opt(row.agency_id))
-    {
+    let agencies = if feed.agency.rows.iter().any(|row| has_id_opt(row.agency_id)) {
         unique_id_count(feed.agency.rows.iter(), |row| row.agency_id)
     } else {
         feed.agency.rows.len()
@@ -1028,9 +1024,7 @@ fn has_headsigns(feed: &GtfsFeed) -> bool {
 
 fn has_trip_with_only_location_id(feed: &GtfsFeed) -> bool {
     feed.stop_times.rows.iter().any(|stop_time| {
-        has_id(stop_time.trip_id)
-            && has_id_opt(stop_time.location_id)
-            && !has_id(stop_time.stop_id)
+        has_id(stop_time.trip_id) && has_id_opt(stop_time.location_id) && !has_id(stop_time.stop_id)
     })
 }
 
@@ -1199,69 +1193,74 @@ fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDa
     let has_calendar = feed.calendar.is_some();
     let has_calendar_dates = feed.calendar_dates.is_some();
 
+    // Build set of service_ids used by trips ONCE - O(trips)
+    let used_service_ids: FxHashSet<StringId> = feed
+        .trips
+        .rows
+        .iter()
+        .filter(|trip| has_id(trip.service_id))
+        .map(|trip| trip.service_id)
+        .collect();
+
+    if used_service_ids.is_empty() {
+        return (None, None);
+    }
+
     let mut earliest_start = None;
     let mut latest_end = None;
 
     if has_calendar && !has_calendar_dates {
+        // Single pass through calendar - O(calendar)
         if let Some(calendar) = &feed.calendar {
-            for trip in &feed.trips.rows {
-                let trip_service_id = trip.service_id;
-                if !has_id(trip_service_id) {
+            for row in &calendar.rows {
+                let service_id = row.service_id;
+                if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                     continue;
                 }
-                for row in &calendar.rows {
-                    let service_id = row.service_id;
-                    if !has_id(service_id) || service_id != trip_service_id {
-                        continue;
-                    }
-                    let start = gtfs_date_to_naive(row.start_date);
-                    let end = gtfs_date_to_naive(row.end_date);
-                    if is_epoch(start) || is_epoch(end) {
-                        continue;
-                    }
-                    update_naive_bounds(start, &mut earliest_start, &mut latest_end);
-                    update_naive_bounds(end, &mut earliest_start, &mut latest_end);
+                let start = gtfs_date_to_naive(row.start_date);
+                let end = gtfs_date_to_naive(row.end_date);
+                if is_epoch(start) || is_epoch(end) {
+                    continue;
                 }
+                update_naive_bounds(start, &mut earliest_start, &mut latest_end);
+                update_naive_bounds(end, &mut earliest_start, &mut latest_end);
             }
         }
     } else if has_calendar_dates && !has_calendar {
+        // Single pass through calendar_dates - O(calendar_dates)
         if let Some(calendar_dates) = &feed.calendar_dates {
-            for trip in &feed.trips.rows {
-                let trip_service_id = trip.service_id;
-                if !has_id(trip_service_id) {
+            for row in &calendar_dates.rows {
+                let service_id = row.service_id;
+                if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                     continue;
                 }
-                for row in &calendar_dates.rows {
-                    let service_id = row.service_id;
-                    if !has_id(service_id) || service_id != trip_service_id {
-                        continue;
-                    }
-                    let date = gtfs_date_to_naive(row.date);
-                    if is_epoch(date) {
-                        continue;
-                    }
-                    update_naive_bounds(date, &mut earliest_start, &mut latest_end);
+                let date = gtfs_date_to_naive(row.date);
+                if is_epoch(date) {
+                    continue;
                 }
+                update_naive_bounds(date, &mut earliest_start, &mut latest_end);
             }
         }
     } else if has_calendar && has_calendar_dates {
         let calendar = feed.calendar.as_ref().unwrap();
         let calendar_dates = feed.calendar_dates.as_ref().unwrap();
 
-        let mut dates_by_service: BTreeMap<StringId, Vec<&gtfs_guru_model::CalendarDate>> =
-            BTreeMap::new();
+        // Build index by service_id - O(calendar_dates)
+        let mut dates_by_service: FxHashMap<StringId, Vec<&gtfs_guru_model::CalendarDate>> =
+            FxHashMap::default();
         for row in &calendar_dates.rows {
             let service_id = row.service_id;
-            if !has_id(service_id) {
+            if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                 continue;
             }
             dates_by_service.entry(service_id).or_default().push(row);
         }
 
-        let mut service_periods: BTreeMap<StringId, ServicePeriodData> = BTreeMap::new();
+        // Build service periods - O(calendar)
+        let mut service_periods: FxHashMap<StringId, ServicePeriodData> = FxHashMap::default();
         for row in &calendar.rows {
             let service_id = row.service_id;
-            if !has_id(service_id) {
+            if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                 continue;
             }
             let dates = dates_by_service
@@ -1270,22 +1269,18 @@ fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDa
                 .unwrap_or(&[]);
             service_periods.insert(service_id, create_service_period(Some(row), dates));
         }
-        for (service_id, dates) in dates_by_service {
-            if service_periods.contains_key(&service_id) {
+
+        // Add calendar_dates-only services
+        for (service_id, dates) in &dates_by_service {
+            if service_periods.contains_key(service_id) {
                 continue;
             }
-            service_periods.insert(service_id, create_service_period(None, &dates));
+            service_periods.insert(*service_id, create_service_period(None, dates));
         }
 
+        // Single pass to compute bounds - O(service_periods)
         let mut removed_dates = Vec::new();
-        for trip in &feed.trips.rows {
-            let service_id = trip.service_id;
-            if !has_id(service_id) {
-                continue;
-            }
-            let Some(period) = service_periods.get(&service_id) else {
-                continue;
-            };
+        for (_, period) in &service_periods {
             let start = period.service_start;
             let end = period.service_end;
             if !is_epoch(start) && !is_epoch(end) {

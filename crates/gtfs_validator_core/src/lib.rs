@@ -29,13 +29,13 @@ pub mod notice_schema;
 pub mod progress;
 pub mod rules;
 pub mod string_pool;
+pub mod timing;
 mod validation_context;
 pub mod validator;
 
 pub use csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
 pub use engine::{validate_bytes, validate_bytes_reader, validate_input, ValidationOutcome};
 pub use feed::GtfsFeed;
-pub use string_pool::StringPool;
 pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,
     GtfsInputSource,
@@ -44,6 +44,8 @@ pub use notice::{Fix, FixOperation, FixSafety, NoticeContainer, NoticeSeverity, 
 pub use notice_schema::build_notice_schema_map;
 pub use progress::{NoOpProgressHandler, ProgressHandler};
 pub use rules::default_runner;
+pub use string_pool::StringPool;
+pub use timing::{TimingCategory, TimingCollector, TimingRecord, TimingSummary};
 pub use validation_context::{
     google_rules_enabled, set_google_rules_enabled, set_thorough_mode_enabled,
     set_validation_country_code, set_validation_date, thorough_mode_enabled,

@@ -354,10 +354,26 @@ impl GtfsFeed {
                     p.on_start_file_load(filename);
                 }
 
+                let start = std::time::Instant::now();
                 let mut local_notices = NoticeContainer::new();
                 let result = self
                     .reader
                     .read_optional_csv_with_notices(filename, &mut local_notices);
+
+                // Output per-file timing if GTFS_PERF_DEBUG is set
+                if std::env::var("GTFS_PERF_DEBUG").is_ok() {
+                    let elapsed = start.elapsed();
+                    let row_count = result
+                        .as_ref()
+                        .ok()
+                        .and_then(|r| r.as_ref())
+                        .map(|t| t.rows.len())
+                        .unwrap_or(0);
+                    eprintln!(
+                        "[PERF] {} loaded: {:?} ({} rows)",
+                        filename, elapsed, row_count
+                    );
+                }
 
                 gtfs_guru_model::clear_thread_local_hooks();
 

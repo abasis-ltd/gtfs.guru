@@ -1659,6 +1659,7 @@ dependencies = [
  "rayon",
  "regex",
  "rstar",
+ "rustc-hash",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -1718,6 +1719,7 @@ dependencies = [
  "compact_str",
  "gtfs-guru-core",
  "gtfs-guru-model",
+ "rustc-hash",
  "serde",
  "serde_json",
 ]
