@@ -19,40 +19,37 @@ impl Validator for ParentStationValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
-        let mut rows_by_id: HashMap<&str, u64> = HashMap::new();
+        let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
+            HashMap::new();
+        let mut rows_by_id: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
         for (index, stop) in feed.stops.rows.iter().enumerate() {
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             stops_by_id.insert(stop_id, stop);
             rows_by_id.insert(stop_id, feed.stops.row_number(index));
         }
 
-        let mut stations: HashSet<String> = HashSet::new();
-        let mut stations_with_stops: HashSet<String> = HashSet::new();
+        let mut stations: HashSet<gtfs_guru_model::StringId> = HashSet::new();
+        let mut stations_with_stops: HashSet<gtfs_guru_model::StringId> = HashSet::new();
 
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
             let location_type = normalized_location_type(stop.location_type);
             if location_type == LocationType::Station {
-                stations.insert(stop.stop_id.trim().to_string());
+                stations.insert(stop.stop_id);
                 // Check if station has a parent_station (which is invalid)
-                if let Some(parent_station) = stop
-                    .parent_station
-                    .as_ref()
-                    .map(|value| value.trim())
-                    .filter(|value| !value.is_empty())
-                {
+                if let Some(parent_station) = stop.parent_station.filter(|id| id.0 != 0) {
+                    let parent_station_value = feed.pool.resolve(parent_station);
                     let mut notice = ValidationNotice::new(
                         CODE_STATION_WITH_PARENT_STATION,
                         NoticeSeverity::Error,
                         "station must not have a parent_station",
                     );
                     notice.insert_context_field("csvRowNumber", row_number);
-                    notice.insert_context_field("stopId", stop.stop_id.as_str());
-                    notice.insert_context_field("parentStation", parent_station);
+                    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
+                    notice.insert_context_field("parentStation", parent_station_value.as_str());
                     notice.field_order = vec![
                         "csvRowNumber".into(),
                         "stopId".into(),
@@ -63,12 +60,7 @@ impl Validator for ParentStationValidator {
                 continue;
             }
 
-            let parent_station = match stop
-                .parent_station
-                .as_ref()
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty())
-            {
+            let parent_station = match stop.parent_station.filter(|id| id.0 != 0) {
                 Some(parent_station) => parent_station,
                 None => {
                     if requires_parent_station(location_type) {
@@ -78,7 +70,7 @@ impl Validator for ParentStationValidator {
                             "parent_station is required for this location type",
                         );
                         notice.insert_context_field("csvRowNumber", row_number);
-                        notice.insert_context_field("stopId", stop.stop_id.as_str());
+                        notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                         notice.insert_context_field(
                             "locationType",
                             location_type_value(location_type),
@@ -94,13 +86,13 @@ impl Validator for ParentStationValidator {
                 }
             };
 
-            let parent_stop = match stops_by_id.get(parent_station) {
+            let parent_stop = match stops_by_id.get(&parent_station) {
                 Some(stop) => *stop,
                 None => continue,
             };
 
             if location_type == LocationType::StopOrPlatform {
-                stations_with_stops.insert(parent_station.to_string());
+                stations_with_stops.insert(parent_station);
             }
 
             // Distance check
@@ -112,16 +104,17 @@ impl Validator for ParentStationValidator {
             ) {
                 let distance_m = haversine_m(lat1, lon1, lat2, lon2);
                 if distance_m > STOP_TOO_FAR_FROM_PARENT_STATION_THRESHOLD_METERS {
+                    let parent_station_value = feed.pool.resolve(parent_station);
                     let mut notice = ValidationNotice::new(
                         CODE_STOP_TOO_FAR_FROM_PARENT_STATION,
                         NoticeSeverity::Warning,
                         "stop is too far from its parent station",
                     );
                     notice.insert_context_field("csvRowNumber", row_number);
-                    notice.insert_context_field("stopId", stop.stop_id.as_str());
+                    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                     notice
                         .insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
-                    notice.insert_context_field("parentStation", parent_station);
+                    notice.insert_context_field("parentStation", parent_station_value.as_str());
                     notice.insert_context_field(
                         "parentStopName",
                         parent_stop.stop_name.as_deref().unwrap_or(""),
@@ -142,6 +135,7 @@ impl Validator for ParentStationValidator {
             if let Some(expected) = expected_parent_location_type(location_type) {
                 let parent_location_type = normalized_location_type(parent_stop.location_type);
                 if parent_location_type != expected {
+                    let parent_station_value = feed.pool.resolve(parent_station);
                     let mut notice = ValidationNotice::new(
                         CODE_WRONG_PARENT_LOCATION_TYPE,
                         NoticeSeverity::Error,
@@ -155,18 +149,18 @@ impl Validator for ParentStationValidator {
                     notice.insert_context_field("locationType", location_type_value(location_type));
                     notice.insert_context_field(
                         "parentCsvRowNumber",
-                        rows_by_id.get(parent_station).copied().unwrap_or(2),
+                        rows_by_id.get(&parent_station).copied().unwrap_or(2),
                     );
                     notice.insert_context_field(
                         "parentLocationType",
                         location_type_value(parent_location_type),
                     );
-                    notice.insert_context_field("parentStation", parent_station);
+                    notice.insert_context_field("parentStation", parent_station_value.as_str());
                     notice.insert_context_field(
                         "parentStopName",
                         parent_stop.stop_name.as_deref().unwrap_or(""),
                     );
-                    notice.insert_context_field("stopId", stop.stop_id.as_str());
+                    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                     notice
                         .insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                     notice.field_order = vec![
@@ -186,23 +180,22 @@ impl Validator for ParentStationValidator {
         }
 
         for station_id in stations.difference(&stations_with_stops) {
-            if stops_by_id.get(station_id.as_str()).is_none() {
+            let station_id = *station_id;
+            let Some(station_stop) = stops_by_id.get(&station_id) else {
                 continue;
-            }
-            let row_number = rows_by_id.get(station_id.as_str()).copied().unwrap_or(2);
+            };
+            let row_number = rows_by_id.get(&station_id).copied().unwrap_or(2);
+            let station_id_value = feed.pool.resolve(station_id);
             let mut notice = ValidationNotice::new(
                 CODE_UNUSED_STATION,
                 NoticeSeverity::Info,
                 "station is not referenced by any stop",
             );
             notice.insert_context_field("csvRowNumber", row_number);
-            notice.insert_context_field("stopId", station_id.as_str());
+            notice.insert_context_field("stopId", station_id_value.as_str());
             notice.insert_context_field(
                 "stopName",
-                stops_by_id
-                    .get(station_id.as_str())
-                    .and_then(|stop| stop.stop_name.as_deref())
-                    .unwrap_or(""),
+                station_stop.stop_name.as_deref().unwrap_or(""),
             );
             notice.field_order = vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
             notices.push(notice);
@@ -282,11 +275,13 @@ mod tests {
 
     #[test]
     fn emits_notice_for_wrong_parent_type() {
-        let feed = feed_with_stops(vec![
-            station("STATION1"),
-            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform)),
-            stop_with_parent("STOP2", "STOP1", Some(LocationType::StopOrPlatform)),
-        ]);
+        let mut feed = GtfsFeed::default();
+        let stops = vec![
+            station("STATION1", &feed),
+            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform), &feed),
+            stop_with_parent("STOP2", "STOP1", Some(LocationType::StopOrPlatform), &feed),
+        ];
+        feed_with_stops(stops, &mut feed);
 
         let mut notices = NoticeContainer::new();
         ParentStationValidator.validate(&feed, &mut notices);
@@ -311,7 +306,9 @@ mod tests {
 
     #[test]
     fn emits_unused_station_notice() {
-        let feed = feed_with_stops(vec![station("STATION1")]);
+        let mut feed = GtfsFeed::default();
+        let stops = vec![station("STATION1", &feed)];
+        feed_with_stops(stops, &mut feed);
 
         let mut notices = NoticeContainer::new();
         ParentStationValidator.validate(&feed, &mut notices);
@@ -330,10 +327,12 @@ mod tests {
 
     #[test]
     fn skips_when_station_has_stop() {
-        let feed = feed_with_stops(vec![
-            station("STATION1"),
-            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform)),
-        ]);
+        let mut feed = GtfsFeed::default();
+        let stops = vec![
+            station("STATION1", &feed),
+            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform), &feed),
+        ];
+        feed_with_stops(stops, &mut feed);
 
         let mut notices = NoticeContainer::new();
         ParentStationValidator.validate(&feed, &mut notices);
@@ -345,9 +344,11 @@ mod tests {
 
     #[test]
     fn emits_notice_for_station_with_parent() {
-        let mut station1 = station("STATION1");
-        station1.parent_station = Some("STATION2".into());
-        let feed = feed_with_stops(vec![station1, station("STATION2")]);
+        let mut feed = GtfsFeed::default();
+        let mut station1 = station("STATION1", &feed);
+        station1.parent_station = Some(feed.pool.intern("STATION2"));
+        let stops = vec![station1, station("STATION2", &feed)];
+        feed_with_stops(stops, &mut feed);
 
         let mut notices = NoticeContainer::new();
         ParentStationValidator.validate(&feed, &mut notices);
@@ -359,9 +360,11 @@ mod tests {
 
     #[test]
     fn emits_notice_for_missing_required_parent() {
-        let mut entrance = stop_with_parent("ENTRANCE1", "", Some(LocationType::EntranceOrExit));
+        let mut feed = GtfsFeed::default();
+        let mut entrance =
+            stop_with_parent("ENTRANCE1", "", Some(LocationType::EntranceOrExit), &feed);
         entrance.parent_station = None;
-        let feed = feed_with_stops(vec![entrance]);
+        feed_with_stops(vec![entrance], &mut feed);
 
         let mut notices = NoticeContainer::new();
         ParentStationValidator.validate(&feed, &mut notices);
@@ -373,15 +376,17 @@ mod tests {
 
     #[test]
     fn emits_notice_for_stop_too_far() {
-        let mut station1 = station("STATION1");
+        let mut feed = GtfsFeed::default();
+        let mut station1 = station("STATION1", &feed);
         station1.stop_lat = Some(0.0);
         station1.stop_lon = Some(0.0);
 
-        let mut stop1 = stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform));
+        let mut stop1 =
+            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform), &feed);
         stop1.stop_lat = Some(1.0); // Very far
         stop1.stop_lon = Some(1.0);
 
-        let feed = feed_with_stops(vec![station1, stop1]);
+        feed_with_stops(vec![station1, stop1], &mut feed);
 
         let mut notices = NoticeContainer::new();
         ParentStationValidator.validate(&feed, &mut notices);
@@ -391,9 +396,9 @@ mod tests {
             .any(|n| n.code == CODE_STOP_TOO_FAR_FROM_PARENT_STATION));
     }
 
-    fn station(stop_id: &str) -> gtfs_guru_model::Stop {
+    fn station(stop_id: &str, feed: &GtfsFeed) -> gtfs_guru_model::Stop {
         gtfs_guru_model::Stop {
-            stop_id: stop_id.into(),
+            stop_id: feed.pool.intern(stop_id),
             stop_name: Some("Station".into()),
             stop_lat: Some(10.0),
             stop_lon: Some(20.0),
@@ -406,83 +411,42 @@ mod tests {
         stop_id: &str,
         parent_station: &str,
         location_type: Option<LocationType>,
+        feed: &GtfsFeed,
     ) -> gtfs_guru_model::Stop {
         gtfs_guru_model::Stop {
-            stop_id: stop_id.into(),
+            stop_id: feed.pool.intern(stop_id),
             stop_name: Some("Stop".into()),
             stop_lat: Some(10.0),
             stop_lon: Some(20.0),
             location_type,
-            parent_station: Some(parent_station.into()),
+            parent_station: Some(feed.pool.intern(parent_station)),
             ..Default::default()
         }
     }
 
-    fn feed_with_stops(stops: Vec<gtfs_guru_model::Stop>) -> GtfsFeed {
-        GtfsFeed {
-            agency: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Agency {
-                    agency_id: None,
-                    agency_name: "Agency".into(),
-                    agency_url: "https://example.com".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: Vec::new(),
-            },
-            stops: CsvTable {
-                headers: Vec::new(),
-                rows: stops,
-                row_numbers: Vec::new(),
-            },
-            routes: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            trips: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            stop_times: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            calendar: None,
-            calendar_dates: None,
-            fare_attributes: None,
-            fare_rules: None,
-            fare_media: None,
-            fare_products: None,
-            fare_leg_rules: None,
-            fare_transfer_rules: None,
-            fare_leg_join_rules: None,
-            areas: None,
-            stop_areas: None,
-            timeframes: None,
-            rider_categories: None,
-            shapes: None,
-            frequencies: None,
-            transfers: None,
-            location_groups: None,
-            location_group_stops: None,
-            locations: None,
-            booking_rules: None,
-            feed_info: None,
-            attributions: None,
-            levels: None,
-            pathways: None,
-            translations: None,
-            networks: None,
-            stop_times_by_trip: std::collections::HashMap::new(),
-            route_networks: None,
-        }
+    fn feed_with_stops(stops: Vec<gtfs_guru_model::Stop>, feed: &mut GtfsFeed) {
+        feed.agency = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Agency {
+                agency_id: None,
+                agency_name: "Agency".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed.stops = CsvTable {
+            headers: Vec::new(),
+            rows: stops,
+            row_numbers: Vec::new(),
+        };
+        feed.routes = CsvTable::default();
+        feed.trips = CsvTable::default();
+        feed.stop_times = CsvTable::default();
     }
 
     fn context_str<'a>(notice: &'a ValidationNotice, key: &str) -> &'a str {

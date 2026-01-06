@@ -13,25 +13,26 @@ impl Validator for UniqueGeographyIdValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut sources_by_id: HashMap<String, HashSet<GeographySource>> = HashMap::new();
-        let mut stop_rows: HashMap<&str, u64> = HashMap::new();
+        let mut sources_by_id: HashMap<gtfs_guru_model::StringId, HashSet<GeographySource>> =
+            HashMap::new();
+        let mut stop_rows: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
 
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             stop_rows.entry(stop_id).or_insert(row_number);
             insert_source(&mut sources_by_id, stop_id, GeographySource::Stop);
         }
 
-        let mut location_group_rows: HashMap<&str, u64> = HashMap::new();
+        let mut location_group_rows: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
         if let Some(location_group_stops) = &feed.location_group_stops {
             for (index, row) in location_group_stops.rows.iter().enumerate() {
                 let row_number = location_group_stops.row_number(index);
-                let group_id = row.location_group_id.trim();
-                if group_id.is_empty() {
+                let group_id = row.location_group_id;
+                if group_id.0 == 0 {
                     continue;
                 }
                 location_group_rows.entry(group_id).or_insert(row_number);
@@ -43,25 +44,17 @@ impl Validator for UniqueGeographyIdValidator {
             }
         }
 
-        let mut feature_index_by_id: HashMap<&str, usize> = HashMap::new();
+        let mut feature_index_by_id: HashMap<gtfs_guru_model::StringId, usize> = HashMap::new();
         if let Some(locations) = &feed.locations {
             if !locations.has_fatal_errors() {
                 if locations.feature_index_by_id.is_empty() {
                     for location_id in &locations.location_ids {
-                        insert_source(
-                            &mut sources_by_id,
-                            location_id.as_str(),
-                            GeographySource::GeoJson,
-                        );
+                        insert_source(&mut sources_by_id, *location_id, GeographySource::GeoJson);
                     }
                 } else {
                     for (location_id, index) in &locations.feature_index_by_id {
-                        insert_source(
-                            &mut sources_by_id,
-                            location_id.as_str(),
-                            GeographySource::GeoJson,
-                        );
-                        feature_index_by_id.insert(location_id.as_str(), *index);
+                        insert_source(&mut sources_by_id, *location_id, GeographySource::GeoJson);
+                        feature_index_by_id.insert(*location_id, *index);
                     }
                 }
             }
@@ -69,8 +62,10 @@ impl Validator for UniqueGeographyIdValidator {
 
         for (id, sources) in sources_by_id {
             if sources.len() > 1 {
+                let id_value = feed.pool.resolve(id);
                 notices.push(duplicate_id_notice(
-                    &id,
+                    id,
+                    id_value.as_str(),
                     &sources,
                     &stop_rows,
                     &location_group_rows,
@@ -89,49 +84,46 @@ enum GeographySource {
 }
 
 fn insert_source(
-    sources_by_id: &mut HashMap<String, HashSet<GeographySource>>,
-    id: &str,
+    sources_by_id: &mut HashMap<gtfs_guru_model::StringId, HashSet<GeographySource>>,
+    id: gtfs_guru_model::StringId,
     source: GeographySource,
 ) {
-    let trimmed = id.trim();
-    if trimmed.is_empty() {
+    if id.0 == 0 {
         return;
     }
 
-    sources_by_id
-        .entry(trimmed.to_string())
-        .or_default()
-        .insert(source);
+    sources_by_id.entry(id).or_default().insert(source);
 }
 
 fn duplicate_id_notice(
-    id: &str,
+    id: gtfs_guru_model::StringId,
+    id_value: &str,
     sources: &HashSet<GeographySource>,
-    stop_rows: &HashMap<&str, u64>,
-    location_group_rows: &HashMap<&str, u64>,
-    feature_index_by_id: &HashMap<&str, usize>,
+    stop_rows: &HashMap<gtfs_guru_model::StringId, u64>,
+    location_group_rows: &HashMap<gtfs_guru_model::StringId, u64>,
+    feature_index_by_id: &HashMap<gtfs_guru_model::StringId, usize>,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_DUPLICATE_GEOGRAPHY_ID,
         NoticeSeverity::Error,
-        format!("geography id '{}' is duplicated across multiple files", id),
+        format!("geography id '{}' is duplicated across multiple files", id_value),
     );
     if sources.contains(&GeographySource::Stop) {
-        if let Some(row_number) = stop_rows.get(id).copied() {
+        if let Some(row_number) = stop_rows.get(&id).copied() {
             notice.insert_context_field("csvRowNumberA", row_number);
         }
     }
     if sources.contains(&GeographySource::LocationGroupStop) {
-        if let Some(row_number) = location_group_rows.get(id).copied() {
+        if let Some(row_number) = location_group_rows.get(&id).copied() {
             notice.insert_context_field("csvRowNumberB", row_number);
         }
     }
     if sources.contains(&GeographySource::GeoJson) {
-        if let Some(index) = feature_index_by_id.get(id) {
+        if let Some(index) = feature_index_by_id.get(&id) {
             notice.insert_context_field("featureIndex", *index as u64);
         }
     }
-    notice.insert_context_field("geographyId", id);
+    notice.insert_context_field("geographyId", id_value);
     notice.field_order = vec![
         "csvRowNumberA".into(),
         "csvRowNumberB".into(),
@@ -153,7 +145,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "ID1".into(),
+                stop_id: feed.pool.intern("ID1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -161,7 +153,7 @@ mod tests {
         feed.location_group_stops = Some(CsvTable {
             headers: vec!["location_group_id".into()],
             rows: vec![LocationGroupStop {
-                location_group_id: "ID1".into(),
+                location_group_id: feed.pool.intern("ID1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -181,7 +173,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -189,7 +181,7 @@ mod tests {
         feed.location_group_stops = Some(CsvTable {
             headers: vec!["location_group_id".into()],
             rows: vec![LocationGroupStop {
-                location_group_id: "LG1".into(),
+                location_group_id: feed.pool.intern("LG1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],

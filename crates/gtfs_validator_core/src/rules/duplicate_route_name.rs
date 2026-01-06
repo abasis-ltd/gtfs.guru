@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::RouteType;
+use gtfs_guru_model::StringId;
 
 const CODE_DUPLICATE_ROUTE_NAME: &str = "duplicate_route_name";
 
@@ -24,16 +25,15 @@ impl Validator for DuplicateRouteNameValidator {
                 let mut notice = ValidationNotice::new(
                     CODE_DUPLICATE_ROUTE_NAME,
                     NoticeSeverity::Warning,
-                    "duplicate route_short_name/route_long_name for same agency and route_type",
-                );
+                    "duplicate route_short_name/route_long_name for same agency and route_type");
                 notice.insert_context_field("csvRowNumber1", prev.row_number);
-                notice.insert_context_field("routeId1", prev.route_id.as_str());
+                notice.insert_context_field("routeId1", feed.pool.resolve(prev.route_id).as_str());
                 notice.insert_context_field("csvRowNumber2", entry.row_number);
-                notice.insert_context_field("routeId2", entry.route_id.as_str());
+                notice.insert_context_field("routeId2", feed.pool.resolve(entry.route_id).as_str());
                 notice.insert_context_field("routeShortName", prev.route_short_name.as_str());
                 notice.insert_context_field("routeLongName", prev.route_long_name.as_str());
                 notice.insert_context_field("routeTypeValue", prev.route_type);
-                notice.insert_context_field("agencyId", prev.agency_id.as_str());
+                notice.insert_context_field("agencyId", feed.pool.resolve(prev.agency_id).as_str());
                 notice.field_order = vec![
                     "agencyId".into(),
                     "csvRowNumber1".into(),
@@ -57,24 +57,24 @@ struct RouteKey {
     route_short_name: CompactString,
     route_long_name: CompactString,
     route_type: i32,
-    agency_id: CompactString,
+    agency_id: StringId,
 }
 
 #[derive(Debug)]
 struct RouteEntry {
     row_number: u64,
-    route_id: CompactString,
+    route_id: StringId,
     route_short_name: CompactString,
     route_long_name: CompactString,
     route_type: i32,
-    agency_id: CompactString,
+    agency_id: StringId,
 }
 
 impl RouteEntry {
     fn new(route: &gtfs_guru_model::Route, row_number: u64) -> Self {
         Self {
             row_number,
-            route_id: route.route_id.clone(),
+            route_id: route.route_id,
             route_short_name: route
                 .route_short_name
                 .as_deref()
@@ -83,7 +83,7 @@ impl RouteEntry {
                 .into(),
             route_long_name: route.route_long_name.as_deref().unwrap_or("").trim().into(),
             route_type: route_type_value(route.route_type),
-            agency_id: route.agency_id.as_deref().unwrap_or("").trim().into(),
+            agency_id: route.agency_id.unwrap_or(StringId(0)),
         }
     }
 }
@@ -99,7 +99,7 @@ impl RouteKey {
                 .into(),
             route_long_name: route.route_long_name.as_deref().unwrap_or("").trim().into(),
             route_type: route_type_value(route.route_type),
-            agency_id: route.agency_id.as_deref().unwrap_or("").trim().into(),
+            agency_id: route.agency_id.unwrap_or(StringId(0)),
         }
     }
 }
@@ -133,14 +133,14 @@ mod tests {
             headers: vec![],
             rows: vec![
                 gtfs_guru_model::Route {
-                    route_id: "R1".into(),
+                    route_id: feed.pool.intern("R1"),
                     route_short_name: Some("1".into()),
                     route_long_name: Some("Route One".into()),
                     route_type: RouteType::Bus,
                     ..Default::default()
                 },
                 gtfs_guru_model::Route {
-                    route_id: "R2".into(),
+                    route_id: feed.pool.intern("R2"),
                     route_short_name: Some("1".into()),
                     route_long_name: Some("Route One".into()),
                     route_type: RouteType::Bus,

@@ -156,9 +156,18 @@ impl ValidatorRunner {
     fn run_single_validator(&self, validator: &dyn Validator, feed: &GtfsFeed) -> NoticeContainer {
         let mut local_notices = NoticeContainer::new();
         let start = std::time::Instant::now();
+
+        // Set resolver hook for StringId serialization
+        let pool = feed.pool.clone();
+        gtfs_guru_model::set_thread_local_resolver(move |id| pool.resolve(id));
+
         let result = catch_unwind(AssertUnwindSafe(|| {
             validator.validate(feed, &mut local_notices)
         }));
+
+        // Clear hooks after validation
+        gtfs_guru_model::clear_thread_local_hooks();
+
         let elapsed = start.elapsed();
         if elapsed.as_millis() > 500 {
             eprintln!("[PERF] Validator {} took: {:?}", validator.name(), elapsed);
@@ -285,6 +294,7 @@ mod tests {
             networks: None,
             stop_times_by_trip: std::collections::HashMap::new(),
             route_networks: None,
+            pool: crate::StringPool::new(),
         }
     }
 

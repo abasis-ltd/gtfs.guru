@@ -48,8 +48,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![gtfs_guru_model::Transfer {
-                from_stop_id: Some("STOP1".into()),
-                to_stop_id: Some("STOP2".into()),
+                from_stop_id: Some(feed.pool.intern("STOP1")),
+                to_stop_id: Some(feed.pool.intern("STOP2")),
                 transfer_type: Some(gtfs_guru_model::TransferType::MinTime),
                 min_transfer_time: None,
                 ..Default::default()
@@ -72,8 +72,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![gtfs_guru_model::Transfer {
-                from_stop_id: Some("STOP1".into()),
-                to_stop_id: Some("STOP2".into()),
+                from_stop_id: Some(feed.pool.intern("STOP1")),
+                to_stop_id: Some(feed.pool.intern("STOP2")),
                 transfer_type: Some(gtfs_guru_model::TransferType::MinTime),
                 min_transfer_time: Some(120),
                 ..Default::default()

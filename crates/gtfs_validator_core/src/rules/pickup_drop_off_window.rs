@@ -155,7 +155,7 @@ mod tests {
                 "arrival_time".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 arrival_time: Some(GtfsTime::from_seconds(3700)), // Forbidden
@@ -182,7 +182,7 @@ mod tests {
                 "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 end_pickup_drop_off_window: None,
@@ -210,7 +210,7 @@ mod tests {
                 "end_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
                 end_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)), // Invalid order
@@ -238,7 +238,7 @@ mod tests {
                 "end_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),

@@ -8,9 +8,9 @@ use crate::{NoticeSeverity, ValidationNotice};
 
 #[derive(Debug, Clone, Default)]
 pub struct LocationsGeoJson {
-    pub location_ids: HashSet<String>,
-    pub bounds_by_id: HashMap<String, BoundingBox>,
-    pub feature_index_by_id: HashMap<String, usize>,
+    pub location_ids: HashSet<gtfs_guru_model::StringId>,
+    pub bounds_by_id: HashMap<gtfs_guru_model::StringId, BoundingBox>,
+    pub feature_index_by_id: HashMap<gtfs_guru_model::StringId, usize>,
     pub notices: Vec<ValidationNotice>,
 }
 
@@ -65,8 +65,11 @@ impl BoundingBox {
     }
 }
 
-impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
-    fn from(collection: GeoJsonFeatureCollection) -> Self {
+impl LocationsGeoJson {
+    pub(crate) fn new(
+        collection: GeoJsonFeatureCollection,
+        pool: &crate::string_pool::StringPool,
+    ) -> Self {
         let mut location_ids = HashSet::new();
         let mut bounds_by_id = HashMap::new();
         let mut feature_index_by_id = HashMap::new();
@@ -108,7 +111,7 @@ impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
             };
         }
 
-        let mut first_index_by_id: HashMap<String, usize> = HashMap::new();
+        let mut first_index_by_id: HashMap<gtfs_guru_model::StringId, usize> = HashMap::new();
         for (index, feature) in collection.features.unwrap().into_iter().enumerate() {
             for key in feature.extra.keys() {
                 notices.push(geojson_unknown_element_notice(key));
@@ -170,22 +173,23 @@ impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
                 continue;
             }
 
-            let Some(feature_id) = feature_id else {
+            let Some(feature_id_str) = feature_id else {
                 continue;
             };
+            let feature_id = pool.intern(&feature_id_str);
 
             if let Some(first_index) = first_index_by_id.get(&feature_id).copied() {
                 notices.push(duplicate_geojson_key_notice(
-                    &feature_id,
+                    &feature_id_str,
                     first_index,
                     index,
                 ));
             } else {
-                first_index_by_id.insert(feature_id.clone(), index);
-                feature_index_by_id.insert(feature_id.clone(), index);
+                first_index_by_id.insert(feature_id, index);
+                feature_index_by_id.insert(feature_id, index);
             }
 
-            location_ids.insert(feature_id.clone());
+            location_ids.insert(feature_id);
             if let Some(geometry) = geometry {
                 let geometry_type = geometry.geometry_type.as_deref().unwrap_or("");
                 match geometry_type {
@@ -197,13 +201,13 @@ impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
                             }
                             match points_from_polygon(coords) {
                                 Ok(points) => {
-                                    check_points(&mut notices, &feature_id, index, &points);
+                                    check_points(&mut notices, feature_id_str.as_str(), index, &points);
                                     // Check for self-intersecting polygon
                                     if let Some(ring) = coords.as_array().and_then(|a| a.first()) {
                                         if let Some(ring_points) = ring.as_array() {
                                             if is_self_intersecting(ring_points) {
                                                 notices.push(invalid_geometry_notice(
-                                                    &feature_id,
+                                                    feature_id_str.as_str(),
                                                     index,
                                                     geometry_type,
                                                     "polygon ring is self-intersecting".into(),
@@ -212,11 +216,11 @@ impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
                                         }
                                     }
                                     if let Some(bounds) = bounds_from_points(points) {
-                                        bounds_by_id.entry(feature_id.clone()).or_insert(bounds);
+                                        bounds_by_id.entry(feature_id).or_insert(bounds);
                                     }
                                 }
                                 Err(message) => notices.push(invalid_geometry_notice(
-                                    &feature_id,
+                                    feature_id_str.as_str(),
                                     index,
                                     geometry_type,
                                     message,
@@ -232,13 +236,13 @@ impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
                             }
                             match points_from_multipolygon(coords) {
                                 Ok(points) => {
-                                    check_points(&mut notices, &feature_id, index, &points);
+                                    check_points(&mut notices, feature_id_str.as_str(), index, &points);
                                     if let Some(bounds) = bounds_from_points(points) {
-                                        bounds_by_id.entry(feature_id.clone()).or_insert(bounds);
+                                        bounds_by_id.entry(feature_id).or_insert(bounds);
                                     }
                                 }
                                 Err(message) => notices.push(invalid_geometry_notice(
-                                    &feature_id,
+                                    feature_id_str.as_str(),
                                     index,
                                     geometry_type,
                                     message,
@@ -247,7 +251,11 @@ impl From<GeoJsonFeatureCollection> for LocationsGeoJson {
                         }
                     }
                     other => {
-                        notices.push(unsupported_geometry_type_notice(index, &feature_id, other));
+                        notices.push(unsupported_geometry_type_notice(
+                            index,
+                            feature_id_str.as_str(),
+                            other,
+                        ));
                     }
                 }
             }
@@ -711,12 +719,13 @@ mod tests {
         }"#;
 
         let collection: GeoJsonFeatureCollection = serde_json::from_str(json).expect("parse");
-        let locations = LocationsGeoJson::from(collection);
+        let pool = crate::string_pool::StringPool::default();
+        let locations = LocationsGeoJson::new(collection, &pool);
 
-        assert!(locations.location_ids.contains("L1"));
-        assert!(locations.location_ids.contains("42"));
-        assert!(!locations.location_ids.contains("L2"));
+        assert!(locations.location_ids.contains(&pool.intern("L1")));
+        assert!(locations.location_ids.contains(&pool.intern("42")));
+        assert!(!locations.location_ids.contains(&pool.intern("L2")));
         assert_eq!(locations.location_ids.len(), 2);
-        assert!(locations.bounds_by_id.contains_key("42"));
+        assert!(locations.bounds_by_id.contains_key(&pool.intern("42")));
     }
 }

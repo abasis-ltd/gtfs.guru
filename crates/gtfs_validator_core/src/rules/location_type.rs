@@ -1,5 +1,6 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::LocationType;
+use gtfs_guru_model::StringId;
 
 const CODE_STATION_WITH_PARENT_STATION: &str = "station_with_parent_station";
 const CODE_LOCATION_WITHOUT_PARENT_STATION: &str = "location_without_parent_station";
@@ -17,15 +18,11 @@ impl Validator for LocationTypeValidator {
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
             let location_type = stop.location_type.unwrap_or(LocationType::StopOrPlatform);
-            let parent_station = stop
-                .parent_station
-                .as_ref()
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty());
+            let parent_station = stop.parent_station.filter(|id| id.0 != 0);
 
             if parent_station.is_some() {
                 if location_type == LocationType::Station {
-                    notices.push(station_with_parent_station_notice(stop, row_number));
+                    notices.push(station_with_parent_station_notice(stop, row_number, feed));
                 }
                 continue;
             }
@@ -33,13 +30,13 @@ impl Validator for LocationTypeValidator {
             match location_type {
                 LocationType::StopOrPlatform => {
                     if has_platform_code(stop.platform_code.as_deref()) {
-                        notices.push(platform_without_parent_station_notice(stop, row_number));
+                        notices.push(platform_without_parent_station_notice(stop, row_number, feed));
                     }
                 }
                 LocationType::EntranceOrExit
                 | LocationType::GenericNode
                 | LocationType::BoardingArea => {
-                    notices.push(location_without_parent_station_notice(stop, row_number));
+                    notices.push(location_without_parent_station_notice(stop, row_number, feed));
                 }
                 _ => {}
             }
@@ -54,18 +51,17 @@ fn has_platform_code(value: Option<&str>) -> bool {
 fn station_with_parent_station_notice(
     stop: &gtfs_guru_model::Stop,
     row_number: u64,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STATION_WITH_PARENT_STATION,
         NoticeSeverity::Error,
         "station must not have parent_station",
     );
+    let parent_station = feed.pool.resolve(stop.parent_station.unwrap_or(StringId(0)));
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.insert_context_field(
-        "parentStation",
-        stop.parent_station.as_deref().unwrap_or(""),
-    );
-    notice.insert_context_field("stopId", stop.stop_id.as_str());
+    notice.insert_context_field("parentStation", parent_station.as_str());
+    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
     notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
     notice.field_order = vec![
         "csvRowNumber".into(),
@@ -79,7 +75,7 @@ fn station_with_parent_station_notice(
 fn location_without_parent_station_notice(
     stop: &gtfs_guru_model::Stop,
     row_number: u64,
-) -> ValidationNotice {
+ feed: &GtfsFeed) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_LOCATION_WITHOUT_PARENT_STATION,
         NoticeSeverity::Error,
@@ -87,7 +83,7 @@ fn location_without_parent_station_notice(
     );
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("locationType", location_type_value(stop.location_type));
-    notice.insert_context_field("stopId", stop.stop_id.as_str());
+    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
     notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
     notice.field_order = vec![
         "csvRowNumber".into(),
@@ -101,14 +97,14 @@ fn location_without_parent_station_notice(
 fn platform_without_parent_station_notice(
     stop: &gtfs_guru_model::Stop,
     row_number: u64,
-) -> ValidationNotice {
+ feed: &GtfsFeed) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_PLATFORM_WITHOUT_PARENT_STATION,
         NoticeSeverity::Info,
         "platform has no parent_station",
     );
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.insert_context_field("stopId", stop.stop_id.as_str());
+    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
     notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
     notice.field_order = vec![
         "csvRowNumber".into(),
@@ -136,8 +132,9 @@ mod tests {
 
     #[test]
     fn emits_notice_for_station_with_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "STATION1".into(),
+        let mut feed = GtfsFeed::default();
+        let stop = gtfs_guru_model::Stop {
+            stop_id: feed.pool.intern("STATION1"),
             stop_code: None,
             stop_name: Some("Station".into()),
             tts_stop_name: None,
@@ -147,7 +144,7 @@ mod tests {
             zone_id: None,
             stop_url: None,
             location_type: Some(LocationType::Station),
-            parent_station: Some("PARENT".into()),
+            parent_station: Some(feed.pool.intern("PARENT")),
             stop_timezone: None,
             wheelchair_boarding: None,
             level_id: None,
@@ -159,7 +156,8 @@ mod tests {
             stop_country: None,
             stop_phone: None,
             ..Default::default()
-        }]);
+        };
+        feed_with_stops(vec![stop], &mut feed);
 
         let mut notices = NoticeContainer::new();
         LocationTypeValidator.validate(&feed, &mut notices);
@@ -179,8 +177,9 @@ mod tests {
 
     #[test]
     fn emits_notice_for_location_missing_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "ENTRANCE1".into(),
+        let mut feed = GtfsFeed::default();
+        let stop = gtfs_guru_model::Stop {
+            stop_id: feed.pool.intern("ENTRANCE1"),
             stop_code: None,
             stop_name: Some("Entrance".into()),
             tts_stop_name: None,
@@ -202,7 +201,8 @@ mod tests {
             stop_country: None,
             stop_phone: None,
             ..Default::default()
-        }]);
+        };
+        feed_with_stops(vec![stop], &mut feed);
 
         let mut notices = NoticeContainer::new();
         LocationTypeValidator.validate(&feed, &mut notices);
@@ -222,8 +222,9 @@ mod tests {
 
     #[test]
     fn emits_notice_for_platform_without_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "STOP1".into(),
+        let mut feed = GtfsFeed::default();
+        let stop = gtfs_guru_model::Stop {
+            stop_id: feed.pool.intern("STOP1"),
             stop_code: None,
             stop_name: Some("Platform".into()),
             tts_stop_name: None,
@@ -245,7 +246,8 @@ mod tests {
             stop_country: None,
             stop_phone: None,
             ..Default::default()
-        }]);
+        };
+        feed_with_stops(vec![stop], &mut feed);
 
         let mut notices = NoticeContainer::new();
         LocationTypeValidator.validate(&feed, &mut notices);
@@ -264,8 +266,9 @@ mod tests {
 
     #[test]
     fn skips_stop_without_parent_station() {
-        let feed = feed_with_stops(vec![gtfs_guru_model::Stop {
-            stop_id: "STOP1".into(),
+        let mut feed = GtfsFeed::default();
+        let stop = gtfs_guru_model::Stop {
+            stop_id: feed.pool.intern("STOP1"),
             stop_code: None,
             stop_name: Some("Stop".into()),
             tts_stop_name: None,
@@ -287,7 +290,8 @@ mod tests {
             stop_country: None,
             stop_phone: None,
             ..Default::default()
-        }]);
+        };
+        feed_with_stops(vec![stop], &mut feed);
 
         let mut notices = NoticeContainer::new();
         LocationTypeValidator.validate(&feed, &mut notices);
@@ -295,71 +299,29 @@ mod tests {
         assert!(notices.is_empty());
     }
 
-    fn feed_with_stops(stops: Vec<gtfs_guru_model::Stop>) -> GtfsFeed {
-        GtfsFeed {
-            agency: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Agency {
-                    agency_id: None,
-                    agency_name: "Agency".into(),
-                    agency_url: "https://example.com".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: Vec::new(),
-            },
-            stops: CsvTable {
-                headers: Vec::new(),
-                rows: stops,
-                row_numbers: Vec::new(),
-            },
-            routes: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            trips: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            stop_times: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            calendar: None,
-            calendar_dates: None,
-            fare_attributes: None,
-            fare_rules: None,
-            fare_media: None,
-            fare_products: None,
-            fare_leg_rules: None,
-            fare_transfer_rules: None,
-            fare_leg_join_rules: None,
-            areas: None,
-            stop_areas: None,
-            timeframes: None,
-            rider_categories: None,
-            shapes: None,
-            frequencies: None,
-            transfers: None,
-            location_groups: None,
-            location_group_stops: None,
-            locations: None,
-            booking_rules: None,
-            feed_info: None,
-            attributions: None,
-            levels: None,
-            pathways: None,
-            translations: None,
-            networks: None,
-            stop_times_by_trip: std::collections::HashMap::new(),
-            route_networks: None,
-        }
+    fn feed_with_stops(stops: Vec<gtfs_guru_model::Stop>, feed: &mut GtfsFeed) {
+        feed.agency = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Agency {
+                agency_id: None,
+                agency_name: "Agency".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed.stops = CsvTable {
+            headers: Vec::new(),
+            rows: stops,
+            row_numbers: Vec::new(),
+        };
+        feed.routes = CsvTable::default();
+        feed.trips = CsvTable::default();
+        feed.stop_times = CsvTable::default();
     }
 
     fn context_str<'a>(notice: &'a ValidationNotice, key: &str) -> &'a str {

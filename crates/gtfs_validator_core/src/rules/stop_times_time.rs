@@ -18,10 +18,11 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut by_trip: HashMap<&str, Vec<(usize, &gtfs_guru_model::StopTime)>> = HashMap::new();
+        let mut by_trip: HashMap<gtfs_guru_model::StringId, Vec<(usize, &gtfs_guru_model::StopTime)>> =
+            HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = stop_time.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
             by_trip.entry(trip_id).or_default().push((index, stop_time));
@@ -34,10 +35,10 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
             let mut previous_departure: Option<(gtfs_guru_model::GtfsTime, u64)> = None;
             for (index, stop_time) in stop_times {
                 let row_number = feed.stop_times.row_number(*index);
-                let trip_id = stop_time.trip_id.trim();
                 let has_arrival = stop_time.arrival_time.is_some();
                 let has_departure = stop_time.departure_time.is_some();
                 if has_arrival != has_departure {
+                    let trip_id = feed.pool.resolve(stop_time.trip_id);
                     let specified_field = if has_arrival {
                         "arrival_time"
                     } else {
@@ -51,7 +52,7 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("specifiedField", specified_field);
                     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
-                    notice.insert_context_field("tripId", trip_id);
+                    notice.insert_context_field("tripId", trip_id.as_str());
                     notice.field_order = vec![
                         "csvRowNumber".into(),
                         "specifiedField".into(),
@@ -65,6 +66,7 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
                     (stop_time.arrival_time, previous_departure)
                 {
                     if arrival.total_seconds() < prev_departure.total_seconds() {
+                        let trip_id = feed.pool.resolve(stop_time.trip_id);
                         let mut notice = ValidationNotice::new(
                             CODE_STOP_TIME_WITH_ARRIVAL_BEFORE_PREVIOUS_DEPARTURE_TIME,
                             NoticeSeverity::Error,
@@ -74,7 +76,7 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
                         notice.insert_context_field("csvRowNumber", row_number);
                         notice.insert_context_field("departureTime", prev_departure);
                         notice.insert_context_field("prevCsvRowNumber", prev_row_number);
-                        notice.insert_context_field("tripId", trip_id);
+                        notice.insert_context_field("tripId", trip_id.as_str());
                         notice.field_order = vec![
                             "arrivalTime".into(),
                             "csvRowNumber".into(),
@@ -114,12 +116,12 @@ impl Validator for TimepointTimeValidator {
 
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
-            let trip_id = stop_time.trip_id.trim();
             let has_arrival = stop_time.arrival_time.is_some();
             let has_departure = stop_time.departure_time.is_some();
             let has_timepoint = stop_time.timepoint.is_some();
 
             if (has_arrival || has_departure) && !has_timepoint {
+                let trip_id = feed.pool.resolve(stop_time.trip_id);
                 let mut notice = ValidationNotice::new(
                     CODE_MISSING_TIMEPOINT_VALUE,
                     NoticeSeverity::Warning,
@@ -127,7 +129,7 @@ impl Validator for TimepointTimeValidator {
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("stopSequence", stop_time.stop_sequence);
-                notice.insert_context_field("tripId", trip_id);
+                notice.insert_context_field("tripId", trip_id.as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "stopSequence".into(),
@@ -138,6 +140,7 @@ impl Validator for TimepointTimeValidator {
 
             if matches!(stop_time.timepoint, Some(gtfs_guru_model::Timepoint::Exact)) {
                 if !has_arrival {
+                    let trip_id = feed.pool.resolve(stop_time.trip_id);
                     let mut notice = ValidationNotice::new(
                         CODE_STOP_TIME_TIMEPOINT_WITHOUT_TIMES,
                         NoticeSeverity::Error,
@@ -146,7 +149,7 @@ impl Validator for TimepointTimeValidator {
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("specifiedField", "arrival_time");
                     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
-                    notice.insert_context_field("tripId", trip_id);
+                    notice.insert_context_field("tripId", trip_id.as_str());
                     notice.field_order = vec![
                         "csvRowNumber".into(),
                         "specifiedField".into(),
@@ -156,6 +159,7 @@ impl Validator for TimepointTimeValidator {
                     notices.push(notice);
                 }
                 if !has_departure {
+                    let trip_id = feed.pool.resolve(stop_time.trip_id);
                     let mut notice = ValidationNotice::new(
                         CODE_STOP_TIME_TIMEPOINT_WITHOUT_TIMES,
                         NoticeSeverity::Error,
@@ -164,7 +168,7 @@ impl Validator for TimepointTimeValidator {
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("specifiedField", "departure_time");
                     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
-                    notice.insert_context_field("tripId", trip_id);
+                    notice.insert_context_field("tripId", trip_id.as_str());
                     notice.field_order = vec![
                         "csvRowNumber".into(),
                         "specifiedField".into(),
@@ -194,7 +198,7 @@ mod tests {
                 "arrival_time".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 arrival_time: Some(GtfsTime::from_seconds(3600)),
                 departure_time: None,
@@ -223,14 +227,14 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(3650)), // Before 3700
                     departure_time: Some(GtfsTime::from_seconds(3800)),
@@ -258,7 +262,7 @@ mod tests {
                 "timepoint".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 timepoint: Some(Timepoint::Exact),
                 arrival_time: None,
@@ -287,7 +291,7 @@ mod tests {
                 "timepoint".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 arrival_time: Some(GtfsTime::from_seconds(3600)),
                 departure_time: Some(GtfsTime::from_seconds(3600)),
@@ -318,7 +322,7 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
@@ -326,7 +330,7 @@ mod tests {
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: Some(GtfsTime::from_seconds(4100)),

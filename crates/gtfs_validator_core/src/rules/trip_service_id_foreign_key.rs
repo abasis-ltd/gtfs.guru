@@ -14,19 +14,19 @@ impl Validator for TripServiceIdForeignKeyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut service_ids: HashSet<&str> = HashSet::new();
+        let mut service_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         if let Some(calendar) = &feed.calendar {
             for row in &calendar.rows {
-                let service_id = row.service_id.trim();
-                if !service_id.is_empty() {
+                let service_id = row.service_id;
+                if service_id.0 != 0 {
                     service_ids.insert(service_id);
                 }
             }
         }
         if let Some(calendar_dates) = &feed.calendar_dates {
             for row in &calendar_dates.rows {
-                let service_id = row.service_id.trim();
-                if !service_id.is_empty() {
+                let service_id = row.service_id;
+                if service_id.0 != 0 {
                     service_ids.insert(service_id);
                 }
             }
@@ -34,8 +34,9 @@ impl Validator for TripServiceIdForeignKeyValidator {
 
         for (index, trip) in feed.trips.rows.iter().enumerate() {
             let row_number = feed.trips.row_number(index);
-            let service_id = trip.service_id.trim();
-            if service_id.is_empty() || !service_ids.contains(service_id) {
+            let service_id = trip.service_id;
+            if service_id.0 == 0 || !service_ids.contains(&service_id) {
+                let service_id_value = feed.pool.resolve(service_id);
                 let mut notice = ValidationNotice::new(
                     CODE_FOREIGN_KEY_VIOLATION,
                     NoticeSeverity::Error,
@@ -44,7 +45,7 @@ impl Validator for TripServiceIdForeignKeyValidator {
                 notice.insert_context_field("childFieldName", "service_id");
                 notice.insert_context_field("childFilename", TRIPS_FILE);
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("fieldValue", service_id);
+                notice.insert_context_field("fieldValue", service_id_value.as_str());
                 notice.insert_context_field("parentFieldName", "service_id");
                 notice.insert_context_field("parentFilename", "calendar.txt or calendar_dates.txt");
                 notice.field_order = vec![
@@ -77,8 +78,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "service_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                service_id: "missing_service".into(),
+                trip_id: feed.pool.intern("T1"),
+                service_id: feed.pool.intern("missing_service"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -96,7 +97,7 @@ mod tests {
         feed.calendar = Some(CsvTable {
             headers: vec!["service_id".into()],
             rows: vec![Calendar {
-                service_id: "S1".into(),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -104,8 +105,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "service_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                service_id: "S1".into(),
+                trip_id: feed.pool.intern("T1"),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -123,7 +124,7 @@ mod tests {
         feed.calendar_dates = Some(CsvTable {
             headers: vec!["service_id".into()],
             rows: vec![CalendarDate {
-                service_id: "S1".into(),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -131,8 +132,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "service_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                service_id: "S1".into(),
+                trip_id: feed.pool.intern("T1"),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],

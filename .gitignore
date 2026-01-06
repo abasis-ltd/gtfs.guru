@@ -9,6 +9,9 @@ google-transitfeed/
 __pycache__/
 *.pyc
 
+# Logs
+*.log
+
 # Local config
 .env
 

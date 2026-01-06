@@ -17,11 +17,14 @@ impl Validator for OverlappingFrequencyValidator {
             return;
         };
 
-        let mut by_trip: HashMap<&str, Vec<(u64, &gtfs_guru_model::Frequency)>> = HashMap::new();
+        let mut by_trip: HashMap<
+            gtfs_guru_model::StringId,
+            Vec<(u64, &gtfs_guru_model::Frequency)>,
+        > = HashMap::new();
         for (index, freq) in frequencies.rows.iter().enumerate() {
             let row_number = frequencies.row_number(index);
-            let trip_id = freq.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = freq.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
             by_trip.entry(trip_id).or_default().push((row_number, freq));
@@ -56,7 +59,7 @@ impl Validator for OverlappingFrequencyValidator {
                     notice.insert_context_field("currStartTime", curr.start_time);
                     notice.insert_context_field("prevCsvRowNumber", prev_row);
                     notice.insert_context_field("prevEndTime", prev.end_time);
-                    notice.insert_context_field("tripId", curr.trip_id.as_str());
+                    notice.insert_context_field("tripId", feed.pool.resolve(curr.trip_id).as_str());
                     notice.field_order = vec![
                         "currCsvRowNumber".into(),
                         "currStartTime".into(),
@@ -89,14 +92,14 @@ mod tests {
             ],
             rows: vec![
                 Frequency {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     start_time: GtfsTime::from_seconds(3600),
                     end_time: GtfsTime::from_seconds(7200),
                     headway_secs: 300,
                     ..Default::default()
                 },
                 Frequency {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     start_time: GtfsTime::from_seconds(7000), // Overlaps
                     end_time: GtfsTime::from_seconds(10000),
                     headway_secs: 300,
@@ -128,14 +131,14 @@ mod tests {
             ],
             rows: vec![
                 Frequency {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     start_time: GtfsTime::from_seconds(3600),
                     end_time: GtfsTime::from_seconds(7200),
                     headway_secs: 300,
                     ..Default::default()
                 },
                 Frequency {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     start_time: GtfsTime::from_seconds(7200), // Starts at end of previous
                     end_time: GtfsTime::from_seconds(10000),
                     headway_secs: 300,

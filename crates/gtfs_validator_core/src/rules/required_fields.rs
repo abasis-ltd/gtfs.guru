@@ -7,6 +7,8 @@ use crate::feed::{
     STOP_AREAS_FILE, STOP_TIMES_FILE, TIMEFRAMES_FILE, TRANSLATIONS_FILE, TRIPS_FILE,
 };
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use compact_str::CompactString;
+use gtfs_guru_model::StringId;
 
 const CODE_EMPTY_REQUIRED_FIELD: &str = "missing_required_field";
 
@@ -482,10 +484,10 @@ fn check_non_empty(
     notices: &mut NoticeContainer,
     file: &str,
     field: &str,
-    value: &str,
+    value: &impl RequiredFieldValue,
     row_number: u64,
 ) {
-    if value.trim().is_empty() {
+    if value.is_blank() {
         let mut notice = ValidationNotice::new(
             CODE_EMPTY_REQUIRED_FIELD,
             NoticeSeverity::Error,
@@ -500,6 +502,40 @@ fn check_non_empty(
             "filename".into(),
         ];
         notices.push(notice);
+    }
+}
+
+trait RequiredFieldValue {
+    fn is_blank(&self) -> bool;
+}
+
+impl RequiredFieldValue for StringId {
+    fn is_blank(&self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl RequiredFieldValue for CompactString {
+    fn is_blank(&self) -> bool {
+        self.as_str().trim().is_empty()
+    }
+}
+
+impl RequiredFieldValue for String {
+    fn is_blank(&self) -> bool {
+        self.trim().is_empty()
+    }
+}
+
+impl RequiredFieldValue for str {
+    fn is_blank(&self) -> bool {
+        self.trim().is_empty()
+    }
+}
+
+impl<T: RequiredFieldValue + ?Sized> RequiredFieldValue for &T {
+    fn is_blank(&self) -> bool {
+        (*self).is_blank()
     }
 }
 
@@ -519,8 +555,8 @@ mod tests {
             ],
             rows: vec![gtfs_guru_model::Agency {
                 agency_name: "".into(), // Empty
-                agency_url: "https://example.com".into(),
-                agency_timezone: "UTC".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
                 ..Default::default()
             }],
             row_numbers: vec![1],
@@ -546,8 +582,8 @@ mod tests {
             ],
             rows: vec![gtfs_guru_model::Agency {
                 agency_name: "Test".into(),
-                agency_url: "https://example.com".into(),
-                agency_timezone: "UTC".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
                 ..Default::default()
             }],
             row_numbers: vec![1],

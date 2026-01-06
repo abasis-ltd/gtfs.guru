@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
@@ -23,23 +23,22 @@ impl Validator for ShapeUsageValidator {
             use std::collections::HashMap;
 
             // 1. Collect used shapes
-            let used_shapes: HashSet<&str> = feed
+            let used_shapes: HashSet<gtfs_guru_model::StringId> = feed
                 .trips
                 .rows
                 .par_iter()
-                .filter_map(|trip| trip.shape_id.as_deref())
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty())
+                .filter_map(|trip| trip.shape_id)
+                .filter(|value| value.0 != 0)
                 .collect();
 
             // 2. Map-Reduce to find first row for each shape
-            let shapes_map: HashMap<&str, u64> = shapes
+            let shapes_map: HashMap<gtfs_guru_model::StringId, u64> = shapes
                 .rows
                 .par_iter()
                 .enumerate()
-                .fold(HashMap::<&str, u64>::new, |mut acc, (index, shape)| {
-                    let shape_id = shape.shape_id.trim();
-                    if !shape_id.is_empty() {
+                .fold(HashMap::<gtfs_guru_model::StringId, u64>::new, |mut acc, (index, shape)| {
+                    let shape_id = shape.shape_id;
+                    if shape_id.0 != 0 {
                         let row = shapes.row_number(index);
                         acc.entry(shape_id)
                             .and_modify(|r| *r = (*r).min(row))
@@ -47,7 +46,7 @@ impl Validator for ShapeUsageValidator {
                     }
                     acc
                 })
-                .reduce(HashMap::<&str, u64>::new, |mut a, b| {
+                .reduce(HashMap::<gtfs_guru_model::StringId, u64>::new, |mut a, b| {
                     for (k, v) in b {
                         a.entry(k).and_modify(|r| *r = (*r).min(v)).or_insert(v);
                     }
@@ -59,12 +58,13 @@ impl Validator for ShapeUsageValidator {
                 .into_par_iter()
                 .filter(|(shape_id, _)| !used_shapes.contains(shape_id))
                 .map(|(shape_id, row_number)| {
+                    let shape_id_value = feed.pool.resolve(shape_id);
                     let mut notice = ValidationNotice::new(
                         CODE_UNUSED_SHAPE,
                         NoticeSeverity::Warning,
                         "shape is not referenced in trips",
                     );
-                    notice.insert_context_field("shapeId", shape_id);
+                    notice.insert_context_field("shapeId", shape_id_value.as_str());
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.field_order = vec!["csvRowNumber".into(), "shapeId".into()];
                     notice
@@ -78,29 +78,29 @@ impl Validator for ShapeUsageValidator {
 
         #[cfg(not(feature = "parallel"))]
         {
-            let used_shapes: HashSet<&str> = feed
+            let used_shapes: HashSet<gtfs_guru_model::StringId> = feed
                 .trips
                 .rows
                 .iter()
-                .filter_map(|trip| trip.shape_id.as_deref())
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty())
+                .filter_map(|trip| trip.shape_id)
+                .filter(|value| value.0 != 0)
                 .collect();
 
-            let mut reported: HashSet<&str> = HashSet::new();
+            let mut reported: HashSet<gtfs_guru_model::StringId> = HashSet::new();
             for (index, shape) in shapes.rows.iter().enumerate() {
                 let row_number = shapes.row_number(index);
-                let shape_id = shape.shape_id.trim();
-                if shape_id.is_empty() {
+                let shape_id = shape.shape_id;
+                if shape_id.0 == 0 {
                     continue;
                 }
-                if reported.insert(shape_id) && !used_shapes.contains(shape_id) {
+                if reported.insert(shape_id) && !used_shapes.contains(&shape_id) {
+                    let shape_id_value = feed.pool.resolve(shape_id);
                     let mut notice = ValidationNotice::new(
                         CODE_UNUSED_SHAPE,
                         NoticeSeverity::Warning,
                         "shape is not referenced in trips",
                     );
-                    notice.insert_context_field("shapeId", shape_id);
+                    notice.insert_context_field("shapeId", shape_id_value.as_str());
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.field_order = vec!["csvRowNumber".into(), "shapeId".into()];
                     notices.push(notice);
@@ -122,7 +122,7 @@ mod tests {
         feed.shapes = Some(CsvTable {
             headers: vec!["shape_id".into()],
             rows: vec![Shape {
-                shape_id: "SH1".into(),
+                shape_id: feed.pool.intern("SH1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -130,7 +130,7 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 shape_id: None,
                 ..Default::default()
             }],
@@ -149,7 +149,7 @@ mod tests {
         feed.shapes = Some(CsvTable {
             headers: vec!["shape_id".into()],
             rows: vec![Shape {
-                shape_id: "SH1".into(),
+                shape_id: feed.pool.intern("SH1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -157,8 +157,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "shape_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                shape_id: Some("SH1".into()),
+                trip_id: feed.pool.intern("T1"),
+                shape_id: Some(feed.pool.intern("SH1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

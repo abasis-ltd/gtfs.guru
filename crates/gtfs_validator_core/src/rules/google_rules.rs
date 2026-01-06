@@ -2,7 +2,6 @@ use crate::{
     google_rules_enabled, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
 };
 use chrono::Datelike;
-use compact_str::CompactString;
 use gtfs_guru_model::TransferType;
 
 const MAX_ROUTE_SHORT_NAME_LENGTH: usize = 6;
@@ -218,7 +217,7 @@ impl Validator for GoogleServiceGapValidator {
         }
 
         let mut active_services: std::collections::HashMap<
-            CompactString,
+            gtfs_guru_model::StringId,
             std::collections::HashSet<chrono::NaiveDate>,
         > = std::collections::HashMap::new();
 
@@ -245,7 +244,7 @@ impl Validator for GoogleServiceGapValidator {
                         }
                         current = current.succ_opt().unwrap_or(end); // Should not wrap around
                     }
-                    active_services.insert(row.service_id.clone(), dates);
+                    active_services.insert(row.service_id, dates);
                 }
             }
         }
@@ -259,7 +258,7 @@ impl Validator for GoogleServiceGapValidator {
                 ) {
                     if row.exception_type == gtfs_guru_model::ExceptionType::Added {
                         active_services
-                            .entry(row.service_id.clone())
+                            .entry(row.service_id)
                             .or_default()
                             .insert(date);
                     } else if row.exception_type == gtfs_guru_model::ExceptionType::Removed {
@@ -340,9 +339,9 @@ impl Validator for DuplicateTripValidator {
 
         // Group stop times by trip_id
         let mut stop_times_by_trip: std::collections::HashMap<
-            &str,
+            gtfs_guru_model::StringId,
             Vec<(
-                &str,
+                gtfs_guru_model::StringId,
                 u32,
                 Option<gtfs_guru_model::GtfsTime>,
                 Option<gtfs_guru_model::GtfsTime>,
@@ -350,10 +349,10 @@ impl Validator for DuplicateTripValidator {
         > = std::collections::HashMap::new();
         for stop_time in &feed.stop_times.rows {
             stop_times_by_trip
-                .entry(&stop_time.trip_id)
+                .entry(stop_time.trip_id)
                 .or_default()
                 .push((
-                    &stop_time.stop_id,
+                    stop_time.stop_id,
                     stop_time.stop_sequence,
                     stop_time.arrival_time,
                     stop_time.departure_time,
@@ -361,14 +360,16 @@ impl Validator for DuplicateTripValidator {
         }
 
         // Create signatures
-        let mut trips_by_signature: std::collections::HashMap<u64, Vec<&str>> =
-            std::collections::HashMap::new();
+        let mut trips_by_signature: std::collections::HashMap<
+            u64,
+            Vec<gtfs_guru_model::StringId>,
+        > = std::collections::HashMap::new();
 
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
         for trip in &feed.trips.rows {
-            let trip_id = &trip.trip_id;
+            let trip_id = trip.trip_id;
             let mut hasher = DefaultHasher::new();
 
             // Hash trip non-unique fields
@@ -379,7 +380,7 @@ impl Validator for DuplicateTripValidator {
             trip.shape_id.hash(&mut hasher);
 
             // Hash stop times
-            if let Some(stop_times) = stop_times_by_trip.get(trip_id.as_str()) {
+            if let Some(stop_times) = stop_times_by_trip.get(&trip_id) {
                 for (stop_id, stop_seq, arr, dep) in stop_times {
                     stop_id.hash(&mut hasher);
                     stop_seq.hash(&mut hasher);
@@ -410,7 +411,7 @@ impl Validator for DuplicateTripValidator {
                 let example_trips = trip_ids
                     .iter()
                     .take(5)
-                    .map(|s| s.to_string())
+                    .map(|id| feed.pool.resolve(*id))
                     .collect::<Vec<_>>()
                     .join(", ");
                 notice.insert_context_field("exampleTripIds", example_trips);
@@ -436,7 +437,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.calendar = Some(CsvTable {
             rows: vec![gtfs_guru_model::Calendar {
-                service_id: "WD".into(),
+                service_id: feed.pool.intern("WD"),
                 monday: gtfs_guru_model::ServiceAvailability::Available,
                 tuesday: gtfs_guru_model::ServiceAvailability::Available,
                 wednesday: gtfs_guru_model::ServiceAvailability::Available,
@@ -455,7 +456,7 @@ mod tests {
         let mut dates = vec![];
         for d in 2..=14 {
             dates.push(gtfs_guru_model::CalendarDate {
-                service_id: "WD".into(),
+                service_id: feed.pool.intern("WD"),
                 date: GtfsDate::parse(&format!("202401{:02}", d)).unwrap(),
                 exception_type: gtfs_guru_model::ExceptionType::Removed,
             });
@@ -482,15 +483,15 @@ mod tests {
         feed.trips = CsvTable {
             rows: vec![
                 gtfs_guru_model::Trip {
-                    trip_id: "T1".into(),
-                    route_id: "R1".into(),
-                    service_id: "S1".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    route_id: feed.pool.intern("R1"),
+                    service_id: feed.pool.intern("S1"),
                     ..Default::default()
                 },
                 gtfs_guru_model::Trip {
-                    trip_id: "T2".into(),
-                    route_id: "R1".into(),
-                    service_id: "S1".into(),
+                    trip_id: feed.pool.intern("T2"),
+                    route_id: feed.pool.intern("R1"),
+                    service_id: feed.pool.intern("S1"),
                     ..Default::default()
                 },
             ],
@@ -511,8 +512,8 @@ mod tests {
         feed.agency = CsvTable {
             rows: vec![gtfs_guru_model::Agency {
                 agency_name: "A".into(),
-                agency_url: "u".into(),
-                agency_timezone: "z".into(),
+                agency_url: feed.pool.intern("u"),
+                agency_timezone: feed.pool.intern("z"),
                 agency_phone: Some("123".into()), // Invalid (less than 5 digits)
                 ..Default::default()
             }],
@@ -533,14 +534,14 @@ mod tests {
         feed.transfers = Some(CsvTable {
             rows: vec![
                 gtfs_guru_model::Transfer {
-                    from_stop_id: Some("S1".into()),
-                    to_stop_id: Some("S2".into()),
+                    from_stop_id: Some(feed.pool.intern("S1")),
+                    to_stop_id: Some(feed.pool.intern("S2")),
                     transfer_type: Some(gtfs_guru_model::TransferType::InSeat), // Invalid for Google
                     ..Default::default()
                 },
                 gtfs_guru_model::Transfer {
-                    from_stop_id: Some("S3".into()),
-                    to_stop_id: Some("S4".into()),
+                    from_stop_id: Some(feed.pool.intern("S3")),
+                    to_stop_id: Some(feed.pool.intern("S4")),
                     transfer_type: Some(gtfs_guru_model::TransferType::Recommended), // 0 - Valid
                     ..Default::default()
                 },
@@ -564,7 +565,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             rows: vec![gtfs_guru_model::Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_short_name: Some("CrazyLongName".into()), // Too long (>6 chars)
                 ..Default::default()
             }],

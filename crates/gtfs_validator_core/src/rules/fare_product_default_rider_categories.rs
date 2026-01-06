@@ -21,7 +21,7 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
             return;
         };
 
-        let default_categories: Vec<(&str, u64)> = rider_categories
+        let default_categories: Vec<(gtfs_guru_model::StringId, u64)> = rider_categories
             .rows
             .iter()
             .enumerate()
@@ -33,11 +33,11 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
             })
             .map(|(index, category)| {
                 (
-                    category.rider_category_id.trim(),
+                    category.rider_category_id,
                     rider_categories.row_number(index),
                 )
             })
-            .filter(|(id, _)| !id.is_empty())
+            .filter(|(id, _)| id.0 != 0)
             .collect();
 
         if default_categories.len() > 1 {
@@ -55,15 +55,22 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
                 .fare_products
                 .as_ref()
                 .and_then(|fp| fp.rows.first())
-                .map(|fp| fp.fare_product_id.as_str())
+                .map(|fp| fp.fare_product_id)
+                .filter(|id| id.0 != 0);
+            let fare_product_id_value = fare_product_id.map(|id| feed.pool.resolve(id));
+            let fare_product_id_value = fare_product_id_value
+                .as_ref()
+                .map(|value| value.as_str())
                 .unwrap_or("");
+            let id1_value = feed.pool.resolve(id1);
+            let id2_value = feed.pool.resolve(id2);
 
             notices.push(multiple_default_categories_notice(
                 row1,
                 row2,
-                fare_product_id,
-                id1,
-                id2,
+                fare_product_id_value,
+                id1_value.as_str(),
+                id2_value.as_str(),
             ));
         }
 
@@ -71,26 +78,26 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
             return;
         }
 
-        let default_ids: HashSet<&str> = default_categories.into_iter().map(|(id, _)| id).collect();
+        let default_ids: HashSet<gtfs_guru_model::StringId> =
+            default_categories.into_iter().map(|(id, _)| id).collect();
 
-        let mut seen_default: HashMap<&str, Vec<(&str, u64)>> = HashMap::new();
-        let mut flagged: HashSet<&str> = HashSet::new();
+        let mut seen_default: HashMap<
+            gtfs_guru_model::StringId,
+            Vec<(gtfs_guru_model::StringId, u64)>,
+        > = HashMap::new();
+        let mut flagged: HashSet<gtfs_guru_model::StringId> = HashSet::new();
 
         for (index, fare_product) in fare_products.rows.iter().enumerate() {
             let row_number = fare_products.row_number(index);
-            let fare_product_id = fare_product.fare_product_id.trim();
-            if fare_product_id.is_empty() {
+            let fare_product_id = fare_product.fare_product_id;
+            if fare_product_id.0 == 0 {
                 continue;
             }
-            let Some(rider_category_id) = fare_product
-                .rider_category_id
-                .as_deref()
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty())
+            let Some(rider_category_id) = fare_product.rider_category_id.filter(|id| id.0 != 0)
             else {
                 continue;
             };
-            if !default_ids.contains(rider_category_id) {
+            if !default_ids.contains(&rider_category_id) {
                 continue;
             }
 
@@ -105,12 +112,15 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
             if entry.len() == 2 && flagged.insert(fare_product_id) {
                 let (rider_category_id1, row_number1) = entry[0];
                 let (rider_category_id2, row_number2) = entry[1];
+                let fare_product_id_value = feed.pool.resolve(fare_product_id);
+                let rider_category_id1_value = feed.pool.resolve(rider_category_id1);
+                let rider_category_id2_value = feed.pool.resolve(rider_category_id2);
                 notices.push(multiple_default_categories_notice(
                     row_number1,
                     row_number2,
-                    fare_product_id,
-                    rider_category_id1,
-                    rider_category_id2,
+                    fare_product_id_value.as_str(),
+                    rider_category_id1_value.as_str(),
+                    rider_category_id2_value.as_str(),
                 ));
             }
         }
@@ -160,12 +170,12 @@ mod tests {
             ],
             rows: vec![
                 RiderCategory {
-                    rider_category_id: "C1".into(),
+                    rider_category_id: feed.pool.intern("C1"),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
                 RiderCategory {
-                    rider_category_id: "C2".into(),
+                    rider_category_id: feed.pool.intern("C2"),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
@@ -175,7 +185,7 @@ mod tests {
         feed.fare_products = Some(CsvTable {
             headers: vec!["fare_product_id".into()],
             rows: vec![FareProduct {
-                fare_product_id: "P1".into(),
+                fare_product_id: feed.pool.intern("P1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -201,12 +211,12 @@ mod tests {
             ],
             rows: vec![
                 RiderCategory {
-                    rider_category_id: "C1".into(),
+                    rider_category_id: feed.pool.intern("C1"),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
                 RiderCategory {
-                    rider_category_id: "C2".into(),
+                    rider_category_id: feed.pool.intern("C2"),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
@@ -220,13 +230,13 @@ mod tests {
             ],
             rows: vec![
                 FareProduct {
-                    fare_product_id: "P1".into(),
-                    rider_category_id: Some("C1".into()),
+                    fare_product_id: feed.pool.intern("P1"),
+                    rider_category_id: Some(feed.pool.intern("C1")),
                     ..Default::default()
                 },
                 FareProduct {
-                    fare_product_id: "P1".into(),
-                    rider_category_id: Some("C2".into()),
+                    fare_product_id: feed.pool.intern("P1"),
+                    rider_category_id: Some(feed.pool.intern("C2")),
                     ..Default::default()
                 },
             ],
@@ -254,12 +264,12 @@ mod tests {
             ],
             rows: vec![
                 RiderCategory {
-                    rider_category_id: "C1".into(),
+                    rider_category_id: feed.pool.intern("C1"),
                     is_default_fare_category: Some(RiderFareCategory::IsDefault),
                     ..Default::default()
                 },
                 RiderCategory {
-                    rider_category_id: "C2".into(),
+                    rider_category_id: feed.pool.intern("C2"),
                     is_default_fare_category: Some(RiderFareCategory::NotDefault),
                     ..Default::default()
                 },
@@ -273,13 +283,13 @@ mod tests {
             ],
             rows: vec![
                 FareProduct {
-                    fare_product_id: "P1".into(),
-                    rider_category_id: Some("C1".into()),
+                    fare_product_id: feed.pool.intern("P1"),
+                    rider_category_id: Some(feed.pool.intern("C1")),
                     ..Default::default()
                 },
                 FareProduct {
-                    fare_product_id: "P1".into(),
-                    rider_category_id: Some("C2".into()),
+                    fare_product_id: feed.pool.intern("P1"),
+                    rider_category_id: Some(feed.pool.intern("C2")),
                     ..Default::default()
                 },
             ],

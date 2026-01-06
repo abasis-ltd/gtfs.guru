@@ -17,10 +17,10 @@ impl Validator for SingleShapePointValidator {
             return;
         };
 
-        let mut counts: HashMap<&str, (usize, u64)> = HashMap::new();
+        let mut counts: HashMap<gtfs_guru_model::StringId, (usize, u64)> = HashMap::new();
         for (index, shape) in shapes.rows.iter().enumerate() {
-            let shape_id = shape.shape_id.trim();
-            if shape_id.is_empty() {
+            let shape_id = shape.shape_id;
+            if shape_id.0 == 0 {
                 continue;
             }
             let entry = counts
@@ -31,13 +31,14 @@ impl Validator for SingleShapePointValidator {
 
         for (shape_id, (count, row_number)) in counts {
             if count == 1 {
+                let shape_id_value = feed.pool.resolve(shape_id);
                 let mut notice = ValidationNotice::new(
                     CODE_SINGLE_SHAPE_POINT,
                     NoticeSeverity::Warning,
                     "shape has a single point",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("shapeId", shape_id);
+                notice.insert_context_field("shapeId", shape_id_value.as_str());
                 notice.field_order = vec!["csvRowNumber".into(), "shapeId".into()];
                 notices.push(notice);
             }
@@ -57,7 +58,7 @@ mod tests {
         feed.shapes = Some(CsvTable {
             headers: vec!["shape_id".into()],
             rows: vec![Shape {
-                shape_id: "SH1".into(),
+                shape_id: feed.pool.intern("SH1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -76,11 +77,11 @@ mod tests {
             headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "SH1".into(),
+                    shape_id: feed.pool.intern("SH1"),
                     ..Default::default()
                 },
                 Shape {
-                    shape_id: "SH1".into(),
+                    shape_id: feed.pool.intern("SH1"),
                     ..Default::default()
                 },
             ],

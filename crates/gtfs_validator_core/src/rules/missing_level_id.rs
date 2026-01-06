@@ -21,14 +21,14 @@ impl Validator for MissingLevelIdValidator {
             return;
         }
 
-        let mut pathway_stop_ids: HashSet<&str> = HashSet::new();
+        let mut pathway_stop_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         for pathway in &pathways.rows {
-            let from_id = pathway.from_stop_id.trim();
-            if !from_id.is_empty() {
+            let from_id = pathway.from_stop_id;
+            if from_id.0 != 0 {
                 pathway_stop_ids.insert(from_id);
             }
-            let to_id = pathway.to_stop_id.trim();
-            if !to_id.is_empty() {
+            let to_id = pathway.to_stop_id;
+            if to_id.0 != 0 {
                 pathway_stop_ids.insert(to_id);
             }
         }
@@ -37,38 +37,37 @@ impl Validator for MissingLevelIdValidator {
             return;
         }
 
-        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
-        let mut rows_by_id: HashMap<&str, u64> = HashMap::new();
+        let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
+            HashMap::new();
+        let mut rows_by_id: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
         for (index, stop) in feed.stops.rows.iter().enumerate() {
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             stops_by_id.insert(stop_id, stop);
             rows_by_id.insert(stop_id, feed.stops.row_number(index));
         }
 
-        let mut sorted_stop_ids: Vec<&str> = pathway_stop_ids.into_iter().collect();
+        let mut sorted_stop_ids: Vec<gtfs_guru_model::StringId> =
+            pathway_stop_ids.into_iter().collect();
         sorted_stop_ids.sort();
 
         for stop_id in sorted_stop_ids {
-            let Some(stop) = stops_by_id.get(stop_id) else {
+            let Some(stop) = stops_by_id.get(&stop_id) else {
                 continue;
             };
-            let has_level_id = stop
-                .level_id
-                .as_deref()
-                .map(|value| !value.trim().is_empty())
-                .unwrap_or(false);
+            let has_level_id = stop.level_id.map(|id| id.0 != 0).unwrap_or(false);
             if !has_level_id {
-                let row_number = rows_by_id.get(stop_id).copied().unwrap_or(2);
+                let row_number = rows_by_id.get(&stop_id).copied().unwrap_or(2);
+                let stop_id_value = feed.pool.resolve(stop_id);
                 let mut notice = ValidationNotice::new(
                     CODE_MISSING_LEVEL_ID,
                     NoticeSeverity::Error,
                     "stops.level_id is required when levels.txt is present and stop is part of a pathway",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("stopId", stop_id);
+                notice.insert_context_field("stopId", stop_id_value.as_str());
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                 notice.field_order = vec![
                     "csvRowNumber".into(),
@@ -93,7 +92,7 @@ mod tests {
         feed.levels = Some(CsvTable {
             headers: vec!["level_id".into()],
             rows: vec![Level {
-                level_id: "L1".into(),
+                level_id: feed.pool.intern("L1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -105,9 +104,9 @@ mod tests {
                 "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
-                from_stop_id: "S1".into(),
-                to_stop_id: "S2".into(),
+                pathway_id: feed.pool.intern("P1"),
+                from_stop_id: feed.pool.intern("S1"),
+                to_stop_id: feed.pool.intern("S2"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -116,13 +115,13 @@ mod tests {
             headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     level_id: None,
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
-                    level_id: Some("L1".into()),
+                    stop_id: feed.pool.intern("S2"),
+                    level_id: Some(feed.pool.intern("L1")),
                     ..Default::default()
                 },
             ],
@@ -147,7 +146,7 @@ mod tests {
         feed.pathways = Some(CsvTable {
             headers: vec!["from_stop_id".into()],
             rows: vec![Pathway {
-                from_stop_id: "S1".into(),
+                from_stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -155,7 +154,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 level_id: None,
                 ..Default::default()
             }],
@@ -179,7 +178,7 @@ mod tests {
         feed.pathways = Some(CsvTable {
             headers: vec!["from_stop_id".into()],
             rows: vec![Pathway {
-                from_stop_id: "S1".into(),
+                from_stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -187,7 +186,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S2".into(),
+                stop_id: feed.pool.intern("S2"),
                 level_id: None,
                 ..Default::default()
             }],

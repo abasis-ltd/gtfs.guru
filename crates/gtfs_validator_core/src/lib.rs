@@ -28,12 +28,14 @@ pub mod notice;
 pub mod notice_schema;
 pub mod progress;
 pub mod rules;
+pub mod string_pool;
 mod validation_context;
 pub mod validator;
 
 pub use csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
 pub use engine::{validate_bytes, validate_bytes_reader, validate_input, ValidationOutcome};
 pub use feed::GtfsFeed;
+pub use string_pool::StringPool;
 pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,
     GtfsInputSource,

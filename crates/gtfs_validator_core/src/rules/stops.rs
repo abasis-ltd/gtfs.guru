@@ -31,7 +31,7 @@ impl Validator for StopsValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice
                     .insert_context_field("locationType", location_type_label(stop.location_type));
-                notice.insert_context_field("stopId", stop.stop_id.as_str());
+                notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "locationType".into(),
@@ -49,7 +49,7 @@ impl Validator for StopsValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice
                     .insert_context_field("locationType", location_type_label(stop.location_type));
-                notice.insert_context_field("stopId", stop.stop_id.as_str());
+                notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "locationType".into(),
@@ -66,7 +66,7 @@ impl Validator for StopsValidator {
                         "stop_desc should not duplicate stop_name",
                     );
                     notice.insert_context_field("csvRowNumber", row_number);
-                    notice.insert_context_field("stopId", stop.stop_id.as_str());
+                    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                     notice.insert_context_field("stopDesc", desc.as_str());
                     notice.field_order = vec![
                         "csvRowNumber".into(),
@@ -115,7 +115,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 stop_name: None,
                 stop_lat: Some(40.0),
                 stop_lon: Some(-74.0),
@@ -138,7 +138,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 stop_name: Some("Main St".into()),
                 stop_lat: None,
                 stop_lon: None,
@@ -164,7 +164,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 stop_name: Some("Main St".into()),
                 stop_desc: Some("Main St".into()),
                 stop_lat: Some(40.0),
@@ -190,7 +190,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 stop_name: Some("Main St".into()),
                 stop_lat: Some(40.0),
                 stop_lon: Some(-74.0),
@@ -211,7 +211,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 stop_name: None,
                 stop_lat: None,
                 stop_lon: None,

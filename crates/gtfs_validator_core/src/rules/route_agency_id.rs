@@ -1,5 +1,6 @@
 use crate::feed::ROUTES_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_guru_model::StringId;
 
 const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
 const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
@@ -20,7 +21,7 @@ impl Validator for RouteAgencyIdValidator {
 
         for (index, route) in feed.routes.rows.iter().enumerate() {
             let row_number = feed.routes.row_number(index);
-            if !has_value(route.agency_id.as_deref()) {
+            if !has_value(route.agency_id) {
                 let (code, severity, message) = if total_agencies > 1 {
                     (
                         CODE_MISSING_REQUIRED_FIELD,
@@ -49,8 +50,8 @@ impl Validator for RouteAgencyIdValidator {
     }
 }
 
-fn has_value(value: Option<&str>) -> bool {
-    value.map(|val| !val.trim().is_empty()).unwrap_or(false)
+fn has_value(value: Option<StringId>) -> bool {
+    matches!(value, Some(id) if id.0 != 0)
 }
 
 #[cfg(test)]
@@ -66,11 +67,11 @@ mod tests {
             headers: vec!["agency_id".into()],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".into()),
+                    agency_id: Some(feed.pool.intern("A1")),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".into()),
+                    agency_id: Some(feed.pool.intern("A2")),
                     ..Default::default()
                 },
             ],
@@ -79,7 +80,7 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -100,7 +101,7 @@ mod tests {
         feed.agency = CsvTable {
             headers: vec!["agency_id".into()],
             rows: vec![Agency {
-                agency_id: Some("A1".into()),
+                agency_id: Some(feed.pool.intern("A1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -108,7 +109,7 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -130,11 +131,11 @@ mod tests {
             headers: vec!["agency_id".into()],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".into()),
+                    agency_id: Some(feed.pool.intern("A1")),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".into()),
+                    agency_id: Some(feed.pool.intern("A2")),
                     ..Default::default()
                 },
             ],
@@ -143,8 +144,8 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "agency_id".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
-                agency_id: Some("A1".into()),
+                route_id: feed.pool.intern("R1"),
+                agency_id: Some(feed.pool.intern("A1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

@@ -1,5 +1,6 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::PickupDropOffType;
+use gtfs_guru_model::StringId;
 
 const CODE_MISSING_BOOKING_RULE_ID: &str = "missing_pickup_drop_off_booking_rule_id";
 
@@ -44,7 +45,7 @@ impl Validator for PickupBookingRuleIdValidator {
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             if stop_time.start_pickup_drop_off_window.is_some()
-                && !has_value(stop_time.pickup_booking_rule_id.as_deref())
+                && !has_value(stop_time.pickup_booking_rule_id)
             {
                 notices.push(missing_booking_rule_notice(
                     stop_time,
@@ -54,7 +55,7 @@ impl Validator for PickupBookingRuleIdValidator {
             }
 
             if stop_time.end_pickup_drop_off_window.is_some()
-                && !has_value(stop_time.drop_off_booking_rule_id.as_deref())
+                && !has_value(stop_time.drop_off_booking_rule_id)
             {
                 notices.push(missing_booking_rule_notice(
                     stop_time,
@@ -66,8 +67,8 @@ impl Validator for PickupBookingRuleIdValidator {
     }
 }
 
-fn has_value(value: Option<&str>) -> bool {
-    value.map(|val| !val.trim().is_empty()).unwrap_or(false)
+fn has_value(value: Option<StringId>) -> bool {
+    matches!(value, Some(id) if id.0 != 0)
 }
 
 fn missing_booking_rule_notice(
@@ -122,7 +123,7 @@ mod tests {
                 "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_booking_rule_id: None,
@@ -150,7 +151,7 @@ mod tests {
                 "end_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 end_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 drop_off_booking_rule_id: None,
@@ -179,10 +180,10 @@ mod tests {
                 "pickup_booking_rule_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
-                pickup_booking_rule_id: Some("B1".into()),
+                pickup_booking_rule_id: Some(feed.pool.intern("B1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

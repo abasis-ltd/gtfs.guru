@@ -1,5 +1,4 @@
 use chrono::NaiveDate;
-use compact_str::CompactString;
 use gtfs_guru_model::{
     Agency, Area, Attribution, BookingRules, Calendar, CalendarDate, FareAttribute,
     FareLegJoinRule, FareLegRule, FareMedia, FareProduct, FareRule, FareTransferRule, FeedInfo,
@@ -115,7 +114,8 @@ pub struct GtfsFeed {
     pub levels: Option<CsvTable<Level>>,
     pub pathways: Option<CsvTable<Pathway>>,
     pub translations: Option<CsvTable<Translation>>,
-    pub stop_times_by_trip: HashMap<CompactString, Vec<usize>>,
+    pub stop_times_by_trip: HashMap<gtfs_guru_model::StringId, Vec<usize>>,
+    pub pool: crate::StringPool,
 }
 
 impl GtfsFeed {
@@ -182,6 +182,13 @@ impl GtfsFeed {
             p.set_total_files(GTFS_FILE_NAMES.len());
         }
 
+        let pool = crate::StringPool::new();
+        let pool_for_intern = pool.clone();
+        let pool_for_resolve = pool.clone();
+
+        gtfs_guru_model::set_thread_local_interner(move |s| pool_for_intern.intern(s));
+        gtfs_guru_model::set_thread_local_resolver(move |id| pool_for_resolve.resolve(id));
+
         macro_rules! load_file {
             ($file:expr, $notices:expr) => {{
                 if let Some(p) = progress {
@@ -241,7 +248,7 @@ impl GtfsFeed {
         }
         let locations =
             match reader.read_optional_json::<GeoJsonFeatureCollection>(LOCATIONS_GEOJSON_FILE) {
-                Ok(data) => data.map(LocationsGeoJson::from),
+                Ok(data) => data.map(|c| LocationsGeoJson::new(c, &pool)),
                 Err(GtfsInputError::Json { file, source }) if file == LOCATIONS_GEOJSON_FILE => {
                     Some(LocationsGeoJson::malformed_json(source.to_string()))
                 }
@@ -296,6 +303,7 @@ impl GtfsFeed {
             pathways,
             translations,
             stop_times_by_trip,
+            pool,
         })
     }
 
@@ -322,6 +330,7 @@ impl GtfsFeed {
             google: bool,
             country: Option<String>,
             date: NaiveDate,
+            pool: crate::StringPool,
         }
 
         impl<'a> ParallelLoader<'a> {
@@ -336,6 +345,11 @@ impl GtfsFeed {
                     crate::validation_context::set_validation_country_code(self.country.clone());
                 let _g4 = crate::validation_context::set_validation_date(Some(self.date));
 
+                let pool_for_intern = self.pool.clone();
+                let pool_for_resolve = self.pool.clone();
+                gtfs_guru_model::set_thread_local_interner(move |s| pool_for_intern.intern(s));
+                gtfs_guru_model::set_thread_local_resolver(move |id| pool_for_resolve.resolve(id));
+
                 if let Some(p) = self.progress {
                     p.on_start_file_load(filename);
                 }
@@ -344,6 +358,8 @@ impl GtfsFeed {
                 let result = self
                     .reader
                     .read_optional_csv_with_notices(filename, &mut local_notices);
+
+                gtfs_guru_model::clear_thread_local_hooks();
 
                 if let Some(p) = self.progress {
                     p.on_finish_file_load(filename);
@@ -360,6 +376,7 @@ impl GtfsFeed {
             google,
             country,
             date,
+            pool: crate::StringPool::new(),
         };
 
         // Parallelize loading:
@@ -514,7 +531,6 @@ impl GtfsFeed {
                                                             loader.load(LOCATION_GROUPS_FILE);
                                                         let (location_group_stops, n3) =
                                                             loader.load(LOCATION_GROUP_STOPS_FILE);
-
                                                         if let Some(p) = loader.progress {
                                                             p.on_start_file_load(
                                                                 LOCATIONS_GEOJSON_FILE,
@@ -524,7 +540,7 @@ impl GtfsFeed {
                                                             .read_optional_json::<GeoJsonFeatureCollection>(
                                                                 LOCATIONS_GEOJSON_FILE,
                                                             ) {
-                                                            Ok(data) => (Ok(data.map(LocationsGeoJson::from)), NoticeContainer::new()),
+                                                            Ok(data) => (Ok(data.map(|d| LocationsGeoJson::new(d, &loader.pool))), NoticeContainer::new()),
                                                             Err(GtfsInputError::Json { file, source })
                                                                 if file == LOCATIONS_GEOJSON_FILE =>
                                                             {
@@ -722,6 +738,7 @@ impl GtfsFeed {
         let levels = levels?;
         let pathways = pathways?;
         let translations = translations?;
+        let pool = loader.pool;
 
         Ok(Self {
             agency,
@@ -757,17 +774,18 @@ impl GtfsFeed {
             pathways,
             translations,
             stop_times_by_trip: index,
+            pool,
         })
     }
 
     fn build_stop_times_index(
         stop_times: &CsvTable<StopTime>,
-    ) -> HashMap<CompactString, Vec<usize>> {
-        let mut index: HashMap<CompactString, Vec<usize>> = HashMap::new();
+    ) -> HashMap<gtfs_guru_model::StringId, Vec<usize>> {
+        let mut index: HashMap<gtfs_guru_model::StringId, Vec<usize>> = HashMap::new();
         for (i, st) in stop_times.rows.iter().enumerate() {
-            let trip_id = st.trip_id.trim();
-            if !trip_id.is_empty() {
-                index.entry(trip_id.into()).or_default().push(i);
+            let trip_id = st.trip_id;
+            if trip_id.0 != 0 {
+                index.entry(trip_id).or_default().push(i);
             }
         }
         // Sort each trip's stop_times by stop_sequence
@@ -800,6 +818,13 @@ impl GtfsFeed {
         if let Some(p) = progress {
             p.set_total_files(GTFS_FILE_NAMES.len());
         }
+
+        let pool = crate::StringPool::new();
+        let pool_for_intern = pool.clone();
+        let pool_for_resolve = pool.clone();
+
+        gtfs_guru_model::set_thread_local_interner(move |s| pool_for_intern.intern(s));
+        gtfs_guru_model::set_thread_local_resolver(move |id| pool_for_resolve.resolve(id));
 
         macro_rules! load_file {
             ($file:expr, $notices:expr) => {{
@@ -869,7 +894,7 @@ impl GtfsFeed {
             reader.read_optional_csv_with_notices(LOCATION_GROUP_STOPS_FILE, notices)?;
         let locations =
             match reader.read_optional_json::<GeoJsonFeatureCollection>(LOCATIONS_GEOJSON_FILE) {
-                Ok(data) => data.map(LocationsGeoJson::from),
+                Ok(data) => data.map(|c| LocationsGeoJson::new(c, &pool)),
                 Err(GtfsInputError::Json { file, source }) if file == LOCATIONS_GEOJSON_FILE => {
                     Some(LocationsGeoJson::malformed_json(source.to_string()))
                 }
@@ -920,6 +945,7 @@ impl GtfsFeed {
             pathways,
             translations,
             stop_times_by_trip,
+            pool,
         })
     }
 }

@@ -25,10 +25,20 @@ impl Validator for TransferStopIdsConditionalValidator {
             if is_in_seat_transfer(transfer.transfer_type) {
                 continue;
             }
-            if is_blank(transfer.from_stop_id.as_deref()) {
+            if is_blank(
+                transfer
+                    .from_stop_id
+                    .map(|id| feed.pool.resolve(id))
+                    .as_deref(),
+            ) {
                 notices.push(missing_required_field_notice("from_stop_id", row_number));
             }
-            if is_blank(transfer.to_stop_id.as_deref()) {
+            if is_blank(
+                transfer
+                    .to_stop_id
+                    .map(|id| feed.pool.resolve(id))
+                    .as_deref(),
+            ) {
                 notices.push(missing_required_field_notice("to_stop_id", row_number));
             }
         }
@@ -133,8 +143,8 @@ mod tests {
                 "transfer_type".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
                 transfer_type: Some(TransferType::Recommended),
                 ..Default::default()
             }],

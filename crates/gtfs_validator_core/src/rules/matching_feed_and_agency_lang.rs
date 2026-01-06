@@ -1,4 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_guru_model::StringId;
 
 const CODE_FEED_INFO_LANG_AND_AGENCY_LANG_MISMATCH: &str =
     "feed_info_lang_and_agency_lang_mismatch";
@@ -19,7 +20,8 @@ impl Validator for MatchingFeedAndAgencyLangValidator {
             return;
         };
         let row_number = 2;
-        let feed_lang = info.feed_lang.trim();
+        let feed_lang_value = feed.pool.resolve(info.feed_lang);
+        let feed_lang = feed_lang_value.trim();
         if feed_lang.is_empty() {
             return;
         }
@@ -30,20 +32,23 @@ impl Validator for MatchingFeedAndAgencyLangValidator {
         }
 
         for agency in &feed.agency.rows {
-            let Some(agency_lang) = agency.agency_lang.as_deref() else {
+            let Some(agency_lang) = agency.agency_lang else {
                 continue;
             };
-            let agency_lang = agency_lang.trim();
+            let agency_lang_value = feed.pool.resolve(agency_lang);
+            let agency_lang = agency_lang_value.trim();
             if agency_lang.is_empty() {
                 continue;
             }
             if agency_lang.to_ascii_lowercase() != feed_lang_normalized {
+                let agency_id_value =
+                    feed.pool.resolve(agency.agency_id.unwrap_or(StringId(0)));
                 let mut notice = ValidationNotice::new(
                     CODE_FEED_INFO_LANG_AND_AGENCY_LANG_MISMATCH,
                     NoticeSeverity::Warning,
                     "agency_lang does not match feed_lang",
                 );
-                notice.insert_context_field("agencyId", agency.agency_id.as_deref().unwrap_or(""));
+                notice.insert_context_field("agencyId", agency_id_value.as_str());
                 notice.insert_context_field("agencyLang", agency_lang);
                 notice.insert_context_field("agencyName", agency.agency_name.as_str());
                 notice.insert_context_field("csvRowNumber", row_number);
@@ -73,8 +78,8 @@ mod tests {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::FeedInfo {
                 feed_publisher_name: "Publisher".into(),
-                feed_publisher_url: "https://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("https://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
@@ -83,7 +88,7 @@ mod tests {
             }],
             row_numbers: Vec::new(),
         });
-        feed.agency.rows[0].agency_lang = Some("fr".into());
+        feed.agency.rows[0].agency_lang = Some(feed.pool.intern("fr"));
 
         let mut notices = NoticeContainer::new();
         MatchingFeedAndAgencyLangValidator.validate(&feed, &mut notices);
@@ -105,8 +110,8 @@ mod tests {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::FeedInfo {
                 feed_publisher_name: "Publisher".into(),
-                feed_publisher_url: "https://example.com".into(),
-                feed_lang: "mul".into(),
+                feed_publisher_url: feed.pool.intern("https://example.com"),
+                feed_lang: feed.pool.intern("mul"),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
@@ -115,7 +120,7 @@ mod tests {
             }],
             row_numbers: Vec::new(),
         });
-        feed.agency.rows[0].agency_lang = Some("fr".into());
+        feed.agency.rows[0].agency_lang = Some(feed.pool.intern("fr"));
 
         let mut notices = NoticeContainer::new();
         MatchingFeedAndAgencyLangValidator.validate(&feed, &mut notices);
@@ -130,8 +135,8 @@ mod tests {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::FeedInfo {
                 feed_publisher_name: "Publisher".into(),
-                feed_publisher_url: "https://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("https://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
@@ -140,7 +145,7 @@ mod tests {
             }],
             row_numbers: Vec::new(),
         });
-        feed.agency.rows[0].agency_lang = Some("EN".into());
+        feed.agency.rows[0].agency_lang = Some(feed.pool.intern("EN"));
 
         let mut notices = NoticeContainer::new();
         MatchingFeedAndAgencyLangValidator.validate(&feed, &mut notices);
@@ -149,70 +154,26 @@ mod tests {
     }
 
     fn base_feed() -> GtfsFeed {
-        GtfsFeed {
-            agency: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Agency {
-                    agency_id: Some("A1".into()),
-                    agency_name: "Agency".into(),
-                    agency_url: "https://example.com".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: Vec::new(),
-            },
-            stops: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            routes: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            trips: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            stop_times: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            calendar: None,
-            calendar_dates: None,
-            fare_attributes: None,
-            fare_rules: None,
-            fare_media: None,
-            fare_products: None,
-            fare_leg_rules: None,
-            fare_transfer_rules: None,
-            fare_leg_join_rules: None,
-            areas: None,
-            stop_areas: None,
-            timeframes: None,
-            rider_categories: None,
-            shapes: None,
-            frequencies: None,
-            transfers: None,
-            location_groups: None,
-            location_group_stops: None,
-            locations: None,
-            booking_rules: None,
-            feed_info: None,
-            attributions: None,
-            levels: None,
-            pathways: None,
-            translations: None,
-            networks: None,
-            stop_times_by_trip: std::collections::HashMap::new(),
-            route_networks: None,
-        }
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Agency {
+                agency_id: Some(feed.pool.intern("A1")),
+                agency_name: "Agency".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed.stops = CsvTable::default();
+        feed.routes = CsvTable::default();
+        feed.trips = CsvTable::default();
+        feed.stop_times = CsvTable::default();
+        feed
     }
 
     fn context_str<'a>(notice: &'a ValidationNotice, key: &str) -> &'a str {

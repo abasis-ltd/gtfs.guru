@@ -17,11 +17,12 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
         let locations = feed.locations.as_ref();
 
         // Collect stops by trip (sequential grouping is fine as O(N))
-        let mut by_trip: HashMap<&str, Vec<(u64, &StopTime)>> = HashMap::new();
+        let mut by_trip: HashMap<gtfs_guru_model::StringId, Vec<(u64, &StopTime)>> =
+            HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = stop_time.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
             by_trip
@@ -39,7 +40,7 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
                 .par_iter()
                 .map(|(_, stop_times)| {
                     let _guards = ctx.apply();
-                    validate_trip(stop_times, locations)
+                    validate_trip(stop_times, locations, feed)
                 })
                 .collect()
         };
@@ -54,7 +55,7 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
         #[cfg(not(feature = "parallel"))]
         {
             for stop_times in by_trip.values() {
-                let result = validate_trip(stop_times, locations);
+                let result = validate_trip(stop_times, locations, feed);
                 notices.merge(result);
             }
         }
@@ -64,6 +65,7 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
 fn validate_trip(
     stop_times: &[(u64, &StopTime)],
     locations: Option<&crate::geojson::LocationsGeoJson>,
+    feed: &GtfsFeed,
 ) -> NoticeContainer {
     let mut notices = NoticeContainer::new();
     for i in 0..stop_times.len() {
@@ -92,26 +94,10 @@ fn validate_trip(
                 continue;
             }
 
-            let location_id_a = stop_time_a
-                .location_id
-                .as_deref()
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty());
-            let location_id_b = stop_time_b
-                .location_id
-                .as_deref()
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty());
-            let group_id_a = stop_time_a
-                .location_group_id
-                .as_deref()
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty());
-            let group_id_b = stop_time_b
-                .location_group_id
-                .as_deref()
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty());
+            let location_id_a = stop_time_a.location_id.filter(|id| id.0 != 0);
+            let location_id_b = stop_time_b.location_id.filter(|id| id.0 != 0);
+            let group_id_a = stop_time_a.location_group_id.filter(|id| id.0 != 0);
+            let group_id_b = stop_time_b.location_group_id.filter(|id| id.0 != 0);
 
             let mut overlap = false;
 
@@ -127,7 +113,7 @@ fn validate_trip(
             {
                 if loc_a != loc_b {
                     if let (Some(bounds_a), Some(bounds_b)) =
-                        (locs.bounds_by_id.get(loc_a), locs.bounds_by_id.get(loc_b))
+                        (locs.bounds_by_id.get(&loc_a), locs.bounds_by_id.get(&loc_b))
                     {
                         if bounds_a.overlaps(bounds_b) {
                             overlap = true;
@@ -137,6 +123,21 @@ fn validate_trip(
             }
 
             if overlap {
+                let location_id1_value = location_id_a
+                    .or(group_id_a)
+                    .map(|id| feed.pool.resolve(id));
+                let location_id2_value = location_id_b
+                    .or(group_id_b)
+                    .map(|id| feed.pool.resolve(id));
+                let location_id1 = location_id1_value
+                    .as_ref()
+                    .map(|value| value.as_str())
+                    .unwrap_or("");
+                let location_id2 = location_id2_value
+                    .as_ref()
+                    .map(|value| value.as_str())
+                    .unwrap_or("");
+                let trip_id_value = feed.pool.resolve(stop_time_a.trip_id);
                 let mut notice = ValidationNotice::new(
                     CODE_OVERLAPPING_ZONE_AND_WINDOW,
                     NoticeSeverity::Error,
@@ -144,19 +145,13 @@ fn validate_trip(
                 );
                 notice.insert_context_field("endPickupDropOffWindow1", time_value(end_a));
                 notice.insert_context_field("endPickupDropOffWindow2", time_value(end_b));
-                notice.insert_context_field(
-                    "locationId1",
-                    location_id_a.or(group_id_a).unwrap_or(""),
-                );
-                notice.insert_context_field(
-                    "locationId2",
-                    location_id_b.or(group_id_b).unwrap_or(""),
-                );
+                notice.insert_context_field("locationId1", location_id1);
+                notice.insert_context_field("locationId2", location_id2);
                 notice.insert_context_field("startPickupDropOffWindow1", time_value(start_a));
                 notice.insert_context_field("startPickupDropOffWindow2", time_value(start_b));
                 notice.insert_context_field("stopSequence1", stop_time_a.stop_sequence);
                 notice.insert_context_field("stopSequence2", stop_time_b.stop_sequence);
-                notice.insert_context_field("tripId", stop_time_a.trip_id.as_str());
+                notice.insert_context_field("tripId", trip_id_value.as_str());
                 notice.field_order = vec![
                     "endPickupDropOffWindow1".into(),
                     "endPickupDropOffWindow2".into(),
@@ -225,9 +220,9 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
-                    location_id: Some("L1".into()),
+                    location_id: Some(feed.pool.intern("L1")),
                     start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                     end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
                     pickup_type: Some(PickupDropOffType::Regular),
@@ -235,9 +230,9 @@ mod tests {
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
-                    location_id: Some("L1".into()),
+                    location_id: Some(feed.pool.intern("L1")),
                     start_pickup_drop_off_window: Some(GtfsTime::from_seconds(7000)), // Overlaps
                     end_pickup_drop_off_window: Some(GtfsTime::from_seconds(10000)),
                     pickup_type: Some(PickupDropOffType::Regular),
@@ -273,9 +268,9 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
-                    location_id: Some("L1".into()),
+                    location_id: Some(feed.pool.intern("L1")),
                     start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                     end_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)),
                     pickup_type: Some(PickupDropOffType::Regular),
@@ -283,9 +278,9 @@ mod tests {
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
-                    location_id: Some("L1".into()),
+                    location_id: Some(feed.pool.intern("L1")),
                     start_pickup_drop_off_window: Some(GtfsTime::from_seconds(7200)), // Starts at end
                     end_pickup_drop_off_window: Some(GtfsTime::from_seconds(10000)),
                     pickup_type: Some(PickupDropOffType::Regular),

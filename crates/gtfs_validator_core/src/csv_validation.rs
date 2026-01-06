@@ -673,6 +673,7 @@ fn new_line_notice(file: &str, field_name: &str, row_number: u64, value: &str) -
     notice
 }
 
+#[allow(dead_code)]
 fn invalid_character_notice(
     file: &str,
     field_name: &str,

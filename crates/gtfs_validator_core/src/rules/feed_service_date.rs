@@ -58,8 +58,8 @@ mod tests {
             ],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_end_date: None,
                 feed_version: None,
@@ -95,8 +95,8 @@ mod tests {
             ],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_version: None,
@@ -129,8 +129,8 @@ mod tests {
             ],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20241231").unwrap()),
                 feed_version: None,

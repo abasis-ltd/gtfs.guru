@@ -23,7 +23,7 @@ impl Validator for DuplicateStopSequenceValidator {
                 .par_iter()
                 .flat_map(|(trip_id, indices)| {
                     let _guards = ctx.apply();
-                    Self::check_trip(feed, trip_id, indices)
+                    Self::check_trip(feed, *trip_id, indices)
                 })
                 .collect();
 
@@ -35,7 +35,7 @@ impl Validator for DuplicateStopSequenceValidator {
         #[cfg(not(feature = "parallel"))]
         {
             for (trip_id, indices) in &feed.stop_times_by_trip {
-                let trip_notices = Self::check_trip(feed, trip_id, indices);
+                let trip_notices = Self::check_trip(feed, *trip_id, indices);
                 for notice in trip_notices {
                     notices.push(notice);
                 }
@@ -45,7 +45,11 @@ impl Validator for DuplicateStopSequenceValidator {
 }
 
 impl DuplicateStopSequenceValidator {
-    fn check_trip(feed: &GtfsFeed, trip_id: &str, indices: &[usize]) -> Vec<ValidationNotice> {
+    fn check_trip(
+        feed: &GtfsFeed,
+        trip_id: gtfs_guru_model::StringId,
+        indices: &[usize],
+    ) -> Vec<ValidationNotice> {
         let mut notices = Vec::new();
         let mut seen_sequences: HashMap<u32, u64> = HashMap::new();
         for &idx in indices {
@@ -53,6 +57,7 @@ impl DuplicateStopSequenceValidator {
             let row_number = feed.stop_times.row_number(idx);
             let seq = stop_time.stop_sequence;
             if let Some(previous_row) = seen_sequences.get(&seq) {
+                let trip_id_value = feed.pool.resolve(trip_id);
                 let mut notice = ValidationNotice::new(
                     CODE_DUPLICATE_KEY,
                     NoticeSeverity::Error,
@@ -60,7 +65,7 @@ impl DuplicateStopSequenceValidator {
                 );
                 notice.insert_context_field("fieldName1", "trip_id");
                 notice.insert_context_field("fieldName2", "stop_sequence");
-                notice.insert_context_field("fieldValue1", trip_id);
+                notice.insert_context_field("fieldValue1", trip_id_value.as_str());
                 notice.insert_context_field("fieldValue2", seq);
                 notice.insert_context_field("filename", STOP_TIMES_FILE);
                 notice.insert_context_field("newCsvRowNumber", row_number);
@@ -96,12 +101,12 @@ mod tests {
             headers: vec!["trip_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     ..Default::default()
                 },
@@ -125,12 +130,12 @@ mod tests {
             headers: vec!["trip_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
                     ..Default::default()
                 },
@@ -152,12 +157,12 @@ mod tests {
             headers: vec!["trip_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T2".into(),
+                    trip_id: feed.pool.intern("T2"),
                     stop_sequence: 1,
                     ..Default::default()
                 },

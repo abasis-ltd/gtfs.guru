@@ -17,20 +17,22 @@ impl Validator for PathwayLoopValidator {
 
         for (index, pathway) in pathways.rows.iter().enumerate() {
             let row_number = pathways.row_number(index);
-            let from_id = pathway.from_stop_id.trim();
-            let to_id = pathway.to_stop_id.trim();
-            if from_id.is_empty() || to_id.is_empty() {
+            let from_id = pathway.from_stop_id;
+            let to_id = pathway.to_stop_id;
+            if from_id.0 == 0 || to_id.0 == 0 {
                 continue;
             }
             if from_id == to_id {
+                let pathway_id = feed.pool.resolve(pathway.pathway_id);
+                let stop_id = feed.pool.resolve(from_id);
                 let mut notice = ValidationNotice::new(
                     CODE_PATHWAY_LOOP,
                     NoticeSeverity::Warning,
                     "pathway from_stop_id and to_stop_id must be different",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("pathwayId", pathway.pathway_id.as_str());
-                notice.insert_context_field("stopId", from_id);
+                notice.insert_context_field("pathwayId", pathway_id.as_str());
+                notice.insert_context_field("stopId", stop_id.as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "pathwayId".into(),
@@ -58,9 +60,9 @@ mod tests {
                 "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
-                from_stop_id: "S1".into(),
-                to_stop_id: "S1".into(),
+                pathway_id: feed.pool.intern("P1"),
+                from_stop_id: feed.pool.intern("S1"),
+                to_stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -83,9 +85,9 @@ mod tests {
                 "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
-                from_stop_id: "S1".into(),
-                to_stop_id: "S2".into(),
+                pathway_id: feed.pool.intern("P1"),
+                from_stop_id: feed.pool.intern("S1"),
+                to_stop_id: feed.pool.intern("S2"),
                 ..Default::default()
             }],
             row_numbers: vec![2],

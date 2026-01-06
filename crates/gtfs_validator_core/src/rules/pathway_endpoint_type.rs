@@ -20,17 +20,18 @@ impl Validator for PathwayEndpointTypeValidator {
             return;
         };
 
-        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
-        let mut children_by_parent: HashMap<&str, Vec<&gtfs_guru_model::Stop>> = HashMap::new();
+        let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
+            HashMap::new();
+        let mut children_by_parent: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>> =
+            HashMap::new();
         for stop in &feed.stops.rows {
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             stops_by_id.insert(stop_id, stop);
-            if let Some(parent_id) = stop.parent_station.as_deref() {
-                let parent_id = parent_id.trim();
-                if !parent_id.is_empty() {
+            if let Some(parent_id) = stop.parent_station {
+                if parent_id.0 != 0 {
                     children_by_parent.entry(parent_id).or_default().push(stop);
                 }
             }
@@ -40,20 +41,22 @@ impl Validator for PathwayEndpointTypeValidator {
             let row_number = pathways.row_number(index);
             check_endpoint(
                 "from_stop_id",
-                pathway.pathway_id.as_str(),
-                pathway.from_stop_id.as_str(),
+                pathway.pathway_id,
+                pathway.from_stop_id,
                 &stops_by_id,
                 &children_by_parent,
                 row_number,
+                feed,
                 notices,
             );
             check_endpoint(
                 "to_stop_id",
-                pathway.pathway_id.as_str(),
-                pathway.to_stop_id.as_str(),
+                pathway.pathway_id,
+                pathway.to_stop_id,
                 &stops_by_id,
                 &children_by_parent,
                 row_number,
+                feed,
                 notices,
             );
         }
@@ -62,25 +65,25 @@ impl Validator for PathwayEndpointTypeValidator {
 
 fn check_endpoint(
     field_name: &str,
-    pathway_id: &str,
-    stop_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    children_by_parent: &HashMap<&str, Vec<&gtfs_guru_model::Stop>>,
+    pathway_id: gtfs_guru_model::StringId,
+    stop_id: gtfs_guru_model::StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
+    children_by_parent: &HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>>,
     row_number: u64,
+    feed: &GtfsFeed,
     notices: &mut NoticeContainer,
 ) {
-    let stop_id = stop_id.trim();
-    if stop_id.is_empty() {
+    if stop_id.0 == 0 {
         return;
     }
 
-    let Some(stop) = stops_by_id.get(stop_id) else {
+    let Some(stop) = stops_by_id.get(&stop_id) else {
         return;
     };
 
     match stop.location_type.unwrap_or(LocationType::StopOrPlatform) {
         LocationType::StopOrPlatform => {
-            if children_by_parent.get(stop_id).is_some() {
+            if children_by_parent.get(&stop_id).is_some() {
                 let mut notice = ValidationNotice::new(
                     CODE_PATHWAY_TO_PLATFORM_WITH_BOARDING_AREAS,
                     NoticeSeverity::Error,
@@ -88,8 +91,8 @@ fn check_endpoint(
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("fieldName", field_name);
-                notice.insert_context_field("pathwayId", pathway_id);
-                notice.insert_context_field("stopId", stop_id);
+                notice.insert_context_field("pathwayId", feed.pool.resolve(pathway_id).as_str());
+                notice.insert_context_field("stopId", feed.pool.resolve(stop_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "fieldName".into(),
@@ -107,8 +110,8 @@ fn check_endpoint(
             );
             notice.insert_context_field("csvRowNumber", row_number);
             notice.insert_context_field("fieldName", field_name);
-            notice.insert_context_field("pathwayId", pathway_id);
-            notice.insert_context_field("stopId", stop_id);
+            notice.insert_context_field("pathwayId", feed.pool.resolve(pathway_id).as_str());
+            notice.insert_context_field("stopId", feed.pool.resolve(stop_id).as_str());
             notice.field_order = vec![
                 "csvRowNumber".into(),
                 "fieldName".into(),
@@ -136,7 +139,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 location_type: Some(LocationType::Station),
                 ..Default::default()
             }],
@@ -149,9 +152,9 @@ mod tests {
                 "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
-                from_stop_id: "S1".into(),
-                to_stop_id: "N1".into(),
+                pathway_id: feed.pool.intern("P1"),
+                from_stop_id: feed.pool.intern("S1"),
+                to_stop_id: feed.pool.intern("N1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -178,14 +181,14 @@ mod tests {
             ],
             rows: vec![
                 Stop {
-                    stop_id: "P1".into(),
+                    stop_id: feed.pool.intern("P1"),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "BA1".into(),
+                    stop_id: feed.pool.intern("BA1"),
                     location_type: Some(LocationType::BoardingArea),
-                    parent_station: Some("P1".into()),
+                    parent_station: Some(feed.pool.intern("P1")),
                     ..Default::default()
                 },
             ],
@@ -198,9 +201,9 @@ mod tests {
                 "to_stop_id".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "PW1".into(),
-                from_stop_id: "P1".into(),
-                to_stop_id: "N1".into(),
+                pathway_id: feed.pool.intern("PW1"),
+                from_stop_id: feed.pool.intern("P1"),
+                to_stop_id: feed.pool.intern("N1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -223,17 +226,17 @@ mod tests {
             headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![
                 Stop {
-                    stop_id: "E1".into(),
+                    stop_id: feed.pool.intern("E1"),
                     location_type: Some(LocationType::EntranceOrExit),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "N1".into(),
+                    stop_id: feed.pool.intern("N1"),
                     location_type: Some(LocationType::GenericNode),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "P1".into(),
+                    stop_id: feed.pool.intern("P1"),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
@@ -248,15 +251,15 @@ mod tests {
             ],
             rows: vec![
                 Pathway {
-                    pathway_id: "PW1".into(),
-                    from_stop_id: "E1".into(),
-                    to_stop_id: "N1".into(),
+                    pathway_id: feed.pool.intern("PW1"),
+                    from_stop_id: feed.pool.intern("E1"),
+                    to_stop_id: feed.pool.intern("N1"),
                     ..Default::default()
                 },
                 Pathway {
-                    pathway_id: "PW2".into(),
-                    from_stop_id: "N1".into(),
-                    to_stop_id: "P1".into(),
+                    pathway_id: feed.pool.intern("PW2"),
+                    from_stop_id: feed.pool.intern("N1"),
+                    to_stop_id: feed.pool.intern("P1"),
                     ..Default::default()
                 },
             ],

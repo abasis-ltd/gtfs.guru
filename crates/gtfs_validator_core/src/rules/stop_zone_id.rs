@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::LocationType;
+use gtfs_guru_model::StringId;
 
 const CODE_STOP_WITHOUT_ZONE_ID: &str = "stop_without_zone_id";
 
@@ -22,41 +23,43 @@ impl Validator for StopZoneIdValidator {
             return;
         }
 
-        let route_ids_with_zones: HashSet<&str> = fare_rules
+        let route_ids_with_zones: HashSet<gtfs_guru_model::StringId> = fare_rules
             .rows
             .iter()
             .filter(|rule| fare_rule_has_zone_fields(rule))
-            .filter_map(|rule| rule.route_id.as_deref())
-            .filter(|route_id| !route_id.trim().is_empty())
+            .filter_map(|rule| rule.route_id)
+            .filter(|route_id| route_id.0 != 0)
             .collect();
         if route_ids_with_zones.is_empty() {
             return;
         }
 
-        let mut trip_route_ids: HashMap<&str, &str> = HashMap::new();
+        let mut trip_route_ids: HashMap<gtfs_guru_model::StringId, gtfs_guru_model::StringId> =
+            HashMap::new();
         for trip in &feed.trips.rows {
-            let trip_id = trip.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = trip.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
-            let route_id = trip.route_id.trim();
-            if route_id.is_empty() {
+            let route_id = trip.route_id;
+            if route_id.0 == 0 {
                 continue;
             }
             trip_route_ids.insert(trip_id, route_id);
         }
 
-        let mut stop_routes: HashMap<&str, HashSet<&str>> = HashMap::new();
+        let mut stop_routes: HashMap<gtfs_guru_model::StringId, HashSet<gtfs_guru_model::StringId>> =
+            HashMap::new();
         for stop_time in &feed.stop_times.rows {
-            let stop_id = stop_time.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop_time.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = stop_time.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
-            let route_id = match trip_route_ids.get(trip_id) {
+            let route_id = match trip_route_ids.get(&trip_id) {
                 Some(route_id) => *route_id,
                 None => continue,
             };
@@ -65,31 +68,32 @@ impl Validator for StopZoneIdValidator {
 
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             let location_type = stop.location_type.unwrap_or(LocationType::StopOrPlatform);
             if location_type != LocationType::StopOrPlatform {
                 continue;
             }
-            if has_value(stop.zone_id.as_deref()) {
+            if stop.zone_id.unwrap_or(StringId(0)).0 != 0 {
                 continue;
             }
-            let Some(routes_for_stop) = stop_routes.get(stop_id) else {
+            let Some(routes_for_stop) = stop_routes.get(&stop_id) else {
                 continue;
             };
             if routes_for_stop
                 .iter()
                 .any(|route_id| route_ids_with_zones.contains(route_id))
             {
+                let stop_id_value = feed.pool.resolve(stop_id);
                 let mut notice = ValidationNotice::new(
                     CODE_STOP_WITHOUT_ZONE_ID,
                     NoticeSeverity::Info,
                     "stop is missing zone_id required by fare rules",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("stopId", stop_id);
+                notice.insert_context_field("stopId", stop_id_value.as_str());
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
                 notice.field_order = vec![
                     "csvRowNumber".into(),
@@ -107,13 +111,9 @@ fn fare_rules_use_zones(fare_rules: &crate::CsvTable<gtfs_guru_model::FareRule>)
 }
 
 fn fare_rule_has_zone_fields(rule: &gtfs_guru_model::FareRule) -> bool {
-    has_value(rule.origin_id.as_deref())
-        || has_value(rule.destination_id.as_deref())
-        || has_value(rule.contains_id.as_deref())
-}
-
-fn has_value(value: Option<&str>) -> bool {
-    value.map(|val| !val.trim().is_empty()).unwrap_or(false)
+    rule.origin_id.unwrap_or(StringId(0)).0 != 0
+        || rule.destination_id.unwrap_or(StringId(0)).0 != 0
+        || rule.contains_id.unwrap_or(StringId(0)).0 != 0
 }
 
 #[cfg(test)]
@@ -132,9 +132,9 @@ mod tests {
                 "origin_id".into(),
             ],
             rows: vec![FareRule {
-                fare_id: "F1".into(),
-                route_id: Some("R1".into()),
-                origin_id: Some("Z1".into()),
+                fare_id: feed.pool.intern("F1"),
+                route_id: Some(feed.pool.intern("R1")),
+                origin_id: Some(feed.pool.intern("Z1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -142,8 +142,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                route_id: "R1".into(),
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -151,8 +151,8 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
-                stop_id: "S1".into(),
+                trip_id: feed.pool.intern("T1"),
+                stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -160,7 +160,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "zone_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 zone_id: None, // Missing
                 ..Default::default()
             }],
@@ -187,9 +187,9 @@ mod tests {
                 "origin_id".into(),
             ],
             rows: vec![FareRule {
-                fare_id: "F1".into(),
-                route_id: Some("R1".into()),
-                origin_id: Some("Z1".into()),
+                fare_id: feed.pool.intern("F1"),
+                route_id: Some(feed.pool.intern("R1")),
+                origin_id: Some(feed.pool.intern("Z1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -197,8 +197,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                route_id: "R1".into(),
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -206,8 +206,8 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
-                stop_id: "S1".into(),
+                trip_id: feed.pool.intern("T1"),
+                stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -215,8 +215,8 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "zone_id".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
-                zone_id: Some("Z1".into()),
+                stop_id: feed.pool.intern("S1"),
+                zone_id: Some(feed.pool.intern("Z1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
