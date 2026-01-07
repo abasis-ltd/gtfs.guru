@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 
+use chrono::NaiveDate;
 use gtfs_guru_core::{
     default_runner, set_thorough_mode_enabled, set_validation_country_code, set_validation_date,
     validate_bytes, NoticeContainer, NoticeSeverity,
@@ -68,14 +69,20 @@ impl ValidationResult {
 /// # Arguments
 /// * `zip_bytes` - The raw bytes of a GTFS ZIP file
 /// * `country_code` - Optional ISO 3166-1 alpha-2 country code for country-specific validation
+/// * `date` - Optional validation date in YYYY-MM-DD format
 ///
 /// # Returns
 /// A ValidationResult containing the JSON report and summary counts
 #[wasm_bindgen]
-pub fn validate_gtfs(zip_bytes: &[u8], country_code: Option<String>) -> ValidationResult {
+pub fn validate_gtfs(
+    zip_bytes: &[u8],
+    country_code: Option<String>,
+    date: Option<String>,
+) -> ValidationResult {
     // Set validation context
     let _country_guard = set_validation_country_code(country_code);
-    let _date_guard = set_validation_date(None); // Use current date
+    let naive_date = date.and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
+    let _date_guard = set_validation_date(naive_date);
     let _thorough_guard = set_thorough_mode_enabled(false); // Default to standard mode
 
     // Create runner with all validators
@@ -101,8 +108,12 @@ pub fn validate_gtfs(zip_bytes: &[u8], country_code: Option<String>) -> Validati
 
 /// Validate GTFS and return only the JSON report (simpler API)
 #[wasm_bindgen]
-pub fn validate_gtfs_json(zip_bytes: &[u8], country_code: Option<String>) -> String {
-    let result = validate_gtfs(zip_bytes, country_code);
+pub fn validate_gtfs_json(
+    zip_bytes: &[u8],
+    country_code: Option<String>,
+    date: Option<String>,
+) -> String {
+    let result = validate_gtfs(zip_bytes, country_code, date);
     result.json
 }
 

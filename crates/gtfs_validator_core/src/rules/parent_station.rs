@@ -8,7 +8,7 @@ const CODE_UNUSED_STATION: &str = "unused_station";
 const CODE_STATION_WITH_PARENT_STATION: &str = "station_with_parent_station";
 const CODE_PARENT_STATION_REQUIRED: &str = "parent_station_required";
 const CODE_STOP_TOO_FAR_FROM_PARENT_STATION: &str = "stop_too_far_from_parent_station";
-const STOP_TOO_FAR_FROM_PARENT_STATION_THRESHOLD_METERS: f64 = 100.0;
+const STOP_TOO_FAR_FROM_PARENT_STATION_THRESHOLD_METERS: f64 = 1000.0;
 
 #[derive(Debug, Default)]
 pub struct ParentStationValidator;
@@ -70,7 +70,10 @@ impl Validator for ParentStationValidator {
                             "parent_station is required for this location type",
                         );
                         notice.insert_context_field("csvRowNumber", row_number);
-                        notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
+                        notice.insert_context_field(
+                            "stopId",
+                            feed.pool.resolve(stop.stop_id).as_str(),
+                        );
                         notice.insert_context_field(
                             "locationType",
                             location_type_value(location_type),
@@ -103,7 +106,9 @@ impl Validator for ParentStationValidator {
                 parent_stop.stop_lon,
             ) {
                 let distance_m = haversine_m(lat1, lon1, lat2, lon2);
-                if distance_m > STOP_TOO_FAR_FROM_PARENT_STATION_THRESHOLD_METERS {
+                if distance_m > STOP_TOO_FAR_FROM_PARENT_STATION_THRESHOLD_METERS
+                    && distance_m < 500_000.0
+                {
                     let parent_station_value = feed.pool.resolve(parent_station);
                     let mut notice = ValidationNotice::new(
                         CODE_STOP_TOO_FAR_FROM_PARENT_STATION,
@@ -193,10 +198,8 @@ impl Validator for ParentStationValidator {
             );
             notice.insert_context_field("csvRowNumber", row_number);
             notice.insert_context_field("stopId", station_id_value.as_str());
-            notice.insert_context_field(
-                "stopName",
-                station_stop.stop_name.as_deref().unwrap_or(""),
-            );
+            notice
+                .insert_context_field("stopName", station_stop.stop_name.as_deref().unwrap_or(""));
             notice.field_order = vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
             notices.push(notice);
         }
@@ -278,7 +281,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         let stops = vec![
             station("STATION1", &feed),
-            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform), &feed),
+            stop_with_parent(
+                "STOP1",
+                "STATION1",
+                Some(LocationType::StopOrPlatform),
+                &feed,
+            ),
             stop_with_parent("STOP2", "STOP1", Some(LocationType::StopOrPlatform), &feed),
         ];
         feed_with_stops(stops, &mut feed);
@@ -330,7 +338,12 @@ mod tests {
         let mut feed = GtfsFeed::default();
         let stops = vec![
             station("STATION1", &feed),
-            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform), &feed),
+            stop_with_parent(
+                "STOP1",
+                "STATION1",
+                Some(LocationType::StopOrPlatform),
+                &feed,
+            ),
         ];
         feed_with_stops(stops, &mut feed);
 
@@ -381,8 +394,12 @@ mod tests {
         station1.stop_lat = Some(0.0);
         station1.stop_lon = Some(0.0);
 
-        let mut stop1 =
-            stop_with_parent("STOP1", "STATION1", Some(LocationType::StopOrPlatform), &feed);
+        let mut stop1 = stop_with_parent(
+            "STOP1",
+            "STATION1",
+            Some(LocationType::StopOrPlatform),
+            &feed,
+        );
         stop1.stop_lat = Some(1.0); // Very far
         stop1.stop_lon = Some(1.0);
 

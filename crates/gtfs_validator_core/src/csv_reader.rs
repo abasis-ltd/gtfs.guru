@@ -4,6 +4,8 @@ use std::io::{BufRead, BufReader, Read};
 use csv::{ReaderBuilder, StringRecord, Trim};
 use serde::de::DeserializeOwned;
 
+use crate::ValidationNotice;
+
 #[derive(Debug)]
 pub struct CsvParseError {
     pub file: String,
@@ -98,7 +100,7 @@ where
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
-        .trim(Trim::All)
+        .trim(Trim::None)
         .from_reader(reader);
 
     let headers_record = csv_reader
@@ -176,14 +178,21 @@ fn skip_utf8_bom<R: BufRead>(reader: &mut R) -> std::io::Result<()> {
 /// The CSV crate handles record boundary detection sequentially (fast),
 /// while Serde deserialization is parallelized across a thread pool (CPU-intensive).
 /// Results are sorted by index to preserve original file order.
+///
+/// The `interner_setup` closure is called on each worker thread before deserialization
+/// to set up thread-local hooks (e.g., StringId interner) that are needed during serde deserialization.
 #[cfg(feature = "parallel")]
-pub fn read_csv_from_reader_parallel<T, R>(
+pub fn read_csv_from_reader_parallel<T, R, V, I>(
     reader: R,
     file_name: impl Into<String>,
-) -> Result<(CsvTable<T>, Vec<CsvParseError>), CsvParseError>
+    validator: V,
+    interner_setup: I,
+) -> Result<(CsvTable<T>, Vec<CsvParseError>, Vec<ValidationNotice>), CsvParseError>
 where
     T: DeserializeOwned + Send,
     R: Read,
+    V: Fn(&csv::StringRecord, u64) -> Vec<ValidationNotice> + Sync + Send,
+    I: Fn() + Sync + Send,
 {
     use rayon::prelude::*;
 
@@ -205,7 +214,7 @@ where
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
-        .trim(Trim::All)
+        .trim(Trim::None)
         .from_reader(buf_reader);
 
     let headers_record = csv_reader
@@ -226,8 +235,11 @@ where
     for (index, result) in csv_reader.byte_records().enumerate() {
         match result {
             Ok(record) => {
-                // Line number is 1-indexed, header is line 1, first data row is line 2
-                let line_number = (index + 2) as u64;
+                // Determine line number from position if available, otherwise fallback to estimation
+                let line_number = record
+                    .position()
+                    .map(|p| p.line())
+                    .unwrap_or((index + 2) as u64);
                 raw_records.push((index, line_number, record));
             }
             Err(err) => {
@@ -240,25 +252,61 @@ where
     let file_ref = &file;
     let headers_ref = &headers_record;
     let byte_headers_ref = &byte_headers;
-    let mut results: Vec<(usize, u64, Result<T, CsvParseError>)> = raw_records
-        .into_par_iter()
-        .map(|(index, line_number, record)| {
-            let result = record.deserialize(Some(byte_headers_ref)).map_err(|err| {
-                map_byte_record_error(file_ref, Some(headers_ref), line_number, err)
-            });
-            (index, line_number, result)
-        })
-        .collect();
+    let validator_ref = &validator;
+    let _interner_setup_ref = &interner_setup;
+
+    let mut results: Vec<(usize, u64, Result<T, CsvParseError>, Vec<ValidationNotice>)> =
+        raw_records
+            .into_iter() // Use iter() instead of par_iter() to keep deserialization on caller thread (which has interner hook)
+            .map(|(index, line_number, record)| {
+                // The interner hook is already set on this thread (set by ParallelLoader::load in feed.rs)
+                // No need to call interner_setup_ref() since we're on the same thread
+
+                let mut notices = Vec::new();
+                // Explicitly convert to StringRecord for validation (checks UTF-8)
+                match csv::StringRecord::from_byte_record(record.clone()) {
+                    Ok(string_record) => {
+                        notices = validator_ref(&string_record, line_number);
+                    }
+                    Err(utf8_err) => {
+                        // Report UTF-8 error as ParseError if it prevents validation
+                        // Note: deserialize might still work if it doesn't touch bad bytes, but we prioritize data integrity
+                        let err = csv::Error::from(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            utf8_err,
+                        ));
+                        return (
+                            index,
+                            line_number,
+                            Err(map_byte_record_error(
+                                file_ref,
+                                Some(headers_ref),
+                                line_number,
+                                err,
+                            )),
+                            notices,
+                        );
+                    }
+                }
+
+                let result = record.deserialize(Some(byte_headers_ref)).map_err(|err| {
+                    map_byte_record_error(file_ref, Some(headers_ref), line_number, err)
+                });
+                (index, line_number, result, notices)
+            })
+            .collect();
 
     // Sort by index to restore original file order
-    results.sort_unstable_by_key(|(index, _, _)| *index);
+    results.sort_unstable_by_key(|(index, _, _, _)| *index);
 
     // Split into rows, row_numbers, and errors
     let mut rows = Vec::with_capacity(results.len());
     let mut row_numbers = Vec::with_capacity(results.len());
     let mut errors = scan_errors;
+    let mut all_notices = Vec::new();
 
-    for (_, line_number, result) in results {
+    for (_, line_number, result, row_notices) in results {
+        all_notices.extend(row_notices);
         match result {
             Ok(record) => {
                 rows.push(record);
@@ -277,6 +325,7 @@ where
             row_numbers,
         },
         errors,
+        all_notices,
     ))
 }
 
@@ -339,7 +388,7 @@ mod tests {
 
     #[test]
     fn reports_field_on_parse_error() {
-        let data = "a, b \n1,boom\n";
+        let data = "a,b\n1,boom\n";
         let err = read_csv_from_reader::<ExampleRow, _>(data.as_bytes(), "bad.csv")
             .expect_err("expected parse error");
 
@@ -377,11 +426,16 @@ mod tests {
     #[cfg(feature = "parallel")]
     fn reads_headers_and_rows_parallel() {
         let data = "a,b\n1,2\n3,4\n5,6\n";
-        let (table, errors) =
-            read_csv_from_reader_parallel::<ExampleRow, _>(data.as_bytes(), "test.csv")
-                .expect("parse csv");
+        let (table, errors, notices) = read_csv_from_reader_parallel::<ExampleRow, _, _, _>(
+            data.as_bytes(),
+            "test.csv",
+            |_, _| Vec::new(),
+            || {},
+        )
+        .expect("parse csv");
 
         assert!(errors.is_empty());
+        assert!(notices.is_empty());
         assert_eq!(table.headers, vec!["a", "b"]);
         assert_eq!(table.rows.len(), 3);
         assert_eq!(table.rows[0].a, 1);

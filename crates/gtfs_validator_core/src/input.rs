@@ -11,7 +11,10 @@ use crate::csv_reader::read_csv_from_reader_parallel;
 #[cfg(not(feature = "parallel"))]
 use crate::csv_reader::read_csv_from_reader_with_errors;
 use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
-use crate::csv_validation::{is_value_validated_field, validate_csv_data};
+use crate::csv_validation::{
+    empty_row_notice, is_value_validated_field, validate_csv_data, validate_headers, RowValidator,
+};
+
 use crate::feed::GTFS_FILE_NAMES;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
 
@@ -183,15 +186,66 @@ impl GtfsInputReader {
         notices: &mut NoticeContainer,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
-        validate_csv_data(file_name, &data, notices);
-        let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
-            .map_err(GtfsInputError::Csv)?;
+        // Peek headers for validator setup
+        let mut peek_reader = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(true)
+            .trim(csv::Trim::None)
+            .from_reader(data.as_slice());
+
+        let headers_record = match peek_reader.headers() {
+            Ok(h) => h.clone(),
+            Err(_) => {
+                let (table, _, _) = read_csv_from_reader_parallel(
+                    data.as_slice(),
+                    file_name,
+                    |_, _| Vec::new(),
+                    || {},
+                )
+                .map_err(GtfsInputError::Csv)?;
+                return Ok(table);
+            }
+        };
+
+        let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
+        validate_headers(file_name, &headers, notices);
+        let validator = RowValidator::new(file_name, headers);
+
+        let (table, errors, row_notices) = read_csv_from_reader_parallel(
+            data.as_slice(),
+            file_name,
+            |record, line| validator.validate_row(record, line),
+            || {},
+        )
+        .map_err(GtfsInputError::Csv)?;
+
+        for notice in row_notices {
+            notices.push(notice);
+        }
         for error in errors {
             if skip_csv_parse_error(&table, &error) {
                 continue;
             }
             notices.push_csv_error(&error);
         }
+
+        // Check for empty rows (gaps)
+        let line_count = data.split(|&b| b == b'\n').count() as u64;
+        let mut last_row = 1;
+        for &row in &table.row_numbers {
+            if row > last_row + 1 {
+                for r in (last_row + 1)..row {
+                    notices.push(empty_row_notice(file_name, r));
+                }
+            }
+            last_row = row;
+        }
+        if last_row < line_count {
+            for r in (last_row + 1)..=line_count {
+                notices.push(empty_row_notice(file_name, r));
+            }
+        }
+
         Ok(table)
     }
 
@@ -235,15 +289,66 @@ impl GtfsInputReader {
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
             Ok(data) => {
-                validate_csv_data(file_name, &data, notices);
-                let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
-                    .map_err(GtfsInputError::Csv)?;
+                // Peek headers for validator setup
+                let mut peek_reader = csv::ReaderBuilder::new()
+                    .has_headers(true)
+                    .flexible(true)
+                    .trim(csv::Trim::None)
+                    .from_reader(data.as_slice());
+
+                let headers_record = match peek_reader.headers() {
+                    Ok(h) => h.clone(),
+                    Err(_) => {
+                        let (table, _, _) = read_csv_from_reader_parallel(
+                            data.as_slice(),
+                            file_name,
+                            |_, _| Vec::new(),
+                            || {},
+                        )
+                        .map_err(GtfsInputError::Csv)?;
+                        return Ok(Some(table));
+                    }
+                };
+
+                let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
+                validate_headers(file_name, &headers, notices);
+                let validator = RowValidator::new(file_name, headers);
+
+                let (table, errors, row_notices) = read_csv_from_reader_parallel(
+                    data.as_slice(),
+                    file_name,
+                    |record, line| validator.validate_row(record, line),
+                    || {},
+                )
+                .map_err(GtfsInputError::Csv)?;
+
+                for notice in row_notices {
+                    notices.push(notice);
+                }
                 for error in errors {
                     if skip_csv_parse_error(&table, &error) {
                         continue;
                     }
                     notices.push_csv_error(&error);
                 }
+
+                // Check for empty rows (gaps)
+                let line_count = data.split(|&b| b == b'\n').count() as u64;
+                let mut last_row = 1;
+                for &row in &table.row_numbers {
+                    if row > last_row + 1 {
+                        for r in (last_row + 1)..row {
+                            notices.push(empty_row_notice(file_name, r));
+                        }
+                    }
+                    last_row = row;
+                }
+                if last_row < line_count {
+                    for r in (last_row + 1)..=line_count {
+                        notices.push(empty_row_notice(file_name, r));
+                    }
+                }
+
                 Ok(Some(table))
             }
             Err(GtfsInputError::MissingFile(_)) => Ok(None),
@@ -670,15 +775,66 @@ impl GtfsBytesReader {
         notices: &mut NoticeContainer,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
-        validate_csv_data(file_name, &data, notices);
-        let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
-            .map_err(GtfsInputError::Csv)?;
+        // Peek headers for validator setup
+        let mut peek_reader = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(true)
+            .trim(csv::Trim::None)
+            .from_reader(data.as_slice());
+
+        let headers_record = match peek_reader.headers() {
+            Ok(h) => h.clone(),
+            Err(_) => {
+                let (table, _, _) = read_csv_from_reader_parallel(
+                    data.as_slice(),
+                    file_name,
+                    |_, _| Vec::new(),
+                    || {},
+                )
+                .map_err(GtfsInputError::Csv)?;
+                return Ok(table);
+            }
+        };
+
+        let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
+        validate_headers(file_name, &headers, notices);
+        let validator = RowValidator::new(file_name, headers);
+
+        let (table, errors, row_notices) = read_csv_from_reader_parallel(
+            data.as_slice(),
+            file_name,
+            |record, line| validator.validate_row(record, line),
+            || {},
+        )
+        .map_err(GtfsInputError::Csv)?;
+
+        for notice in row_notices {
+            notices.push(notice);
+        }
         for error in errors {
             if skip_csv_parse_error(&table, &error) {
                 continue;
             }
             notices.push_csv_error(&error);
         }
+
+        // Check for empty rows (gaps)
+        let line_count = data.split(|&b| b == b'\n').count() as u64;
+        let mut last_row = 1;
+        for &row in &table.row_numbers {
+            if row > last_row + 1 {
+                for r in (last_row + 1)..row {
+                    notices.push(empty_row_notice(file_name, r));
+                }
+            }
+            last_row = row;
+        }
+        if last_row < line_count {
+            for r in (last_row + 1)..=line_count {
+                notices.push(empty_row_notice(file_name, r));
+            }
+        }
+
         Ok(table)
     }
 
@@ -722,15 +878,66 @@ impl GtfsBytesReader {
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
             Ok(data) => {
-                validate_csv_data(file_name, &data, notices);
-                let (table, errors) = read_csv_from_reader_parallel(data.as_slice(), file_name)
-                    .map_err(GtfsInputError::Csv)?;
+                // Peek headers for validator setup
+                let mut peek_reader = csv::ReaderBuilder::new()
+                    .has_headers(true)
+                    .flexible(true)
+                    .trim(csv::Trim::None)
+                    .from_reader(data.as_slice());
+
+                let headers_record = match peek_reader.headers() {
+                    Ok(h) => h.clone(),
+                    Err(_) => {
+                        let (table, _, _) = read_csv_from_reader_parallel(
+                            data.as_slice(),
+                            file_name,
+                            |_, _| Vec::new(),
+                            || {},
+                        )
+                        .map_err(GtfsInputError::Csv)?;
+                        return Ok(Some(table));
+                    }
+                };
+
+                let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
+                validate_headers(file_name, &headers, notices);
+                let validator = RowValidator::new(file_name, headers);
+
+                let (table, errors, row_notices) = read_csv_from_reader_parallel(
+                    data.as_slice(),
+                    file_name,
+                    |record, line| validator.validate_row(record, line),
+                    || {},
+                )
+                .map_err(GtfsInputError::Csv)?;
+
+                for notice in row_notices {
+                    notices.push(notice);
+                }
                 for error in errors {
                     if skip_csv_parse_error(&table, &error) {
                         continue;
                     }
                     notices.push_csv_error(&error);
                 }
+
+                // Check for empty rows (gaps)
+                let line_count = data.split(|&b| b == b'\n').count() as u64;
+                let mut last_row = 1;
+                for &row in &table.row_numbers {
+                    if row > last_row + 1 {
+                        for r in (last_row + 1)..row {
+                            notices.push(empty_row_notice(file_name, r));
+                        }
+                    }
+                    last_row = row;
+                }
+                if last_row < line_count {
+                    for r in (last_row + 1)..=line_count {
+                        notices.push(empty_row_notice(file_name, r));
+                    }
+                }
+
                 Ok(Some(table))
             }
             Err(GtfsInputError::MissingFile(_)) => Ok(None),

@@ -13,6 +13,11 @@ use crate::{
 
 const CODE_FOREIGN_KEY_VIOLATION: &str = "foreign_key_violation";
 
+const TRANSFERS_FILE: &str = "transfers.txt";
+const FARE_RULES_FILE: &str = "fare_rules.txt";
+const FARE_ATTRIBUTES_FILE: &str = "fare_attributes.txt";
+const AGENCY_FILE: &str = "agency.txt";
+
 #[derive(Debug, Default)]
 pub struct ReferentialIntegrityValidator;
 
@@ -153,6 +158,35 @@ impl Validator for ReferentialIntegrityValidator {
             .unwrap_or_default();
         let has_booking_rules = feed.booking_rules.is_some();
 
+        let fare_ids: HashSet<gtfs_guru_model::StringId> = feed
+            .fare_attributes
+            .as_ref()
+            .map(|table| {
+                table
+                    .rows
+                    .iter()
+                    .map(|fare| fare.fare_id)
+                    .filter(|id| id.0 != 0)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let zone_ids: HashSet<gtfs_guru_model::StringId> = feed
+            .stops
+            .rows
+            .iter()
+            .filter_map(|stop| stop.zone_id)
+            .filter(|id| id.0 != 0)
+            .collect();
+
+        let agency_ids: HashSet<gtfs_guru_model::StringId> = feed
+            .agency
+            .rows
+            .iter()
+            .filter_map(|agency| agency.agency_id)
+            .filter(|id| id.0 != 0)
+            .collect();
+
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             let trip_id = stop_time.trip_id;
@@ -248,6 +282,24 @@ impl Validator for ReferentialIntegrityValidator {
             }
         }
 
+        for (index, stop) in feed.stops.rows.iter().enumerate() {
+            let row_number = feed.stops.row_number(index);
+            if let Some(parent_id) = stop.parent_station.filter(|id| id.0 != 0) {
+                if !stop_ids.contains(&parent_id) {
+                    let parent_id_value = feed.pool.resolve(parent_id);
+                    notices.push(missing_ref_notice(
+                        CODE_FOREIGN_KEY_VIOLATION,
+                        STOPS_FILE,
+                        "parent_station",
+                        STOPS_FILE,
+                        "stop_id",
+                        parent_id_value.as_str(),
+                        row_number,
+                    ));
+                }
+            }
+        }
+
         if let Some(fare_products) = &feed.fare_products {
             for (index, product) in fare_products.rows.iter().enumerate() {
                 let row_number = fare_products.row_number(index);
@@ -265,9 +317,7 @@ impl Validator for ReferentialIntegrityValidator {
                         ));
                     }
                 }
-                if let Some(rider_category_id) =
-                    product.rider_category_id.filter(|id| id.0 != 0)
-                {
+                if let Some(rider_category_id) = product.rider_category_id.filter(|id| id.0 != 0) {
                     if !rider_category_ids.contains(&rider_category_id) {
                         let rider_category_value = feed.pool.resolve(rider_category_id);
                         notices.push(missing_ref_notice(
@@ -328,9 +378,7 @@ impl Validator for ReferentialIntegrityValidator {
                         ));
                     }
                 }
-                if let Some(timeframe_id) =
-                    rule.from_timeframe_group_id.filter(|id| id.0 != 0)
-                {
+                if let Some(timeframe_id) = rule.from_timeframe_group_id.filter(|id| id.0 != 0) {
                     if !timeframe_group_ids.contains(&timeframe_id) {
                         let timeframe_value = feed.pool.resolve(timeframe_id);
                         notices.push(missing_ref_notice(
@@ -563,6 +611,191 @@ impl Validator for ReferentialIntegrityValidator {
                         stop_value.as_str(),
                         row_number,
                     ));
+                }
+            }
+        }
+
+        if let Some(transfers) = &feed.transfers {
+            for (index, transfer) in transfers.rows.iter().enumerate() {
+                let row_number = transfers.row_number(index);
+                if let Some(from_stop_id) = transfer.from_stop_id.filter(|id| id.0 != 0) {
+                    if !stop_ids.contains(&from_stop_id) {
+                        let val = feed.pool.resolve(from_stop_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            TRANSFERS_FILE,
+                            "from_stop_id",
+                            STOPS_FILE,
+                            "stop_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(to_stop_id) = transfer.to_stop_id.filter(|id| id.0 != 0) {
+                    if !stop_ids.contains(&to_stop_id) {
+                        let val = feed.pool.resolve(to_stop_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            TRANSFERS_FILE,
+                            "to_stop_id",
+                            STOPS_FILE,
+                            "stop_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(from_route_id) = transfer.from_route_id.filter(|id| id.0 != 0) {
+                    if !route_ids.contains(&from_route_id) {
+                        let val = feed.pool.resolve(from_route_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            TRANSFERS_FILE,
+                            "from_route_id",
+                            ROUTES_FILE,
+                            "route_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(to_route_id) = transfer.to_route_id.filter(|id| id.0 != 0) {
+                    if !route_ids.contains(&to_route_id) {
+                        let val = feed.pool.resolve(to_route_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            TRANSFERS_FILE,
+                            "to_route_id",
+                            ROUTES_FILE,
+                            "route_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(from_trip_id) = transfer.from_trip_id.filter(|id| id.0 != 0) {
+                    if !trip_ids.contains(&from_trip_id) {
+                        let val = feed.pool.resolve(from_trip_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            TRANSFERS_FILE,
+                            "from_trip_id",
+                            TRIPS_FILE,
+                            "trip_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(to_trip_id) = transfer.to_trip_id.filter(|id| id.0 != 0) {
+                    if !trip_ids.contains(&to_trip_id) {
+                        let val = feed.pool.resolve(to_trip_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            TRANSFERS_FILE,
+                            "to_trip_id",
+                            TRIPS_FILE,
+                            "trip_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+            }
+        }
+
+        if let Some(fare_rules) = &feed.fare_rules {
+            for (index, rule) in fare_rules.rows.iter().enumerate() {
+                let row_number = fare_rules.row_number(index);
+                let fare_id = rule.fare_id;
+                if !fare_ids.contains(&fare_id) {
+                    let val = feed.pool.resolve(fare_id);
+                    notices.push(missing_ref_notice(
+                        CODE_FOREIGN_KEY_VIOLATION,
+                        FARE_RULES_FILE,
+                        "fare_id",
+                        FARE_ATTRIBUTES_FILE,
+                        "fare_id",
+                        val.as_str(),
+                        row_number,
+                    ));
+                }
+                if let Some(route_id) = rule.route_id.filter(|id| id.0 != 0) {
+                    if !route_ids.contains(&route_id) {
+                        let val = feed.pool.resolve(route_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            FARE_RULES_FILE,
+                            "route_id",
+                            ROUTES_FILE,
+                            "route_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(origin_id) = rule.origin_id.filter(|id| id.0 != 0) {
+                    if !zone_ids.contains(&origin_id) {
+                        let val = feed.pool.resolve(origin_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            FARE_RULES_FILE,
+                            "origin_id",
+                            STOPS_FILE,
+                            "zone_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(destination_id) = rule.destination_id.filter(|id| id.0 != 0) {
+                    if !zone_ids.contains(&destination_id) {
+                        let val = feed.pool.resolve(destination_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            FARE_RULES_FILE,
+                            "destination_id",
+                            STOPS_FILE,
+                            "zone_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+                if let Some(contains_id) = rule.contains_id.filter(|id| id.0 != 0) {
+                    if !zone_ids.contains(&contains_id) {
+                        let val = feed.pool.resolve(contains_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            FARE_RULES_FILE,
+                            "contains_id",
+                            STOPS_FILE,
+                            "zone_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+            }
+        }
+
+        if let Some(fare_attrs) = &feed.fare_attributes {
+            for (index, attr) in fare_attrs.rows.iter().enumerate() {
+                let row_number = fare_attrs.row_number(index);
+                if let Some(agency_id) = attr.agency_id.filter(|id| id.0 != 0) {
+                    if !agency_ids.contains(&agency_id) {
+                        let val = feed.pool.resolve(agency_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            FARE_ATTRIBUTES_FILE,
+                            "agency_id",
+                            AGENCY_FILE,
+                            "agency_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
                 }
             }
         }

@@ -81,29 +81,25 @@ fn render_html(
     <title>GTFS Schedule Validation Report</title>
     <meta name="robots" content="noindex, nofollow">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8; width=device-width, initial-scale=1"/>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
-      $(document).ready(function () {
-        $(document).tooltip();
-        
-        // Accordion functionality
-        $(".accordion tr.notice").click(function() {
-            var $this = $(this);
-            var $desc = $this.next("tr.description");
-            
-            $this.toggleClass("open");
-            $desc.toggleClass("open");
-            
-            // Toggle +/- icon
-            var $icon = $this.find("span:first");
-            if ($this.hasClass("open")) {
-                $icon.text("–"); // En dash
-            } else {
-                $icon.text("+");
-            }
+      document.addEventListener('DOMContentLoaded', function() {
+        // Accordion functionality (vanilla JS)
+        document.querySelectorAll('.accordion tr.notice').forEach(function(row) {
+            row.addEventListener('click', function() {
+                var descRow = this.nextElementSibling;
+                if (descRow && descRow.classList.contains('description')) {
+                    this.classList.toggle('open');
+                    descRow.classList.toggle('open');
+
+                    // Toggle +/- icon
+                    var icon = this.querySelector('span');
+                    if (icon) {
+                        icon.textContent = this.classList.contains('open') ? '–' : '+';
+                    }
+                }
+            });
         });
       });
     </script>
@@ -188,14 +184,14 @@ fn render_html(
 
     .summary-grid {
         display: grid;
-        grid-template-columns: 1.2fr 1.5fr 0.8fr 0.7fr 1fr;
+        grid-template-columns: 1fr 1.6fr 0.9fr 0.7fr 1fr;
         gap: 0.75rem;
         margin-bottom: 1.5rem;
     }
 
-    @media (max-width: 1024px) {
+    @media (max-width: 1100px) {
         .summary-grid {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
         }
     }
 
@@ -236,6 +232,7 @@ fn render_html(
     .card dt {
         color: var(--text-muted);
         font-weight: 500;
+        white-space: nowrap;
     }
 
     .card dd {
@@ -637,9 +634,9 @@ fn render_feed_info(out: &mut String, summary: &ReportSummary) {
     out.push_str("            <div class=\"card\">\n                <h4>Feed Info</h4>\n                <dl>\n");
     if let Some(info) = summary.feed_info.as_ref() {
         for (key, value) in build_feed_info_entries(info) {
-            out.push_str("                    <dd>");
+            out.push_str("                    <dt>");
             push_escaped(out, &format!("{key}:"));
-            out.push_str("</dd>\n                    <dt>\n");
+            out.push_str("</dt>\n                    <dd>\n");
             if key.contains("URL") && !value.trim().is_empty() {
                 out.push_str("                        <a href=\"");
                 push_escaped(out, &value);
@@ -658,7 +655,7 @@ fn render_feed_info(out: &mut String, summary: &ReportSummary) {
                     "                        <a href=\"#\" class=\"tooltip\" onclick=\"event.preventDefault();\">(?)<span class=\"tooltiptext\">The range of service dates covered by the feed, based on trips with an associated service_id in calendar.txt and/or calendar_dates.txt</span></a>\n",
                 );
             }
-            out.push_str("                    </dt>\n");
+            out.push_str("                    </dd>\n");
         }
     }
     out.push_str("                </dl>\n            </div>\n");

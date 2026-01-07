@@ -857,7 +857,7 @@ impl Default for StopToShapeMatcherSettings {
         Self {
             max_distance_from_stop_to_shape_meters: 100.0,
             large_station_distance_multiplier: 4.0,
-            potential_matches_for_stop_problem_threshold: 1,
+            potential_matches_for_stop_problem_threshold: 20,
         }
     }
 }

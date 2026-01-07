@@ -544,7 +544,7 @@ impl IndicatifHandler {
         let loading_pb = multi.add(ProgressBar::new(0));
         loading_pb.set_style(
             ProgressStyle::with_template(
-                "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}",
+                "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {percent}% {msg}",
             )
             .unwrap()
             .progress_chars("#>-"),
@@ -554,7 +554,7 @@ impl IndicatifHandler {
         let validation_pb = multi.add(ProgressBar::new(0));
         validation_pb.set_style(
             ProgressStyle::with_template(
-                "{spinner:.green} [{elapsed_precise}] {bar:40.magenta/magenta} {pos}/{len} {msg}",
+                "{spinner:.green} [{elapsed_precise}] {bar:40.magenta/magenta} {percent}% {msg}",
             )
             .unwrap()
             .progress_chars("#>-"),

@@ -1728,6 +1728,7 @@ dependencies = [
 name = "gtfs-guru-wasm"
 version = "0.1.2"
 dependencies = [
+ "chrono",
  "console_error_panic_hook",
  "gtfs-guru-core",
  "js-sys",

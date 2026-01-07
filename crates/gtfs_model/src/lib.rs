@@ -1171,13 +1171,16 @@ pub struct Pathway {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
 pub struct Translation {
-    pub table_name: StringId,
-    pub field_name: StringId,
+    pub table_name: Option<StringId>,
+    pub field_name: Option<StringId>,
+    #[serde(alias = "lang")]
     pub language: StringId,
     pub translation: CompactString,
     pub record_id: Option<StringId>,
     pub record_sub_id: Option<StringId>,
+    #[serde(alias = "trans_id")]
     pub field_value: Option<CompactString>,
 }
 

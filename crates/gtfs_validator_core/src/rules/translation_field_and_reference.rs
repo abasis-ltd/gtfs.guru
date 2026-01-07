@@ -46,11 +46,11 @@ fn validate_standard_required_fields(
     let mut is_valid = true;
     for (index, translation) in translations.rows.iter().enumerate() {
         let row_number = translations.row_number(index);
-        if is_blank_id(translation.table_name) {
+        if translation.table_name.map(|id| id.0 == 0).unwrap_or(true) {
             notices.push(missing_required_field_notice("table_name", row_number));
             is_valid = false;
         }
-        if is_blank_id(translation.field_name) {
+        if translation.field_name.map(|id| id.0 == 0).unwrap_or(true) {
             notices.push(missing_required_field_notice("field_name", row_number));
             is_valid = false;
         }
@@ -68,7 +68,10 @@ fn validate_translation(
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
-    let table_name_value = feed.pool.resolve(translation.table_name);
+    let table_name_value = translation
+        .table_name
+        .map(|id| feed.pool.resolve(id))
+        .unwrap_or_default();
     let table_name = table_name_value.as_str();
     let record_id = normalized_optional_id(translation.record_id).map(|id| feed.pool.resolve(id));
     let record_sub_id =
@@ -172,6 +175,10 @@ fn is_blank_id(value: StringId) -> bool {
     value.0 == 0
 }
 
+fn is_blank_opt_id(value: Option<StringId>) -> bool {
+    value.map(|id| id.0 == 0).unwrap_or(true)
+}
+
 fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_MISSING_REQUIRED_FIELD,
@@ -181,11 +188,7 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("filename", TRANSLATIONS_FILE);
-    notice.field_order = vec![
-        "csvRowNumber".into(),
-        "fieldName".into(),
-        "filename".into(),
-    ];
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
     notice
 }
 
@@ -357,7 +360,8 @@ fn stop_time_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bo
         return false;
     };
     feed.stop_times.rows.iter().any(|stop_time| {
-        feed.pool.resolve(stop_time.trip_id).trim() == record_id && stop_time.stop_sequence == sequence
+        feed.pool.resolve(stop_time.trip_id).trim() == record_id
+            && stop_time.stop_sequence == sequence
     })
 }
 
@@ -381,7 +385,8 @@ fn calendar_date_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -
         .as_ref()
         .map(|table| {
             table.rows.iter().any(|calendar_date| {
-                feed.pool.resolve(calendar_date.service_id).trim() == record_id && calendar_date.date == date
+                feed.pool.resolve(calendar_date.service_id).trim() == record_id
+                    && calendar_date.date == date
             })
         })
         .unwrap_or(false)
@@ -395,7 +400,8 @@ fn shape_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
         .as_ref()
         .map(|table| {
             table.rows.iter().any(|shape| {
-                feed.pool.resolve(shape.shape_id).trim() == record_id && shape.shape_pt_sequence == sequence
+                feed.pool.resolve(shape.shape_id).trim() == record_id
+                    && shape.shape_pt_sequence == sequence
             })
         })
         .unwrap_or(false)
@@ -409,7 +415,8 @@ fn frequency_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bo
         .as_ref()
         .map(|table| {
             table.rows.iter().any(|frequency| {
-                feed.pool.resolve(frequency.trip_id).trim() == record_id && frequency.start_time == start_time
+                feed.pool.resolve(frequency.trip_id).trim() == record_id
+                    && frequency.start_time == start_time
             })
         })
         .unwrap_or(false)
@@ -572,21 +579,17 @@ mod tests {
     fn detects_missing_required_fields() {
         let mut feed = GtfsFeed::default();
         feed.translations = Some(CsvTable {
-            headers: vec![
-                "table_name".into(),
-                "field_name".into(),
-                "language".into(),
-            ],
+            headers: vec!["table_name".into(), "field_name".into(), "language".into()],
             rows: vec![
                 Translation {
-                    table_name: feed.pool.intern("stops"),
-                    field_name: feed.pool.intern("stop_name"),
+                    table_name: Some(feed.pool.intern("stops")),
+                    field_name: Some(feed.pool.intern("stop_name")),
                     language: StringId(0), // Missing language
                     ..Default::default()
                 },
                 Translation {
-                    table_name: StringId(0), // Missing table_name
-                    field_name: feed.pool.intern("stop_name"),
+                    table_name: None, // Missing table_name
+                    field_name: Some(feed.pool.intern("stop_name")),
                     language: feed.pool.intern("en"),
                     ..Default::default()
                 },
@@ -617,8 +620,8 @@ mod tests {
                 "record_id".into(),
             ],
             rows: vec![Translation {
-                table_name: feed.pool.intern("unknown_table"),
-                field_name: feed.pool.intern("field"),
+                table_name: Some(feed.pool.intern("unknown_table")),
+                field_name: Some(feed.pool.intern("field")),
                 language: feed.pool.intern("en"),
                 record_id: Some(feed.pool.intern("1")),
                 ..Default::default()
@@ -653,8 +656,8 @@ mod tests {
                 "record_id".into(),
             ],
             rows: vec![Translation {
-                table_name: feed.pool.intern("stops"),
-                field_name: feed.pool.intern("stop_name"),
+                table_name: Some(feed.pool.intern("stops")),
+                field_name: Some(feed.pool.intern("stop_name")),
                 language: feed.pool.intern("en"),
                 record_id: Some(feed.pool.intern("S2")), // Does not exist
                 ..Default::default()
@@ -689,8 +692,8 @@ mod tests {
                 "record_id".into(),
             ],
             rows: vec![Translation {
-                table_name: feed.pool.intern("stops"),
-                field_name: feed.pool.intern("stop_name"),
+                table_name: Some(feed.pool.intern("stops")),
+                field_name: Some(feed.pool.intern("stop_name")),
                 language: feed.pool.intern("en"),
                 record_id: Some(feed.pool.intern("S1")),
                 ..Default::default()

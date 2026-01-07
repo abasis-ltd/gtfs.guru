@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::feed::{
     AGENCY_FILE, AREAS_FILE, BOOKING_RULES_FILE, FARE_ATTRIBUTES_FILE, FARE_MEDIA_FILE,
     FARE_PRODUCTS_FILE, LEVELS_FILE, LOCATION_GROUPS_FILE, NETWORKS_FILE, PATHWAYS_FILE,
-    RIDER_CATEGORIES_FILE, ROUTES_FILE, STOPS_FILE, TRIPS_FILE,
+    RIDER_CATEGORIES_FILE, ROUTES_FILE, STOPS_FILE, TRANSFERS_FILE, TRIPS_FILE,
 };
 use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
@@ -349,6 +349,58 @@ impl Validator for DuplicateKeyValidator {
                         ));
                     } else {
                         seen.insert(id, row_number);
+                    }
+                }
+            }
+        }
+
+        // Transfers: from_stop_id, to_stop_id, from_route_id, to_route_id, from_trip_id, to_trip_id
+        if let Some(ref transfers) = feed.transfers {
+            let mut seen: HashMap<
+                (StringId, StringId, StringId, StringId, StringId, StringId),
+                u64,
+            > = HashMap::new();
+            for (index, row) in transfers.rows.iter().enumerate() {
+                let row_number = transfers.row_number(index);
+                let from_stop_id = row.from_stop_id.unwrap_or(StringId(0));
+                let to_stop_id = row.to_stop_id.unwrap_or(StringId(0));
+                if from_stop_id.0 != 0 && to_stop_id.0 != 0 {
+                    let key = (
+                        from_stop_id,
+                        to_stop_id,
+                        row.from_route_id.unwrap_or(StringId(0)),
+                        row.to_route_id.unwrap_or(StringId(0)),
+                        row.from_trip_id.unwrap_or(StringId(0)),
+                        row.to_trip_id.unwrap_or(StringId(0)),
+                    );
+                    if let Some(prev_row) = seen.get(&key) {
+                        let mut val = format!(
+                            "{},{}",
+                            feed.pool.resolve(from_stop_id),
+                            feed.pool.resolve(to_stop_id)
+                        );
+                        if let Some(id) = row.from_route_id {
+                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
+                        }
+                        if let Some(id) = row.to_route_id {
+                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
+                        }
+                        if let Some(id) = row.from_trip_id {
+                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
+                        }
+                        if let Some(id) = row.to_trip_id {
+                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
+                        }
+
+                        notices.push(duplicate_key_notice(
+                            TRANSFERS_FILE,
+                            row_number,
+                            "from_stop_id,to_stop_id,...",
+                            &val,
+                            *prev_row,
+                        ));
+                    } else {
+                        seen.insert(key, row_number);
                     }
                 }
             }

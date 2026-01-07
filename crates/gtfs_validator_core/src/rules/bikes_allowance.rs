@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::{BikesAllowed, RouteType};
@@ -16,38 +16,42 @@ impl Validator for BikesAllowanceValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let has_bikes_allowed_column = feed.trips.headers.iter().any(|h| h == "bikes_allowed");
-        if !has_bikes_allowed_column || !thorough_mode_enabled() {
+        if !thorough_mode_enabled() {
             return;
         }
 
-        let ferry_routes: HashSet<gtfs_guru_model::StringId> = feed
+        let route_types: HashMap<gtfs_guru_model::StringId, RouteType> = feed
             .routes
             .rows
             .iter()
-            .filter(|route| route.route_type == RouteType::Ferry)
-            .map(|route| route.route_id)
-            .filter(|id| id.0 != 0)
+            .map(|r| (r.route_id, r.route_type))
             .collect();
+
+        let has_bikes_allowed_column = feed.trips.headers.iter().any(|h| h == "bikes_allowed");
 
         for (index, trip) in feed.trips.rows.iter().enumerate() {
             let row_number = feed.trips.row_number(index);
             let route_id = trip.route_id;
-            let trip_id = trip.trip_id;
-            let is_ferry = ferry_routes.contains(&route_id);
-            if has_bike_allowance(trip.bikes_allowed) {
+
+            // Only check ferry routes to match Java behavior
+            let Some(&route_type) = route_types.get(&route_id) else {
+                continue;
+            };
+            if route_type != RouteType::Ferry {
                 continue;
             }
+
+            if has_bikes_allowed_column && has_bike_allowance(trip.bikes_allowed) {
+                continue;
+            }
+
+            let trip_id = trip.trip_id;
             let route_id_value = feed.pool.resolve(route_id);
             let trip_id_value = feed.pool.resolve(trip_id);
             let mut notice = ValidationNotice::new(
                 CODE_MISSING_BIKE_ALLOWANCE,
                 NoticeSeverity::Warning,
-                if is_ferry {
-                    "ferry trips should define bikes_allowed"
-                } else {
-                    "trip has bikes_allowed column but no value specified"
-                },
+                "trips should define bikes_allowed",
             );
             notice.insert_context_field("csvRowNumber", row_number);
             notice.insert_context_field("routeId", route_id_value.as_str());

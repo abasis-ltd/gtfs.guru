@@ -17,22 +17,6 @@ impl Validator for BlockTripsWithOverlappingStopTimesValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut stop_times_by_trip: HashMap<StringId, Vec<&gtfs_guru_model::StopTime>> =
-            HashMap::new();
-        for stop_time in &feed.stop_times.rows {
-            let trip_id = stop_time.trip_id;
-            if trip_id.0 == 0 {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .push(stop_time);
-        }
-        for stop_times in stop_times_by_trip.values_mut() {
-            stop_times.sort_by_key(|stop_time| stop_time.stop_sequence);
-        }
-
         let service_dates = build_service_dates(feed);
         let mut blocks: HashMap<StringId, Vec<TripWindow>> = HashMap::new();
 
@@ -46,10 +30,17 @@ impl Validator for BlockTripsWithOverlappingStopTimesValidator {
             if trip_id.0 == 0 {
                 continue;
             }
-            let stop_times = match stop_times_by_trip.get(&trip_id) {
-                Some(times) => times,
+            let stop_time_indices = match feed.stop_times_by_trip.get(&trip_id) {
+                Some(indices) => indices,
                 None => continue,
             };
+            let mut stop_times: Vec<&gtfs_guru_model::StopTime> = stop_time_indices
+                .iter()
+                .map(|&index| &feed.stop_times.rows[index])
+                .collect();
+            stop_times.sort_by_key(|s| s.stop_sequence);
+
+            let stop_times = stop_times.as_slice();
             let service_id = trip.service_id;
             if service_id.0 == 0 {
                 continue;
@@ -223,7 +214,10 @@ fn build_service_dates(feed: &GtfsFeed) -> HashMap<StringId, HashSet<NaiveDate>>
 
             while current <= end_date {
                 if service_available_on_date(row, current) {
-                    dates_by_service.entry(row.service_id).or_default().insert(current);
+                    dates_by_service
+                        .entry(row.service_id)
+                        .or_default()
+                        .insert(current);
                 }
                 match current.succ_opt() {
                     Some(next) => current = next,
@@ -298,6 +292,7 @@ mod tests {
         });
 
         let mut notices = NoticeContainer::new();
+        feed.rebuild_stop_times_index();
         BlockTripsWithOverlappingStopTimesValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
@@ -325,6 +320,7 @@ mod tests {
         });
 
         let mut notices = NoticeContainer::new();
+        feed.rebuild_stop_times_index();
         BlockTripsWithOverlappingStopTimesValidator.validate(&feed, &mut notices);
 
         assert!(notices.is_empty());
@@ -351,6 +347,7 @@ mod tests {
         });
 
         let mut notices = NoticeContainer::new();
+        feed.rebuild_stop_times_index();
         BlockTripsWithOverlappingStopTimesValidator.validate(&feed, &mut notices);
 
         assert!(notices.is_empty());
@@ -377,6 +374,7 @@ mod tests {
         });
 
         let mut notices = NoticeContainer::new();
+        feed.rebuild_stop_times_index();
         BlockTripsWithOverlappingStopTimesValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);

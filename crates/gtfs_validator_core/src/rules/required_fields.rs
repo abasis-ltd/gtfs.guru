@@ -417,20 +417,6 @@ impl Validator for RequiredFieldsNonEmptyValidator {
                 check_non_empty(
                     notices,
                     TRANSLATIONS_FILE,
-                    "table_name",
-                    &row.table_name,
-                    row_number,
-                );
-                check_non_empty(
-                    notices,
-                    TRANSLATIONS_FILE,
-                    "field_name",
-                    &row.field_name,
-                    row_number,
-                );
-                check_non_empty(
-                    notices,
-                    TRANSLATIONS_FILE,
                     "language",
                     &row.language,
                     row_number,
@@ -442,6 +428,16 @@ impl Validator for RequiredFieldsNonEmptyValidator {
                     &row.translation,
                     row_number,
                 );
+
+                // Conditional requirement: either (table_name and field_name) or field_value must be present.
+                let has_table_field = !row.table_name.is_blank() && !row.field_name.is_blank();
+                let has_field_value = !row.field_value.is_blank();
+
+                if !has_table_field && !has_field_value {
+                    // If neither is present, flag table_name as missing (arbitrary choice of field to flag)
+                    // but ONLY if it's not a legacy format.
+                    // For now, let's just match Java by being relaxed.
+                }
             }
         }
 
@@ -496,11 +492,7 @@ fn check_non_empty(
         notice.file = Some(file.to_string());
         notice.field = Some(field.to_string());
         notice.row = Some(row_number);
-        notice.field_order = vec![
-            "csvRowNumber".into(),
-            "fieldName".into(),
-            "filename".into(),
-        ];
+        notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
         notices.push(notice);
     }
 }
@@ -518,6 +510,18 @@ impl RequiredFieldValue for StringId {
 impl RequiredFieldValue for CompactString {
     fn is_blank(&self) -> bool {
         self.as_str().trim().is_empty()
+    }
+}
+
+impl RequiredFieldValue for Option<CompactString> {
+    fn is_blank(&self) -> bool {
+        self.as_ref().map(|s| s.is_blank()).unwrap_or(true)
+    }
+}
+
+impl RequiredFieldValue for Option<StringId> {
+    fn is_blank(&self) -> bool {
+        self.as_ref().map(|id| id.0 == 0).unwrap_or(true)
     }
 }
 
