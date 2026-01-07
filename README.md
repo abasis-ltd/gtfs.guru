@@ -80,6 +80,7 @@ cargo build --release -p gtfs-guru-cli
 | **Memory Usage** | 🐘 Heavy (~500MB) | 🪶 **Light (~50MB)** |
 | **Python Support** | ❌ No | ✅ **Native** |
 | **Run in Browser** | ❌ No | ✅ **Yes (WASM)** |
+| **Parsing Strategy** | Serial | **Parallel (Rayon)** |
 | **Rules Implemented** | ~74 | **88** |
 | **Installation** | Requires Java | **Zero Dependencies** |
 
