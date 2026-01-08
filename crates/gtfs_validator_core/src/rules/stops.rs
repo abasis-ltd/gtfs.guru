@@ -68,11 +68,8 @@ impl Validator for StopsValidator {
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                     notice.insert_context_field("stopDesc", desc.as_str());
-                    notice.field_order = vec![
-                        "csvRowNumber".into(),
-                        "stopDesc".into(),
-                        "stopId".into(),
-                    ];
+                    notice.field_order =
+                        vec!["csvRowNumber".into(), "stopDesc".into(), "stopId".into()];
                     notices.push(notice);
                 }
             }

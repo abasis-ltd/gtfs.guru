@@ -157,11 +157,7 @@ mod tests {
     fn detects_distance_too_large() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".into(),
-                "stop_lat".into(),
-                "stop_lon".into(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
                     stop_id: feed.pool.intern("S1"),
@@ -200,11 +196,7 @@ mod tests {
     fn detects_distance_above_2_km() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".into(),
-                "stop_lat".into(),
-                "stop_lon".into(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
                     stop_id: feed.pool.intern("S1"),
@@ -243,11 +235,7 @@ mod tests {
     fn passes_when_short_distance() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".into(),
-                "stop_lat".into(),
-                "stop_lon".into(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
                     stop_id: feed.pool.intern("S1"),

@@ -30,13 +30,17 @@ impl Validator for LocationTypeValidator {
             match location_type {
                 LocationType::StopOrPlatform => {
                     if has_platform_code(stop.platform_code.as_deref()) {
-                        notices.push(platform_without_parent_station_notice(stop, row_number, feed));
+                        notices.push(platform_without_parent_station_notice(
+                            stop, row_number, feed,
+                        ));
                     }
                 }
                 LocationType::EntranceOrExit
                 | LocationType::GenericNode
                 | LocationType::BoardingArea => {
-                    notices.push(location_without_parent_station_notice(stop, row_number, feed));
+                    notices.push(location_without_parent_station_notice(
+                        stop, row_number, feed,
+                    ));
                 }
                 _ => {}
             }
@@ -58,7 +62,9 @@ fn station_with_parent_station_notice(
         NoticeSeverity::Error,
         "station must not have parent_station",
     );
-    let parent_station = feed.pool.resolve(stop.parent_station.unwrap_or(StringId(0)));
+    let parent_station = feed
+        .pool
+        .resolve(stop.parent_station.unwrap_or(StringId(0)));
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("parentStation", parent_station.as_str());
     notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
@@ -75,7 +81,8 @@ fn station_with_parent_station_notice(
 fn location_without_parent_station_notice(
     stop: &gtfs_guru_model::Stop,
     row_number: u64,
- feed: &GtfsFeed) -> ValidationNotice {
+    feed: &GtfsFeed,
+) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_LOCATION_WITHOUT_PARENT_STATION,
         NoticeSeverity::Error,
@@ -97,7 +104,8 @@ fn location_without_parent_station_notice(
 fn platform_without_parent_station_notice(
     stop: &gtfs_guru_model::Stop,
     row_number: u64,
- feed: &GtfsFeed) -> ValidationNotice {
+    feed: &GtfsFeed,
+) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_PLATFORM_WITHOUT_PARENT_STATION,
         NoticeSeverity::Info,
@@ -106,11 +114,7 @@ fn platform_without_parent_station_notice(
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
     notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
-    notice.field_order = vec![
-        "csvRowNumber".into(),
-        "stopId".into(),
-        "stopName".into(),
-    ];
+    notice.field_order = vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
     notice
 }
 

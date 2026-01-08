@@ -26,11 +26,8 @@ impl Validator for TransfersValidator {
                         "transfer_type=2 requires min_transfer_time",
                     );
                     notice.set_location(TRANSFERS_FILE, "min_transfer_time", row_number);
-                    notice.field_order = vec![
-                        "csvRowNumber".into(),
-                        "fieldName".into(),
-                        "filename".into(),
-                    ];
+                    notice.field_order =
+                        vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                     notices.push(notice);
                 }
             }

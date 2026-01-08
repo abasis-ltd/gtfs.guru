@@ -550,11 +550,12 @@ impl GtfsFeed {
                                                     },
                                                     || {
                                                         // Batch 2 (7 files)
-                                                        let (fare_transfer_rules, n1, s1) = loader
-                                                            .load(FARE_TRANSFER_RULES_FILE);
-                                                        let (fare_leg_join_rules, n2, s2) = loader
-                                                            .load(FARE_LEG_JOIN_RULES_FILE);
-                                                        let (areas, n3, s3) = loader.load(AREAS_FILE);
+                                                        let (fare_transfer_rules, n1, s1) =
+                                                            loader.load(FARE_TRANSFER_RULES_FILE);
+                                                        let (fare_leg_join_rules, n2, s2) =
+                                                            loader.load(FARE_LEG_JOIN_RULES_FILE);
+                                                        let (areas, n3, s3) =
+                                                            loader.load(AREAS_FILE);
                                                         let (stop_areas, n4, s4) =
                                                             loader.load(STOP_AREAS_FILE);
                                                         let (timeframes, n5, s5) =
@@ -762,8 +763,32 @@ impl GtfsFeed {
                 translations,
             ),
             (
-                s_a, s_b, s_c, s_d, s_e, s_f, s_g, s_h, s_i, s_j, s_k, s_l, s_m, s_n, s_o,
-                s_p, s_q, s_r, s_s, s_t, s_u, s_v, s_w, s_x, s_y, s_z,
+                s_a,
+                s_b,
+                s_c,
+                s_d,
+                s_e,
+                s_f,
+                s_g,
+                s_h,
+                s_i,
+                s_j,
+                s_k,
+                s_l,
+                s_m,
+                s_n,
+                s_o,
+                s_p,
+                s_q,
+                s_r,
+                s_s,
+                s_t,
+                s_u,
+                s_v,
+                s_w,
+                s_x,
+                s_y,
+                s_z,
             ),
         ) = others;
 

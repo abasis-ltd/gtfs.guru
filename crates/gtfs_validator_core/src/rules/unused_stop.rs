@@ -30,8 +30,10 @@ impl Validator for UnusedStopValidator {
 
         // Also check parent stations of used stops
         let mut all_used_ids = used_stop_ids.clone();
-        let stops_by_id: std::collections::HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
-            feed.stops.rows.iter().map(|s| (s.stop_id, s)).collect();
+        let stops_by_id: std::collections::HashMap<
+            gtfs_guru_model::StringId,
+            &gtfs_guru_model::Stop,
+        > = feed.stops.rows.iter().map(|s| (s.stop_id, s)).collect();
 
         let mut queue: Vec<gtfs_guru_model::StringId> = used_stop_ids.into_iter().collect();
         while let Some(id) = queue.pop() {

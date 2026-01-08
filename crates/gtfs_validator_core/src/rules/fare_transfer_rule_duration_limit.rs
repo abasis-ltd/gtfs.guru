@@ -101,10 +101,7 @@ mod tests {
     fn passes_valid_combination() {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
-            headers: vec![
-                "duration_limit".into(),
-                "duration_limit_type".into(),
-            ],
+            headers: vec!["duration_limit".into(), "duration_limit_type".into()],
             rows: vec![FareTransferRule {
                 duration_limit: Some(3600),
                 duration_limit_type: Some(DurationLimitType::DepartureToArrival),

@@ -48,8 +48,10 @@ impl Validator for StopZoneIdValidator {
             trip_route_ids.insert(trip_id, route_id);
         }
 
-        let mut stop_routes: HashMap<gtfs_guru_model::StringId, HashSet<gtfs_guru_model::StringId>> =
-            HashMap::new();
+        let mut stop_routes: HashMap<
+            gtfs_guru_model::StringId,
+            HashSet<gtfs_guru_model::StringId>,
+        > = HashMap::new();
         for stop_time in &feed.stop_times.rows {
             let stop_id = stop_time.stop_id;
             if stop_id.0 == 0 {
@@ -95,11 +97,8 @@ impl Validator for StopZoneIdValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("stopId", stop_id_value.as_str());
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "stopId".into(),
-                    "stopName".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
                 notices.push(notice);
             }
         }
@@ -126,11 +125,7 @@ mod tests {
     fn detects_missing_zone_id() {
         let mut feed = GtfsFeed::default();
         feed.fare_rules = Some(CsvTable {
-            headers: vec![
-                "fare_id".into(),
-                "route_id".into(),
-                "origin_id".into(),
-            ],
+            headers: vec!["fare_id".into(), "route_id".into(), "origin_id".into()],
             rows: vec![FareRule {
                 fare_id: feed.pool.intern("F1"),
                 route_id: Some(feed.pool.intern("R1")),
@@ -181,11 +176,7 @@ mod tests {
     fn passes_when_zone_id_present() {
         let mut feed = GtfsFeed::default();
         feed.fare_rules = Some(CsvTable {
-            headers: vec![
-                "fare_id".into(),
-                "route_id".into(),
-                "origin_id".into(),
-            ],
+            headers: vec!["fare_id".into(), "route_id".into(), "origin_id".into()],
             rows: vec![FareRule {
                 fare_id: feed.pool.intern("F1"),
                 route_id: Some(feed.pool.intern("R1")),

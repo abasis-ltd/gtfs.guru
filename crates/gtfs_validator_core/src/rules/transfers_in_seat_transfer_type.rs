@@ -237,11 +237,7 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("filename", TRANSFERS_FILE);
-    notice.field_order = vec![
-        "csvRowNumber".into(),
-        "fieldName".into(),
-        "filename".into(),
-    ];
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
     notice
 }
 
@@ -364,11 +360,7 @@ mod tests {
             row_numbers: vec![2, 3, 4],
         };
         feed.stop_times = CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "stop_id".into(),
-                "stop_sequence".into(),
-            ],
+            headers: vec!["trip_id".into(), "stop_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
                     trip_id: feed.pool.intern("T1"),
@@ -434,11 +426,7 @@ mod tests {
             row_numbers: vec![2, 3, 4],
         };
         feed.stop_times = CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "stop_id".into(),
-                "stop_sequence".into(),
-            ],
+            headers: vec!["trip_id".into(), "stop_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
                     trip_id: feed.pool.intern("T1"),

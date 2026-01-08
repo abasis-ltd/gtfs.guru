@@ -115,11 +115,13 @@ mod tests {
             headers: vec![
                 "trip_id".into(),
                 "stop_sequence".into(),
+                "pickup_type".into(),
                 "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
                 trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
+                pickup_type: Some(PickupDropOffType::MustPhone),
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_booking_rule_id: None,
                 ..Default::default()
@@ -143,11 +145,13 @@ mod tests {
             headers: vec![
                 "trip_id".into(),
                 "stop_sequence".into(),
+                "drop_off_type".into(),
                 "end_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
                 trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
+                drop_off_type: Some(PickupDropOffType::MustPhone),
                 end_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 drop_off_booking_rule_id: None,
                 ..Default::default()

@@ -66,11 +66,7 @@ fn time_greater_than_24_notice(
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("time", time.to_string());
-    notice.field_order = vec![
-        "csvRowNumber".into(),
-        "fieldName".into(),
-        "time".into(),
-    ];
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "time".into()];
     notice
 }
 

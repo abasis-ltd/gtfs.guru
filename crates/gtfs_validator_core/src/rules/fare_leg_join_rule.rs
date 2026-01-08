@@ -99,11 +99,7 @@ fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNoti
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("fieldName", field);
     notice.insert_context_field("filename", FARE_LEG_JOIN_RULES_FILE);
-    notice.field_order = vec![
-        "csvRowNumber".into(),
-        "fieldName".into(),
-        "filename".into(),
-    ];
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
     notice
 }
 

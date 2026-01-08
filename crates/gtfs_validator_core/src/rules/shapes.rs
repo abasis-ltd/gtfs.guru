@@ -60,7 +60,8 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             None,
-                         feed));
+                            feed,
+                        ));
                         continue;
                     }
 
@@ -82,7 +83,8 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             None,
-                         feed));
+                            feed,
+                        ));
                         continue;
                     }
 
@@ -104,7 +106,8 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             Some(distance),
-                         feed));
+                            feed,
+                        ));
                     } else if distance > 0.0 {
                         notices.push(shape_notice(
                             CODE_EQUAL_SHAPE_DISTANCE_DIFF_COORDS_BELOW_THRESHOLD,
@@ -117,7 +120,8 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             Some(distance),
-                         feed));
+                            feed,
+                        ));
                     }
                 }
             }

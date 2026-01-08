@@ -164,10 +164,7 @@ mod tests {
     fn detects_multiple_global_defaults() {
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
-            headers: vec![
-                "rider_category_id".into(),
-                "is_default_category".into(),
-            ],
+            headers: vec!["rider_category_id".into(), "is_default_category".into()],
             rows: vec![
                 RiderCategory {
                     rider_category_id: feed.pool.intern("C1"),
@@ -205,10 +202,7 @@ mod tests {
     fn detects_multiple_defaults_for_one_product() {
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
-            headers: vec![
-                "rider_category_id".into(),
-                "is_default_category".into(),
-            ],
+            headers: vec!["rider_category_id".into(), "is_default_category".into()],
             rows: vec![
                 RiderCategory {
                     rider_category_id: feed.pool.intern("C1"),
@@ -224,10 +218,7 @@ mod tests {
             row_numbers: vec![2, 3],
         });
         feed.fare_products = Some(CsvTable {
-            headers: vec![
-                "fare_product_id".into(),
-                "rider_category_id".into(),
-            ],
+            headers: vec!["fare_product_id".into(), "rider_category_id".into()],
             rows: vec![
                 FareProduct {
                     fare_product_id: feed.pool.intern("P1"),
@@ -258,10 +249,7 @@ mod tests {
     fn passes_single_default() {
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
-            headers: vec![
-                "rider_category_id".into(),
-                "is_default_category".into(),
-            ],
+            headers: vec!["rider_category_id".into(), "is_default_category".into()],
             rows: vec![
                 RiderCategory {
                     rider_category_id: feed.pool.intern("C1"),
@@ -277,10 +265,7 @@ mod tests {
             row_numbers: vec![2, 3],
         });
         feed.fare_products = Some(CsvTable {
-            headers: vec![
-                "fare_product_id".into(),
-                "rider_category_id".into(),
-            ],
+            headers: vec!["fare_product_id".into(), "rider_category_id".into()],
             rows: vec![
                 FareProduct {
                     fare_product_id: feed.pool.intern("P1"),

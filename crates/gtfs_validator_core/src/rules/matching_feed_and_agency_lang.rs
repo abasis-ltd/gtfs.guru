@@ -41,8 +41,7 @@ impl Validator for MatchingFeedAndAgencyLangValidator {
                 continue;
             }
             if agency_lang.to_ascii_lowercase() != feed_lang_normalized {
-                let agency_id_value =
-                    feed.pool.resolve(agency.agency_id.unwrap_or(StringId(0)));
+                let agency_id_value = feed.pool.resolve(agency.agency_id.unwrap_or(StringId(0)));
                 let mut notice = ValidationNotice::new(
                     CODE_FEED_INFO_LANG_AND_AGENCY_LANG_MISMATCH,
                     NoticeSeverity::Warning,

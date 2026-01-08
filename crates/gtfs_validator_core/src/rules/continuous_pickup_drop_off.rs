@@ -143,10 +143,7 @@ mod tests {
             row_numbers: vec![2],
         };
         feed.stop_times = CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "start_pickup_drop_off_window".into(),
-            ],
+            headers: vec!["trip_id".into(), "start_pickup_drop_off_window".into()],
             rows: vec![StopTime {
                 trip_id: feed.pool.intern("T1"),
                 start_pickup_drop_off_window: Some(GtfsTime::parse("08:00:00").unwrap()),

@@ -17,8 +17,7 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
         let locations = feed.locations.as_ref();
 
         // Collect stops by trip (sequential grouping is fine as O(N))
-        let mut by_trip: HashMap<gtfs_guru_model::StringId, Vec<(u64, &StopTime)>> =
-            HashMap::new();
+        let mut by_trip: HashMap<gtfs_guru_model::StringId, Vec<(u64, &StopTime)>> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             let trip_id = stop_time.trip_id;
@@ -123,12 +122,10 @@ fn validate_trip(
             }
 
             if overlap {
-                let location_id1_value = location_id_a
-                    .or(group_id_a)
-                    .map(|id| feed.pool.resolve(id));
-                let location_id2_value = location_id_b
-                    .or(group_id_b)
-                    .map(|id| feed.pool.resolve(id));
+                let location_id1_value =
+                    location_id_a.or(group_id_a).map(|id| feed.pool.resolve(id));
+                let location_id2_value =
+                    location_id_b.or(group_id_b).map(|id| feed.pool.resolve(id));
                 let location_id1 = location_id1_value
                     .as_ref()
                     .map(|value| value.as_str())

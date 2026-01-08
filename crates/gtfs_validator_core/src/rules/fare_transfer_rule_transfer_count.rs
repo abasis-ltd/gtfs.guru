@@ -115,10 +115,7 @@ mod tests {
     fn detects_missing_transfer_count() {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
-            headers: vec![
-                "from_leg_group_id".into(),
-                "to_leg_group_id".into(),
-            ],
+            headers: vec!["from_leg_group_id".into(), "to_leg_group_id".into()],
             rows: vec![FareTransferRule {
                 from_leg_group_id: Some(feed.pool.intern("G1")),
                 to_leg_group_id: Some(feed.pool.intern("G1")),

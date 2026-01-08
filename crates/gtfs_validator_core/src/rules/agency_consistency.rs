@@ -32,11 +32,8 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("csvRowNumber", 2_u64);
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", AGENCY_FILE);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
             return;
@@ -52,11 +49,8 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", AGENCY_FILE);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
         }
@@ -76,11 +70,8 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("actual", timezone);
                 notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                 notice.insert_context_field("expected", common_timezone);
-                notice.field_order = vec![
-                    "actual".into(),
-                    "csvRowNumber".into(),
-                    "expected".into(),
-                ];
+                notice.field_order =
+                    vec!["actual".into(), "csvRowNumber".into(), "expected".into()];
                 notices.push(notice);
             }
         }
@@ -107,11 +98,8 @@ impl Validator for AgencyConsistencyValidator {
                     notice.insert_context_field("actual", normalized.as_str());
                     notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                     notice.insert_context_field("expected", existing.as_str());
-                    notice.field_order = vec![
-                        "actual".into(),
-                        "csvRowNumber".into(),
-                        "expected".into(),
-                    ];
+                    notice.field_order =
+                        vec!["actual".into(), "csvRowNumber".into(), "expected".into()];
                     notices.push(notice);
                 }
                 _ => {}

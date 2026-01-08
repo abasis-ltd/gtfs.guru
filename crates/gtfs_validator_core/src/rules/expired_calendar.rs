@@ -47,8 +47,11 @@ impl Validator for ExpiredCalendarValidator {
                         .get(service_id)
                         .copied()
                         .unwrap_or(0);
-                    expired_calendar_dates_notices
-                        .push(expired_notice(feed, row_number, *service_id));
+                    expired_calendar_dates_notices.push(expired_notice(
+                        feed,
+                        row_number,
+                        *service_id,
+                    ));
                 }
             } else {
                 all_calendar_expired = false;

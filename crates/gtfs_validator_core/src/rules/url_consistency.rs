@@ -36,7 +36,10 @@ impl Validator for UrlConsistencyValidator {
                         "route_url matches agency_url",
                     );
                     notice.insert_context_field("routeCsvRowNumber", row_number);
-                    notice.insert_context_field("routeId", feed.pool.resolve(route.route_id).as_str());
+                    notice.insert_context_field(
+                        "routeId",
+                        feed.pool.resolve(route.route_id).as_str(),
+                    );
                     notice.insert_context_field("agencyName", agency.name.as_str());
                     notice.insert_context_field("routeUrl", route_url.as_str());
                     notice.insert_context_field("agencyCsvRowNumber", agency.row_number);
@@ -93,7 +96,10 @@ impl Validator for UrlConsistencyValidator {
                     notice.insert_context_field("stopCsvRowNumber", row_number);
                     notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                     notice.insert_context_field("stopUrl", stop_url.as_str());
-                    notice.insert_context_field("routeId", feed.pool.resolve(route_entry.route_id).as_str());
+                    notice.insert_context_field(
+                        "routeId",
+                        feed.pool.resolve(route_entry.route_id).as_str(),
+                    );
                     notice.insert_context_field("routeCsvRowNumber", route_entry.row_number);
                     notice.field_order = vec![
                         "routeCsvRowNumber".into(),
@@ -189,11 +195,7 @@ mod tests {
             row_numbers: vec![2],
         };
         feed.routes = CsvTable {
-            headers: vec![
-                "route_id".into(),
-                "agency_id".into(),
-                "route_url".into(),
-            ],
+            headers: vec!["route_id".into(), "agency_id".into(), "route_url".into()],
             rows: vec![Route {
                 route_id: feed.pool.intern("R1"),
                 agency_id: Some(feed.pool.intern("A1")),
@@ -296,11 +298,7 @@ mod tests {
             row_numbers: vec![2],
         };
         feed.routes = CsvTable {
-            headers: vec![
-                "route_id".into(),
-                "agency_id".into(),
-                "route_url".into(),
-            ],
+            headers: vec!["route_id".into(), "agency_id".into(), "route_url".into()],
             rows: vec![Route {
                 route_id: feed.pool.intern("R1"),
                 agency_id: Some(feed.pool.intern("A1")),

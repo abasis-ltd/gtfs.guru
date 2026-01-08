@@ -2,12 +2,13 @@ use std::collections::HashSet;
 
 use crate::{
     feed::{
-        AREAS_FILE, BOOKING_RULES_FILE, FARE_LEG_JOIN_RULES_FILE, FARE_LEG_RULES_FILE,
-        FARE_MEDIA_FILE, FARE_PRODUCTS_FILE, FARE_TRANSFER_RULES_FILE, LOCATION_GROUPS_FILE,
-        LOCATION_GROUP_STOPS_FILE, NETWORKS_FILE, RIDER_CATEGORIES_FILE, ROUTES_FILE,
-        ROUTE_NETWORKS_FILE, STOPS_FILE, STOP_AREAS_FILE, STOP_TIMES_FILE, TIMEFRAMES_FILE,
-        TRIPS_FILE,
+        AREAS_FILE, ATTRIBUTIONS_FILE, BOOKING_RULES_FILE, FARE_LEG_JOIN_RULES_FILE,
+        FARE_LEG_RULES_FILE, FARE_MEDIA_FILE, FARE_PRODUCTS_FILE, FARE_TRANSFER_RULES_FILE,
+        FREQUENCIES_FILE, LEVELS_FILE, LOCATION_GROUPS_FILE, LOCATION_GROUP_STOPS_FILE,
+        NETWORKS_FILE, PATHWAYS_FILE, RIDER_CATEGORIES_FILE, ROUTES_FILE, ROUTE_NETWORKS_FILE,
+        STOPS_FILE, STOP_AREAS_FILE, STOP_TIMES_FILE, TIMEFRAMES_FILE, TRIPS_FILE,
     },
+    validation_context::thorough_mode_enabled,
     GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
 };
 
@@ -49,6 +50,10 @@ impl Validator for ReferentialIntegrityValidator {
         let route_networks_ok = !feed.table_has_errors(ROUTE_NETWORKS_FILE);
         let fare_rules_ok = !feed.table_has_errors(FARE_RULES_FILE);
         let fare_attributes_ok = !feed.table_has_errors(FARE_ATTRIBUTES_FILE);
+        let levels_ok = !feed.table_has_errors(LEVELS_FILE);
+        let pathways_ok = !feed.table_has_errors(PATHWAYS_FILE);
+        let frequencies_ok = !feed.table_has_errors(FREQUENCIES_FILE);
+        let attributions_ok = !feed.table_has_errors(ATTRIBUTIONS_FILE);
 
         let stop_ids: HashSet<gtfs_guru_model::StringId> = if stops_ok {
             feed.stops
@@ -258,6 +263,24 @@ impl Validator for ReferentialIntegrityValidator {
         } else {
             HashSet::new()
         };
+        let has_multiple_agencies = feed.agency.rows.len() > 1;
+
+        let level_ids: HashSet<gtfs_guru_model::StringId> = if levels_ok {
+            feed.levels
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|level| level.level_id)
+                        .filter(|id| id.0 != 0)
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            HashSet::new()
+        };
+        let has_levels = levels_ok && feed.levels.is_some();
 
         if stop_times_ok {
             for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
@@ -364,6 +387,27 @@ impl Validator for ReferentialIntegrityValidator {
             }
         }
 
+        // routes.txt → agency_id (only if multiple agencies)
+        if routes_ok && agency_ok && has_multiple_agencies {
+            for (index, route) in feed.routes.rows.iter().enumerate() {
+                let row_number = feed.routes.row_number(index);
+                if let Some(agency_id) = route.agency_id.filter(|id| id.0 != 0) {
+                    if !agency_ids.contains(&agency_id) {
+                        let val = feed.pool.resolve(agency_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            ROUTES_FILE,
+                            "agency_id",
+                            AGENCY_FILE,
+                            "agency_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+            }
+        }
+
         if stops_ok {
             for (index, stop) in feed.stops.rows.iter().enumerate() {
                 let row_number = feed.stops.row_number(index);
@@ -379,6 +423,23 @@ impl Validator for ReferentialIntegrityValidator {
                             parent_id_value.as_str(),
                             row_number,
                         ));
+                    }
+                }
+                // stops.txt → level_id
+                if has_levels {
+                    if let Some(level_id) = stop.level_id.filter(|id| id.0 != 0) {
+                        if !level_ids.contains(&level_id) {
+                            let val = feed.pool.resolve(level_id);
+                            notices.push(missing_ref_notice(
+                                CODE_FOREIGN_KEY_VIOLATION,
+                                STOPS_FILE,
+                                "level_id",
+                                LEVELS_FILE,
+                                "level_id",
+                                val.as_str(),
+                                row_number,
+                            ));
+                        }
                     }
                 }
             }
@@ -476,9 +537,8 @@ impl Validator for ReferentialIntegrityValidator {
                         }
                     }
                     if timeframes_ok {
-                        if let Some(timeframe_id) = rule
-                            .from_timeframe_group_id
-                            .filter(|id| id.0 != 0)
+                        if let Some(timeframe_id) =
+                            rule.from_timeframe_group_id.filter(|id| id.0 != 0)
                         {
                             if !timeframe_group_ids.contains(&timeframe_id) {
                                 let timeframe_value = feed.pool.resolve(timeframe_id);
@@ -549,8 +609,7 @@ impl Validator for ReferentialIntegrityValidator {
                         }
                     }
                     if fare_products_ok {
-                        if let Some(fare_product_id) = rule.fare_product_id.filter(|id| id.0 != 0)
-                        {
+                        if let Some(fare_product_id) = rule.fare_product_id.filter(|id| id.0 != 0) {
                             if !fare_product_ids.contains(&fare_product_id) {
                                 let fare_product_value = feed.pool.resolve(fare_product_id);
                                 notices.push(missing_ref_notice(
@@ -641,7 +700,8 @@ impl Validator for ReferentialIntegrityValidator {
                             }
                         }
                     }
-                    if areas_ok {
+                    // area_id FK checks only in thorough mode (Java doesn't validate these)
+                    if areas_ok && thorough_mode_enabled() {
                         if let Some(area_id) = row.from_area_id.filter(|id| id.0 != 0) {
                             if !area_ids.contains(&area_id) {
                                 let area_value = feed.pool.resolve(area_id);
@@ -955,6 +1015,120 @@ impl Validator for ReferentialIntegrityValidator {
                 }
             }
         }
+
+        // frequencies.txt → trip_id
+        if frequencies_ok && trips_ok {
+            if let Some(frequencies) = &feed.frequencies {
+                for (index, freq) in frequencies.rows.iter().enumerate() {
+                    let row_number = frequencies.row_number(index);
+                    let trip_id = freq.trip_id;
+                    if trip_id.0 != 0 && !trip_ids.contains(&trip_id) {
+                        let val = feed.pool.resolve(trip_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            FREQUENCIES_FILE,
+                            "trip_id",
+                            TRIPS_FILE,
+                            "trip_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+            }
+        }
+
+        // pathways.txt → from_stop_id, to_stop_id
+        if pathways_ok && stops_ok {
+            if let Some(pathways) = &feed.pathways {
+                for (index, pathway) in pathways.rows.iter().enumerate() {
+                    let row_number = pathways.row_number(index);
+                    let from_stop_id = pathway.from_stop_id;
+                    if from_stop_id.0 != 0 && !stop_ids.contains(&from_stop_id) {
+                        let val = feed.pool.resolve(from_stop_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            PATHWAYS_FILE,
+                            "from_stop_id",
+                            STOPS_FILE,
+                            "stop_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                    let to_stop_id = pathway.to_stop_id;
+                    if to_stop_id.0 != 0 && !stop_ids.contains(&to_stop_id) {
+                        let val = feed.pool.resolve(to_stop_id);
+                        notices.push(missing_ref_notice(
+                            CODE_FOREIGN_KEY_VIOLATION,
+                            PATHWAYS_FILE,
+                            "to_stop_id",
+                            STOPS_FILE,
+                            "stop_id",
+                            val.as_str(),
+                            row_number,
+                        ));
+                    }
+                }
+            }
+        }
+
+        // attributions.txt → agency_id, route_id, trip_id
+        if attributions_ok {
+            if let Some(attributions) = &feed.attributions {
+                for (index, attr) in attributions.rows.iter().enumerate() {
+                    let row_number = attributions.row_number(index);
+                    if agency_ok {
+                        if let Some(agency_id) = attr.agency_id.filter(|id| id.0 != 0) {
+                            if !agency_ids.contains(&agency_id) {
+                                let val = feed.pool.resolve(agency_id);
+                                notices.push(missing_ref_notice(
+                                    CODE_FOREIGN_KEY_VIOLATION,
+                                    ATTRIBUTIONS_FILE,
+                                    "agency_id",
+                                    AGENCY_FILE,
+                                    "agency_id",
+                                    val.as_str(),
+                                    row_number,
+                                ));
+                            }
+                        }
+                    }
+                    if routes_ok {
+                        if let Some(route_id) = attr.route_id.filter(|id| id.0 != 0) {
+                            if !route_ids.contains(&route_id) {
+                                let val = feed.pool.resolve(route_id);
+                                notices.push(missing_ref_notice(
+                                    CODE_FOREIGN_KEY_VIOLATION,
+                                    ATTRIBUTIONS_FILE,
+                                    "route_id",
+                                    ROUTES_FILE,
+                                    "route_id",
+                                    val.as_str(),
+                                    row_number,
+                                ));
+                            }
+                        }
+                    }
+                    if trips_ok {
+                        if let Some(trip_id) = attr.trip_id.filter(|id| id.0 != 0) {
+                            if !trip_ids.contains(&trip_id) {
+                                let val = feed.pool.resolve(trip_id);
+                                notices.push(missing_ref_notice(
+                                    CODE_FOREIGN_KEY_VIOLATION,
+                                    ATTRIBUTIONS_FILE,
+                                    "trip_id",
+                                    TRIPS_FILE,
+                                    "trip_id",
+                                    val.as_str(),
+                                    row_number,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1174,5 +1348,4 @@ mod tests {
 
         assert_eq!(notices.len(), 0);
     }
-
 }

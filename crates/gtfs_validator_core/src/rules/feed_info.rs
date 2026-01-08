@@ -42,10 +42,7 @@ impl Validator for FeedContactValidator {
         for (index, info) in feed_info.rows.iter().enumerate() {
             let row_number = feed_info.row_number(index);
             if is_blank(info.feed_contact_email.as_deref())
-                && info
-                    .feed_contact_url
-                    .map(|id| id.0 == 0)
-                    .unwrap_or(true)
+                && info.feed_contact_url.map(|id| id.0 == 0).unwrap_or(true)
             {
                 let mut notice = ValidationNotice::new(
                     CODE_MISSING_FEED_CONTACT_EMAIL_AND_URL,

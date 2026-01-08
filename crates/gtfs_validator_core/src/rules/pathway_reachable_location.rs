@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_guru_model::{Bidirectional, LocationType};
 use gtfs_guru_model::StringId;
+use gtfs_guru_model::{Bidirectional, LocationType};
 
 const CODE_PATHWAY_UNREACHABLE_LOCATION: &str = "pathway_unreachable_location";
 
@@ -22,8 +22,10 @@ impl Validator for PathwayReachableLocationValidator {
         let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
             HashMap::new();
         let mut stop_rows: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
-        let mut children_by_parent: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>> =
-            HashMap::new();
+        let mut children_by_parent: HashMap<
+            gtfs_guru_model::StringId,
+            Vec<&gtfs_guru_model::Stop>,
+        > = HashMap::new();
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
             let stop_id = stop.stop_id;
@@ -58,8 +60,7 @@ impl Validator for PathwayReachableLocationValidator {
         pathway_endpoints.extend(by_from.keys().copied());
         pathway_endpoints.extend(by_to.keys().copied());
 
-        let stations_with_pathways =
-            find_stations_with_pathways(&pathway_endpoints, &stops_by_id);
+        let stations_with_pathways = find_stations_with_pathways(&pathway_endpoints, &stops_by_id);
         if stations_with_pathways.is_empty() {
             return;
         }
@@ -103,8 +104,9 @@ impl Validator for PathwayReachableLocationValidator {
             let has_exit = locations_having_exits.contains(&stop_id);
             if !(has_entrance && has_exit) {
                 let stop_id_value = feed.pool.resolve(stop_id);
-                let parent_station_value =
-                    feed.pool.resolve(location.parent_station.unwrap_or(StringId(0)));
+                let parent_station_value = feed
+                    .pool
+                    .resolve(location.parent_station.unwrap_or(StringId(0)));
                 let mut notice = ValidationNotice::new(
                     CODE_PATHWAY_UNREACHABLE_LOCATION,
                     NoticeSeverity::Error,
@@ -115,10 +117,7 @@ impl Validator for PathwayReachableLocationValidator {
                 notice.insert_context_field("hasEntrance", has_entrance);
                 notice.insert_context_field("hasExit", has_exit);
                 notice.insert_context_field("locationType", location_type_value(location_type));
-                notice.insert_context_field(
-                    "parentStation",
-                    parent_station_value.as_str(),
-                );
+                notice.insert_context_field("parentStation", parent_station_value.as_str());
                 notice.insert_context_field("stopId", stop_id_value.as_str());
                 notice
                     .insert_context_field("stopName", location.stop_name.as_deref().unwrap_or(""));

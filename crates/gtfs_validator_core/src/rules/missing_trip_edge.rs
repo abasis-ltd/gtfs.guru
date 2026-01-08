@@ -68,7 +68,8 @@ fn check_trip_edge(
     stop_time: &gtfs_guru_model::StopTime,
     row_number: u64,
     notices: &mut NoticeContainer,
- feed: &GtfsFeed) {
+    feed: &GtfsFeed,
+) {
     if stop_time.start_pickup_drop_off_window.is_some()
         || stop_time.end_pickup_drop_off_window.is_some()
     {
@@ -80,14 +81,16 @@ fn check_trip_edge(
             stop_time,
             row_number,
             "arrival_time",
-         feed));
+            feed,
+        ));
     }
     if stop_time.departure_time.is_none() {
         notices.push(missing_trip_edge_notice(
             stop_time,
             row_number,
             "departure_time",
-         feed));
+            feed,
+        ));
     }
 }
 
@@ -95,7 +98,8 @@ fn missing_trip_edge_notice(
     stop_time: &gtfs_guru_model::StopTime,
     row_number: u64,
     field: &str,
- feed: &GtfsFeed) -> ValidationNotice {
+    feed: &GtfsFeed,
+) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_MISSING_TRIP_EDGE,
         NoticeSeverity::Error,

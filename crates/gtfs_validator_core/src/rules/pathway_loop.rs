@@ -33,11 +33,8 @@ impl Validator for PathwayLoopValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("pathwayId", pathway_id.as_str());
                 notice.insert_context_field("stopId", stop_id.as_str());
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "pathwayId".into(),
-                    "stopId".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "pathwayId".into(), "stopId".into()];
                 notices.push(notice);
             }
         }

@@ -186,7 +186,10 @@ impl Validator for RoutesValidator {
                         NoticeSeverity::Warning,
                         "route_short_name is too long",
                     );
-                    notice.insert_context_field("routeId", feed.pool.resolve(route.route_id).as_str());
+                    notice.insert_context_field(
+                        "routeId",
+                        feed.pool.resolve(route.route_id).as_str(),
+                    );
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("routeShortName", short);
                     notice.field_order = vec![
@@ -215,7 +218,10 @@ impl Validator for RoutesValidator {
                             NoticeSeverity::Warning,
                             "route_long_name contains route_short_name",
                         );
-                        notice.insert_context_field("routeId", feed.pool.resolve(route.route_id).as_str());
+                        notice.insert_context_field(
+                            "routeId",
+                            feed.pool.resolve(route.route_id).as_str(),
+                        );
                         notice.insert_context_field("csvRowNumber", row_number);
                         notice.insert_context_field("routeShortName", short);
                         notice.insert_context_field("routeLongName", long);
@@ -239,7 +245,10 @@ impl Validator for RoutesValidator {
                             "route_desc matches route_short_name",
                         );
                         notice.insert_context_field("csvRowNumber", row_number);
-                        notice.insert_context_field("routeId", feed.pool.resolve(route.route_id).as_str());
+                        notice.insert_context_field(
+                            "routeId",
+                            feed.pool.resolve(route.route_id).as_str(),
+                        );
                         notice.insert_context_field("routeDesc", route_desc);
                         notice.insert_context_field("specifiedField", "route_short_name");
                         notice.field_order = vec![
@@ -260,7 +269,10 @@ impl Validator for RoutesValidator {
                             "route_desc matches route_long_name",
                         );
                         notice.insert_context_field("csvRowNumber", row_number);
-                        notice.insert_context_field("routeId", feed.pool.resolve(route.route_id).as_str());
+                        notice.insert_context_field(
+                            "routeId",
+                            feed.pool.resolve(route.route_id).as_str(),
+                        );
                         notice.insert_context_field("routeDesc", route_desc);
                         notice.insert_context_field("specifiedField", "route_long_name");
                         notice.field_order = vec![

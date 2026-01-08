@@ -25,7 +25,8 @@ impl Validator for DuplicateRouteNameValidator {
                 let mut notice = ValidationNotice::new(
                     CODE_DUPLICATE_ROUTE_NAME,
                     NoticeSeverity::Warning,
-                    "duplicate route_short_name/route_long_name for same agency and route_type");
+                    "duplicate route_short_name/route_long_name for same agency and route_type",
+                );
                 notice.insert_context_field("csvRowNumber1", prev.row_number);
                 notice.insert_context_field("routeId1", feed.pool.resolve(prev.route_id).as_str());
                 notice.insert_context_field("csvRowNumber2", entry.row_number);

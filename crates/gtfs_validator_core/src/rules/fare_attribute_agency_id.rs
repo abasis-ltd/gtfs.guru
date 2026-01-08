@@ -43,11 +43,8 @@ impl Validator for FareAttributeAgencyIdValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", FARE_ATTRIBUTES_FILE);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
         }

@@ -22,8 +22,10 @@ impl Validator for PathwayEndpointTypeValidator {
 
         let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
             HashMap::new();
-        let mut children_by_parent: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>> =
-            HashMap::new();
+        let mut children_by_parent: HashMap<
+            gtfs_guru_model::StringId,
+            Vec<&gtfs_guru_model::Stop>,
+        > = HashMap::new();
         for stop in &feed.stops.rows {
             let stop_id = stop.stop_id;
             if stop_id.0 == 0 {

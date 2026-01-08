@@ -286,7 +286,9 @@ impl RowValidator {
                 continue;
             }
 
-            if is_schema_field && is_id_field(normalized_header) && !has_only_printable_ascii(trimmed)
+            if is_schema_field
+                && is_id_field(normalized_header)
+                && !has_only_printable_ascii(trimmed)
             {
                 notices.push(non_ascii_notice(
                     &self.file_name,
@@ -1221,9 +1223,7 @@ fn is_id_field(field: &str) -> bool {
 }
 
 fn has_only_printable_ascii(value: &str) -> bool {
-    value
-        .chars()
-        .all(|ch| (32..127).contains(&(ch as u32)))
+    value.chars().all(|ch| (32..127).contains(&(ch as u32)))
 }
 
 pub fn is_value_validated_field(field: &str) -> bool {
@@ -1258,31 +1258,43 @@ fn is_mixed_case_violation(value: &str) -> bool {
             return false;
         }
         // Violation if ALL lowercase (and implies has lowercase chars).
-        // For Hebrew, is_lowercase() is false, so no violation for single Hebrew word.
+        // Also need to have at least one cased character.
+        // For Hebrew/Arabic/CJK, is_lowercase() returns false, so no violation.
+        let has_cased = token
+            .chars()
+            .any(|ch| ch.is_uppercase() || ch.is_lowercase());
+        if !has_cased {
+            return false;
+        }
         return token.chars().all(|ch| ch.is_lowercase());
     }
 
     let mut has_mixed_case_token = false;
-    let mut no_number_tokens = 0;
+    let mut cased_tokens = 0;
 
     for token in tokens {
         let token_len = token.chars().count();
         if token_len <= 1 || token.chars().any(|ch| ch.is_numeric()) {
             continue;
         }
-        no_number_tokens += 1;
 
         let has_upper = token.chars().any(|ch| ch.is_uppercase());
         let has_lower = token.chars().any(|ch| ch.is_lowercase());
+
+        // Skip tokens without any cased characters (e.g., Hebrew, Arabic, CJK)
+        if !has_upper && !has_lower {
+            continue;
+        }
+
+        cased_tokens += 1;
 
         if has_upper && has_lower {
             has_mixed_case_token = true;
         }
     }
 
-    // Java logic: if >= 2 tokens without numbers, and NO token is mixed case -> Violation.
-    // This flags multi-word Hebrew strings because `has_mixed_case_token` remains false.
-    no_number_tokens >= 2 && !has_mixed_case_token
+    // Java logic: if >= 2 cased tokens without numbers, and NO token is mixed case -> Violation.
+    cased_tokens >= 2 && !has_mixed_case_token
 }
 
 fn trim_java_whitespace(value: &str) -> &str {

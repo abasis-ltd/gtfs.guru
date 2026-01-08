@@ -52,10 +52,7 @@ mod tests {
     fn detects_missing_end_date() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec![
-                "feed_publisher_name".into(),
-                "feed_start_date".into(),
-            ],
+            headers: vec!["feed_publisher_name".into(), "feed_start_date".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
                 feed_publisher_url: feed.pool.intern("http://example.com"),
@@ -89,10 +86,7 @@ mod tests {
     fn detects_missing_start_date() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec![
-                "feed_publisher_name".into(),
-                "feed_end_date".into(),
-            ],
+            headers: vec!["feed_publisher_name".into(), "feed_end_date".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
                 feed_publisher_url: feed.pool.intern("http://example.com"),

@@ -40,11 +40,7 @@ fn route_networks_specified_notice(file_name_b: &str) -> ValidationNotice {
     notice.insert_context_field("fieldName", "network_id");
     notice.insert_context_field("fileNameA", ROUTES_FILE);
     notice.insert_context_field("fileNameB", file_name_b);
-    notice.field_order = vec![
-        "fieldName".into(),
-        "fileNameA".into(),
-        "fileNameB".into(),
-    ];
+    notice.field_order = vec!["fieldName".into(), "fileNameA".into(), "fileNameB".into()];
     notice
 }
 

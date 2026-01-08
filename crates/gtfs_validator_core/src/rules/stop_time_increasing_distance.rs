@@ -63,7 +63,11 @@ impl Validator for StopTimeIncreasingDistanceValidator {
     }
 }
 
-fn check_trip(trip_id: gtfs_guru_model::StringId, indices: &[usize], feed: &GtfsFeed) -> NoticeContainer {
+fn check_trip(
+    trip_id: gtfs_guru_model::StringId,
+    indices: &[usize],
+    feed: &GtfsFeed,
+) -> NoticeContainer {
     let mut notices = NoticeContainer::new();
     let mut prev: Option<(u64, &gtfs_guru_model::StopTime)> = None;
 
@@ -72,7 +76,10 @@ fn check_trip(trip_id: gtfs_guru_model::StringId, indices: &[usize], feed: &Gtfs
         let curr = &feed.stop_times.rows[index];
         let row_number = feed.stop_times.row_number(index);
 
-        if !has_stop_id(curr, feed) || curr.location_group_id.is_some() || curr.location_id.is_some() {
+        if !has_stop_id(curr, feed)
+            || curr.location_group_id.is_some()
+            || curr.location_id.is_some()
+        {
             continue;
         }
 

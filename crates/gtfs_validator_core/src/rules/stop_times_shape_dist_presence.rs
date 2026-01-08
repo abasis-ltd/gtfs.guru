@@ -51,7 +51,8 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
                 if let Some(shape_dist) = stop_time.shape_dist_traveled {
                     notice.insert_context_field("shapeDistTraveled", shape_dist);
                 }
-                notice.insert_context_field("tripId", feed.pool.resolve(stop_time.trip_id).as_str());
+                notice
+                    .insert_context_field("tripId", feed.pool.resolve(stop_time.trip_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "shapeDistTraveled".into(),
@@ -78,14 +79,13 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("locationGroupId", location_group_value.as_str());
-                notice.insert_context_field(
-                    "locationId",
-                    location_id_value.as_deref().unwrap_or(""),
-                );
+                notice
+                    .insert_context_field("locationId", location_id_value.as_deref().unwrap_or(""));
                 if let Some(shape_dist) = stop_time.shape_dist_traveled {
                     notice.insert_context_field("shapeDistTraveled", shape_dist);
                 }
-                notice.insert_context_field("tripId", feed.pool.resolve(stop_time.trip_id).as_str());
+                notice
+                    .insert_context_field("tripId", feed.pool.resolve(stop_time.trip_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "locationGroupId".into(),

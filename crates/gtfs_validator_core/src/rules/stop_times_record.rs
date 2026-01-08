@@ -60,8 +60,7 @@ impl Validator for StopTimesRecordValidator {
                     let location_group_value = feed
                         .pool
                         .resolve(stop_time.location_group_id.unwrap_or(StringId(0)));
-                    let location_id_value =
-                        stop_time.location_id.map(|id| feed.pool.resolve(id));
+                    let location_id_value = stop_time.location_id.map(|id| feed.pool.resolve(id));
                     let trip_id_value = feed.pool.resolve(trip_id);
                     let mut notice = ValidationNotice::new(
                         CODE_MISSING_STOP_TIMES_RECORD,

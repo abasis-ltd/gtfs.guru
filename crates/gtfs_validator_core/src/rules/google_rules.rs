@@ -360,10 +360,8 @@ impl Validator for DuplicateTripValidator {
         }
 
         // Create signatures
-        let mut trips_by_signature: std::collections::HashMap<
-            u64,
-            Vec<gtfs_guru_model::StringId>,
-        > = std::collections::HashMap::new();
+        let mut trips_by_signature: std::collections::HashMap<u64, Vec<gtfs_guru_model::StringId>> =
+            std::collections::HashMap::new();
 
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};

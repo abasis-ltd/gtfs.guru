@@ -14,11 +14,7 @@ mod tests {
     fn detects_start_after_end() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "start_time".into(),
-                "end_time".into(),
-            ],
+            headers: vec!["trip_id".into(), "start_time".into(), "end_time".into()],
             rows: vec![Frequency {
                 trip_id: feed.pool.intern("T1"),
                 start_time: GtfsTime::parse("10:00:00").unwrap(),
@@ -43,11 +39,7 @@ mod tests {
     fn detects_start_equals_end() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "start_time".into(),
-                "end_time".into(),
-            ],
+            headers: vec!["trip_id".into(), "start_time".into(), "end_time".into()],
             rows: vec![Frequency {
                 trip_id: feed.pool.intern("T1"),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),
@@ -72,11 +64,7 @@ mod tests {
     fn passes_with_valid_frequency() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "start_time".into(),
-                "end_time".into(),
-            ],
+            headers: vec!["trip_id".into(), "start_time".into(), "end_time".into()],
             rows: vec![Frequency {
                 trip_id: feed.pool.intern("T1"),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),

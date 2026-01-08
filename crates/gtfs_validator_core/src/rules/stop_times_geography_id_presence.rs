@@ -30,8 +30,7 @@ impl Validator for StopTimesGeographyIdPresenceValidator {
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             let has_stop_id = stop_time.stop_id.0 != 0;
-            let has_location_group_id =
-                stop_time.location_group_id.map_or(false, |id| id.0 != 0);
+            let has_location_group_id = stop_time.location_group_id.map_or(false, |id| id.0 != 0);
             let has_location_id = stop_time.location_id.map_or(false, |id| id.0 != 0);
 
             let presence_count = [has_stop_id, has_location_group_id, has_location_id]
@@ -48,11 +47,8 @@ impl Validator for StopTimesGeographyIdPresenceValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("fieldName", "stop_id");
                 notice.insert_context_field("filename", STOP_TIMES_FILE);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             } else if presence_count > 1 {
                 let location_group_value = feed
@@ -66,11 +62,10 @@ impl Validator for StopTimesGeographyIdPresenceValidator {
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("locationGroupId", location_group_value.as_str());
-                notice.insert_context_field(
-                    "locationId",
-                    location_id_value.as_deref().unwrap_or(""),
-                );
-                notice.insert_context_field("stopId", feed.pool.resolve(stop_time.stop_id).as_str());
+                notice
+                    .insert_context_field("locationId", location_id_value.as_deref().unwrap_or(""));
+                notice
+                    .insert_context_field("stopId", feed.pool.resolve(stop_time.stop_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "locationGroupId".into(),
@@ -119,11 +114,7 @@ mod tests {
     fn detects_forbidden_geography_id() {
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "stop_id".into(),
-                "location_id".into(),
-            ],
+            headers: vec!["trip_id".into(), "stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
                 trip_id: feed.pool.intern("T1"),
                 stop_id: feed.pool.intern("S1"),

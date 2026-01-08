@@ -33,11 +33,8 @@ impl Validator for FareMediaNameValidator {
                     "fare_media_name is recommended for fare_media_type",
                 );
                 notice.set_location(FARE_MEDIA_FILE, "fare_media_name", row_number);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
         }

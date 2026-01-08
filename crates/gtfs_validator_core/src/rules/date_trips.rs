@@ -162,9 +162,7 @@ fn compute_trip_count(
     trip_count
 }
 
-fn build_service_dates(
-    feed: &GtfsFeed,
-) -> HashMap<gtfs_guru_model::StringId, BTreeSet<NaiveDate>> {
+fn build_service_dates(feed: &GtfsFeed) -> HashMap<gtfs_guru_model::StringId, BTreeSet<NaiveDate>> {
     let mut dates_by_service: HashMap<gtfs_guru_model::StringId, BTreeSet<NaiveDate>> =
         HashMap::new();
 

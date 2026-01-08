@@ -203,13 +203,9 @@ impl GtfsInputReader {
         let headers_record = match peek_reader.headers() {
             Ok(h) => h.clone(),
             Err(_) => {
-                let (table, _, _) = read_csv_from_reader_parallel(
-                    data_bytes,
-                    file_name,
-                    |_, _| Vec::new(),
-                    || {},
-                )
-                .map_err(GtfsInputError::Csv)?;
+                let (table, _, _) =
+                    read_csv_from_reader_parallel(data_bytes, file_name, |_, _| Vec::new(), || {})
+                        .map_err(GtfsInputError::Csv)?;
                 return Ok(table);
             }
         };
@@ -249,8 +245,8 @@ impl GtfsInputReader {
         let data_str = decode_utf8_lossy(&data);
         let data_bytes = data_str.as_bytes();
         validate_csv_data(file_name, data_bytes, notices);
-        let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
-            .map_err(GtfsInputError::Csv)?;
+        let (table, errors) =
+            read_csv_from_reader_with_errors(data_bytes, file_name).map_err(GtfsInputError::Csv)?;
         for error in errors {
             if skip_csv_parse_error(&table, &error) {
                 continue;
@@ -877,13 +873,9 @@ impl GtfsBytesReader {
         let headers_record = match peek_reader.headers() {
             Ok(h) => h.clone(),
             Err(_) => {
-                let (table, _, _) = read_csv_from_reader_parallel(
-                    data_bytes,
-                    file_name,
-                    |_, _| Vec::new(),
-                    || {},
-                )
-                .map_err(GtfsInputError::Csv)?;
+                let (table, _, _) =
+                    read_csv_from_reader_parallel(data_bytes, file_name, |_, _| Vec::new(), || {})
+                        .map_err(GtfsInputError::Csv)?;
                 return Ok(table);
             }
         };
@@ -923,8 +915,8 @@ impl GtfsBytesReader {
         let data_str = decode_utf8_lossy(&data);
         let data_bytes = data_str.as_bytes();
         validate_csv_data(file_name, data_bytes, notices);
-        let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
-            .map_err(GtfsInputError::Csv)?;
+        let (table, errors) =
+            read_csv_from_reader_with_errors(data_bytes, file_name).map_err(GtfsInputError::Csv)?;
         for error in errors {
             if skip_csv_parse_error(&table, &error) {
                 continue;

@@ -106,7 +106,10 @@ fn duplicate_id_notice(
     let mut notice = ValidationNotice::new(
         CODE_DUPLICATE_GEOGRAPHY_ID,
         NoticeSeverity::Error,
-        format!("geography id '{}' is duplicated across multiple files", id_value),
+        format!(
+            "geography id '{}' is duplicated across multiple files",
+            id_value
+        ),
     );
     if sources.contains(&GeographySource::Stop) {
         if let Some(row_number) = stop_rows.get(&id).copied() {
