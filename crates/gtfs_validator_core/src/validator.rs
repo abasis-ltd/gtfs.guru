@@ -349,6 +349,7 @@ mod tests {
             stop_times_by_trip: std::collections::HashMap::new(),
             route_networks: None,
             pool: crate::StringPool::new(),
+            table_statuses: std::collections::HashMap::new(),
         }
     }
 

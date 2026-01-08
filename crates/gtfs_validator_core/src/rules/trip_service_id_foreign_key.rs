@@ -14,6 +14,21 @@ impl Validator for TripServiceIdForeignKeyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(TRIPS_FILE)
+            || feed.table_has_errors(CALENDAR_FILE)
+            || feed.table_has_errors(CALENDAR_DATES_FILE)
+        {
+            return;
+        }
+        if !feed
+            .trips
+            .headers
+            .iter()
+            .any(|header| header.eq_ignore_ascii_case("service_id"))
+        {
+            return;
+        }
+
         let mut service_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         if let Some(calendar) = &feed.calendar {
             for row in &calendar.rows {
@@ -35,7 +50,10 @@ impl Validator for TripServiceIdForeignKeyValidator {
         for (index, trip) in feed.trips.rows.iter().enumerate() {
             let row_number = feed.trips.row_number(index);
             let service_id = trip.service_id;
-            if service_id.0 == 0 || !service_ids.contains(&service_id) {
+            if service_id.0 == 0 {
+                continue;
+            }
+            if !service_ids.contains(&service_id) {
                 let service_id_value = feed.pool.resolve(service_id);
                 let mut notice = ValidationNotice::new(
                     CODE_FOREIGN_KEY_VIOLATION,

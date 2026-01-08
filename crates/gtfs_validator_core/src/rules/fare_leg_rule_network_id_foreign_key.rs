@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::feed::FARE_LEG_RULES_FILE;
+use crate::feed::{FARE_LEG_RULES_FILE, NETWORKS_FILE, ROUTES_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_FOREIGN_KEY_VIOLATION: &str = "foreign_key_violation";
@@ -17,6 +17,12 @@ impl Validator for FareLegRuleNetworkIdForeignKeyValidator {
         let Some(fare_leg_rules) = &feed.fare_leg_rules else {
             return;
         };
+        if feed.table_has_errors(FARE_LEG_RULES_FILE)
+            || feed.table_has_errors(ROUTES_FILE)
+            || feed.table_has_errors(NETWORKS_FILE)
+        {
+            return;
+        }
 
         let mut network_ids: HashSet<gtfs_guru_model::StringId> = feed
             .routes

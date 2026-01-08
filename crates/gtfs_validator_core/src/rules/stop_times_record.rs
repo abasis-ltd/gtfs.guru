@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::feed::STOP_TIMES_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::PickupDropOffType;
 use gtfs_guru_model::StringId;
@@ -15,6 +16,10 @@ impl Validator for StopTimesRecordValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(STOP_TIMES_FILE) {
+            return;
+        }
+
         let headers = &feed.stop_times.headers;
         let required_columns = [
             "start_pickup_drop_off_window",

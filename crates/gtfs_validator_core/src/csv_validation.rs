@@ -25,7 +25,6 @@ const MIXED_CASE_FIELDS: &[&str] = &[
     "route_long_name",
     "route_short_name",
     "signposted_as",
-    "stop_desc",
     "stop_name",
     "trip_headsign",
     "trip_short_name",
@@ -212,8 +211,12 @@ impl RowValidator {
             return notices;
         }
 
+        // In default mode, skip empty rows silently (matches Java)
+        // In thorough mode, emit empty_row notice
         if record.iter().all(|value| value.trim().is_empty()) {
-            notices.push(empty_row_notice(&self.file_name, row_number));
+            if thorough_mode_enabled() {
+                notices.push(empty_row_notice(&self.file_name, row_number));
+            }
             return notices;
         }
 
@@ -249,7 +252,11 @@ impl RowValidator {
                 .get(col_index)
                 .map(String::as_str)
                 .unwrap_or("");
-            if value.contains('\n') || value.contains('\r') {
+            let is_schema_field = self
+                .schema
+                .map(|schema| schema.fields.contains(&normalized_header))
+                .unwrap_or(false);
+            if is_schema_field && (value.contains('\n') || value.contains('\r')) {
                 notices.push(new_line_notice(
                     &self.file_name,
                     header_name,
@@ -257,7 +264,16 @@ impl RowValidator {
                     value,
                 ));
             }
-            if value != value.trim() {
+            if is_schema_field && value.contains('\u{FFFD}') {
+                notices.push(invalid_character_notice(
+                    &self.file_name,
+                    header_name,
+                    row_number,
+                    value,
+                ));
+            }
+            let trimmed = trim_java_whitespace(value);
+            if is_schema_field && trimmed.len() < value.len() {
                 notices.push(leading_trailing_whitespace_notice(
                     &self.file_name,
                     header_name,
@@ -265,31 +281,19 @@ impl RowValidator {
                     value,
                 ));
             }
-            if value
-                .chars()
-                .any(|ch| ch.is_control() && ch != '\n' && ch != '\r' && ch != '\t')
+
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            if is_schema_field && is_id_field(normalized_header) && !has_only_printable_ascii(trimmed)
             {
-                // Only flag true control characters, not regular non-ASCII like Hebrew or umlauts
                 notices.push(non_ascii_notice(
                     &self.file_name,
                     header_name,
                     row_number,
-                    value,
+                    trimmed,
                 ));
-            }
-
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                if let Some(schema) = self.schema {
-                    if schema.required_fields.contains(&normalized_header) {
-                        notices.push(missing_required_field_notice(
-                            &self.file_name,
-                            header_name,
-                            row_number,
-                        ));
-                    }
-                }
-                continue;
             }
 
             if is_mixed_case_field(normalized_header) && is_mixed_case_violation(trimmed) {
@@ -448,7 +452,7 @@ pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeConta
     let mut reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
-        .trim(Trim::None)
+        .trim(Trim::All)
         .from_reader(data);
 
     let headers_record = match reader.headers() {
@@ -460,13 +464,18 @@ pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeConta
         .map(|value| value.to_string())
         .collect();
 
-    validate_headers(file_name, &headers, notices);
+    let mut header_notices = NoticeContainer::new();
+    validate_headers(file_name, &headers, &mut header_notices);
+    let has_header_errors = header_notices
+        .iter()
+        .any(|notice| notice.severity == NoticeSeverity::Error);
+    notices.merge(header_notices);
+    if has_header_errors {
+        return;
+    }
 
     let validator = RowValidator::new(file_name, headers.clone());
 
-    let _header_len = headers.len();
-    let line_count = data.split(|&b| b == b'\n').count() as u64;
-    let mut last_row_number = 1;
     for (index, result) in reader.records().enumerate() {
         let record = match result {
             Ok(record) => record,
@@ -477,13 +486,6 @@ pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeConta
             .map(|pos| pos.line())
             .unwrap_or(index as u64 + 2);
 
-        if row_number > last_row_number + 1 {
-            for r in (last_row_number + 1)..row_number {
-                notices.push(empty_row_notice(file_name, r));
-            }
-        }
-        last_row_number = row_number;
-
         let row_notices = validator.validate_row(&record, row_number);
         for notice in row_notices {
             let is_too_many = notice.code == "too_many_rows";
@@ -491,12 +493,6 @@ pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeConta
             if is_too_many {
                 return;
             }
-        }
-    }
-
-    if last_row_number < line_count {
-        for r in (last_row_number + 1)..=line_count {
-            notices.push(empty_row_notice(file_name, r));
         }
     }
 }
@@ -530,11 +526,10 @@ pub fn validate_headers(file_name: &str, headers: &[String], notices: &mut Notic
             seen.insert(normalized, index);
         }
         if let Some(schema) = schema {
-            if thorough_mode_enabled()
-                && !schema
-                    .fields
-                    .iter()
-                    .any(|field| field.eq_ignore_ascii_case(trimmed))
+            if !schema
+                .fields
+                .iter()
+                .any(|field| field.eq_ignore_ascii_case(trimmed))
             {
                 notices.push(unknown_column_notice(file_name, trimmed, index));
             }
@@ -702,6 +697,7 @@ mod tests {
 
     #[test]
     fn empty_row_notice_uses_csv_row_number() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut notices = NoticeContainer::new();
         let data = b"agency_name,agency_url,agency_timezone\n,,\n";
 
@@ -1220,6 +1216,16 @@ fn is_phone_field(field: &str) -> bool {
     PHONE_FIELDS.contains(&field)
 }
 
+fn is_id_field(field: &str) -> bool {
+    field.ends_with("_id") || field == "parent_station"
+}
+
+fn has_only_printable_ascii(value: &str) -> bool {
+    value
+        .chars()
+        .all(|ch| (32..127).contains(&(ch as u32)))
+}
+
 pub fn is_value_validated_field(field: &str) -> bool {
     let normalized = field.trim().to_ascii_lowercase();
     let field = normalized.as_str();
@@ -1236,46 +1242,51 @@ fn is_mixed_case_violation(value: &str) -> bool {
         .split(|ch: char| !ch.is_alphabetic())
         .filter(|token| !token.is_empty())
         .collect();
+
     if tokens.is_empty() {
         return false;
     }
 
     if tokens.len() == 1 {
         let token = tokens[0];
-        // Relax: ignore short acronyms or single characters
-        if token.len() <= 4 {
+        let token_len = token.chars().count();
+        // Java logic: if length > 1, no numbers, and ALL LOWERCASE -> Violation.
+        if token_len <= 1 {
             return false;
         }
-        if token.chars().any(|ch| ch.is_ascii_digit()) {
+        if token.chars().any(|ch| ch.is_numeric()) {
             return false;
         }
-        return token.chars().all(|ch| ch.is_lowercase())
-            || token.chars().all(|ch| ch.is_uppercase());
+        // Violation if ALL lowercase (and implies has lowercase chars).
+        // For Hebrew, is_lowercase() is false, so no violation for single Hebrew word.
+        return token.chars().all(|ch| ch.is_lowercase());
     }
 
-    let mut has_mixed_case = false;
+    let mut has_mixed_case_token = false;
     let mut no_number_tokens = 0;
+
     for token in tokens {
-        if token.len() == 1 || token.chars().any(|ch| ch.is_ascii_digit()) {
+        let token_len = token.chars().count();
+        if token_len <= 1 || token.chars().any(|ch| ch.is_numeric()) {
             continue;
         }
         no_number_tokens += 1;
-        let mut has_upper = false;
-        let mut has_lower = false;
-        for ch in token.chars() {
-            if ch.is_uppercase() {
-                has_upper = true;
-            }
-            if ch.is_lowercase() {
-                has_lower = true;
-            }
-        }
+
+        let has_upper = token.chars().any(|ch| ch.is_uppercase());
+        let has_lower = token.chars().any(|ch| ch.is_lowercase());
+
         if has_upper && has_lower {
-            has_mixed_case = true;
+            has_mixed_case_token = true;
         }
     }
 
-    no_number_tokens >= 2 && !has_mixed_case
+    // Java logic: if >= 2 tokens without numbers, and NO token is mixed case -> Violation.
+    // This flags multi-word Hebrew strings because `has_mixed_case_token` remains false.
+    no_number_tokens >= 2 && !has_mixed_case_token
+}
+
+fn trim_java_whitespace(value: &str) -> &str {
+    value.trim_matches(|ch| ch <= ' ')
 }
 
 fn is_valid_url(value: &str) -> bool {
@@ -1873,6 +1884,7 @@ fn missing_recommended_field_notice(
     notice
 }
 
+#[allow(dead_code)]
 fn missing_required_field_notice(
     file: &str,
     field_name: &str,
@@ -1888,4 +1900,30 @@ fn missing_required_field_notice(
     notice.field = Some(field_name.to_string());
     notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
     notice
+}
+
+#[cfg(test)]
+mod tests_whitespaces {
+    use super::*;
+
+    #[test]
+    fn test_whitespace_checks_schema_aware() {
+        let mut notices = NoticeContainer::new();
+        // Agency file has schema.
+        // Headers: agency_name (known), extra_col (unknown)
+        // Values contain whitespace, but CSV reader trims them.
+        let data = b"agency_name,extra_col,agency_url,agency_timezone\n agency 1 , val ,url,tz";
+        validate_csv_data("agency.txt", data, &mut notices);
+
+        let whitespace_notices: Vec<_> = notices
+            .iter()
+            .filter(|n| n.code == "leading_or_trailing_whitespaces")
+            .collect();
+
+        assert!(
+            whitespace_notices.is_empty(),
+            "Expected no whitespace notices, found: {:?}",
+            whitespace_notices
+        );
+    }
 }

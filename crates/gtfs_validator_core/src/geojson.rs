@@ -201,7 +201,12 @@ impl LocationsGeoJson {
                             }
                             match points_from_polygon(coords) {
                                 Ok(points) => {
-                                    check_points(&mut notices, feature_id_str.as_str(), index, &points);
+                                    check_points(
+                                        &mut notices,
+                                        feature_id_str.as_str(),
+                                        index,
+                                        &points,
+                                    );
                                     // Check for self-intersecting polygon
                                     if let Some(ring) = coords.as_array().and_then(|a| a.first()) {
                                         if let Some(ring_points) = ring.as_array() {
@@ -236,7 +241,12 @@ impl LocationsGeoJson {
                             }
                             match points_from_multipolygon(coords) {
                                 Ok(points) => {
-                                    check_points(&mut notices, feature_id_str.as_str(), index, &points);
+                                    check_points(
+                                        &mut notices,
+                                        feature_id_str.as_str(),
+                                        index,
+                                        &points,
+                                    );
                                     if let Some(bounds) = bounds_from_points(points) {
                                         bounds_by_id.entry(feature_id).or_insert(bounds);
                                     }
@@ -396,7 +406,10 @@ fn check_points(
     points: &[(f64, f64)],
 ) {
     for (lon, lat) in points {
-        if lat.abs() <= 1.0 && lon.abs() <= 1.0 {
+        if crate::validation_context::thorough_mode_enabled()
+            && lat.abs() <= 1.0
+            && lon.abs() <= 1.0
+        {
             notices.push(point_near_origin_notice(
                 feature_id,
                 *lat,

@@ -6,6 +6,7 @@ use crate::feed::{
     RIDER_CATEGORIES_FILE, ROUTES_FILE, ROUTE_NETWORKS_FILE, SHAPES_FILE, STOPS_FILE,
     STOP_AREAS_FILE, STOP_TIMES_FILE, TIMEFRAMES_FILE, TRANSLATIONS_FILE, TRIPS_FILE,
 };
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use compact_str::CompactString;
 use gtfs_guru_model::StringId;
@@ -21,6 +22,9 @@ impl Validator for RequiredFieldsNonEmptyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         for (index, agency) in feed.agency.rows.iter().enumerate() {
             let row_number = feed.agency.row_number(index);
             check_non_empty(
@@ -550,6 +554,7 @@ mod tests {
 
     #[test]
     fn test_required_fields_empty() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
@@ -577,6 +582,7 @@ mod tests {
 
     #[test]
     fn test_required_fields_present() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![

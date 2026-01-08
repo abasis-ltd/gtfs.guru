@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::feed::{STOP_TIMES_FILE, TRIPS_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_UNUSED_TRIP: &str = "unused_trip";
@@ -13,6 +14,11 @@ impl Validator for TripUsageValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        // Only run in thorough mode to match Java default behavior
+        if feed.table_has_errors(TRIPS_FILE) || feed.table_has_errors(STOP_TIMES_FILE) {
+            return;
+        }
+
         let stop_time_trips: HashSet<gtfs_guru_model::StringId> = feed
             .stop_times
             .rows
@@ -52,6 +58,7 @@ mod tests {
 
     #[test]
     fn detects_unused_trip() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
             headers: vec!["trip_id".into()],
@@ -107,6 +114,7 @@ mod tests {
 
     #[test]
     fn reports_each_unused_trip_once() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
             headers: vec!["trip_id".into()],

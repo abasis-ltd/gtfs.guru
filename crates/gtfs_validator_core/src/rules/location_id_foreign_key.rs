@@ -18,6 +18,9 @@ impl Validator for LocationIdForeignKeyValidator {
         if locations.has_fatal_errors() {
             return;
         }
+        if feed.table_has_errors(STOP_TIMES_FILE) {
+            return;
+        }
         if !feed
             .stop_times
             .headers

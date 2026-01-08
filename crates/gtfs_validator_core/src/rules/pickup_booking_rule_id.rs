@@ -27,24 +27,14 @@ impl Validator for PickupBookingRuleIdValidator {
             .headers
             .iter()
             .any(|header| header.eq_ignore_ascii_case("drop_off_type"));
-        let has_start_window = feed
-            .stop_times
-            .headers
-            .iter()
-            .any(|header| header.eq_ignore_ascii_case("start_pickup_drop_off_window"));
-        let has_end_window = feed
-            .stop_times
-            .headers
-            .iter()
-            .any(|header| header.eq_ignore_ascii_case("end_pickup_drop_off_window"));
-
-        if !has_pickup_type && !has_drop_off_type && !has_start_window && !has_end_window {
+        if !has_pickup_type && !has_drop_off_type {
             return;
         }
 
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             if stop_time.start_pickup_drop_off_window.is_some()
+                && is_must_phone(stop_time.pickup_type)
                 && !has_value(stop_time.pickup_booking_rule_id)
             {
                 notices.push(missing_booking_rule_notice(
@@ -55,6 +45,7 @@ impl Validator for PickupBookingRuleIdValidator {
             }
 
             if stop_time.end_pickup_drop_off_window.is_some()
+                && is_must_phone(stop_time.drop_off_type)
                 && !has_value(stop_time.drop_off_booking_rule_id)
             {
                 notices.push(missing_booking_rule_notice(
@@ -69,6 +60,10 @@ impl Validator for PickupBookingRuleIdValidator {
 
 fn has_value(value: Option<StringId>) -> bool {
     matches!(value, Some(id) if id.0 != 0)
+}
+
+fn is_must_phone(value: Option<PickupDropOffType>) -> bool {
+    matches!(value, Some(PickupDropOffType::MustPhone))
 }
 
 fn missing_booking_rule_notice(

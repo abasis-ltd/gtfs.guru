@@ -4,6 +4,8 @@ use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validat
 
 const CODE_MISSING_LEVEL_ID: &str = "missing_level_id";
 
+use crate::validation_context::thorough_mode_enabled;
+
 #[derive(Debug, Default)]
 pub struct MissingLevelIdValidator;
 
@@ -13,6 +15,9 @@ impl Validator for MissingLevelIdValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         let Some(pathways) = &feed.pathways else {
             return;
         };
@@ -69,11 +74,8 @@ impl Validator for MissingLevelIdValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("stopId", stop_id_value.as_str());
                 notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "stopId".into(),
-                    "stopName".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
                 notices.push(notice);
             }
         }
@@ -88,6 +90,7 @@ mod tests {
 
     #[test]
     fn detects_missing_level_id_when_levels_present() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.levels = Some(CsvTable {
             headers: vec!["level_id".into()],

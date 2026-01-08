@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::feed::ROUTES_FILE;
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_UNUSED_ROUTE: &str = "unused_route";
@@ -14,6 +15,11 @@ impl Validator for UnusedRouteValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        // Only run in thorough mode to match Java default behavior
+        if !thorough_mode_enabled() {
+            return;
+        }
+
         let mut used_route_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         for trip in &feed.trips.rows {
             let route_id = trip.route_id;
@@ -66,6 +72,7 @@ mod tests {
 
     #[test]
     fn detects_unused_route() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "route_short_name".into()],

@@ -1,10 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::feed::{LOCATION_GROUP_STOPS_FILE, STOPS_FILE, STOP_TIMES_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::LocationType;
 
 const CODE_STOP_WITHOUT_STOP_TIME: &str = "stop_without_stop_time";
 const CODE_LOCATION_WITH_UNEXPECTED_STOP_TIME: &str = "location_with_unexpected_stop_time";
+
+use crate::validation_context::thorough_mode_enabled;
 
 #[derive(Debug, Default)]
 pub struct LocationHasStopTimesValidator;
@@ -15,6 +18,13 @@ impl Validator for LocationHasStopTimesValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(STOPS_FILE)
+            || feed.table_has_errors(STOP_TIMES_FILE)
+            || feed.table_has_errors(LOCATION_GROUP_STOPS_FILE)
+        {
+            return;
+        }
+
         let mut stop_ids_in_stop_times: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         let mut stop_time_row_by_stop_id: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
         let mut location_group_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
@@ -80,25 +90,22 @@ impl Validator for LocationHasStopTimesValidator {
                     notice.insert_context_field("stopId", stop_id_value.as_str());
                     notice
                         .insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
-                    notice.field_order = vec![
-                        "csvRowNumber".into(),
-                        "stopId".into(),
-                        "stopName".into(),
-                    ];
-                notices.push(notice);
-            }
-        } else if stop_ids_in_stop_times.contains(&stop_id) {
-            let mut notice = ValidationNotice::new(
-                CODE_LOCATION_WITH_UNEXPECTED_STOP_TIME,
-                NoticeSeverity::Error,
-                "non-stop location has stop_times entries",
-            );
-            notice.insert_context_field("csvRowNumber", row_number);
-            notice.insert_context_field("stopId", stop_id_value.as_str());
-            notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
-            if let Some(stop_time_row) = stop_time_row_by_stop_id.get(&stop_id) {
-                notice.insert_context_field("stopTimeCsvRowNumber", *stop_time_row);
-            }
+                    notice.field_order =
+                        vec!["csvRowNumber".into(), "stopId".into(), "stopName".into()];
+                    notices.push(notice);
+                }
+            } else if stop_ids_in_stop_times.contains(&stop_id) {
+                let mut notice = ValidationNotice::new(
+                    CODE_LOCATION_WITH_UNEXPECTED_STOP_TIME,
+                    NoticeSeverity::Error,
+                    "non-stop location has stop_times entries",
+                );
+                notice.insert_context_field("csvRowNumber", row_number);
+                notice.insert_context_field("stopId", stop_id_value.as_str());
+                notice.insert_context_field("stopName", stop.stop_name.as_deref().unwrap_or(""));
+                if let Some(stop_time_row) = stop_time_row_by_stop_id.get(&stop_id) {
+                    notice.insert_context_field("stopTimeCsvRowNumber", *stop_time_row);
+                }
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "stopId".into(),
@@ -119,6 +126,7 @@ mod tests {
 
     #[test]
     fn detects_stop_without_stop_time() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec!["stop_id".into()],
@@ -143,6 +151,7 @@ mod tests {
 
     #[test]
     fn detects_location_with_unexpected_stop_time() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "location_type".into()],

@@ -286,7 +286,10 @@ fn report_problems(
         {
             continue;
         }
-        if !thorough_mode_enabled() && problem.problem_type != ProblemType::StopTooFarFromShape {
+        if !thorough_mode_enabled()
+            && problem.problem_type != ProblemType::StopTooFarFromShape
+            && problem.problem_type != ProblemType::StopsMatchOutOfOrder
+        {
             continue;
         }
         notices.push(problem_notice(
@@ -1164,8 +1167,13 @@ impl ShapePoints {
         let mut last_index = usize::MAX;
 
         for segment in sorted_candidates {
+            // Skip duplicates if any
+            if last_index != usize::MAX && segment.index == last_index {
+                continue;
+            }
+
             // Handle gap between segments (reset state if non-consecutive)
-            if last_index != usize::MAX && segment.index != last_index + 1 {
+            if last_index != usize::MAX && segment.index > last_index + 1 {
                 // Gap detected, reset local match state as if we started fresh or finished a group
                 if local_match.has_best_match() {
                     matches.push(local_match.clone());
@@ -1191,9 +1199,8 @@ impl ShapePoints {
 
             if geo_distance_to_shape <= max_distance_from_shape {
                 if local_match.has_best_match()
-                    && (previous_segment_getting_further_away
-                        || (geo_distance_to_shape == 0.0
-                            && distance_to_end_previous_segment == 0.0))
+                    && previous_segment_getting_further_away
+                    && geo_distance_to_shape < distance_to_end_previous_segment
                 {
                     matches.push(local_match.clone());
                     local_match.clear_best_match();
@@ -1993,5 +2000,120 @@ mod tests {
         ShapeToStopMatchingValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 0);
+    }
+    #[test]
+    fn detects_out_of_order_stops() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".into(),
+                "route_short_name".into(),
+                "route_type".into(),
+            ],
+            rows: vec![Route {
+                route_id: feed.pool.intern("R1"),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // Stops are physically ordered: S1 (start), S2 (end)
+        // But trip visits them in order: S2 -> S1 (reverse of shape)
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".into(),
+                "stop_name".into(),
+                "stop_lat".into(),
+                "stop_lon".into(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: feed.pool.intern("S1"),
+                    stop_name: Some("Stop 1".into()),
+                    stop_lat: Some(37.7749),
+                    stop_lon: Some(-122.4194),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: feed.pool.intern("S2"),
+                    stop_name: Some("Stop 2".into()),
+                    stop_lat: Some(37.7750),
+                    stop_lon: Some(-122.4195),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.shapes = Some(CsvTable {
+            headers: vec![
+                "shape_id".into(),
+                "shape_pt_lat".into(),
+                "shape_pt_lon".into(),
+                "shape_pt_sequence".into(),
+            ],
+            rows: vec![
+                Shape {
+                    shape_id: feed.pool.intern("SH1"),
+                    shape_pt_lat: 37.7749,
+                    shape_pt_lon: -122.4194, // Matches S1
+                    shape_pt_sequence: 1,
+                    ..Default::default()
+                },
+                Shape {
+                    shape_id: feed.pool.intern("SH1"),
+                    shape_pt_lat: 37.7750,
+                    shape_pt_lon: -122.4195, // Matches S2
+                    shape_pt_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["route_id".into(), "trip_id".into(), "shape_id".into()],
+            rows: vec![Trip {
+                route_id: feed.pool.intern("R1"),
+                trip_id: feed.pool.intern("T1"),
+                shape_id: Some(feed.pool.intern("SH1")),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // Trip is S2 (idx=2) -> S1 (idx=1)
+        // Shape is S1 -> S2.
+        // So S2 matches point 2, S1 matches point 1.
+        // Sequence: distance(point 2) > distance(point 1) => DECREASING distance.
+        // We expect out-of-order notice.
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".into(), "stop_id".into(), "stop_sequence".into()],
+            rows: vec![
+                StopTime {
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
+                    stop_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.rebuild_stop_times_index();
+
+        let mut notices = NoticeContainer::new();
+        ShapeToStopMatchingValidator.validate(&feed, &mut notices);
+
+        let notice = notices
+            .iter()
+            .find(|n| n.code == CODE_STOPS_MATCH_OUT_OF_ORDER);
+        assert!(
+            notice.is_some(),
+            "Expected stops_match_shape_out_of_order notice"
+        );
     }
 }

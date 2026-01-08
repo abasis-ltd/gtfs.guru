@@ -5,8 +5,6 @@ use gtfs_guru_model::{BikesAllowed, RouteType};
 
 const CODE_MISSING_BIKE_ALLOWANCE: &str = "missing_bike_allowance";
 
-use crate::validation_context::thorough_mode_enabled;
-
 #[derive(Debug, Default)]
 pub struct BikesAllowanceValidator;
 
@@ -16,10 +14,6 @@ impl Validator for BikesAllowanceValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        if !thorough_mode_enabled() {
-            return;
-        }
-
         let route_types: HashMap<gtfs_guru_model::StringId, RouteType> = feed
             .routes
             .rows
@@ -33,7 +27,7 @@ impl Validator for BikesAllowanceValidator {
             let row_number = feed.trips.row_number(index);
             let route_id = trip.route_id;
 
-            // Only check ferry routes to match Java behavior
+            // Java only checks ferry routes.
             let Some(&route_type) = route_types.get(&route_id) else {
                 continue;
             };
@@ -101,8 +95,9 @@ mod tests {
     }
 
     #[test]
-    fn skips_non_ferry_routes() {
-        // Create a feed without the bikes_allowed header - validator should skip entirely
+    fn ignores_non_ferry_routes() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
+        // Create a feed without the bikes_allowed header - non-ferry routes are ignored.
         let mut feed = base_feed(RouteType::Bus, None);
         feed.trips.headers = vec![]; // Remove bikes_allowed header
 

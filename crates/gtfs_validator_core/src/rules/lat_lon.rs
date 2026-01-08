@@ -213,6 +213,7 @@ mod tests {
 
     #[test]
     fn test_stop_lat_lon_near_origin() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![],

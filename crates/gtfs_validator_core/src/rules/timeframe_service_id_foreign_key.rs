@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::feed::TIMEFRAMES_FILE;
+use crate::feed::{CALENDAR_DATES_FILE, CALENDAR_FILE, TIMEFRAMES_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_FOREIGN_KEY_VIOLATION: &str = "foreign_key_violation";
@@ -17,6 +17,19 @@ impl Validator for TimeframeServiceIdForeignKeyValidator {
         let Some(timeframes) = &feed.timeframes else {
             return;
         };
+        if feed.table_has_errors(TIMEFRAMES_FILE)
+            || feed.table_has_errors(CALENDAR_FILE)
+            || feed.table_has_errors(CALENDAR_DATES_FILE)
+        {
+            return;
+        }
+        if !timeframes
+            .headers
+            .iter()
+            .any(|header| header.eq_ignore_ascii_case("service_id"))
+        {
+            return;
+        }
 
         let mut service_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         if let Some(calendar) = &feed.calendar {
@@ -39,7 +52,10 @@ impl Validator for TimeframeServiceIdForeignKeyValidator {
         for (index, timeframe) in timeframes.rows.iter().enumerate() {
             let row_number = timeframes.row_number(index);
             let service_id = timeframe.service_id;
-            if service_id.0 == 0 || !service_ids.contains(&service_id) {
+            if service_id.0 == 0 {
+                continue;
+            }
+            if !service_ids.contains(&service_id) {
                 let service_id_value = feed.pool.resolve(service_id);
                 let mut notice = ValidationNotice::new(
                     CODE_FOREIGN_KEY_VIOLATION,

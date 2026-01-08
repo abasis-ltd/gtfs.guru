@@ -100,7 +100,7 @@ where
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
-        .trim(Trim::None)
+        .trim(Trim::All)
         .from_reader(reader);
 
     let headers_record = csv_reader
@@ -214,7 +214,7 @@ where
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
-        .trim(Trim::None)
+        .trim(Trim::All)
         .from_reader(buf_reader);
 
     let headers_record = csv_reader

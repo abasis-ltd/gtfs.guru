@@ -5,6 +5,8 @@ use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validat
 
 const CODE_UNUSED_AGENCY: &str = "unused_agency";
 
+use crate::validation_context::thorough_mode_enabled;
+
 #[derive(Debug, Default)]
 pub struct UnusedAgencyValidator;
 
@@ -14,6 +16,9 @@ impl Validator for UnusedAgencyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         if feed.agency.rows.len() <= 1 {
             // If there's only one agency, it's considered used by default if routes exist,
             // or it's simply the only agency.
@@ -63,6 +68,7 @@ mod tests {
 
     #[test]
     fn detects_unused_agency() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![

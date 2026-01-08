@@ -29,6 +29,7 @@ pub mod notice_schema;
 pub mod progress;
 pub mod rules;
 pub mod string_pool;
+mod table_status;
 pub mod timing;
 mod validation_context;
 pub mod validator;
@@ -45,6 +46,7 @@ pub use notice_schema::build_notice_schema_map;
 pub use progress::{NoOpProgressHandler, ProgressHandler};
 pub use rules::default_runner;
 pub use string_pool::StringPool;
+pub use table_status::TableStatus;
 pub use timing::{TimingCategory, TimingCollector, TimingRecord, TimingSummary};
 pub use validation_context::{
     google_rules_enabled, set_google_rules_enabled, set_thorough_mode_enabled,

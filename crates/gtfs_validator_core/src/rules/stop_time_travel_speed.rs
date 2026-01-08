@@ -514,6 +514,7 @@ mod tests {
 
     #[test]
     fn detects_fast_travel_consecutive() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
@@ -589,6 +590,7 @@ mod tests {
 
     #[test]
     fn detects_fast_travel_far() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Cursor, Read};
@@ -11,9 +12,7 @@ use crate::csv_reader::read_csv_from_reader_parallel;
 #[cfg(not(feature = "parallel"))]
 use crate::csv_reader::read_csv_from_reader_with_errors;
 use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
-use crate::csv_validation::{
-    empty_row_notice, is_value_validated_field, validate_csv_data, validate_headers, RowValidator,
-};
+use crate::csv_validation::{is_value_validated_field, validate_headers, RowValidator};
 
 use crate::feed::GTFS_FILE_NAMES;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
@@ -135,26 +134,31 @@ pub fn collect_input_notices(input: &GtfsInput) -> Result<Vec<ValidationNotice>,
         .map(|name| name.to_ascii_lowercase())
         .collect();
     let mut notices = Vec::new();
-    let mut has_nested = false;
 
     for path in files {
         let normalized = path.replace('\\', "/");
         let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+        if file_name.eq_ignore_ascii_case(".ds_store") {
+            continue;
+        }
         let is_known = known.contains(&file_name.to_ascii_lowercase());
-        if is_known {
-            if normalized.contains('/') {
-                has_nested = true;
-            }
-        } else {
-            notices.push(unknown_file_notice(&normalized));
+        if !is_known {
+            notices.push(unknown_file_notice(file_name));
         }
     }
 
-    if has_nested {
+    if reader.has_nested_gtfs_files()? {
         notices.push(invalid_input_files_notice());
     }
 
     Ok(notices)
+}
+
+fn decode_utf8_lossy(data: &[u8]) -> Cow<'_, str> {
+    match std::str::from_utf8(data) {
+        Ok(text) => Cow::Borrowed(text),
+        Err(_) => Cow::Owned(String::from_utf8_lossy(data).into_owned()),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -176,7 +180,8 @@ impl GtfsInputReader {
         file_name: &str,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
-        read_csv_from_reader(data.as_slice(), file_name).map_err(GtfsInputError::Csv)
+        let data_str = decode_utf8_lossy(&data);
+        read_csv_from_reader(data_str.as_bytes(), file_name).map_err(GtfsInputError::Csv)
     }
 
     #[cfg(feature = "parallel")]
@@ -186,18 +191,20 @@ impl GtfsInputReader {
         notices: &mut NoticeContainer,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
+        let data_str = decode_utf8_lossy(&data);
+        let data_bytes = data_str.as_bytes();
         // Peek headers for validator setup
         let mut peek_reader = csv::ReaderBuilder::new()
             .has_headers(true)
             .flexible(true)
             .trim(csv::Trim::None)
-            .from_reader(data.as_slice());
+            .from_reader(data_bytes);
 
         let headers_record = match peek_reader.headers() {
             Ok(h) => h.clone(),
             Err(_) => {
                 let (table, _, _) = read_csv_from_reader_parallel(
-                    data.as_slice(),
+                    data_bytes,
                     file_name,
                     |_, _| Vec::new(),
                     || {},
@@ -212,7 +219,7 @@ impl GtfsInputReader {
         let validator = RowValidator::new(file_name, headers);
 
         let (table, errors, row_notices) = read_csv_from_reader_parallel(
-            data.as_slice(),
+            data_bytes,
             file_name,
             |record, line| validator.validate_row(record, line),
             || {},
@@ -229,23 +236,6 @@ impl GtfsInputReader {
             notices.push_csv_error(&error);
         }
 
-        // Check for empty rows (gaps)
-        let line_count = data.split(|&b| b == b'\n').count() as u64;
-        let mut last_row = 1;
-        for &row in &table.row_numbers {
-            if row > last_row + 1 {
-                for r in (last_row + 1)..row {
-                    notices.push(empty_row_notice(file_name, r));
-                }
-            }
-            last_row = row;
-        }
-        if last_row < line_count {
-            for r in (last_row + 1)..=line_count {
-                notices.push(empty_row_notice(file_name, r));
-            }
-        }
-
         Ok(table)
     }
 
@@ -256,8 +246,10 @@ impl GtfsInputReader {
         notices: &mut NoticeContainer,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
-        validate_csv_data(file_name, &data, notices);
-        let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+        let data_str = decode_utf8_lossy(&data);
+        let data_bytes = data_str.as_bytes();
+        validate_csv_data(file_name, data_bytes, notices);
+        let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
             .map_err(GtfsInputError::Csv)?;
         for error in errors {
             if skip_csv_parse_error(&table, &error) {
@@ -273,9 +265,12 @@ impl GtfsInputReader {
         file_name: &str,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
-            Ok(data) => read_csv_from_reader(data.as_slice(), file_name)
-                .map(Some)
-                .map_err(GtfsInputError::Csv),
+            Ok(data) => {
+                let data_str = decode_utf8_lossy(&data);
+                read_csv_from_reader(data_str.as_bytes(), file_name)
+                    .map(Some)
+                    .map_err(GtfsInputError::Csv)
+            }
             Err(GtfsInputError::MissingFile(_)) => Ok(None),
             Err(err) => Err(err),
         }
@@ -289,18 +284,20 @@ impl GtfsInputReader {
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
             Ok(data) => {
+                let data_str = decode_utf8_lossy(&data);
+                let data_bytes = data_str.as_bytes();
                 // Peek headers for validator setup
                 let mut peek_reader = csv::ReaderBuilder::new()
                     .has_headers(true)
                     .flexible(true)
                     .trim(csv::Trim::None)
-                    .from_reader(data.as_slice());
+                    .from_reader(data_bytes);
 
                 let headers_record = match peek_reader.headers() {
                     Ok(h) => h.clone(),
                     Err(_) => {
                         let (table, _, _) = read_csv_from_reader_parallel(
-                            data.as_slice(),
+                            data_bytes,
                             file_name,
                             |_, _| Vec::new(),
                             || {},
@@ -311,42 +308,38 @@ impl GtfsInputReader {
                 };
 
                 let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
-                validate_headers(file_name, &headers, notices);
+                let mut header_notices = NoticeContainer::new();
+                validate_headers(file_name, &headers, &mut header_notices);
+                let has_header_errors = header_notices
+                    .iter()
+                    .any(|notice| notice.severity == NoticeSeverity::Error);
+                notices.merge(header_notices);
                 let validator = RowValidator::new(file_name, headers);
 
                 let (table, errors, row_notices) = read_csv_from_reader_parallel(
-                    data.as_slice(),
+                    data_bytes,
                     file_name,
-                    |record, line| validator.validate_row(record, line),
+                    |record, line| {
+                        if has_header_errors {
+                            Vec::new()
+                        } else {
+                            validator.validate_row(record, line)
+                        }
+                    },
                     || {},
                 )
                 .map_err(GtfsInputError::Csv)?;
 
-                for notice in row_notices {
-                    notices.push(notice);
+                if !has_header_errors {
+                    for notice in row_notices {
+                        notices.push(notice);
+                    }
                 }
                 for error in errors {
                     if skip_csv_parse_error(&table, &error) {
                         continue;
                     }
                     notices.push_csv_error(&error);
-                }
-
-                // Check for empty rows (gaps)
-                let line_count = data.split(|&b| b == b'\n').count() as u64;
-                let mut last_row = 1;
-                for &row in &table.row_numbers {
-                    if row > last_row + 1 {
-                        for r in (last_row + 1)..row {
-                            notices.push(empty_row_notice(file_name, r));
-                        }
-                    }
-                    last_row = row;
-                }
-                if last_row < line_count {
-                    for r in (last_row + 1)..=line_count {
-                        notices.push(empty_row_notice(file_name, r));
-                    }
                 }
 
                 Ok(Some(table))
@@ -364,8 +357,10 @@ impl GtfsInputReader {
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
             Ok(data) => {
-                validate_csv_data(file_name, &data, notices);
-                let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+                let data_str = decode_utf8_lossy(&data);
+                let data_bytes = data_str.as_bytes();
+                validate_csv_data(file_name, data_bytes, notices);
+                let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
                     .map_err(GtfsInputError::Csv)?;
                 for error in errors {
                     if skip_csv_parse_error(&table, &error) {
@@ -489,6 +484,9 @@ impl GtfsInputReader {
             if is_dir {
                 continue;
             }
+            if name.contains('/') || name.contains('\\') {
+                continue;
+            }
             let lower = name.to_ascii_lowercase();
             let tail = lower
                 .rsplit(|ch| ch == '/' || ch == '\\')
@@ -549,9 +547,21 @@ impl GtfsInputReader {
             GtfsInputSource::Zip => list_files_in_zip(&self.path),
         }
     }
+
+    pub fn has_nested_gtfs_files(&self) -> Result<bool, GtfsInputError> {
+        match self.source {
+            GtfsInputSource::Directory => has_nested_gtfs_file_in_directory(&self.path),
+            GtfsInputSource::Zip => has_nested_gtfs_file_in_zip(&self.path),
+        }
+    }
 }
 
 fn skip_csv_parse_error<T>(table: &CsvTable<T>, error: &CsvParseError) -> bool {
+    // In default mode, suppress csv_parsing_failed for tolerance (matches Java Univocity)
+    if !crate::validation_context::thorough_mode_enabled() {
+        return true;
+    }
+
     let field = error.field.as_deref().or_else(|| {
         error
             .column_index
@@ -580,7 +590,22 @@ fn strip_utf8_bom(data: &[u8]) -> &[u8] {
 
 fn list_files_in_directory(path: &Path) -> Result<Vec<String>, GtfsInputError> {
     let mut files = Vec::new();
-    collect_files(path, path, &mut files)?;
+    for entry in std::fs::read_dir(path).map_err(|err| GtfsInputError::Io {
+        path: path.to_path_buf(),
+        source: err,
+    })? {
+        let entry = entry.map_err(|err| GtfsInputError::Io {
+            path: path.to_path_buf(),
+            source: err,
+        })?;
+        let file_type = entry.file_type().map_err(|err| GtfsInputError::Io {
+            path: path.to_path_buf(),
+            source: err,
+        })?;
+        if file_type.is_file() {
+            files.push(entry.file_name().to_string_lossy().to_string());
+        }
+    }
     Ok(files)
 }
 
@@ -612,6 +637,25 @@ fn collect_files(
     Ok(())
 }
 
+fn has_nested_gtfs_file_in_directory(path: &Path) -> Result<bool, GtfsInputError> {
+    let mut files = Vec::new();
+    collect_files(path, path, &mut files)?;
+    for rel in files {
+        let normalized = rel.replace('\\', "/");
+        if !normalized.contains('/') {
+            continue;
+        }
+        let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+        if GTFS_FILE_NAMES
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(file_name))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn list_files_in_zip(path: &Path) -> Result<Vec<String>, GtfsInputError> {
     let file = File::open(path).map_err(|err| GtfsInputError::Io {
         path: path.to_path_buf(),
@@ -633,9 +677,51 @@ fn list_files_in_zip(path: &Path) -> Result<Vec<String>, GtfsInputError> {
         if file.is_dir() {
             continue;
         }
-        files.push(file.name().to_string());
+        let name = file.name().to_string();
+        if name.contains('/') || name.contains('\\') {
+            continue;
+        }
+        files.push(name);
     }
     Ok(files)
+}
+
+fn has_nested_gtfs_file_in_zip(path: &Path) -> Result<bool, GtfsInputError> {
+    let file = File::open(path).map_err(|err| GtfsInputError::Io {
+        path: path.to_path_buf(),
+        source: err,
+    })?;
+    let mut archive = ZipArchive::new(file).map_err(|err| GtfsInputError::ZipArchive {
+        path: path.to_path_buf(),
+        source: err,
+    })?;
+
+    for index in 0..archive.len() {
+        let file = archive
+            .by_index(index)
+            .map_err(|err| GtfsInputError::ZipFile {
+                file: path.to_string_lossy().to_string(),
+                source: err,
+            })?;
+        if file.is_dir() {
+            continue;
+        }
+        let name = file.name().to_string();
+        if !(name.contains('/') || name.contains('\\')) {
+            continue;
+        }
+        let file_name = name
+            .rsplit(|ch| ch == '/' || ch == '\\')
+            .next()
+            .unwrap_or(name.as_str());
+        if GTFS_FILE_NAMES
+            .iter()
+            .any(|gtfs| gtfs.eq_ignore_ascii_case(file_name))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Reader for GTFS data from in-memory bytes (for WASM compatibility)
@@ -705,6 +791,9 @@ impl GtfsBytesReader {
             if is_dir {
                 continue;
             }
+            if name.contains('/') || name.contains('\\') {
+                continue;
+            }
             let lower = name.to_ascii_lowercase();
             let tail = lower
                 .rsplit(|ch| ch == '/' || ch == '\\')
@@ -765,7 +854,8 @@ impl GtfsBytesReader {
         file_name: &str,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
-        read_csv_from_reader(data.as_slice(), file_name).map_err(GtfsInputError::Csv)
+        let data_str = decode_utf8_lossy(&data);
+        read_csv_from_reader(data_str.as_bytes(), file_name).map_err(GtfsInputError::Csv)
     }
 
     #[cfg(feature = "parallel")]
@@ -775,18 +865,20 @@ impl GtfsBytesReader {
         notices: &mut NoticeContainer,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
+        let data_str = decode_utf8_lossy(&data);
+        let data_bytes = data_str.as_bytes();
         // Peek headers for validator setup
         let mut peek_reader = csv::ReaderBuilder::new()
             .has_headers(true)
             .flexible(true)
             .trim(csv::Trim::None)
-            .from_reader(data.as_slice());
+            .from_reader(data_bytes);
 
         let headers_record = match peek_reader.headers() {
             Ok(h) => h.clone(),
             Err(_) => {
                 let (table, _, _) = read_csv_from_reader_parallel(
-                    data.as_slice(),
+                    data_bytes,
                     file_name,
                     |_, _| Vec::new(),
                     || {},
@@ -801,7 +893,7 @@ impl GtfsBytesReader {
         let validator = RowValidator::new(file_name, headers);
 
         let (table, errors, row_notices) = read_csv_from_reader_parallel(
-            data.as_slice(),
+            data_bytes,
             file_name,
             |record, line| validator.validate_row(record, line),
             || {},
@@ -818,23 +910,6 @@ impl GtfsBytesReader {
             notices.push_csv_error(&error);
         }
 
-        // Check for empty rows (gaps)
-        let line_count = data.split(|&b| b == b'\n').count() as u64;
-        let mut last_row = 1;
-        for &row in &table.row_numbers {
-            if row > last_row + 1 {
-                for r in (last_row + 1)..row {
-                    notices.push(empty_row_notice(file_name, r));
-                }
-            }
-            last_row = row;
-        }
-        if last_row < line_count {
-            for r in (last_row + 1)..=line_count {
-                notices.push(empty_row_notice(file_name, r));
-            }
-        }
-
         Ok(table)
     }
 
@@ -845,8 +920,10 @@ impl GtfsBytesReader {
         notices: &mut NoticeContainer,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
-        validate_csv_data(file_name, &data, notices);
-        let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+        let data_str = decode_utf8_lossy(&data);
+        let data_bytes = data_str.as_bytes();
+        validate_csv_data(file_name, data_bytes, notices);
+        let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
             .map_err(GtfsInputError::Csv)?;
         for error in errors {
             if skip_csv_parse_error(&table, &error) {
@@ -862,9 +939,12 @@ impl GtfsBytesReader {
         file_name: &str,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
-            Ok(data) => read_csv_from_reader(data.as_slice(), file_name)
-                .map(Some)
-                .map_err(GtfsInputError::Csv),
+            Ok(data) => {
+                let data_str = decode_utf8_lossy(&data);
+                read_csv_from_reader(data_str.as_bytes(), file_name)
+                    .map(Some)
+                    .map_err(GtfsInputError::Csv)
+            }
             Err(GtfsInputError::MissingFile(_)) => Ok(None),
             Err(err) => Err(err),
         }
@@ -878,18 +958,20 @@ impl GtfsBytesReader {
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
             Ok(data) => {
+                let data_str = decode_utf8_lossy(&data);
+                let data_bytes = data_str.as_bytes();
                 // Peek headers for validator setup
                 let mut peek_reader = csv::ReaderBuilder::new()
                     .has_headers(true)
                     .flexible(true)
                     .trim(csv::Trim::None)
-                    .from_reader(data.as_slice());
+                    .from_reader(data_bytes);
 
                 let headers_record = match peek_reader.headers() {
                     Ok(h) => h.clone(),
                     Err(_) => {
                         let (table, _, _) = read_csv_from_reader_parallel(
-                            data.as_slice(),
+                            data_bytes,
                             file_name,
                             |_, _| Vec::new(),
                             || {},
@@ -904,7 +986,7 @@ impl GtfsBytesReader {
                 let validator = RowValidator::new(file_name, headers);
 
                 let (table, errors, row_notices) = read_csv_from_reader_parallel(
-                    data.as_slice(),
+                    data_bytes,
                     file_name,
                     |record, line| validator.validate_row(record, line),
                     || {},
@@ -919,23 +1001,6 @@ impl GtfsBytesReader {
                         continue;
                     }
                     notices.push_csv_error(&error);
-                }
-
-                // Check for empty rows (gaps)
-                let line_count = data.split(|&b| b == b'\n').count() as u64;
-                let mut last_row = 1;
-                for &row in &table.row_numbers {
-                    if row > last_row + 1 {
-                        for r in (last_row + 1)..row {
-                            notices.push(empty_row_notice(file_name, r));
-                        }
-                    }
-                    last_row = row;
-                }
-                if last_row < line_count {
-                    for r in (last_row + 1)..=line_count {
-                        notices.push(empty_row_notice(file_name, r));
-                    }
                 }
 
                 Ok(Some(table))
@@ -953,8 +1018,10 @@ impl GtfsBytesReader {
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
             Ok(data) => {
-                validate_csv_data(file_name, &data, notices);
-                let (table, errors) = read_csv_from_reader_with_errors(data.as_slice(), file_name)
+                let data_str = decode_utf8_lossy(&data);
+                let data_bytes = data_str.as_bytes();
+                validate_csv_data(file_name, data_bytes, notices);
+                let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
                     .map_err(GtfsInputError::Csv)?;
                 for error in errors {
                     if skip_csv_parse_error(&table, &error) {
@@ -1012,9 +1079,48 @@ impl GtfsBytesReader {
             if file.is_dir() {
                 continue;
             }
-            files.push(file.name().to_string());
+            let name = file.name().to_string();
+            if name.contains('/') || name.contains('\\') {
+                continue;
+            }
+            files.push(name);
         }
         Ok(files)
+    }
+
+    pub fn has_nested_gtfs_files(&self) -> Result<bool, GtfsInputError> {
+        let cursor = Cursor::new(&self.data);
+        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
+            path: PathBuf::from("<memory>"),
+            source: err,
+        })?;
+
+        for index in 0..archive.len() {
+            let file = archive
+                .by_index(index)
+                .map_err(|err| GtfsInputError::ZipFile {
+                    file: "<memory>".into(),
+                    source: err,
+                })?;
+            if file.is_dir() {
+                continue;
+            }
+            let name = file.name().to_string();
+            if !(name.contains('/') || name.contains('\\')) {
+                continue;
+            }
+            let file_name = name
+                .rsplit(|ch| ch == '/' || ch == '\\')
+                .next()
+                .unwrap_or(name.as_str());
+            if GTFS_FILE_NAMES
+                .iter()
+                .any(|gtfs| gtfs.eq_ignore_ascii_case(file_name))
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }
 
@@ -1193,12 +1299,8 @@ mod tests {
 
         let input = GtfsInput::from_path(&zip_path).expect("input");
         let reader = input.reader();
-        let table = reader
-            .read_csv::<ExampleRow>("stops.txt")
-            .expect("read csv");
-        assert_eq!(table.rows.len(), 1);
-        assert_eq!(table.rows[0].a, 5);
-        assert_eq!(table.rows[0].b, 6);
+        let err = reader.read_csv::<ExampleRow>("stops.txt").unwrap_err();
+        assert!(matches!(err, GtfsInputError::MissingFile(_)));
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -1257,7 +1359,6 @@ fn find_case_insensitive_file(dir: &Path, target: &str) -> Result<Option<PathBuf
         }
     });
 
-    let mut nested_dirs = Vec::new();
     for entry in entries {
         let path = entry.path();
         let file_type = entry.file_type().map_err(|err| GtfsInputError::Io {
@@ -1266,7 +1367,6 @@ fn find_case_insensitive_file(dir: &Path, target: &str) -> Result<Option<PathBuf
         })?;
 
         if file_type.is_dir() {
-            nested_dirs.push(path);
             continue;
         }
 
@@ -1279,28 +1379,6 @@ fn find_case_insensitive_file(dir: &Path, target: &str) -> Result<Option<PathBuf
         };
         if name.to_ascii_lowercase() == target_lower {
             return Ok(Some(path));
-        }
-    }
-
-    nested_dirs.sort_by(|a, b| {
-        let a_name = a
-            .file_name()
-            .map(|name| name.to_string_lossy())
-            .unwrap_or_default();
-        let b_name = b
-            .file_name()
-            .map(|name| name.to_string_lossy())
-            .unwrap_or_default();
-        let a_lower = a_name.to_ascii_lowercase();
-        let b_lower = b_name.to_ascii_lowercase();
-        match a_lower.cmp(&b_lower) {
-            std::cmp::Ordering::Equal => a_name.cmp(&b_name),
-            other => other,
-        }
-    });
-    for dir in nested_dirs {
-        if let Some(found) = find_case_insensitive_file(&dir, target)? {
-            return Ok(Some(found));
         }
     }
 

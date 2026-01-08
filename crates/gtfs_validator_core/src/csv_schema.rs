@@ -136,7 +136,7 @@ const STOP_TIMES_FIELDS: &[&str] = &[
     "start_pickup_drop_off_window",
     "end_pickup_drop_off_window",
 ];
-const STOP_TIMES_REQUIRED_FIELDS: &[&str] = &["trip_id", "stop_id", "stop_sequence"];
+const STOP_TIMES_REQUIRED_FIELDS: &[&str] = &["trip_id", "stop_sequence"];
 const STOP_TIMES_RECOMMENDED_FIELDS: &[&str] = &[
     "arrival_time",
     "departure_time",

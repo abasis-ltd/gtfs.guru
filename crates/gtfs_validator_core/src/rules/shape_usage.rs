@@ -13,6 +13,8 @@ impl Validator for ShapeUsageValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        // Only run in thorough mode to match Java default behavior
+
         let Some(shapes) = &feed.shapes else {
             return;
         };
@@ -36,22 +38,28 @@ impl Validator for ShapeUsageValidator {
                 .rows
                 .par_iter()
                 .enumerate()
-                .fold(HashMap::<gtfs_guru_model::StringId, u64>::new, |mut acc, (index, shape)| {
-                    let shape_id = shape.shape_id;
-                    if shape_id.0 != 0 {
-                        let row = shapes.row_number(index);
-                        acc.entry(shape_id)
-                            .and_modify(|r| *r = (*r).min(row))
-                            .or_insert(row);
-                    }
-                    acc
-                })
-                .reduce(HashMap::<gtfs_guru_model::StringId, u64>::new, |mut a, b| {
-                    for (k, v) in b {
-                        a.entry(k).and_modify(|r| *r = (*r).min(v)).or_insert(v);
-                    }
-                    a
-                });
+                .fold(
+                    HashMap::<gtfs_guru_model::StringId, u64>::new,
+                    |mut acc, (index, shape)| {
+                        let shape_id = shape.shape_id;
+                        if shape_id.0 != 0 {
+                            let row = shapes.row_number(index);
+                            acc.entry(shape_id)
+                                .and_modify(|r| *r = (*r).min(row))
+                                .or_insert(row);
+                        }
+                        acc
+                    },
+                )
+                .reduce(
+                    HashMap::<gtfs_guru_model::StringId, u64>::new,
+                    |mut a, b| {
+                        for (k, v) in b {
+                            a.entry(k).and_modify(|r| *r = (*r).min(v)).or_insert(v);
+                        }
+                        a
+                    },
+                );
 
             // 3. Generate notices
             let results: Vec<ValidationNotice> = shapes_map
@@ -118,6 +126,7 @@ mod tests {
 
     #[test]
     fn detects_unused_shape() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.shapes = Some(CsvTable {
             headers: vec!["shape_id".into()],
