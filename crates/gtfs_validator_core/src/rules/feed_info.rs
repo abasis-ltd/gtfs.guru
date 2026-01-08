@@ -139,6 +139,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -167,6 +168,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -196,6 +198,7 @@ mod tests {
                     feed_version: None,
                     feed_contact_email: Some("test@test.com".into()),
                     feed_contact_url: None,
+                    default_lang: None,
                 },
                 FeedInfo {
                     feed_publisher_name: "Test2".into(),
@@ -206,6 +209,7 @@ mod tests {
                     feed_version: None,
                     feed_contact_email: Some("test@test.com".into()),
                     feed_contact_url: None,
+                    default_lang: None,
                 },
             ],
             row_numbers: vec![2, 3],
@@ -235,6 +239,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: Some("test@test.com".into()),
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });

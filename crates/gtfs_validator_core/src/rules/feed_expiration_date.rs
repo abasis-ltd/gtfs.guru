@@ -93,6 +93,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -123,6 +124,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -153,6 +155,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });

@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
 
-use chrono::NaiveDate;
 use gtfs_guru_core::{
     default_runner, set_thorough_mode_enabled, set_validation_country_code, set_validation_date,
     validate_bytes, NoticeContainer, NoticeSeverity,
@@ -64,6 +63,10 @@ impl ValidationResult {
     }
 }
 
+/// Maximum file size for WASM validation (50 MB)
+/// Larger files may cause memory issues in the browser.
+const MAX_FILE_SIZE_BYTES: usize = 50 * 1024 * 1024;
+
 /// Validate a GTFS ZIP file from bytes
 ///
 /// # Arguments
@@ -73,12 +76,25 @@ impl ValidationResult {
 ///
 /// # Returns
 /// A ValidationResult containing the JSON report and summary counts
+///
+/// # Errors
+/// Throws a JavaScript error if the file exceeds 50 MB
 #[wasm_bindgen]
 pub fn validate_gtfs(
     zip_bytes: &[u8],
     country_code: Option<String>,
     date: Option<String>,
-) -> ValidationResult {
+) -> Result<ValidationResult, JsValue> {
+    // Check file size limit
+    if zip_bytes.len() > MAX_FILE_SIZE_BYTES {
+        let size_mb = zip_bytes.len() as f64 / (1024.0 * 1024.0);
+        return Err(JsValue::from_str(&format!(
+            "File too large ({:.1} MB). Maximum size for browser validation is 50 MB. \
+             Please download the desktop application for larger feeds.",
+            size_mb
+        )));
+    }
+
     // Set validation context
     let _country_guard = set_validation_country_code(country_code);
     let naive_date = date.and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
@@ -88,7 +104,7 @@ pub fn validate_gtfs(
     // Create runner with all validators
     let runner = default_runner();
 
-    // Run validation
+    // Run validation (no progress handler in WASM - it runs synchronously)
     let outcome = validate_bytes(zip_bytes, &runner);
 
     // Count notices by severity
@@ -98,12 +114,12 @@ pub fn validate_gtfs(
     let notices: Vec<_> = outcome.notices.iter().collect();
     let json = serde_json::to_string(&notices).unwrap_or_else(|_| "[]".to_string());
 
-    ValidationResult {
+    Ok(ValidationResult {
         json,
         error_count,
         warning_count,
         info_count,
-    }
+    })
 }
 
 /// Validate GTFS and return only the JSON report (simpler API)
@@ -112,9 +128,9 @@ pub fn validate_gtfs_json(
     zip_bytes: &[u8],
     country_code: Option<String>,
     date: Option<String>,
-) -> String {
-    let result = validate_gtfs(zip_bytes, country_code, date);
-    result.json
+) -> Result<String, JsValue> {
+    let result = validate_gtfs(zip_bytes, country_code, date)?;
+    Ok(result.json)
 }
 
 fn count_notices(notices: &NoticeContainer) -> (u32, u32, u32) {

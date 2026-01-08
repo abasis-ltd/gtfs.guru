@@ -253,6 +253,7 @@ const FEED_INFO_FIELDS: &[&str] = &[
     "feed_version",
     "feed_contact_email",
     "feed_contact_url",
+    "default_lang",
 ];
 const FEED_INFO_RECOMMENDED_FIELDS: &[&str] = &["feed_start_date", "feed_end_date", "feed_version"];
 const FEED_INFO_REQUIRED_FIELDS: &[&str] =

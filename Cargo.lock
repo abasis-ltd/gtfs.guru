@@ -1704,6 +1704,7 @@ dependencies = [
  "chrono",
  "gtfs-guru-core",
  "gtfs-guru-report",
+ "mimalloc",
  "pyo3",
  "pyo3-async-runtimes",
  "serde_json",
@@ -1726,7 +1727,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-wasm"
-version = "0.1.2"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "console_error_panic_hook",

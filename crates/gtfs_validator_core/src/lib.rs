@@ -35,7 +35,10 @@ mod validation_context;
 pub mod validator;
 
 pub use csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
-pub use engine::{validate_bytes, validate_bytes_reader, validate_input, ValidationOutcome};
+pub use engine::{
+    validate_bytes, validate_bytes_reader, validate_input, validate_input_and_progress,
+    ValidationOutcome,
+};
 pub use feed::GtfsFeed;
 pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,

@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
@@ -12,7 +12,9 @@ use crate::csv_reader::read_csv_from_reader_parallel;
 #[cfg(not(feature = "parallel"))]
 use crate::csv_reader::read_csv_from_reader_with_errors;
 use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
-use crate::csv_validation::{is_value_validated_field, validate_headers, RowValidator};
+use crate::csv_validation::{
+    is_value_validated_field, validate_csv_data, validate_headers, RowValidator,
+};
 
 use crate::feed::GTFS_FILE_NAMES;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
@@ -168,6 +170,66 @@ pub struct GtfsInputReader {
 }
 
 impl GtfsInputReader {
+    pub fn get_files_with_sizes(&self) -> Result<HashMap<String, u64>, GtfsInputError> {
+        match self.source {
+            GtfsInputSource::Directory => {
+                let mut files = HashMap::new();
+                for entry in std::fs::read_dir(&self.path).map_err(|err| GtfsInputError::Io {
+                    path: self.path.clone(),
+                    source: err,
+                })? {
+                    let entry = entry.map_err(|err| GtfsInputError::Io {
+                        path: self.path.clone(),
+                        source: err,
+                    })?;
+                    let path = entry.path();
+                    if path.is_file() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        let size = path
+                            .metadata()
+                            .map_err(|err| GtfsInputError::Io {
+                                path: path.clone(),
+                                source: err,
+                            })?
+                            .len();
+                        files.insert(name, size);
+                    }
+                }
+                Ok(files)
+            }
+            GtfsInputSource::Zip => {
+                let file = File::open(&self.path).map_err(|err| GtfsInputError::Io {
+                    path: self.path.clone(),
+                    source: err,
+                })?;
+                let mut archive =
+                    ZipArchive::new(file).map_err(|err| GtfsInputError::ZipArchive {
+                        path: self.path.clone(),
+                        source: err,
+                    })?;
+
+                let mut files = HashMap::new();
+                for index in 0..archive.len() {
+                    let mut file =
+                        archive
+                            .by_index(index)
+                            .map_err(|err| GtfsInputError::ZipFile {
+                                file: self.path.to_string_lossy().to_string(),
+                                source: err,
+                            })?;
+                    if !file.is_dir() {
+                        // Only include root-level files (mirroring current logic)
+                        let name = file.name().to_string();
+                        if !(name.contains('/') || name.contains('\\')) {
+                            files.insert(name, file.size());
+                        }
+                    }
+                }
+                Ok(files)
+            }
+        }
+    }
+
     pub fn read_file(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
         match self.source {
             GtfsInputSource::Directory => self.read_from_directory(file_name),
@@ -737,6 +799,31 @@ impl GtfsBytesReader {
         Self {
             data: data.to_vec(),
         }
+    }
+
+    pub fn get_files_with_sizes(&self) -> Result<HashMap<String, u64>, GtfsInputError> {
+        let cursor = Cursor::new(&self.data);
+        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
+            path: PathBuf::from("<memory>"),
+            source: err,
+        })?;
+
+        let mut files = HashMap::new();
+        for index in 0..archive.len() {
+            let mut file = archive
+                .by_index(index)
+                .map_err(|err| GtfsInputError::ZipFile {
+                    file: "<memory>".into(),
+                    source: err,
+                })?;
+            if !file.is_dir() {
+                let name = file.name().to_string();
+                if !(name.contains('/') || name.contains('\\')) {
+                    files.insert(name, file.size());
+                }
+            }
+        }
+        Ok(files)
     }
 
     pub fn read_file(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {

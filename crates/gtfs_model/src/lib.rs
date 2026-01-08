@@ -1130,6 +1130,7 @@ pub struct FeedInfo {
     pub feed_version: Option<CompactString>,
     pub feed_contact_email: Option<CompactString>,
     pub feed_contact_url: Option<StringId>,
+    pub default_lang: Option<StringId>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

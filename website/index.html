@@ -1,28 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GTFS Guru | The world's fastest opensource GTFS validator</title>
+    <title>GTFS Guru | The World's Fastest GTFS Validator</title>
     <meta name="description"
-        content="Ensure your transit data is accurate, compliant, and ready for the world. Powered by Abasis.AI.">
-
+        content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&family=Fira+Code:wght@400;500&display=swap"
         rel="stylesheet">
-
-    <!-- Favicon -->
     <link rel="icon" type="image/png" href="favicon.png">
-
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
-
-    <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        // Check for file protocol and show warning
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.location.protocol === 'file:') {
+                const warning = document.createElement('div');
+                warning.id = 'protocol-warning';
+                warning.innerHTML = '⚠️ Running in file mode. For the validator to work, please <a href="#download" style="text-decoration: underline;">download the Desktop App</a> or run a local server.';
+                document.body.prepend(warning);
+            }
+        });
+    </script>
 </head>
 
 <body>
@@ -38,70 +42,85 @@
                 <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
             </a>
             <div class="nav-links">
-                <a href="#features">Solutions</a>
-                <a href="#agencies">For Agencies</a>
-                <a href="#tech">Developers</a>
+                <a href="#validator">Web Validator</a>
+                <a href="#download">Download App</a>
+                <a href="#developers">Developers</a>
                 <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
             </div>
-            <a href="#download" class="btn btn-primary">Start Validating</a>
+            <a href="#download" class="btn btn-primary">Get the App</a>
         </div>
     </nav>
 
     <header class="hero-section">
         <div class="container hero-container">
             <div class="hero-content fade-up">
-                <div class="badge">Open Source • Apache 2.0</div>
-                <h1>The world's fastest opensource<br><span class="gradient-text">GTFS Validator</span></h1>
+                <div class="badge-row">
+                    <div class="badge">Open Source</div>
+                    <div class="badge ml-2"><i data-lucide="shield"></i> 100% Local & Secure</div>
+                </div>
+                <h1>Ensure your transit data is<br><span class="gradient-text">Production Ready</span></h1>
                 <p class="hero-sub">
-                    Secure, fast, and local. Validate your transit data instantly in your browser using our WebAssembly
-                    engine. No uploads, no waiting.
+                    The world’s fastest GTFS validator. Catch errors instantly before they reach Google Maps.
+                    Runs entirely on your device—your data never leaves your computer.
                 </p>
+
                 <div class="hero-actions">
                     <a href="#download" class="btn btn-primary btn-lg">
-                        <i data-lucide="download"></i> Download Now
+                        <i data-lucide="download"></i> Download for Desktop
                     </a>
-                    <a href="https://github.com/abasis-ltd/gtfs.guru" class="btn btn-secondary btn-lg">
-                        <i data-lucide="book-open"></i> Read Documentation
+                    <a href="#validator" class="btn btn-secondary btn-lg">
+                        <i data-lucide="zap"></i> Try Online
                     </a>
                 </div>
+
                 <div class="stats-row">
                     <div class="stat-item">
-                        <span class="stat-number" data-target="88">0</span>
-                        <span class="stat-label">Rules Checked</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-number" data-target="50">0</span>
-                        <span class="stat-suffix">x</span>
+                        <span class="stat-number" data-target="100">0</span><span class="stat-suffix">x</span>
                         <span class="stat-label">Faster than Java</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-number" data-target="100">0</span>
-                        <span class="stat-suffix">%</span>
-                        <span class="stat-label">Compliant</span>
+                        <span class="stat-number" data-target="88">0</span>
+                        <span class="stat-label">Validation Rules</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number" data-target="0">0</span><span class="stat-suffix">kb</span>
+                        <span class="stat-label">Data Uploaded</span>
                     </div>
                 </div>
             </div>
-            <div class="hero-visual fade-up delay-200">
+
+            <div class="hero-visual fade-up delay-200" id="validator">
                 <div class="validator-ui glass-card" id="drop-zone">
                     <div class="validator-header">
-                        <div class="dots">
-                            <span class="dot red"></span>
-                            <span class="dot yellow"></span>
-                            <span class="dot green"></span>
-                        </div>
                         <span class="window-title">Browser Validator (WASM)</span>
+                        <div class="secure-badge" title="Processing happens in your browser"><i data-lucide="lock"
+                                style="width:12px"></i> Local</div>
                     </div>
                     <div class="validator-body">
                         <div class="upload-state" id="upload-state">
                             <i data-lucide="upload-cloud" class="upload-icon"></i>
-                            <p>Drag & Drop GTFS.zip here</p>
+                            <h3>Drop GTFS.zip here</h3>
                             <p class="sub-text">or click to browse</p>
                             <input type="file" id="file-input" accept=".zip" hidden>
                         </div>
+
+                        <div class="url-input-container" id="url-input-container" style="margin-top: 1rem;">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="url-input" placeholder="Enter URL or path..."
+                                    style="flex-grow: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; color: #fff; font-family: var(--font-body); font-size: 0.9rem;">
+                                <button id="url-analyze-btn" class="btn btn-primary"
+                                    style="padding: 0.6rem 1rem; white-space: nowrap;">
+                                    Analyze
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="processing-state hidden" id="processing-state">
                             <div class="spinner"></div>
-                            <p>Validating locally...</p>
+                            <p>Validating locally (WASM)...</p>
+                            <p class="sub-text">Larger feeds may take a moment</p>
                         </div>
+
                         <div class="result-state hidden" id="result-state">
                             <div class="score-ring" id="score-ring">
                                 <span class="score-number" id="score-number">100</span>
@@ -112,18 +131,18 @@
                                 <div class="stat"><span class="yellow" id="warning-count">0</span> Warnings</div>
                             </div>
                             <div class="result-actions">
-                                <button class="btn btn-sm btn-primary" id="view-report-btn">
-                                    <i data-lucide="file-text"></i> View Report
+                                <button class="btn btn-primary width-full" id="view-report-btn">
+                                    <i data-lucide="file-text"></i> View Full Report
                                 </button>
-                                <button id="open-window-btn" class="btn btn-secondary btn-sm"
-                                    title="Open in new window">
-                                    <i data-lucide="external-link"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline" id="download-json-btn">
-                                    <i data-lucide="download"></i> JSON
-                                </button>
+                                <div class="secondary-actions">
+                                    <button class="btn btn-sm btn-outline" id="download-json-btn">
+                                        <i data-lucide="download"></i> JSON
+                                    </button>
+                                    <button class="btn btn-sm btn-outline" id="reset-btn">
+                                        New Scan
+                                    </button>
+                                </div>
                             </div>
-                            <button class="btn btn-link" id="reset-btn">Validate Another</button>
                         </div>
                     </div>
                 </div>
@@ -133,13 +152,9 @@
                     <div class="report-modal-content glass-card">
                         <div class="report-modal-header">
                             <h3>Validation Report</h3>
-                            <button class="close-btn" id="close-modal-btn">
-                                <i data-lucide="x"></i>
-                            </button>
+                            <button class="close-btn" id="close-modal-btn"><i data-lucide="x"></i></button>
                         </div>
-                        <div class="report-modal-body" id="report-modal-body">
-                            <!-- Notices will be rendered here -->
-                        </div>
+                        <div class="report-modal-body" id="report-modal-body"></div>
                         <div class="report-modal-footer">
                             <button class="btn btn-sm btn-outline" id="download-json-modal-btn">
                                 <i data-lucide="download"></i> Download JSON
@@ -147,127 +162,133 @@
                         </div>
                     </div>
                 </div>
-                <!-- Abstract "Transit Lines" element behind code window -->
-                <div class="transit-lines-deco"></div>
             </div>
         </div>
     </header>
 
-    <section id="features" class="features-section">
+    <section id="comparison" class="comparison-section">
         <div class="container">
             <div class="section-header fade-up">
-                <h2>Why Global Transport Leaders <br>Choose <span class="highlight">GTFS Guru</span></h2>
-                <p>Built for scale. Designed for accuracy. Trusted by data teams.</p>
+                <h2>Why Switch to GTFS Guru?</h2>
+                <p>Inspired by the official standards, rebuilt for the modern era.</p>
             </div>
-
-            <div class="features-grid">
-                <div class="feature-card glass-card fade-up">
-                    <div class="icon-box">
-                        <i data-lucide="shield-check"></i>
-                    </div>
-                    <h3>100% Reliability</h3>
-                    <p>Fully compliant with official MobilityData standards. We catch edge cases others miss, ensuring
-                        your feed is accepted everywhere.</p>
+            <div class="comparison-table glass-card fade-up delay-100">
+                <div class="comparison-row header">
+                    <div class="col-feature">Feature</div>
+                    <div class="col-old">Canonical Java Validator</div>
+                    <div class="col-new">GTFS Guru (Rust)</div>
                 </div>
-                <div class="feature-card glass-card fade-up delay-100">
-                    <div class="icon-box">
-                        <i data-lucide="zap"></i>
-                    </div>
-                    <h3>Blazing Fast</h3>
-                    <p>Powered by Rust, our engine processes complex feeds 50x faster. Save hours of CI/CD time and
-                        iterate instantly.</p>
+                <!-- Rows -->
+                <div class="comparison-row">
+                    <div class="col-feature">Speed (Small Feed)</div>
+                    <div class="col-old">~1.5s</div>
+                    <div class="col-new highlight">~0.01s (100x Faster)</div>
                 </div>
-                <div class="feature-card glass-card fade-up delay-200">
-                    <div class="icon-box">
-                        <i data-lucide="file-json"></i>
-                    </div>
-                    <h3>Clear Insights</h3>
-                    <p>No more cryptic error logs. Get beautiful HTML reports and detailed JSON output that pinpoint
-                        exactly what to fix.</p>
+                <div class="comparison-row">
+                    <div class="col-feature">Speed (Large Feed)</div>
+                    <div class="col-old">40s</div>
+                    <div class="col-new highlight">20s (2-5x Faster)</div>
+                </div>
+                <div class="comparison-row">
+                    <div class="col-feature">Memory Usage</div>
+                    <div class="col-old">~1.5GB RAM</div>
+                    <div class="col-new highlight">~150MB RAM</div>
+                </div>
+                <div class="comparison-row">
+                    <div class="col-feature">Privacy</div>
+                    <div class="col-old">Local code / Cloud validator</div>
+                    <div class="col-new highlight">Local App / Working in your browser</div>
+                </div>
+                <div class="comparison-row">
+                    <div class="col-feature">Python Support</div>
+                    <div class="col-old">Wrapper only</div>
+                    <div class="col-new highlight">Native (`pip install`)</div>
                 </div>
             </div>
         </div>
     </section>
 
-    <section id="agencies" class="agency-section">
+    <section id="download" class="download-section">
         <div class="container">
-            <div class="agency-content fade-up">
-                <div class="agency-text">
-                    <h2>For Transit Agencies</h2>
-                    <p class="lead">Your data is the foundation of the passenger experience.</p>
-                    <p>Bad data means missed buses and frustrated riders. GTFS Guru acts as your automated quality
-                        assurance team, verifying schedules, fares, and connections before they reach the public.</p>
-                    <ul class="check-list">
-                        <li><i data-lucide="check-circle"></i> Validate changes before publishing</li>
-                        <li><i data-lucide="check-circle"></i> Ensure compatibility with Google Maps & Apple Maps</li>
-                        <li><i data-lucide="check-circle"></i> Automated regression testing</li>
-                    </ul>
+            <div class="section-header fade-up">
+                <h2>Get the Desktop App</h2>
+                <p>The easiest way to validate feeds on your machine.</p>
+            </div>
+
+            <div class="download-grid fade-up delay-100">
+                <!-- Mac -->
+                <div class="download-card glass-card">
+                    <div class="os-icon"><i data-lucide="apple"></i></div>
+                    <h3>macOS</h3>
+                    <p class="sub-text">Universal (Intel & Apple Silicon)</p>
+                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest"
+                        class="btn btn-primary width-full">
+                        <i data-lucide="download"></i> Download DMG
+                    </a>
                 </div>
-                <div class="agency-visual glass-card">
-                    <div class="report-preview">
-                        <div class="report-header">Validation Report</div>
-                        <div class="report-row error">
-                            <span class="badge error">ERROR</span>
-                            <span>Stop <code>S_123</code> is too far from shape</span>
-                        </div>
-                        <div class="report-row warning">
-                            <span class="badge warning">WARN</span>
-                            <span>Route color contrast issues</span>
-                        </div>
-                        <div class="report-row info">
-                            <span class="badge info">INFO</span>
-                            <span>Found 1,240 trips</span>
-                        </div>
-                    </div>
+                <!-- Windows -->
+                <div class="download-card glass-card">
+                    <div class="os-icon"><i data-lucide="monitor"></i></div>
+                    <h3>Windows</h3>
+                    <p class="sub-text">x64 Installer</p>
+                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest"
+                        class="btn btn-primary width-full">
+                        <i data-lucide="download"></i> Download EXE
+                    </a>
+                </div>
+                <!-- Linux -->
+                <div class="download-card glass-card">
+                    <div class="os-icon"><i data-lucide="server"></i></div>
+                    <h3>Linux</h3>
+                    <p class="sub-text">Debian / AppImage</p>
+                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest"
+                        class="btn btn-primary width-full">
+                        <i data-lucide="download"></i> Download DEB
+                    </a>
                 </div>
             </div>
         </div>
     </section>
 
-    <section id="tech" class="tech-section">
+    <section id="developers" class="tech-section">
         <div class="container">
             <div class="section-header fade-up">
-                <h2>Developer First</h2>
-                <p>Integrate validation directly into your pipelines with our robust CLI and Python bindings.</p>
+                <h2>For Developers</h2>
+                <p>Integrate ultra-fast validation into your ETL pipelines.</p>
             </div>
             <div class="tech-grid">
                 <div class="tech-col">
-                    <h3>Python API</h3>
+                    <div class="tech-header">
+                        <i data-lucide="code-2" class="tech-icon"></i>
+                        <h3>Python Package</h3>
+                    </div>
                     <div class="code-block glass-card">
+                        <div class="install-cmd-row">
+                            <code>pip install gtfs-guru</code>
+                            <button class="copy-tiny" data-text="pip install gtfs-guru">Copy</button>
+                        </div>
                         <pre><code>import gtfs_guru
 
-result = gtfs_guru.validate("feed.zip")
-
-if result.is_valid:
-    print(f"Success in {result.time}s")
-else:
-    print(f"{result.error_count} errors found")</code></pre>
-                        <button class="copy-btn"><i data-lucide="copy"></i></button>
+report = gtfs_guru.validate("data.zip")
+if not report.is_valid:
+    print(f"Found {report.error_count} errors")
+    report.save_html("report.html")</code></pre>
                     </div>
                 </div>
                 <div class="tech-col">
-                    <h3>Rust CLI</h3>
-                    <div class="code-block glass-card">
-                        <pre><code>cargo run --release -- \
-  --input ./gtfs.zip \
-  --output ./report \
-  --json</code></pre>
-                        <button class="copy-btn"><i data-lucide="copy"></i></button>
+                    <div class="tech-header">
+                        <i data-lucide="terminal" class="tech-icon"></i>
+                        <h3>Rust CLI</h3>
                     </div>
-                </div>
-            </div>
-        </div>
-    </section>
+                    <div class="code-block glass-card">
+                        <div class="install-cmd-row">
+                            <code>cargo install gtfs-guru-cli</code>
+                            <button class="copy-tiny" data-text="cargo install gtfs-guru-cli">Copy</button>
+                        </div>
+                        <pre><code>gtfs-guru -i ./feed.zip -o ./dist
 
-    <section id="download" class="cta-section">
-        <div class="container">
-            <div class="cta-box glass-card fade-up">
-                <h2>Ready to upgrade your workflow?</h2>
-                <p>Join the future of transit data validation today.</p>
-                <div class="install-options">
-                    <div class="install-cmd">
-                        <code>pip install gtfs.guru</code>
-                        <button class="copy-tiny" data-text="pip install gtfs.guru">Copy</button>
+# Output JSON for CI/CD
+gtfs-guru --json -i feed.zip | jq .</code></pre>
                     </div>
                 </div>
             </div>
@@ -279,33 +300,27 @@ else:
             <div class="footer-brand">
                 <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
                 <span class="logo-text">GTFS Guru</span>
-                <p>Made with love by <a href="https://abasis.ai"
-                        style="color: inherit; text-decoration: underline;">Abasis.AI</a></p>
+                <p>Made with ❤️ by <a href="https://abasis.ai">Abasis.AI</a></p>
             </div>
             <div class="footer-links">
-                <a href="privacy.html">Privacy Policy</a>
-                <a href="terms.html">Terms of Service</a>
-                <a href="mailto:ai@abasis.ai">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
             </div>
             <div class="footer-copy">
-                &copy; 2026 Abasis.AI. All rights reserved.
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
             </div>
         </div>
     </footer>
 
     <script src="script.js" type="module"></script>
     <script>
-        // Initialize Lucide icons with error handling
-        if (typeof lucide !== 'undefined' && lucide.createIcons) {
-            lucide.createIcons();
-        } else {
-            // Retry after a short delay if script hasn't finished loading
-            window.addEventListener('load', function () {
-                if (typeof lucide !== 'undefined' && lucide.createIcons) {
-                    lucide.createIcons();
-                }
-            });
-        }
+        // Fallback for Lucide icons
+        window.addEventListener('load', function () {
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        });
     </script>
 </body>
 

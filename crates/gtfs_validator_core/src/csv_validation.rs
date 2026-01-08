@@ -454,7 +454,7 @@ pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeConta
     let mut reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
-        .trim(Trim::All)
+        .trim(Trim::Headers)
         .from_reader(data);
 
     let headers_record = match reader.headers() {
@@ -1923,7 +1923,9 @@ mod tests_whitespaces {
         let mut notices = NoticeContainer::new();
         // Agency file has schema.
         // Headers: agency_name (known), extra_col (unknown)
-        // Values contain whitespace, but CSV reader trims them.
+        // Values contain whitespace.
+        // agency_name -> should trigger warning (schema field)
+        // extra_col -> should NOT trigger warning (unknown field)
         let data = b"agency_name,extra_col,agency_url,agency_timezone\n agency 1 , val ,url,tz";
         validate_csv_data("agency.txt", data, &mut notices);
 
@@ -1932,10 +1934,19 @@ mod tests_whitespaces {
             .filter(|n| n.code == "leading_or_trailing_whitespaces")
             .collect();
 
-        assert!(
-            whitespace_notices.is_empty(),
-            "Expected no whitespace notices, found: {:?}",
+        assert_eq!(
+            whitespace_notices.len(),
+            1,
+            "Expected 1 whitespace notice (for agency_name), found: {:?}",
             whitespace_notices
         );
+
+        let notice = &whitespace_notices[0];
+        // verify context fieldName
+        let field_name_json = notice
+            .context
+            .get("fieldName")
+            .expect("Should have fieldName in context");
+        assert_eq!(field_name_json.as_str(), Some("agency_name"));
     }
 }

@@ -6,6 +6,7 @@ use gtfs_guru_model::{
     RouteNetwork, Shape, Stop, StopArea, StopTime, Timeframe, Transfer, Translation, Trip,
 };
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::geojson::{GeoJsonFeatureCollection, LocationsGeoJson};
 use crate::input::GtfsBytesReader;
@@ -193,6 +194,10 @@ impl GtfsFeed {
         notices: &mut NoticeContainer,
         progress: Option<&dyn ProgressHandler>,
     ) -> Result<Self, GtfsInputError> {
+        let file_sizes = reader.get_files_with_sizes()?;
+        let total_bytes = file_sizes.values().sum::<u64>().max(1);
+        let mut loaded_bytes = 0u64;
+
         if let Some(p) = progress {
             p.set_total_files(GTFS_FILE_NAMES.len());
         }
@@ -216,6 +221,13 @@ impl GtfsFeed {
                 record_table_status(&mut table_statuses, $file, &res, &local_notices);
                 notices.merge(local_notices);
                 if let Some(p) = progress {
+                    if let Some(size) = file_sizes.get($file) {
+                        loaded_bytes += size;
+                    }
+                    p.on_progress(
+                        loaded_bytes as f32 / total_bytes as f32,
+                        &format!("Loaded {}", $file),
+                    );
                     p.on_finish_file_load($file);
                 }
                 res
@@ -363,6 +375,9 @@ impl GtfsFeed {
             country: Option<String>,
             date: NaiveDate,
             pool: crate::StringPool,
+            file_sizes: &'a HashMap<String, u64>,
+            total_bytes: u64,
+            loaded_bytes: &'a AtomicU64,
         }
 
         impl<'a> ParallelLoader<'a> {
@@ -414,6 +429,14 @@ impl GtfsFeed {
                 gtfs_guru_model::clear_thread_local_hooks();
 
                 if let Some(p) = self.progress {
+                    if let Some(size) = self.file_sizes.get(filename) {
+                        let prev = self.loaded_bytes.fetch_add(*size, Ordering::Relaxed);
+                        let current = prev + *size;
+                        p.on_progress(
+                            current as f32 / self.total_bytes as f32,
+                            &format!("Loaded {}", filename),
+                        );
+                    }
                     p.on_finish_file_load(filename);
                 }
 
@@ -421,6 +444,10 @@ impl GtfsFeed {
                 (result, local_notices, status)
             }
         }
+
+        let file_sizes = reader.get_files_with_sizes()?;
+        let total_bytes = file_sizes.values().sum::<u64>().max(1);
+        let loaded_bytes = AtomicU64::new(0);
 
         let loader = ParallelLoader {
             reader,
@@ -430,6 +457,9 @@ impl GtfsFeed {
             country,
             date,
             pool: crate::StringPool::new(),
+            file_sizes: &file_sizes,
+            total_bytes,
+            loaded_bytes: &loaded_bytes,
         };
 
         // Parallelize loading:

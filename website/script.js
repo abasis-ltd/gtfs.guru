@@ -4,8 +4,8 @@ import init, { validate_gtfs } from './pkg/gtfs_guru_wasm.js';
 init().catch(console.error);
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Enable fade-up animations only when JS is working
-    document.body.classList.add('js-enabled');
+    // Enable fade-up animations by removing the no-js class
+    document.documentElement.classList.remove('no-js');
 
     /* --- Intersection Observer for Fade-Up Animations --- */
     const observerOptions = {
@@ -109,6 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const processingState = document.getElementById('processing-state');
     const resultState = document.getElementById('result-state');
     const resetBtn = document.getElementById('reset-btn');
+    const urlInput = document.getElementById('url-input');
+    const urlAnalyzeBtn = document.getElementById('url-analyze-btn');
+    const urlInputContainer = document.getElementById('url-input-container');
 
     // UI Elements for results
     const errorCountEl = document.getElementById('error-count');
@@ -158,12 +161,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // URL Analysis
+        if (urlAnalyzeBtn && urlInput) {
+            urlAnalyzeBtn.addEventListener('click', () => {
+                const url = urlInput.value.trim();
+                if (url) {
+                    handleUrl(url);
+                }
+            });
+
+            urlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const url = urlInput.value.trim();
+                    if (url) {
+                        handleUrl(url);
+                    }
+                }
+            });
+        }
+
         // Reset
         if (resetBtn) {
             resetBtn.addEventListener('click', () => {
                 resultState.classList.add('hidden');
                 uploadState.classList.remove('hidden');
+                urlInputContainer.classList.remove('hidden');
                 fileInput.value = '';
+                urlInput.value = '';
                 lastValidationResult = null;
             });
         }
@@ -226,30 +250,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show processing
         uploadState.classList.add('hidden');
+        urlInputContainer.classList.add('hidden');
         processingState.classList.remove('hidden');
 
         try {
             const arrayBuffer = await file.arrayBuffer();
             const bytes = new Uint8Array(arrayBuffer);
+            await runValidation(bytes);
+        } catch (err) {
+            console.error("File reading error:", err);
+            processingState.classList.add('hidden');
+            uploadState.classList.remove('hidden');
+            urlInputContainer.classList.remove('hidden');
+        }
+    }
 
-            // Run WASM validation (give UI a moment to update)
+    async function handleUrl(url) {
+        // Show processing
+        uploadState.classList.add('hidden');
+        urlInputContainer.classList.add('hidden');
+        processingState.classList.remove('hidden');
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch: ${response.statusText}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+
+            // Try to extract filename from URL
+            try {
+                const urlObj = new URL(url);
+                const pathname = urlObj.pathname;
+                const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
+                if (filename && filename.endsWith('.zip')) {
+                    lastFileName = filename.replace('.zip', '');
+                } else {
+                    lastFileName = 'remote_feed';
+                }
+            } catch (e) {
+                lastFileName = 'remote_feed';
+            }
+
+            await runValidation(bytes);
+        } catch (err) {
+            console.error("URL fetch error:", err);
+            alert(`Error loading from URL: ${err.message}\nNote: Remote servers must allow CORS.`);
+            processingState.classList.add('hidden');
+            uploadState.classList.remove('hidden');
+            urlInputContainer.classList.remove('hidden');
+        }
+    }
+
+    async function runValidation(bytes) {
+        // Run WASM validation (give UI a moment to update)
+        return new Promise((resolve) => {
             setTimeout(() => {
                 try {
                     const result = validate_gtfs(bytes, null);
                     lastValidationResult = result;
                     showResults(result);
+                    resolve();
                 } catch (err) {
                     console.error("Validation error:", err);
                     alert("Error processing file. See console for details.");
                     processingState.classList.add('hidden');
                     uploadState.classList.remove('hidden');
+                    urlInputContainer.classList.remove('hidden');
+                    resolve();
                 }
             }, 100);
-        } catch (err) {
-            console.error("File reading error:", err);
-            processingState.classList.add('hidden');
-            uploadState.classList.remove('hidden');
-        }
+        });
     }
 
     function showResults(result) {

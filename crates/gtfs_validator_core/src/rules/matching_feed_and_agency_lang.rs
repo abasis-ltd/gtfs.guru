@@ -84,6 +84,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: Vec::new(),
         });
@@ -116,6 +117,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: Vec::new(),
         });
@@ -141,6 +143,7 @@ mod tests {
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: Vec::new(),
         });

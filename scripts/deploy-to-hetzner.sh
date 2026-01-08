@@ -39,7 +39,7 @@ if [[ "$SERVER" != *"@"* ]]; then
     SERVER="root@$SERVER"
 fi
 
-REMOTE_DIR="/opt/gtfs-validator"
+REMOTE_DIR="~/gtfs-guru-web"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 

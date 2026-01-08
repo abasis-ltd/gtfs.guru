@@ -22,6 +22,15 @@ pub trait ProgressHandler: Send + Sync {
 
     /// Increment validation progress
     fn increment_validator_progress(&self);
+
+    /// General progress update (0.0 to 1.0) with an optional message
+    fn on_progress(&self, _progress: f32, _message: &str) {}
+
+    /// Called when report generation starts
+    fn on_start_reporting(&self) {}
+
+    /// Called when report generation finishes
+    fn on_finish_reporting(&self) {}
 }
 
 /// A no-op progress handler

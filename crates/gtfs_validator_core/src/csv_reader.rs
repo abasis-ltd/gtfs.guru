@@ -214,7 +214,7 @@ where
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
-        .trim(Trim::All)
+        .trim(Trim::Headers)
         .from_reader(buf_reader);
 
     let headers_record = csv_reader
@@ -266,7 +266,26 @@ where
                 // Explicitly convert to StringRecord for validation (checks UTF-8)
                 match csv::StringRecord::from_byte_record(record.clone()) {
                     Ok(string_record) => {
+                        // string_record is untrimmed (except headers logic).
+                        // Validate untrimmed data:
                         notices = validator_ref(&string_record, line_number);
+
+                        // For deserialization, we MUST trim fields to handle numeric types correctly.
+                        let mut trimmed_record = csv::StringRecord::with_capacity(
+                            string_record.as_slice().len(),
+                            string_record.len(),
+                        );
+                        for field in string_record.iter() {
+                            trimmed_record.push_field(field.trim());
+                        }
+
+                        // Deserialize from TRIMMED record
+                        let result = trimmed_record
+                            .deserialize(Some(headers_ref))
+                            .map_err(|err| {
+                                map_byte_record_error(file_ref, Some(headers_ref), line_number, err)
+                            });
+                        (index, line_number, result, notices)
                     }
                     Err(utf8_err) => {
                         // Report UTF-8 error as ParseError if it prevents validation
@@ -288,11 +307,6 @@ where
                         );
                     }
                 }
-
-                let result = record.deserialize(Some(byte_headers_ref)).map_err(|err| {
-                    map_byte_record_error(file_ref, Some(headers_ref), line_number, err)
-                });
-                (index, line_number, result, notices)
             })
             .collect();
 
