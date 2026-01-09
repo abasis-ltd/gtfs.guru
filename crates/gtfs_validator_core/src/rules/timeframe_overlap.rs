@@ -98,14 +98,12 @@ mod tests {
                     start_time: Some(GtfsTime::from_seconds(3600)),
                     end_time: Some(GtfsTime::from_seconds(7200)),
                     service_id: feed.pool.intern("S1"),
-                    ..Default::default()
                 },
                 Timeframe {
                     timeframe_group_id: Some(feed.pool.intern("G1")),
                     start_time: Some(GtfsTime::from_seconds(7000)), // Overlaps
                     end_time: Some(GtfsTime::from_seconds(10000)),
                     service_id: feed.pool.intern("S1"),
-                    ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
@@ -134,14 +132,12 @@ mod tests {
                     start_time: Some(GtfsTime::from_seconds(3600)),
                     end_time: Some(GtfsTime::from_seconds(7200)),
                     service_id: feed.pool.intern("S1"),
-                    ..Default::default()
                 },
                 Timeframe {
                     timeframe_group_id: Some(feed.pool.intern("G1")),
                     start_time: Some(GtfsTime::from_seconds(7200)), // Starts at end of previous
                     end_time: Some(GtfsTime::from_seconds(10000)),
                     service_id: feed.pool.intern("S1"),
-                    ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],

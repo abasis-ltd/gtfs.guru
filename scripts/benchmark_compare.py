@@ -9,7 +9,6 @@ This will run both validators multiple times and output a comparison table with 
 """
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
@@ -54,6 +53,7 @@ def run_rust_validator(rust_binary: Path, input_path: Path, output_dir: Path, ti
                 json_str = json_str[:json_str.rfind("}")+1]
             timing_data = json.loads(json_str)
     except (json.JSONDecodeError, ValueError):
+        # Timing JSON is optional; continue with empty timing data if parsing fails
         pass
     
     return {
@@ -84,6 +84,7 @@ def run_java_validator(jar_path: Path, input_path: Path, output_dir: Path) -> di
                     try:
                         validation_time = float(parts[i + 1])
                     except ValueError:
+                        # Invalid timing token; leave validation_time as None
                         pass
     
     return {

@@ -17,6 +17,7 @@
 #![allow(clippy::unnecessary_cast)]
 #![allow(clippy::manual_range_patterns)]
 #![allow(clippy::bind_instead_of_map)]
+#![allow(clippy::field_reassign_with_default)]
 pub mod csv_reader;
 mod csv_schema;
 mod csv_validation;

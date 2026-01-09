@@ -135,23 +135,24 @@ mod tests {
 
     #[test]
     fn passes_valid_transfer() {
-        let feed = GtfsFeed {
-            transfers: Some(CsvTable {
-                headers: vec![
-                    "from_stop_id".into(),
-                    "to_stop_id".into(),
-                    "transfer_type".into(),
-                ],
-                rows: vec![Transfer {
-                    from_stop_id: Some(feed.pool.intern("S1")),
-                    to_stop_id: Some(feed.pool.intern("S2")),
-                    transfer_type: Some(TransferType::Recommended),
-                    ..Default::default()
-                }],
-                row_numbers: vec![2],
-            }),
-            ..Default::default()
-        };
+        let mut feed = GtfsFeed::default();
+        let s1 = feed.pool.intern("S1");
+        let s2 = feed.pool.intern("S2");
+
+        feed.transfers = Some(CsvTable {
+            headers: vec![
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "transfer_type".into(),
+            ],
+            rows: vec![Transfer {
+                from_stop_id: Some(s1),
+                to_stop_id: Some(s2),
+                transfer_type: Some(TransferType::Recommended),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
 
         let mut notices = NoticeContainer::new();
         TransferStopIdsConditionalValidator.validate(&feed, &mut notices);

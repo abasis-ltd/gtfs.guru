@@ -1280,7 +1280,7 @@ fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDa
 
         // Single pass to compute bounds - O(service_periods)
         let mut removed_dates = Vec::new();
-        for (_, period) in &service_periods {
+        for period in service_periods.values() {
             let start = period.service_start;
             let end = period.service_end;
             if !is_epoch(start) && !is_epoch(end) {

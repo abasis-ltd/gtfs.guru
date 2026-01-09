@@ -22,9 +22,12 @@ impl fmt::Display for StringId {
     }
 }
 
+type InternerHook = Box<dyn Fn(&str) -> StringId>;
+type ResolverHook = Box<dyn Fn(StringId) -> String>;
+
 thread_local! {
-    static INTERNER_HOOK: RefCell<Option<Box<dyn Fn(&str) -> StringId>>> = RefCell::new(None);
-    static RESOLVER_HOOK: RefCell<Option<Box<dyn Fn(StringId) -> String>>> = RefCell::new(None);
+    static INTERNER_HOOK: RefCell<Option<InternerHook>> = RefCell::new(None);
+    static RESOLVER_HOOK: RefCell<Option<ResolverHook>> = RefCell::new(None);
 }
 
 pub fn set_thread_local_interner<F>(f: F)
@@ -970,19 +973,10 @@ pub struct Transfer {
     pub to_trip_id: Option<StringId>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Area {
     pub area_id: StringId,
     pub area_name: Option<CompactString>,
-}
-
-impl Default for Area {
-    fn default() -> Self {
-        Self {
-            area_id: StringId::default(),
-            area_name: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

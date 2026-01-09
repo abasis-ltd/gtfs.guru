@@ -1,7 +1,5 @@
-import os
 import subprocess
 import json
-import glob
 from pathlib import Path
 
 # Paths

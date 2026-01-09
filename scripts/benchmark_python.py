@@ -1,7 +1,6 @@
 import gtfs_guru as gtfs_validator
 import time
 import sys
-from pathlib import Path
 
 def main():
     if len(sys.argv) < 2:

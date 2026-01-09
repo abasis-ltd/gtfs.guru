@@ -28,9 +28,11 @@ mod tests {
 
     #[test]
     fn detects_missing_stops_file_when_no_locations() {
-        let mut feed = GtfsFeed::default();
-        feed.stops = CsvTable::default();
-        feed.locations = None;
+        let feed = GtfsFeed {
+            stops: CsvTable::default(),
+            locations: None,
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         MissingStopsFileValidator.validate(&feed, &mut notices);
@@ -44,13 +46,15 @@ mod tests {
 
     #[test]
     fn passes_when_stops_file_present() {
-        let mut feed = GtfsFeed::default();
-        feed.stops = CsvTable {
-            headers: vec!["stop_id".into()],
-            rows: vec![gtfs_guru_model::Stop::default()],
-            row_numbers: vec![2],
+        let feed = GtfsFeed {
+            stops: CsvTable {
+                headers: vec!["stop_id".into()],
+                rows: vec![gtfs_guru_model::Stop::default()],
+                row_numbers: vec![2],
+            },
+            locations: None,
+            ..Default::default()
         };
-        feed.locations = None;
 
         let mut notices = NoticeContainer::new();
         MissingStopsFileValidator.validate(&feed, &mut notices);
@@ -60,9 +64,11 @@ mod tests {
 
     #[test]
     fn passes_when_locations_present() {
-        let mut feed = GtfsFeed::default();
-        feed.stops = CsvTable::default();
-        feed.locations = Some(crate::geojson::LocationsGeoJson::default());
+        let feed = GtfsFeed {
+            stops: CsvTable::default(),
+            locations: Some(crate::geojson::LocationsGeoJson::default()),
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         MissingStopsFileValidator.validate(&feed, &mut notices);

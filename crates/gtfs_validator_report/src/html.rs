@@ -996,16 +996,18 @@ fn render_map_button(out: &mut String, notice: &ValidationNotice) {
         let (stop_lat, stop_lon) = extract_lat_lng(stop_loc);
         let (match_lat, match_lon) = extract_lat_lng(match_loc);
 
-        if stop_lat.is_some() && match_lat.is_some() {
+        if let (Some(s_lat), Some(s_lon), Some(m_lat), Some(m_lon)) =
+            (stop_lat, stop_lon, match_lat, match_lon)
+        {
             out.push_str("                                    <td>");
             out.push_str("<button class=\"view-map-btn\" ");
             out.push_str("data-stop-name=\"");
             push_escaped(out, stop_name);
             out.push_str("\" ");
-            out.push_str(&format!("data-stop-lat=\"{}\" ", stop_lat.unwrap()));
-            out.push_str(&format!("data-stop-lon=\"{}\" ", stop_lon.unwrap()));
-            out.push_str(&format!("data-match-lat=\"{}\" ", match_lat.unwrap()));
-            out.push_str(&format!("data-match-lon=\"{}\" ", match_lon.unwrap()));
+            out.push_str(&format!("data-stop-lat=\"{}\" ", s_lat));
+            out.push_str(&format!("data-stop-lon=\"{}\" ", s_lon));
+            out.push_str(&format!("data-match-lat=\"{}\" ", m_lat));
+            out.push_str(&format!("data-match-lon=\"{}\" ", m_lon));
             // Add shape path if available
             if let Some(path) = shape_path {
                 if let Ok(json_str) = serde_json::to_string(path) {

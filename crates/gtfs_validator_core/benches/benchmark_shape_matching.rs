@@ -111,7 +111,6 @@ fn generate_complex_feed(
                 bikes_allowed: None,
                 continuous_pickup: None,
                 continuous_drop_off: None,
-                ..Default::default()
             });
 
             // Add stop times for stops on this shape

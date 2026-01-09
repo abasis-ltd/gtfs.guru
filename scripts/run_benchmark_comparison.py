@@ -35,17 +35,8 @@ for root, dirs, files in os.walk(tests_data_dir):
         if file.endswith(".zip"):
             test_cases.append(root_path / file)
     
-    # Check for directories that might be unzipped feeds
-    # We avoid recursing into them if we treat them as a feed
-    # But os.walk recurses anyway. We need to be careful not to double count.
-    # For this pass, let's treat any directory containing .txt files as a potential feed
-    # IF it's not a parent of another feed we strictly define.
-    # Actually, mobility-data-test-feeds structure is nested.
-    # Let's rely on leaf directories or zips.
-    
-    # Simplified approach: valid test cases usually have specific names or structure
-    # Let's inspect known subdirs
-    pass
+    # Note: os.walk recurses automatically, so we only add zips here.
+    # Directories are handled in the refined rglob search below.
 
 # Refined search based on directory structure seen in list_dir
 # mobility-data-test-feeds has: OpenTripPlanner-data, gtfs-realtime-validator-data, sample-gtfs-feed, transitfeed-data, transitland-data
@@ -104,16 +95,6 @@ for i, test_path in enumerate(test_cases):
 
     # --- Rust Run ---
     rust_start = time.time()
-    rust_cmd = [
-        rust_bin,
-        "--input", str(test_path),
-        "--output-base", str(case_output_dir / "rust") # Note: rust might use underscore or dash, checking help implies output_base or similar. 
-        # Checking CLI: usually --output-base. Let's assume standard.
-        # Wait, previous script used --output_base. Let's double check CLI args if it fails.
-    ]
-    # Adjust for rust cli args if needed. Assuming standard `gtfs-guru --input <X> --output <Y>` or similar.
-    # Previous script `compare_google_tests.py` used `run --release ... -- --input ...`
-    # We are running binary directly.
     rust_cmd = [rust_bin, "--input", str(test_path), "--output", str(case_output_dir / "rust")]
 
     rust_success = False

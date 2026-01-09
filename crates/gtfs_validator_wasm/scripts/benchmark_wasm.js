@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 const { validate_gtfs } = require('../pkg-node/gtfs_guru_wasm.js');
 
 async function main() {
