@@ -4,6 +4,7 @@ use std::io::{BufRead, BufReader, Read};
 use csv::{ReaderBuilder, StringRecord, Trim};
 use serde::de::DeserializeOwned;
 
+#[cfg(feature = "parallel")]
 use crate::ValidationNotice;
 
 #[derive(Debug)]

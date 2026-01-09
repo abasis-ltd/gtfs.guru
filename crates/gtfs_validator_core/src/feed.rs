@@ -1,3 +1,4 @@
+#[cfg(feature = "parallel")]
 use chrono::NaiveDate;
 use gtfs_guru_model::{
     Agency, Area, Attribution, BookingRules, Calendar, CalendarDate, FareAttribute,
@@ -6,6 +7,8 @@ use gtfs_guru_model::{
     RouteNetwork, Shape, Stop, StopArea, StopTime, Timeframe, Transfer, Translation, Trip,
 };
 use std::collections::HashMap;
+
+#[cfg(feature = "parallel")]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::geojson::{GeoJsonFeatureCollection, LocationsGeoJson};

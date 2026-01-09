@@ -1,4 +1,3 @@
-
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_STOP_TIME_WITH_ONLY_ARRIVAL_OR_DEPARTURE_TIME: &str =

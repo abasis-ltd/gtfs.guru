@@ -7,7 +7,6 @@ use gtfs_guru_model::LocationType;
 const CODE_STOP_WITHOUT_STOP_TIME: &str = "stop_without_stop_time";
 const CODE_LOCATION_WITH_UNEXPECTED_STOP_TIME: &str = "location_with_unexpected_stop_time";
 
-
 #[derive(Debug, Default)]
 pub struct LocationHasStopTimesValidator;
 

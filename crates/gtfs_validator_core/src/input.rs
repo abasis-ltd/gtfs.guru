@@ -12,9 +12,11 @@ use crate::csv_reader::read_csv_from_reader_parallel;
 #[cfg(not(feature = "parallel"))]
 use crate::csv_reader::read_csv_from_reader_with_errors;
 use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
+use crate::csv_validation::is_value_validated_field;
 #[cfg(not(feature = "parallel"))]
 use crate::csv_validation::validate_csv_data;
-use crate::csv_validation::{is_value_validated_field, validate_headers, RowValidator};
+#[cfg(feature = "parallel")]
+use crate::csv_validation::{validate_headers, RowValidator};
 
 use crate::feed::GTFS_FILE_NAMES;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
