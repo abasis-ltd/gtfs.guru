@@ -1138,34 +1138,66 @@ font-weight: bold;
 
 .notice-group-header.info {
     color: var(--info);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.notice-group-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.notice-group-header.error {
+    border-left: 4px solid var(--error);
+}
+
+.notice-group-header.warning {
+    border-left: 4px solid var(--warning);
+}
+
+.notice-group-header.info {
+    border-left: 4px solid var(--info);
+}
+
+.notice-group-title {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .notice-group-count {
     background: rgba(255, 255, 255, 0.1);
     padding: 0.1rem 0.5rem;
-    border-radius: 10px;
+    border-radius: 12px;
     font-size: 0.75rem;
+    font-weight: 600;
 }
 
-/* Notice Items */
+.notice-group-details {
+    display: none;
+    border-top: 1px solid var(--border);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.notice-group-details.open {
+    display: block;
+}
+
 .notice-item {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.5rem;
-    border-left: 3px solid;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.9rem;
 }
 
-.notice-item.error {
-    border-left-color: var(--error);
-}
-
-.notice-item.warning {
-    border-left-color: var(--warning);
-}
-
-.notice-item.info {
-    border-left-color: var(--info);
+.notice-item:last-child {
+    border-bottom: none;
 }
 
 .notice-code {
@@ -1183,10 +1215,11 @@ font-weight: bold;
 
 .notice-location {
     display: flex;
-    flex-wrap: wrap;
     gap: 1rem;
+    margin-top: 0.25rem;
     font-size: 0.8rem;
     color: var(--text-secondary);
+    flex-wrap: wrap;
 }
 
 .notice-location span {
@@ -1200,6 +1233,31 @@ font-weight: bold;
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
     font-family: 'Fira Code', monospace;
+}
+
+/* Report Table Styles */
+.report-table th,
+.report-table td {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    white-space: nowrap;
+}
+
+.report-table th {
+    font-weight: 500;
+    text-align: left;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.report-table td code {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.report-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
 }
 
 /* Result Actions */
@@ -1380,4 +1438,98 @@ font-weight: bold;
 .faq-back-link:hover {
     color: var(--text-primary);
     transform: translateX(-4px);
+}
+
+.btn-ghost {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.completion-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+    animation: fadeScale 0.5s ease-out;
+}
+
+.completion-icon {
+    color: var(--success);
+    margin-bottom: 0.5rem;
+}
+
+.completion-icon svg {
+    width: 64px;
+    height: 64px;
+}
+
+.completion-text {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+
+@keyframes fadeScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}/* Error Container */
+.error-container {
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--error);
+    padding: 0.8rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.9rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+.error-container i {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+}
+
+.close-error {
+    background: none;
+    border: none;
+    color: var(--error);
+    cursor: pointer;
+    margin-left: auto;
+    padding: 0;
+    opacity: 0.7;
+}
+
+.close-error:hover {
+    opacity: 1;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

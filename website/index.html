@@ -102,6 +102,11 @@
                                 style="width:12px"></i> Local</div>
                     </div>
                     <div class="validator-body">
+                        <div id="error-container" class="error-container hidden">
+                            <i data-lucide="alert-circle"></i>
+                            <span id="error-message"></span>
+                            <button id="close-error-btn" class="close-error"><i data-lucide="x"></i></button>
+                        </div>
                         <div class="upload-state" id="upload-state">
                             <i data-lucide="upload-cloud" class="upload-icon"></i>
                             <h3>Drop GTFS.zip here</h3>
@@ -127,47 +132,54 @@
                         </div>
 
                         <div class="result-state hidden" id="result-state">
-                            <div class="score-ring" id="score-ring">
-                                <span class="score-number" id="score-number">100</span>
-                                <span class="score-label">Score</span>
+                            <div class="completion-indicator">
+                                <div class="completion-icon">
+                                    <i data-lucide="check-circle"></i>
+                                </div>
+                                <span class="completion-text">Scan Complete</span>
                             </div>
                             <div class="stats-grid">
                                 <div class="stat"><span class="red" id="error-count">0</span> Errors</div>
                                 <div class="stat"><span class="yellow" id="warning-count">0</span> Warnings</div>
                             </div>
                             <div class="result-actions">
-                                <button class="btn btn-primary width-full" id="view-report-btn">
-                                    <i data-lucide="file-text"></i> View Full Report
+                                <button class="btn btn-primary" id="view-report-btn">
+                                    <i data-lucide="file-text"></i> See More
                                 </button>
-                                <div class="secondary-actions">
-                                    <button class="btn btn-sm btn-outline" id="download-json-btn">
-                                        <i data-lucide="download"></i> JSON
-                                    </button>
-                                    <button class="btn btn-sm btn-outline" id="reset-btn">
-                                        New Scan
-                                    </button>
-                                </div>
+                                <button class="btn btn-outline" id="download-html-btn">
+                                    <i data-lucide="file-code"></i> Full Report
+                                </button>
+                                <button class="btn btn-outline" id="download-json-btn">
+                                    <i data-lucide="download"></i> JSON
+                                </button>
+                                <button class="btn btn-ghost" id="reset-btn">
+                                    <i data-lucide="rotate-ccw"></i> New Scan
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Report Modal -->
-                <div class="report-modal hidden" id="report-modal">
-                    <div class="report-modal-content glass-card">
-                        <div class="report-modal-header">
-                            <h3>Validation Report</h3>
-                            <button class="close-btn" id="close-modal-btn"><i data-lucide="x"></i></button>
-                        </div>
-                        <div class="report-modal-body" id="report-modal-body"></div>
-                        <div class="report-modal-footer">
-                            <button class="btn btn-sm btn-outline" id="download-json-modal-btn">
-                                <i data-lucide="download"></i> Download JSON
-                            </button>
-                        </div>
+            <!-- Report Modal -->
+            <div class="report-modal hidden" id="report-modal">
+                <div class="report-modal-content glass-card">
+                    <div class="report-modal-header">
+                        <h3>Validation Report</h3>
+                        <button class="close-btn" id="close-modal-btn"><i data-lucide="x"></i></button>
+                    </div>
+                    <div class="report-modal-body" id="report-modal-body"></div>
+                    <div class="report-modal-footer">
+                        <button class="btn btn-sm btn-outline" id="download-json-modal-btn">
+                            <i data-lucide="download"></i> JSON
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="download-html-modal-btn">
+                            <i data-lucide="file-code"></i> HTML
+                        </button>
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </header>
 
