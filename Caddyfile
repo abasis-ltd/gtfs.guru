@@ -4,7 +4,7 @@
 # ============================================================================
 
 # Replace with your actual domain
-gtfs.yourdomain.com {
+gtfs.guru {
     # Reverse proxy to GTFS Validator
     reverse_proxy gtfs-validator:3000
 
@@ -35,6 +35,26 @@ gtfs.yourdomain.com {
         format json
     }
 }
+
+analytics.gtfs.guru {
+    reverse_proxy umami:3000
+
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/analytics_access.log
+        format json
+    }
+}
+
 
 # Health check endpoint (optional, for monitoring)
 :8080 {

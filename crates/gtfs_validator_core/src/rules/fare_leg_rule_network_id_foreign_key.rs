@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::feed::FARE_LEG_RULES_FILE;
+use crate::feed::{FARE_LEG_RULES_FILE, NETWORKS_FILE, ROUTES_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_FOREIGN_KEY_VIOLATION: &str = "foreign_key_violation";
@@ -17,35 +17,35 @@ impl Validator for FareLegRuleNetworkIdForeignKeyValidator {
         let Some(fare_leg_rules) = &feed.fare_leg_rules else {
             return;
         };
+        if feed.table_has_errors(FARE_LEG_RULES_FILE)
+            || feed.table_has_errors(ROUTES_FILE)
+            || feed.table_has_errors(NETWORKS_FILE)
+        {
+            return;
+        }
 
-        let mut network_ids: HashSet<&str> = feed
+        let mut network_ids: HashSet<gtfs_guru_model::StringId> = feed
             .routes
             .rows
             .iter()
-            .filter_map(|route| route.network_id.as_deref())
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
+            .filter_map(|route| route.network_id)
+            .filter(|id| id.0 != 0)
             .collect();
         if let Some(networks) = &feed.networks {
             for network in &networks.rows {
-                let value = network.network_id.trim();
-                if !value.is_empty() {
-                    network_ids.insert(value);
+                if network.network_id.0 != 0 {
+                    network_ids.insert(network.network_id);
                 }
             }
         }
 
         for (index, rule) in fare_leg_rules.rows.iter().enumerate() {
             let row_number = fare_leg_rules.row_number(index);
-            let Some(network_id) = rule
-                .network_id
-                .as_deref()
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty())
-            else {
+            let Some(network_id) = rule.network_id.filter(|id| id.0 != 0) else {
                 continue;
             };
-            if !network_ids.contains(network_id) {
+            if !network_ids.contains(&network_id) {
+                let network_id_value = feed.pool.resolve(network_id);
                 let mut notice = ValidationNotice::new(
                     CODE_FOREIGN_KEY_VIOLATION,
                     NoticeSeverity::Error,
@@ -54,7 +54,7 @@ impl Validator for FareLegRuleNetworkIdForeignKeyValidator {
                 notice.insert_context_field("childFieldName", "network_id");
                 notice.insert_context_field("childFilename", FARE_LEG_RULES_FILE);
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("fieldValue", network_id);
+                notice.insert_context_field("fieldValue", network_id_value.as_str());
                 notice.insert_context_field("parentFieldName", "network_id");
                 notice.insert_context_field("parentFilename", "routes.txt or networks.txt");
                 notice.field_order = vec![
@@ -83,8 +83,8 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "network_id".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
-                network_id: Some("N1".into()),
+                route_id: feed.pool.intern("R1"),
+                network_id: Some(feed.pool.intern("N1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -92,7 +92,7 @@ mod tests {
         feed.fare_leg_rules = Some(CsvTable {
             headers: vec!["network_id".into()],
             rows: vec![FareLegRule {
-                network_id: Some("UNKNOWN".into()),
+                network_id: Some(feed.pool.intern("UNKNOWN")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -114,7 +114,7 @@ mod tests {
         feed.networks = Some(CsvTable {
             headers: vec!["network_id".into()],
             rows: vec![Network {
-                network_id: "N1".into(),
+                network_id: feed.pool.intern("N1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -122,7 +122,7 @@ mod tests {
         feed.fare_leg_rules = Some(CsvTable {
             headers: vec!["network_id".into()],
             rows: vec![FareLegRule {
-                network_id: Some("N1".into()),
+                network_id: Some(feed.pool.intern("N1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

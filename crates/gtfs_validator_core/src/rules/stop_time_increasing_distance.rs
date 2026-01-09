@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_DECREASING_OR_EQUAL_STOP_TIME_DISTANCE: &str = "decreasing_or_equal_stop_time_distance";
@@ -45,7 +43,7 @@ impl Validator for StopTimeIncreasingDistanceValidator {
                     .map(|(trip_id, stop_time_indices)| {
                         let _guards = ctx.apply();
 
-                        check_trip(trip_id, stop_time_indices, feed)
+                        check_trip(*trip_id, stop_time_indices, feed)
                     })
                     .collect()
             };
@@ -58,14 +56,18 @@ impl Validator for StopTimeIncreasingDistanceValidator {
         #[cfg(not(feature = "parallel"))]
         {
             for (trip_id, indices) in &feed.stop_times_by_trip {
-                let result = check_trip(trip_id, indices, feed);
+                let result = check_trip(*trip_id, indices, feed);
                 notices.merge(result);
             }
         }
     }
 }
 
-fn check_trip(trip_id: &str, indices: &[usize], feed: &GtfsFeed) -> NoticeContainer {
+fn check_trip(
+    trip_id: gtfs_guru_model::StringId,
+    indices: &[usize],
+    feed: &GtfsFeed,
+) -> NoticeContainer {
     let mut notices = NoticeContainer::new();
     let mut prev: Option<(u64, &gtfs_guru_model::StopTime)> = None;
 
@@ -74,7 +76,10 @@ fn check_trip(trip_id: &str, indices: &[usize], feed: &GtfsFeed) -> NoticeContai
         let curr = &feed.stop_times.rows[index];
         let row_number = feed.stop_times.row_number(index);
 
-        if !has_stop_id(curr) || curr.location_group_id.is_some() || curr.location_id.is_some() {
+        if !has_stop_id(curr, feed)
+            || curr.location_group_id.is_some()
+            || curr.location_id.is_some()
+        {
             continue;
         }
 
@@ -93,9 +98,9 @@ fn check_trip(trip_id: &str, indices: &[usize], feed: &GtfsFeed) -> NoticeContai
                     notice.insert_context_field("prevShapeDistTraveled", prev_dist);
                     notice.insert_context_field("prevStopSequence", prev_stop_time.stop_sequence);
                     notice.insert_context_field("shapeDistTraveled", curr_dist);
-                    notice.insert_context_field("stopId", curr.stop_id.as_str());
+                    notice.insert_context_field("stopId", feed.pool.resolve(curr.stop_id).as_str());
                     notice.insert_context_field("stopSequence", curr.stop_sequence);
-                    notice.insert_context_field("tripId", trip_id);
+                    notice.insert_context_field("tripId", feed.pool.resolve(trip_id).as_str());
                     notice.field_order = vec![
                         "csvRowNumber".into(),
                         "prevCsvRowNumber".into(),
@@ -116,8 +121,8 @@ fn check_trip(trip_id: &str, indices: &[usize], feed: &GtfsFeed) -> NoticeContai
     notices
 }
 
-fn has_stop_id(stop_time: &gtfs_guru_model::StopTime) -> bool {
-    !stop_time.stop_id.trim().is_empty()
+fn has_stop_id(stop_time: &gtfs_guru_model::StopTime, _feed: &GtfsFeed) -> bool {
+    stop_time.stop_id.0 != 0
 }
 
 #[cfg(test)]
@@ -138,15 +143,15 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S1".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
                     stop_sequence: 1,
                     shape_dist_traveled: Some(10.0),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S2".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
                     stop_sequence: 2,
                     shape_dist_traveled: Some(5.0),
                     ..Default::default()
@@ -178,15 +183,15 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S1".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
                     stop_sequence: 1,
                     shape_dist_traveled: Some(10.0),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S2".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
                     stop_sequence: 2,
                     shape_dist_traveled: Some(10.0),
                     ..Default::default()
@@ -218,15 +223,15 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S1".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
                     stop_sequence: 1,
                     shape_dist_traveled: Some(10.0),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S2".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
                     stop_sequence: 2,
                     shape_dist_traveled: Some(15.0),
                     ..Default::default()
@@ -249,15 +254,15 @@ mod tests {
             headers: vec!["trip_id".into(), "stop_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S1".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
                     stop_sequence: 1,
                     shape_dist_traveled: Some(10.0),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S2".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
                     stop_sequence: 2,
                     shape_dist_traveled: Some(5.0),
                     ..Default::default()

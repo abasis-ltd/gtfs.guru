@@ -39,11 +39,32 @@ impl ValidatorRunner {
         self.run_with_progress(feed, notices, None)
     }
 
+    /// Run all validators and collect detailed timing information
+    pub fn run_with_timing(
+        &self,
+        feed: &GtfsFeed,
+        notices: &mut NoticeContainer,
+        timing: &crate::timing::TimingCollector,
+    ) {
+        self.run_with_progress_and_timing(feed, notices, None, Some(timing))
+    }
+
     pub fn run_with_progress(
         &self,
         feed: &GtfsFeed,
         notices: &mut NoticeContainer,
         progress: Option<&dyn ProgressHandler>,
+    ) {
+        self.run_with_progress_and_timing(feed, notices, progress, None);
+    }
+
+    /// Run validators with optional progress tracking and timing collection
+    pub fn run_with_progress_and_timing(
+        &self,
+        feed: &GtfsFeed,
+        notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
+        timing: Option<&crate::timing::TimingCollector>,
     ) {
         // Capture thread-local context before execution
         let captured_date = crate::validation_date();
@@ -63,6 +84,7 @@ impl ValidatorRunner {
             captured_google_rules,
             captured_thorough,
             progress,
+            timing,
         );
 
         #[cfg(not(feature = "parallel"))]
@@ -73,6 +95,7 @@ impl ValidatorRunner {
             captured_google_rules,
             captured_thorough,
             progress,
+            timing,
         );
 
         notices.merge(new_notices);
@@ -87,6 +110,7 @@ impl ValidatorRunner {
         captured_google_rules: bool,
         captured_thorough: bool,
         progress: Option<&dyn ProgressHandler>,
+        timing: Option<&crate::timing::TimingCollector>,
     ) -> NoticeContainer {
         self.validators
             .par_iter()
@@ -101,7 +125,17 @@ impl ValidatorRunner {
                     p.on_start_validation(validator.name());
                 }
 
+                let start = std::time::Instant::now();
                 let res = self.run_single_validator(validator.as_ref(), feed);
+                let elapsed = start.elapsed();
+
+                if let Some(t) = timing {
+                    t.record(
+                        validator.name(),
+                        elapsed,
+                        crate::timing::TimingCategory::Validation,
+                    );
+                }
 
                 if let Some(p) = progress {
                     p.on_finish_validation(validator.name());
@@ -125,6 +159,7 @@ impl ValidatorRunner {
         captured_google_rules: bool,
         captured_thorough: bool,
         progress: Option<&dyn ProgressHandler>,
+        timing: Option<&crate::timing::TimingCollector>,
     ) -> NoticeContainer {
         // Set context once for sequential execution
         let _date_guard = crate::set_validation_date(Some(captured_date));
@@ -139,7 +174,21 @@ impl ValidatorRunner {
                     p.on_start_validation(validator.name());
                 }
 
+                #[cfg(not(target_arch = "wasm32"))]
+                let start = std::time::Instant::now();
                 let res = self.run_single_validator(validator.as_ref(), feed);
+                #[cfg(not(target_arch = "wasm32"))]
+                let elapsed = start.elapsed();
+                #[cfg(target_arch = "wasm32")]
+                let elapsed = std::time::Duration::from_secs(0);
+
+                if let Some(t) = timing {
+                    t.record(
+                        validator.name(),
+                        elapsed,
+                        crate::timing::TimingCategory::Validation,
+                    );
+                }
 
                 if let Some(p) = progress {
                     p.on_finish_validation(validator.name());
@@ -155,11 +204,25 @@ impl ValidatorRunner {
 
     fn run_single_validator(&self, validator: &dyn Validator, feed: &GtfsFeed) -> NoticeContainer {
         let mut local_notices = NoticeContainer::new();
+        #[cfg(not(target_arch = "wasm32"))]
         let start = std::time::Instant::now();
+
+        // Set resolver hook for StringId serialization
+        let pool = feed.pool.clone();
+        gtfs_guru_model::set_thread_local_resolver(move |id| pool.resolve(id));
+
         let result = catch_unwind(AssertUnwindSafe(|| {
             validator.validate(feed, &mut local_notices)
         }));
+
+        // Clear hooks after validation
+        gtfs_guru_model::clear_thread_local_hooks();
+
+        #[cfg(not(target_arch = "wasm32"))]
         let elapsed = start.elapsed();
+        #[cfg(target_arch = "wasm32")]
+        let elapsed = std::time::Duration::from_secs(0);
+
         if elapsed.as_millis() > 500 {
             eprintln!("[PERF] Validator {} took: {:?}", validator.name(), elapsed);
         }
@@ -285,6 +348,8 @@ mod tests {
             networks: None,
             stop_times_by_trip: std::collections::HashMap::new(),
             route_networks: None,
+            pool: crate::StringPool::new(),
+            table_statuses: std::collections::HashMap::new(),
         }
     }
 

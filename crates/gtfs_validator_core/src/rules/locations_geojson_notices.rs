@@ -49,41 +49,13 @@ mod tests {
     }
 
     fn dummy_feed() -> GtfsFeed {
-        GtfsFeed {
-            agency: empty_table(),
-            stops: empty_table(),
-            routes: empty_table(),
-            trips: empty_table(),
-            stop_times: empty_table(),
-            calendar: None,
-            calendar_dates: None,
-            fare_attributes: None,
-            fare_rules: None,
-            fare_media: None,
-            fare_products: None,
-            fare_leg_rules: None,
-            fare_transfer_rules: None,
-            fare_leg_join_rules: None,
-            areas: None,
-            stop_areas: None,
-            timeframes: None,
-            rider_categories: None,
-            shapes: None,
-            frequencies: None,
-            transfers: None,
-            location_groups: None,
-            location_group_stops: None,
-            locations: None,
-            booking_rules: None,
-            feed_info: None,
-            attributions: None,
-            levels: None,
-            pathways: None,
-            translations: None,
-            networks: None,
-            stop_times_by_trip: std::collections::HashMap::new(),
-            route_networks: None,
-        }
+        let mut feed = GtfsFeed::default();
+        feed.agency = empty_table();
+        feed.stops = empty_table();
+        feed.routes = empty_table();
+        feed.trips = empty_table();
+        feed.stop_times = empty_table();
+        feed
     }
 
     fn empty_table<T>() -> crate::CsvTable<T> {

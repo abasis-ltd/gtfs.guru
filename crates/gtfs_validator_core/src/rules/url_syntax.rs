@@ -16,16 +16,18 @@ impl Validator for UrlSyntaxValidator {
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         for (index, agency) in feed.agency.rows.iter().enumerate() {
+            let agency_url = feed.pool.resolve(agency.agency_url);
             validate_url(
-                &agency.agency_url,
+                agency_url.as_str(),
                 "agency.txt",
                 "agency_url",
                 feed.agency.row_number(index),
                 notices,
             );
-            if let Some(url) = agency.agency_fare_url.as_deref() {
+            if let Some(url) = agency.agency_fare_url {
+                let url_value = feed.pool.resolve(url);
                 validate_url(
-                    url,
+                    url_value.as_str(),
                     "agency.txt",
                     "agency_fare_url",
                     feed.agency.row_number(index),
@@ -35,9 +37,10 @@ impl Validator for UrlSyntaxValidator {
         }
 
         for (index, stop) in feed.stops.rows.iter().enumerate() {
-            if let Some(url) = stop.stop_url.as_deref() {
+            if let Some(url) = stop.stop_url {
+                let url_value = feed.pool.resolve(url);
                 validate_url(
-                    url,
+                    url_value.as_str(),
                     "stops.txt",
                     "stop_url",
                     feed.stops.row_number(index),
@@ -47,9 +50,10 @@ impl Validator for UrlSyntaxValidator {
         }
 
         for (index, route) in feed.routes.rows.iter().enumerate() {
-            if let Some(url) = route.route_url.as_deref() {
+            if let Some(url) = route.route_url {
+                let url_value = feed.pool.resolve(url);
                 validate_url(
-                    url,
+                    url_value.as_str(),
                     "routes.txt",
                     "route_url",
                     feed.routes.row_number(index),
@@ -60,16 +64,18 @@ impl Validator for UrlSyntaxValidator {
 
         if let Some(feed_info) = &feed.feed_info {
             for (index, info) in feed_info.rows.iter().enumerate() {
+                let publisher_url = feed.pool.resolve(info.feed_publisher_url);
                 validate_url(
-                    &info.feed_publisher_url,
+                    publisher_url.as_str(),
                     "feed_info.txt",
                     "feed_publisher_url",
                     feed_info.row_number(index),
                     notices,
                 );
-                if let Some(url) = info.feed_contact_url.as_deref() {
+                if let Some(url) = info.feed_contact_url {
+                    let url_value = feed.pool.resolve(url);
                     validate_url(
-                        url,
+                        url_value.as_str(),
                         "feed_info.txt",
                         "feed_contact_url",
                         feed_info.row_number(index),
@@ -140,26 +146,24 @@ mod tests {
 
     #[test]
     fn detects_invalid_agency_url() {
-        let feed = GtfsFeed {
-            agency: CsvTable {
-                headers: vec![
-                    "agency_name".into(),
-                    "agency_url".into(),
-                    "agency_timezone".into(),
-                ],
-                rows: vec![Agency {
-                    agency_id: None,
-                    agency_name: "Test".into(),
-                    agency_url: "ht tp://invalid".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: vec![2],
-            },
-            ..Default::default()
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
+            ],
+            rows: vec![Agency {
+                agency_id: None,
+                agency_name: "Test".into(),
+                agency_url: feed.pool.intern("ht tp://invalid"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: vec![2],
         };
 
         let mut notices = NoticeContainer::new();
@@ -176,26 +180,24 @@ mod tests {
 
     #[test]
     fn suggests_fix_for_url_missing_scheme() {
-        let feed = GtfsFeed {
-            agency: CsvTable {
-                headers: vec![
-                    "agency_name".into(),
-                    "agency_url".into(),
-                    "agency_timezone".into(),
-                ],
-                rows: vec![Agency {
-                    agency_id: None,
-                    agency_name: "Test".into(),
-                    agency_url: "www.example.com".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: vec![2],
-            },
-            ..Default::default()
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: vec![
+                "agency_name".into(),
+                "agency_url".into(),
+                "agency_timezone".into(),
+            ],
+            rows: vec![Agency {
+                agency_id: None,
+                agency_name: "Test".into(),
+                agency_url: feed.pool.intern("www.example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: vec![2],
         };
 
         let mut notices = NoticeContainer::new();

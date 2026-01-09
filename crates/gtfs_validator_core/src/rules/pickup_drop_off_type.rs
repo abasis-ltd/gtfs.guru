@@ -125,7 +125,7 @@ mod tests {
                 "pickup_type".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_type: Some(PickupDropOffType::Regular), // Forbidden for windows
@@ -151,7 +151,7 @@ mod tests {
                 "drop_off_type".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 drop_off_type: Some(PickupDropOffType::Regular), // Forbidden for windows
@@ -180,7 +180,7 @@ mod tests {
                 "drop_off_type".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_type: Some(PickupDropOffType::MustPhone),

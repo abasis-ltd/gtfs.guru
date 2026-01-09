@@ -18,12 +18,14 @@ impl Validator for DuplicateFareMediaValidator {
             return;
         };
 
-        let mut seen: HashMap<MediaKey, (u64, String)> = HashMap::new();
+        let mut seen: HashMap<MediaKey, (u64, gtfs_guru_model::StringId)> = HashMap::new();
         for (index, media) in fare_media.rows.iter().enumerate() {
             let row_number = fare_media.row_number(index);
             let key = MediaKey::new(media);
-            let fare_media_id = media.fare_media_id.trim();
+            let fare_media_id = media.fare_media_id;
             if let Some((prev_row, prev_id)) = seen.get(&key) {
+                let prev_id_value = feed.pool.resolve(*prev_id);
+                let fare_media_value = feed.pool.resolve(fare_media_id);
                 let mut notice = ValidationNotice::new(
                     CODE_DUPLICATE_FARE_MEDIA,
                     NoticeSeverity::Warning,
@@ -31,8 +33,8 @@ impl Validator for DuplicateFareMediaValidator {
                 );
                 notice.insert_context_field("csvRowNumber1", *prev_row);
                 notice.insert_context_field("csvRowNumber2", row_number);
-                notice.insert_context_field("fareMediaId1", prev_id);
-                notice.insert_context_field("fareMediaId2", fare_media_id);
+                notice.insert_context_field("fareMediaId1", prev_id_value.as_str());
+                notice.insert_context_field("fareMediaId2", fare_media_value.as_str());
                 notice.field_order = vec![
                     "csvRowNumber1".into(),
                     "csvRowNumber2".into(),
@@ -41,7 +43,7 @@ impl Validator for DuplicateFareMediaValidator {
                 ];
                 notices.push(notice);
             } else {
-                seen.insert(key, (row_number, fare_media_id.to_string()));
+                seen.insert(key, (row_number, fare_media_id));
             }
         }
     }
@@ -84,12 +86,12 @@ mod tests {
             ],
             rows: vec![
                 FareMedia {
-                    fare_media_id: "M1".into(),
+                    fare_media_id: feed.pool.intern("M1"),
                     fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
                 FareMedia {
-                    fare_media_id: "M2".into(),
+                    fare_media_id: feed.pool.intern("M2"),
                     fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
@@ -118,17 +120,17 @@ mod tests {
             ],
             rows: vec![
                 FareMedia {
-                    fare_media_id: "M1".into(),
+                    fare_media_id: feed.pool.intern("M1"),
                     fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
                 FareMedia {
-                    fare_media_id: "M2".into(),
+                    fare_media_id: feed.pool.intern("M2"),
                     fare_media_name: Some("Card".into()),
                     fare_media_type: FareMediaType::NoneType,
                 },
                 FareMedia {
-                    fare_media_id: "M3".into(),
+                    fare_media_id: feed.pool.intern("M3"),
                     fare_media_name: Some("Pass".into()),
                     fare_media_type: FareMediaType::TransitCard,
                 },

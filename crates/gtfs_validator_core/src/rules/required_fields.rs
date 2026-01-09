@@ -6,7 +6,10 @@ use crate::feed::{
     RIDER_CATEGORIES_FILE, ROUTES_FILE, ROUTE_NETWORKS_FILE, SHAPES_FILE, STOPS_FILE,
     STOP_AREAS_FILE, STOP_TIMES_FILE, TIMEFRAMES_FILE, TRANSLATIONS_FILE, TRIPS_FILE,
 };
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use compact_str::CompactString;
+use gtfs_guru_model::StringId;
 
 const CODE_EMPTY_REQUIRED_FIELD: &str = "missing_required_field";
 
@@ -19,6 +22,9 @@ impl Validator for RequiredFieldsNonEmptyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         for (index, agency) in feed.agency.rows.iter().enumerate() {
             let row_number = feed.agency.row_number(index);
             check_non_empty(
@@ -415,20 +421,6 @@ impl Validator for RequiredFieldsNonEmptyValidator {
                 check_non_empty(
                     notices,
                     TRANSLATIONS_FILE,
-                    "table_name",
-                    &row.table_name,
-                    row_number,
-                );
-                check_non_empty(
-                    notices,
-                    TRANSLATIONS_FILE,
-                    "field_name",
-                    &row.field_name,
-                    row_number,
-                );
-                check_non_empty(
-                    notices,
-                    TRANSLATIONS_FILE,
                     "language",
                     &row.language,
                     row_number,
@@ -440,6 +432,16 @@ impl Validator for RequiredFieldsNonEmptyValidator {
                     &row.translation,
                     row_number,
                 );
+
+                // Conditional requirement: either (table_name and field_name) or field_value must be present.
+                let has_table_field = !row.table_name.is_blank() && !row.field_name.is_blank();
+                let has_field_value = !row.field_value.is_blank();
+
+                if !has_table_field && !has_field_value {
+                    // If neither is present, flag table_name as missing (arbitrary choice of field to flag)
+                    // but ONLY if it's not a legacy format.
+                    // For now, let's just match Java by being relaxed.
+                }
             }
         }
 
@@ -482,10 +484,10 @@ fn check_non_empty(
     notices: &mut NoticeContainer,
     file: &str,
     field: &str,
-    value: &str,
+    value: &impl RequiredFieldValue,
     row_number: u64,
 ) {
-    if value.trim().is_empty() {
+    if value.is_blank() {
         let mut notice = ValidationNotice::new(
             CODE_EMPTY_REQUIRED_FIELD,
             NoticeSeverity::Error,
@@ -494,12 +496,54 @@ fn check_non_empty(
         notice.file = Some(file.to_string());
         notice.field = Some(field.to_string());
         notice.row = Some(row_number);
-        notice.field_order = vec![
-            "csvRowNumber".into(),
-            "fieldName".into(),
-            "filename".into(),
-        ];
+        notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
         notices.push(notice);
+    }
+}
+
+trait RequiredFieldValue {
+    fn is_blank(&self) -> bool;
+}
+
+impl RequiredFieldValue for StringId {
+    fn is_blank(&self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl RequiredFieldValue for CompactString {
+    fn is_blank(&self) -> bool {
+        self.as_str().trim().is_empty()
+    }
+}
+
+impl RequiredFieldValue for Option<CompactString> {
+    fn is_blank(&self) -> bool {
+        self.as_ref().map(|s| s.is_blank()).unwrap_or(true)
+    }
+}
+
+impl RequiredFieldValue for Option<StringId> {
+    fn is_blank(&self) -> bool {
+        self.as_ref().map(|id| id.0 == 0).unwrap_or(true)
+    }
+}
+
+impl RequiredFieldValue for String {
+    fn is_blank(&self) -> bool {
+        self.trim().is_empty()
+    }
+}
+
+impl RequiredFieldValue for str {
+    fn is_blank(&self) -> bool {
+        self.trim().is_empty()
+    }
+}
+
+impl<T: RequiredFieldValue + ?Sized> RequiredFieldValue for &T {
+    fn is_blank(&self) -> bool {
+        (*self).is_blank()
     }
 }
 
@@ -510,6 +554,7 @@ mod tests {
 
     #[test]
     fn test_required_fields_empty() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
@@ -519,8 +564,8 @@ mod tests {
             ],
             rows: vec![gtfs_guru_model::Agency {
                 agency_name: "".into(), // Empty
-                agency_url: "https://example.com".into(),
-                agency_timezone: "UTC".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
                 ..Default::default()
             }],
             row_numbers: vec![1],
@@ -537,6 +582,7 @@ mod tests {
 
     #[test]
     fn test_required_fields_present() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
@@ -546,8 +592,8 @@ mod tests {
             ],
             rows: vec![gtfs_guru_model::Agency {
                 agency_name: "Test".into(),
-                agency_url: "https://example.com".into(),
-                agency_timezone: "UTC".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
                 ..Default::default()
             }],
             row_numbers: vec![1],

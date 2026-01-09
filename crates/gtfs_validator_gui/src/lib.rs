@@ -10,12 +10,119 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use gtfs_guru_core::{
-    default_runner, set_validation_country_code, validate_input, GtfsInput, NoticeSeverity,
+    default_runner, set_validation_country_code, validate_input_and_progress, GtfsInput,
+    NoticeSeverity, ProgressHandler,
 };
 use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
-use url::Url;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tauri::{AppHandle, Emitter};
+
+struct TauriProgressHandler {
+    app: AppHandle,
+    total_files: AtomicUsize,
+    loaded_files: AtomicUsize,
+    total_validators: AtomicUsize,
+    completed_validators: AtomicUsize,
+}
+
+impl TauriProgressHandler {
+    fn new(app: AppHandle) -> Self {
+        Self {
+            app,
+            total_files: AtomicUsize::new(15), // Typical GTFS has ~10-15 files
+            loaded_files: AtomicUsize::new(0),
+            total_validators: AtomicUsize::new(50), // Typical active validators
+            completed_validators: AtomicUsize::new(0),
+        }
+    }
+
+    fn emit_progress(&self, phase: &str, message: &str) {
+        let progress = if phase == "loading" {
+            let loaded = self.loaded_files.load(Ordering::Relaxed) as f32;
+            let total = self.total_files.load(Ordering::Relaxed).max(1) as f32;
+            // 0-35% of total progress
+            (loaded / total) * 0.35
+        } else if phase == "validating" {
+            let completed = self.completed_validators.load(Ordering::Relaxed) as f32;
+            let total = self.total_validators.load(Ordering::Relaxed).max(1) as f32;
+            // 35-90% of total progress
+            0.35 + (completed / total) * 0.55
+        } else {
+            // Reporting phase: 90-100%
+            0.90
+        };
+
+        self.emit_direct_progress(phase, message, Some(progress));
+    }
+
+    fn emit_direct_progress(&self, phase: &str, message: &str, progress: Option<f32>) {
+        let _ = self.app.emit(
+            "validation-progress",
+            ProgressEvent {
+                phase: phase.into(),
+                message: message.into(),
+                progress,
+            },
+        );
+    }
+}
+
+#[derive(Serialize, Clone)]
+struct ProgressEvent {
+    phase: String,
+    message: String,
+    progress: Option<f32>,
+}
+
+impl ProgressHandler for TauriProgressHandler {
+    fn on_start_file_load(&self, file: &str) {
+        self.emit_progress("loading", &format!("Loading {}...", file));
+    }
+
+    fn on_finish_file_load(&self, file: &str) {
+        self.loaded_files.fetch_add(1, Ordering::Relaxed);
+        // Emit updated progress after loading completes
+        self.emit_progress("loading", &format!("Loaded {}", file));
+    }
+
+    fn on_start_validation(&self, validator_name: &str) {
+        self.emit_progress("validating", &format!("Running {}...", validator_name));
+    }
+
+    fn on_finish_validation(&self, validator_name: &str) {
+        self.completed_validators.fetch_add(1, Ordering::Relaxed);
+        // Emit updated progress after validation completes
+        self.emit_progress("validating", &format!("Completed {}", validator_name));
+    }
+
+    fn set_total_files(&self, count: usize) {
+        self.total_files.store(count.max(1), Ordering::Relaxed);
+    }
+
+    fn set_total_validators(&self, count: usize) {
+        self.total_validators.store(count.max(1), Ordering::Relaxed);
+    }
+
+    fn increment_validator_progress(&self) {
+        self.completed_validators.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn on_progress(&self, progress: f32, message: &str) {
+        // Core reports 0.0 to 1.0 for the current phase (presently only loading)
+        let overall_progress = progress * 0.35;
+        self.emit_direct_progress("loading", message, Some(overall_progress));
+    }
+
+    fn on_start_reporting(&self) {
+        self.emit_progress("reporting", "Generating reports...");
+    }
+
+    fn on_finish_reporting(&self) {
+        self.emit_direct_progress("complete", "Validation complete", Some(1.0));
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +175,7 @@ async fn validate_gtfs(
     url: Option<String>,
     country_code: Option<String>,
     state: State<'_, AppState>,
+    app: AppHandle,
 ) -> Result<ValidationResult, String> {
     if path.is_none() && url.is_none() {
         return Err("Either path or url must be provided".to_string());
@@ -75,7 +183,8 @@ async fn validate_gtfs(
 
     // Run validation in blocking task
     let result = tauri::async_runtime::spawn_blocking(move || {
-        run_validation(path, url, country_code.as_deref())
+        let progress = TauriProgressHandler::new(app);
+        run_validation(path, url, country_code.as_deref(), Some(&progress))
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -128,6 +237,7 @@ fn run_validation(
     path: Option<String>,
     url: Option<String>,
     country_code: Option<&str>,
+    progress_handler: Option<&dyn ProgressHandler>,
 ) -> Result<ValidationResult, String> {
     // Determine input path (download if URL)
     let (input_path, _download_cleanup) = if let Some(url_str) = url {
@@ -154,7 +264,7 @@ fn run_validation(
     let _guard = country_code.map(|c| set_validation_country_code(Some(c.to_string())));
 
     let runner = default_runner();
-    let outcome = validate_input(&input, &runner);
+    let outcome = validate_input_and_progress(&input, &runner, progress_handler);
     let elapsed = started_at.elapsed();
 
     // Create output directory
@@ -165,6 +275,9 @@ fn run_validation(
     std::fs::create_dir_all(&output_dir).map_err(|e| e.to_string())?;
 
     // Generate reports
+    if let Some(p) = progress_handler {
+        p.on_start_reporting();
+    }
     let mut summary_context = ReportSummaryContext::new()
         .with_gtfs_input(&input_path)
         .with_output_directory(&output_dir)
@@ -213,6 +326,10 @@ fn run_validation(
                 geo_errors.push(geo_error);
             }
         }
+    }
+
+    if let Some(p) = progress_handler {
+        p.on_finish_reporting();
     }
 
     Ok(ValidationResult {

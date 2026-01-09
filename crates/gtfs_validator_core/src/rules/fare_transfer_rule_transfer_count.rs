@@ -19,8 +19,8 @@ impl Validator for FareTransferRuleTransferCountValidator {
 
         for (index, rule) in fare_transfer_rules.rows.iter().enumerate() {
             let row_number = fare_transfer_rules.row_number(index);
-            let from_leg_group_id = normalized(rule.from_leg_group_id.as_deref());
-            let to_leg_group_id = normalized(rule.to_leg_group_id.as_deref());
+            let from_leg_group_id = rule.from_leg_group_id.filter(|id| id.0 != 0);
+            let to_leg_group_id = rule.to_leg_group_id.filter(|id| id.0 != 0);
             let has_transfer_count = rule.transfer_count.is_some();
 
             if let (Some(from_id), Some(to_id)) = (from_leg_group_id, to_leg_group_id) {
@@ -41,10 +41,6 @@ impl Validator for FareTransferRuleTransferCountValidator {
             }
         }
     }
-}
-
-fn normalized(value: Option<&str>) -> Option<&str> {
-    value.map(|val| val.trim()).filter(|val| !val.is_empty())
 }
 
 fn invalid_transfer_count_notice(row_number: u64, transfer_count: i32) -> ValidationNotice {
@@ -97,8 +93,8 @@ mod tests {
                 "transfer_count".into(),
             ],
             rows: vec![FareTransferRule {
-                from_leg_group_id: Some("G1".into()),
-                to_leg_group_id: Some("G1".into()),
+                from_leg_group_id: Some(feed.pool.intern("G1")),
+                to_leg_group_id: Some(feed.pool.intern("G1")),
                 transfer_count: Some(0),
                 ..Default::default()
             }],
@@ -119,13 +115,10 @@ mod tests {
     fn detects_missing_transfer_count() {
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
-            headers: vec![
-                "from_leg_group_id".into(),
-                "to_leg_group_id".into(),
-            ],
+            headers: vec!["from_leg_group_id".into(), "to_leg_group_id".into()],
             rows: vec![FareTransferRule {
-                from_leg_group_id: Some("G1".into()),
-                to_leg_group_id: Some("G1".into()),
+                from_leg_group_id: Some(feed.pool.intern("G1")),
+                to_leg_group_id: Some(feed.pool.intern("G1")),
                 transfer_count: None,
                 ..Default::default()
             }],
@@ -152,8 +145,8 @@ mod tests {
                 "transfer_count".into(),
             ],
             rows: vec![FareTransferRule {
-                from_leg_group_id: Some("G1".into()),
-                to_leg_group_id: Some("G2".into()),
+                from_leg_group_id: Some(feed.pool.intern("G1")),
+                to_leg_group_id: Some(feed.pool.intern("G2")),
                 transfer_count: Some(1),
                 ..Default::default()
             }],
@@ -181,14 +174,14 @@ mod tests {
             ],
             rows: vec![
                 FareTransferRule {
-                    from_leg_group_id: Some("G1".into()),
-                    to_leg_group_id: Some("G1".into()),
+                    from_leg_group_id: Some(feed.pool.intern("G1")),
+                    to_leg_group_id: Some(feed.pool.intern("G1")),
                     transfer_count: Some(1),
                     ..Default::default()
                 },
                 FareTransferRule {
-                    from_leg_group_id: Some("G1".into()),
-                    to_leg_group_id: Some("G2".into()),
+                    from_leg_group_id: Some(feed.pool.intern("G1")),
+                    to_leg_group_id: Some(feed.pool.intern("G2")),
                     transfer_count: None,
                     ..Default::default()
                 },

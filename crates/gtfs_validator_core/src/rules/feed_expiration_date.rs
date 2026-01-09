@@ -68,11 +68,7 @@ fn expiration_notice_30_days(row_number: u64) -> ValidationNotice {
 
 fn populate_expiration_notice(notice: &mut ValidationNotice, row_number: u64) {
     notice.set_location(FEED_INFO_FILE, "feed_end_date", row_number);
-    notice.field_order = vec![
-        "csvRowNumber".into(),
-        "fieldName".into(),
-        "filename".into(),
-    ];
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
 }
 
 #[cfg(test)]
@@ -87,19 +83,17 @@ mod tests {
             crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap()));
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec![
-                "feed_publisher_name".into(),
-                "feed_end_date".into(),
-            ],
+            headers: vec!["feed_publisher_name".into(), "feed_end_date".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: Some(GtfsDate::parse("20240520").unwrap()), // Within 7 days of 2024-05-18
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -120,19 +114,17 @@ mod tests {
             crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap()));
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec![
-                "feed_publisher_name".into(),
-                "feed_end_date".into(),
-            ],
+            headers: vec!["feed_publisher_name".into(), "feed_end_date".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: Some(GtfsDate::parse("20240610").unwrap()), // Within 30 days of 2024-05-18
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -153,19 +145,17 @@ mod tests {
             crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap()));
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec![
-                "feed_publisher_name".into(),
-                "feed_end_date".into(),
-            ],
+            headers: vec!["feed_publisher_name".into(), "feed_end_date".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: Some(GtfsDate::parse("20250101").unwrap()),
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });

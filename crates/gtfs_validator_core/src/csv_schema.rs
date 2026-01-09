@@ -136,7 +136,7 @@ const STOP_TIMES_FIELDS: &[&str] = &[
     "start_pickup_drop_off_window",
     "end_pickup_drop_off_window",
 ];
-const STOP_TIMES_REQUIRED_FIELDS: &[&str] = &["trip_id", "stop_id", "stop_sequence"];
+const STOP_TIMES_REQUIRED_FIELDS: &[&str] = &["trip_id", "stop_sequence"];
 const STOP_TIMES_RECOMMENDED_FIELDS: &[&str] = &[
     "arrival_time",
     "departure_time",
@@ -253,6 +253,7 @@ const FEED_INFO_FIELDS: &[&str] = &[
     "feed_version",
     "feed_contact_email",
     "feed_contact_url",
+    "default_lang",
 ];
 const FEED_INFO_RECOMMENDED_FIELDS: &[&str] = &["feed_start_date", "feed_end_date", "feed_version"];
 const FEED_INFO_REQUIRED_FIELDS: &[&str] =

@@ -19,10 +19,11 @@ impl Validator for TransfersStopTypeValidator {
             return;
         };
 
-        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
+            HashMap::new();
         for stop in &feed.stops.rows {
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             stops_by_id.insert(stop_id, stop);
@@ -31,17 +32,19 @@ impl Validator for TransfersStopTypeValidator {
         for (index, transfer) in transfers.rows.iter().enumerate() {
             let row_number = transfers.row_number(index);
             validate_stop_type(
-                transfer.from_stop_id.as_deref(),
+                transfer.from_stop_id,
                 "from_stop_id",
                 &stops_by_id,
                 row_number,
+                feed,
                 notices,
             );
             validate_stop_type(
-                transfer.to_stop_id.as_deref(),
+                transfer.to_stop_id,
                 "to_stop_id",
                 &stops_by_id,
                 row_number,
+                feed,
                 notices,
             );
         }
@@ -49,20 +52,17 @@ impl Validator for TransfersStopTypeValidator {
 }
 
 fn validate_stop_type(
-    stop_id: Option<&str>,
+    stop_id: Option<gtfs_guru_model::StringId>,
     field_name: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     row_number: u64,
+    feed: &GtfsFeed,
     notices: &mut NoticeContainer,
 ) {
-    let stop_id = match stop_id
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-    {
-        Some(stop_id) => stop_id,
-        None => return,
+    let Some(stop_id) = stop_id.filter(|id| id.0 != 0) else {
+        return;
     };
-    let stop = match stops_by_id.get(stop_id) {
+    let stop = match stops_by_id.get(&stop_id) {
         Some(stop) => *stop,
         None => return,
     };
@@ -76,7 +76,7 @@ fn validate_stop_type(
         notice.insert_context_field("csvRowNumber", row_number);
         notice.insert_context_field("locationTypeName", location_type_name(location_type));
         notice.insert_context_field("locationTypeValue", location_type_value(location_type));
-        notice.insert_context_field("stopId", stop_id);
+        notice.insert_context_field("stopId", feed.pool.resolve(stop_id).as_str());
         notice.insert_context_field("stopIdFieldName", field_name);
         notice.field_order = vec![
             "csvRowNumber".into(),
@@ -131,12 +131,12 @@ mod tests {
             headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     location_type: Some(LocationType::EntranceOrExit), // Invalid for transfer
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
@@ -146,8 +146,8 @@ mod tests {
         feed.transfers = Some(CsvTable {
             headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -168,12 +168,12 @@ mod tests {
             headers: vec!["stop_id".into(), "location_type".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     location_type: Some(LocationType::StopOrPlatform),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     location_type: Some(LocationType::Station),
                     ..Default::default()
                 },
@@ -183,8 +183,8 @@ mod tests {
         feed.transfers = Some(CsvTable {
             headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

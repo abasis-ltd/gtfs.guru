@@ -1,2 +1,0 @@
-route_id,agency_id,route_short_name,route_long_name,route_type,route_desc
-route1,agency1,R1,Route One,3,

@@ -5,6 +5,8 @@ use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validat
 
 const CODE_UNUSED_AGENCY: &str = "unused_agency";
 
+use crate::validation_context::thorough_mode_enabled;
+
 #[derive(Debug, Default)]
 pub struct UnusedAgencyValidator;
 
@@ -14,19 +16,19 @@ impl Validator for UnusedAgencyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         if feed.agency.rows.len() <= 1 {
             // If there's only one agency, it's considered used by default if routes exist,
             // or it's simply the only agency.
             return;
         }
 
-        let mut used_agency_ids: HashSet<&str> = HashSet::new();
+        let mut used_agency_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         for route in &feed.routes.rows {
-            if let Some(agency_id) = route.agency_id.as_deref() {
-                let agency_id = agency_id.trim();
-                if !agency_id.is_empty() {
-                    used_agency_ids.insert(agency_id);
-                }
+            if let Some(agency_id) = route.agency_id.filter(|id| id.0 != 0) {
+                used_agency_ids.insert(agency_id);
             } else {
                 // If agency_id is omitted in routes, it refers to the only agency (if only one exists)
                 // but we are in the multi-agency case here.
@@ -34,13 +36,9 @@ impl Validator for UnusedAgencyValidator {
         }
 
         for (index, agency) in feed.agency.rows.iter().enumerate() {
-            if let Some(agency_id) = agency.agency_id.as_deref() {
-                let agency_id = agency_id.trim();
-                if agency_id.is_empty() {
-                    continue;
-                }
-
-                if !used_agency_ids.contains(agency_id) {
+            if let Some(agency_id) = agency.agency_id.filter(|id| id.0 != 0) {
+                if !used_agency_ids.contains(&agency_id) {
+                    let agency_id_value = feed.pool.resolve(agency_id);
                     let mut notice = ValidationNotice::new(
                         CODE_UNUSED_AGENCY,
                         NoticeSeverity::Warning,
@@ -48,7 +46,7 @@ impl Validator for UnusedAgencyValidator {
                     );
                     notice.file = Some(AGENCY_FILE.to_string());
                     notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
-                    notice.insert_context_field("agencyId", agency_id);
+                    notice.insert_context_field("agencyId", agency_id_value.as_str());
                     notice.insert_context_field("agencyName", &agency.agency_name);
                     notice.field_order = vec![
                         "csvRowNumber".into(),
@@ -70,6 +68,7 @@ mod tests {
 
     #[test]
     fn detects_unused_agency() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
@@ -80,12 +79,12 @@ mod tests {
             ],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".into()),
+                    agency_id: Some(feed.pool.intern("A1")),
                     agency_name: "Agency1".into(),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".into()),
+                    agency_id: Some(feed.pool.intern("A2")),
                     agency_name: "Agency2".into(),
                     ..Default::default()
                 },
@@ -95,8 +94,8 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "agency_id".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
-                agency_id: Some("A1".into()),
+                route_id: feed.pool.intern("R1"),
+                agency_id: Some(feed.pool.intern("A1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -129,11 +128,11 @@ mod tests {
             headers: vec!["agency_id".into()],
             rows: vec![
                 Agency {
-                    agency_id: Some("A1".into()),
+                    agency_id: Some(feed.pool.intern("A1")),
                     ..Default::default()
                 },
                 Agency {
-                    agency_id: Some("A2".into()),
+                    agency_id: Some(feed.pool.intern("A2")),
                     ..Default::default()
                 },
             ],
@@ -143,13 +142,13 @@ mod tests {
             headers: vec!["route_id".into(), "agency_id".into()],
             rows: vec![
                 Route {
-                    route_id: "R1".into(),
-                    agency_id: Some("A1".into()),
+                    route_id: feed.pool.intern("R1"),
+                    agency_id: Some(feed.pool.intern("A1")),
                     ..Default::default()
                 },
                 Route {
-                    route_id: "R2".into(),
-                    agency_id: Some("A2".into()),
+                    route_id: feed.pool.intern("R2"),
+                    agency_id: Some(feed.pool.intern("A2")),
                     ..Default::default()
                 },
             ],
@@ -168,7 +167,7 @@ mod tests {
         feed.agency = CsvTable {
             headers: vec!["agency_id".into()],
             rows: vec![Agency {
-                agency_id: Some("A1".into()),
+                agency_id: Some(feed.pool.intern("A1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

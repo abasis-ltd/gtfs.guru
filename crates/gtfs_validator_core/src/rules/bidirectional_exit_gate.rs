@@ -75,9 +75,9 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
             rows: vec![gtfs_guru_model::Pathway {
-                pathway_id: "P1".into(),
-                from_stop_id: "STOP1".into(),
-                to_stop_id: "STOP2".into(),
+                pathway_id: feed.pool.intern("P1"),
+                from_stop_id: feed.pool.intern("STOP1"),
+                to_stop_id: feed.pool.intern("STOP2"),
                 pathway_mode: PathwayMode::ExitGate,
                 is_bidirectional: Bidirectional::Bidirectional,
                 length: None,
@@ -107,9 +107,9 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.pathways = Some(CsvTable {
             rows: vec![gtfs_guru_model::Pathway {
-                pathway_id: "P1".into(),
-                from_stop_id: "STOP1".into(),
-                to_stop_id: "STOP2".into(),
+                pathway_id: feed.pool.intern("P1"),
+                from_stop_id: feed.pool.intern("STOP1"),
+                to_stop_id: feed.pool.intern("STOP2"),
                 pathway_mode: PathwayMode::Walkway,
                 is_bidirectional: Bidirectional::Bidirectional,
                 length: None,

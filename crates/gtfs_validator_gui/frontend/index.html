@@ -28,20 +28,20 @@
         .container {
             max-width: 720px;
             margin: 0 auto;
-            padding: 2rem 1.5rem;
+            padding: 0.5rem 1rem;
         }
 
         header {
             text-align: center;
-            margin-bottom: 2.5rem;
-            padding-top: 1rem;
+            margin-bottom: 0.75rem;
+            padding-top: 0.25rem;
         }
 
         .logo {
             color: #4f46e5;
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             font-weight: 700;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -49,15 +49,15 @@
         }
 
         .logo svg {
-            width: 32px;
-            height: 32px;
+            width: 24px;
+            height: 24px;
         }
 
         h1 {
-            font-size: 2rem;
+            font-size: 1.5rem;
             font-weight: 700;
             color: #4f46e5;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.25rem;
         }
 
         .subtitle {
@@ -75,13 +75,13 @@
             background: #fff;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
-            padding: 2rem;
-            margin-bottom: 1.5rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 0.75rem;
         }
 
         .form-label {
@@ -95,7 +95,7 @@
         .drop-zone {
             border: 2px dashed #e2e8f0;
             border-radius: 12px;
-            padding: 2rem;
+            padding: 1rem;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s;
@@ -114,8 +114,8 @@
         }
 
         .drop-zone-icon {
-            font-size: 3rem;
-            margin-bottom: 0.5rem;
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
         }
 
         .drop-zone-text {
@@ -363,14 +363,18 @@
 
         footer {
             text-align: center;
-            padding: 2rem 0;
+            padding: 1rem 0;
             border-top: 1px solid #e2e8f0;
-            margin-top: 2rem;
+            margin-top: 0.75rem;
         }
 
         .footer-text {
             color: #94a3b8;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            align-items: center;
         }
 
         .footer-text a {
@@ -454,16 +458,10 @@
 
 <body>
     <div class="container">
-        <header>
-            <div class="logo">
-                <img src="./icons/icon.png" alt="GTFS Guru" style="width: 32px; height: 32px;">
-                GTFS <span style="color: #1e293b; margin-left: 2px;">Guru</span>
-            </div>
-            <h1>The world's fastest opensource<br>GTFS Validator</h1>
-            <p class="subtitle">
-                Ensure your transit data is accurate, compliant, and ready for the world.
-            </p>
-            <p class="version" id="versionText">v0.1.0</p>
+        <header style="display: flex; align-items: center; justify-content: center; gap: 12px; padding-bottom: 0.5rem;">
+            <img src="./icons/icon.png" alt="GTFS Guru" style="width: 32px; height: 32px;">
+            <h1 style="font-size: 1.25rem; margin: 0; color: #1e293b;">GTFS Guru — The world's fastest GTFS validator
+            </h1>
         </header>
 
         <div class="card" id="uploadCard">
@@ -742,7 +740,7 @@
 
             <div class="btn-group">
                 <button class="btn btn-primary" id="validateBtn" disabled>
-                    ▶ Validate
+                    Validate
                 </button>
             </div>
 
@@ -807,9 +805,13 @@
         </div>
 
         <footer>
-            <div style="text-align: center; color: #64748b; font-size: 0.875rem;">
-                <p>Made with love by <a href="https://abasis.ai" target="_blank"
-                        style="color: #4f46e5; text-decoration: none; font-weight: 500;">Abasis.AI</a></p>
+            <div class="footer-text">
+                <span id="versionText"></span>
+                <span style="margin: 0 0.5rem">•</span>
+                <span>
+                    Made with love by <a href="https://abasis.ai" target="_blank">Abasis.AI</a> & Inspired by <a
+                        href="https://github.com/MobilityData/gtfs-validator" target="_blank">MobilityData</a>
+                </span>
             </div>
         </footer>
     </div>
@@ -831,11 +833,13 @@
         const shell = tauri ? (tauri.shell || tauri.pluginShell) : null;
 
         const invoke = core ? (core.invoke || core) : null;
+        const listen = tauri ? (tauri.event ? tauri.event.listen : (tauri.listen || window.__TAURI__.event.listen)) : null;
         const shellOpen = shell ? (shell.open) : null;
 
         if (!dialog) console.error("Tauri Dialog plugin NOT found in window.__TAURI__");
         if (!shell) console.error("Tauri Shell plugin NOT found in window.__TAURI__");
         if (!invoke) console.error("Tauri core.invoke NOT found");
+        if (!listen) console.error("Tauri event.listen NOT found");
 
 
         const dropZone = document.getElementById('dropZone');
@@ -854,9 +858,12 @@
         const resetBtn = document.getElementById('resetBtn');
         const htmlReportBtn = document.getElementById('htmlReportBtn');
         const jsonReportBtn = document.getElementById('jsonReportBtn');
+        const progressFill = document.getElementById('progressFill');
+        const progressStatus = document.getElementById('progressStatus');
 
         let selectedFilePath = null;
         let lastResult = null;
+        let unlistenProgress = null;
 
         // Initialize
         async function init() {
@@ -966,6 +973,23 @@
             hideError();
             showProgress();
 
+            // Set up listener
+            if (listen) {
+                if (unlistenProgress) {
+                    unlistenProgress();
+                    unlistenProgress = null;
+                }
+
+                try {
+                    unlistenProgress = await listen('validation-progress', (event) => {
+                        const payload = event.payload;
+                        updateProgress(payload);
+                    });
+                } catch (e) {
+                    console.error("Failed to setup progress listener:", e);
+                }
+            }
+
             try {
                 const countryCode = regionSelect.value || null;
 
@@ -981,6 +1005,11 @@
             } catch (error) {
                 showError(error.toString());
                 resetUI();
+            } finally {
+                if (unlistenProgress) {
+                    unlistenProgress();
+                    unlistenProgress = null;
+                }
             }
         }
 
@@ -988,6 +1017,19 @@
             uploadCard.style.display = 'none';
             progressSection.classList.add('active');
             resultsSection.classList.remove('active');
+
+            // Reset state
+            progressFill.style.width = '0%';
+            progressStatus.textContent = 'Initializing...';
+        }
+
+        function updateProgress(payload) {
+            progressStatus.textContent = payload.message || 'Processing...';
+
+            // Use actual progress from backend (0.0 to 1.0)
+            if (payload.progress !== null && payload.progress !== undefined) {
+                progressFill.style.width = (payload.progress * 100) + '%';
+            }
         }
 
         function showResults(result) {
@@ -1092,6 +1134,12 @@
         function resetUI() {
             selectedFilePath = null;
             lastResult = null;
+
+            if (unlistenProgress) {
+                unlistenProgress();
+                unlistenProgress = null;
+            }
+
             urlInput.value = '';
             dropZoneText.innerHTML = 'Drop a file here or click to browse';
             dropZone.classList.remove('has-file');

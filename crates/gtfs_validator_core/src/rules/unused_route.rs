@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::feed::ROUTES_FILE;
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_UNUSED_ROUTE: &str = "unused_route";
@@ -14,21 +15,27 @@ impl Validator for UnusedRouteValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut used_route_ids: HashSet<&str> = HashSet::new();
+        // Only run in thorough mode to match Java default behavior
+        if !thorough_mode_enabled() {
+            return;
+        }
+
+        let mut used_route_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         for trip in &feed.trips.rows {
-            let route_id = trip.route_id.trim();
-            if !route_id.is_empty() {
+            let route_id = trip.route_id;
+            if route_id.0 != 0 {
                 used_route_ids.insert(route_id);
             }
         }
 
         for (index, route) in feed.routes.rows.iter().enumerate() {
-            let route_id = route.route_id.trim();
-            if route_id.is_empty() {
+            let route_id = route.route_id;
+            if route_id.0 == 0 {
                 continue;
             }
 
-            if !used_route_ids.contains(route_id) {
+            if !used_route_ids.contains(&route_id) {
+                let route_id_value = feed.pool.resolve(route_id);
                 let mut notice = ValidationNotice::new(
                     CODE_UNUSED_ROUTE,
                     NoticeSeverity::Warning,
@@ -36,7 +43,7 @@ impl Validator for UnusedRouteValidator {
                 );
                 notice.file = Some(ROUTES_FILE.to_string());
                 notice.insert_context_field("csvRowNumber", feed.routes.row_number(index));
-                notice.insert_context_field("routeId", route_id);
+                notice.insert_context_field("routeId", route_id_value.as_str());
                 notice.insert_context_field(
                     "routeShortName",
                     route.route_short_name.as_deref().unwrap_or(""),
@@ -65,17 +72,18 @@ mod tests {
 
     #[test]
     fn detects_unused_route() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "route_short_name".into()],
             rows: vec![
                 Route {
-                    route_id: "R1".into(),
+                    route_id: feed.pool.intern("R1"),
                     route_short_name: Some("Route 1".into()),
                     ..Default::default()
                 },
                 Route {
-                    route_id: "R2".into(),
+                    route_id: feed.pool.intern("R2"),
                     route_short_name: Some("Route 2".into()),
                     ..Default::default()
                 },
@@ -85,8 +93,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                route_id: "R1".into(),
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -118,7 +126,7 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "route_short_name".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_short_name: Some("Route 1".into()),
                 ..Default::default()
             }],
@@ -127,8 +135,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                route_id: "R1".into(),
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],

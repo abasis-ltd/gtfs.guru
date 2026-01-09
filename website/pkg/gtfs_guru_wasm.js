@@ -1,20 +1,5 @@
 let wasm;
 
-function addHeapObject(obj) {
-    if (heap_next === heap.length) heap.push(heap.length + 1);
-    const idx = heap_next;
-    heap_next = heap[idx];
-
-    heap[idx] = obj;
-    return idx;
-}
-
-function dropObject(idx) {
-    if (idx < 132) return;
-    heap[idx] = heap_next;
-    heap_next = idx;
-}
-
 let cachedDataViewMemory0 = null;
 function getDataViewMemory0() {
     if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
@@ -35,13 +20,6 @@ function getUint8ArrayMemory0() {
     }
     return cachedUint8ArrayMemory0;
 }
-
-function getObject(idx) { return heap[idx]; }
-
-let heap = new Array(128).fill(undefined);
-heap.push(undefined, null, true, false);
-
-let heap_next = heap.length;
 
 function isLikeNone(x) {
     return x === undefined || x === null;
@@ -91,10 +69,10 @@ function passStringToWasm0(arg, malloc, realloc) {
     return ptr;
 }
 
-function takeObject(idx) {
-    const ret = getObject(idx);
-    dropObject(idx);
-    return ret;
+function takeFromExternrefTable0(idx) {
+    const value = wasm.__wbindgen_externrefs.get(idx);
+    wasm.__externref_table_dealloc(idx);
+    return value;
 }
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
@@ -176,6 +154,22 @@ export class ValidationResult {
         return ret >>> 0;
     }
     /**
+     * Get the full validation report as HTML
+     * @returns {string}
+     */
+    get html() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.validationresult_html(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get the full validation report as JSON
      * @returns {string}
      */
@@ -183,16 +177,12 @@ export class ValidationResult {
         let deferred1_0;
         let deferred1_1;
         try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.validationresult_json(retptr, this.__wbg_ptr);
-            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-            deferred1_0 = r0;
-            deferred1_1 = r1;
-            return getStringFromWasm0(r0, r1);
+            const ret = wasm.validationresult_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
         } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -219,46 +209,61 @@ export function init() {
  * # Arguments
  * * `zip_bytes` - The raw bytes of a GTFS ZIP file
  * * `country_code` - Optional ISO 3166-1 alpha-2 country code for country-specific validation
+ * * `date` - Optional validation date in YYYY-MM-DD format
  *
  * # Returns
  * A ValidationResult containing the JSON report and summary counts
+ *
+ * # Errors
+ * Throws a JavaScript error if the file exceeds 50 MB
  * @param {Uint8Array} zip_bytes
  * @param {string | null} [country_code]
+ * @param {string | null} [date]
  * @returns {ValidationResult}
  */
-export function validate_gtfs(zip_bytes, country_code) {
-    const ptr0 = passArray8ToWasm0(zip_bytes, wasm.__wbindgen_export2);
+export function validate_gtfs(zip_bytes, country_code, date) {
+    const ptr0 = passArray8ToWasm0(zip_bytes, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    var ptr1 = isLikeNone(country_code) ? 0 : passStringToWasm0(country_code, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+    var ptr1 = isLikeNone(country_code) ? 0 : passStringToWasm0(country_code, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len1 = WASM_VECTOR_LEN;
-    const ret = wasm.validate_gtfs(ptr0, len0, ptr1, len1);
-    return ValidationResult.__wrap(ret);
+    var ptr2 = isLikeNone(date) ? 0 : passStringToWasm0(date, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len2 = WASM_VECTOR_LEN;
+    const ret = wasm.validate_gtfs(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ValidationResult.__wrap(ret[0]);
 }
 
 /**
  * Validate GTFS and return only the JSON report (simpler API)
  * @param {Uint8Array} zip_bytes
  * @param {string | null} [country_code]
+ * @param {string | null} [date]
  * @returns {string}
  */
-export function validate_gtfs_json(zip_bytes, country_code) {
-    let deferred3_0;
-    let deferred3_1;
+export function validate_gtfs_json(zip_bytes, country_code, date) {
+    let deferred5_0;
+    let deferred5_1;
     try {
-        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(zip_bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(zip_bytes, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
-        var ptr1 = isLikeNone(country_code) ? 0 : passStringToWasm0(country_code, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        var ptr1 = isLikeNone(country_code) ? 0 : passStringToWasm0(country_code, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len1 = WASM_VECTOR_LEN;
-        wasm.validate_gtfs_json(retptr, ptr0, len0, ptr1, len1);
-        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-        deferred3_0 = r0;
-        deferred3_1 = r1;
-        return getStringFromWasm0(r0, r1);
+        var ptr2 = isLikeNone(date) ? 0 : passStringToWasm0(date, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        const ret = wasm.validate_gtfs_json(ptr0, len0, ptr1, len1, ptr2, len2);
+        var ptr4 = ret[0];
+        var len4 = ret[1];
+        if (ret[3]) {
+            ptr4 = 0; len4 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
     } finally {
-        wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
     }
 }
 
@@ -270,16 +275,12 @@ export function version() {
     let deferred1_0;
     let deferred1_1;
     try {
-        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.version(retptr);
-        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-        deferred1_0 = r0;
-        deferred1_1 = r1;
-        return getStringFromWasm0(r0, r1);
+        const ret = wasm.version();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
     } finally {
-        wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
     }
 }
 
@@ -329,30 +330,54 @@ function __wbg_get_imports() {
             deferred0_1 = arg1;
             console.error(getStringFromWasm0(arg0, arg1));
         } finally {
-            wasm.__wbindgen_export(deferred0_0, deferred0_1, 1);
+            wasm.__wbindgen_free(deferred0_0, deferred0_1, 1);
         }
     };
     imports.wbg.__wbg_getTime_ad1e9878a735af08 = function(arg0) {
-        const ret = getObject(arg0).getTime();
+        const ret = arg0.getTime();
+        return ret;
+    };
+    imports.wbg.__wbg_getTimezoneOffset_45389e26d6f46823 = function(arg0) {
+        const ret = arg0.getTimezoneOffset();
         return ret;
     };
     imports.wbg.__wbg_new_0_23cedd11d9b40c9d = function() {
         const ret = new Date();
-        return addHeapObject(ret);
+        return ret;
     };
     imports.wbg.__wbg_new_8a6f238a6ece86ea = function() {
         const ret = new Error();
-        return addHeapObject(ret);
+        return ret;
+    };
+    imports.wbg.__wbg_new_b2db8aa2650f793a = function(arg0) {
+        const ret = new Date(arg0);
+        return ret;
     };
     imports.wbg.__wbg_stack_0ed75d68575b0f3c = function(arg0, arg1) {
-        const ret = getObject(arg1).stack;
-        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ret = arg1.stack;
+        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
         getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
         getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
     };
-    imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
-        takeObject(arg0);
+    imports.wbg.__wbindgen_cast_2241b6af4c4b2941 = function(arg0, arg1) {
+        // Cast intrinsic for `Ref(String) -> Externref`.
+        const ret = getStringFromWasm0(arg0, arg1);
+        return ret;
+    };
+    imports.wbg.__wbindgen_cast_d6cd19b81560fd6e = function(arg0) {
+        // Cast intrinsic for `F64 -> Externref`.
+        const ret = arg0;
+        return ret;
+    };
+    imports.wbg.__wbindgen_init_externref_table = function() {
+        const table = wasm.__wbindgen_externrefs;
+        const offset = table.grow(4);
+        table.set(0, undefined);
+        table.set(offset + 0, undefined);
+        table.set(offset + 1, null);
+        table.set(offset + 2, true);
+        table.set(offset + 3, false);
     };
 
     return imports;
@@ -365,7 +390,7 @@ function __wbg_finalize_init(instance, module) {
     cachedUint8ArrayMemory0 = null;
 
 
-
+    wasm.__wbindgen_start();
     return wasm;
 }
 

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_MISSING_TRIP_EDGE: &str = "missing_trip_edge";
@@ -23,7 +21,7 @@ impl Validator for MissingTripEdgeValidator {
                     .par_iter()
                     .map(|(trip_id, stop_time_indices)| {
                         let _guards = ctx.apply();
-                        Self::check_trip(feed, trip_id, stop_time_indices)
+                        Self::check_trip(feed, *trip_id, stop_time_indices)
                     })
                     .collect()
             };
@@ -37,7 +35,7 @@ impl Validator for MissingTripEdgeValidator {
         {
             // Use pre-built index - indices are already sorted by stop_sequence
             for (trip_id, indices) in &feed.stop_times_by_trip {
-                let result = Self::check_trip(feed, trip_id, indices);
+                let result = Self::check_trip(feed, *trip_id, indices);
                 notices.merge(result);
             }
         }
@@ -45,7 +43,11 @@ impl Validator for MissingTripEdgeValidator {
 }
 
 impl MissingTripEdgeValidator {
-    fn check_trip(feed: &GtfsFeed, _trip_id: &str, indices: &[usize]) -> NoticeContainer {
+    fn check_trip(
+        feed: &GtfsFeed,
+        _trip_id: gtfs_guru_model::StringId,
+        indices: &[usize],
+    ) -> NoticeContainer {
         let mut notices = NoticeContainer::new();
         if indices.is_empty() {
             return notices;
@@ -56,8 +58,8 @@ impl MissingTripEdgeValidator {
         let last = &feed.stop_times.rows[last_idx];
         let first_row = feed.stop_times.row_number(first_idx);
         let last_row = feed.stop_times.row_number(last_idx);
-        check_trip_edge(first, first_row, &mut notices);
-        check_trip_edge(last, last_row, &mut notices);
+        check_trip_edge(first, first_row, &mut notices, feed);
+        check_trip_edge(last, last_row, &mut notices, feed);
         notices
     }
 }
@@ -66,6 +68,7 @@ fn check_trip_edge(
     stop_time: &gtfs_guru_model::StopTime,
     row_number: u64,
     notices: &mut NoticeContainer,
+    feed: &GtfsFeed,
 ) {
     if stop_time.start_pickup_drop_off_window.is_some()
         || stop_time.end_pickup_drop_off_window.is_some()
@@ -78,6 +81,7 @@ fn check_trip_edge(
             stop_time,
             row_number,
             "arrival_time",
+            feed,
         ));
     }
     if stop_time.departure_time.is_none() {
@@ -85,6 +89,7 @@ fn check_trip_edge(
             stop_time,
             row_number,
             "departure_time",
+            feed,
         ));
     }
 }
@@ -93,6 +98,7 @@ fn missing_trip_edge_notice(
     stop_time: &gtfs_guru_model::StopTime,
     row_number: u64,
     field: &str,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_MISSING_TRIP_EDGE,
@@ -102,7 +108,7 @@ fn missing_trip_edge_notice(
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("specifiedField", field);
     notice.insert_context_field("stopSequence", stop_time.stop_sequence);
-    notice.insert_context_field("tripId", stop_time.trip_id.as_str());
+    notice.insert_context_field("tripId", feed.pool.resolve(stop_time.trip_id).as_str());
     notice.field_order = vec![
         "csvRowNumber".into(),
         "specifiedField".into(),
@@ -129,14 +135,14 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     arrival_time: None,
                     departure_time: Some(GtfsTime::from_seconds(3600)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: Some(GtfsTime::from_seconds(4100)),
@@ -165,14 +171,14 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: None,
@@ -201,14 +207,14 @@ mod tests {
             ],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     arrival_time: Some(GtfsTime::from_seconds(3600)),
                     departure_time: Some(GtfsTime::from_seconds(3700)),
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
                     arrival_time: Some(GtfsTime::from_seconds(4000)),
                     departure_time: Some(GtfsTime::from_seconds(4100)),
@@ -235,7 +241,7 @@ mod tests {
                 "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 ..Default::default()

@@ -90,8 +90,11 @@ pub fn validate_bytes_reader_and_progress(
         for path in files {
             let normalized = path.replace('\\', "/");
             let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+            if file_name.eq_ignore_ascii_case(".ds_store") {
+                continue;
+            }
             if !known.contains(&file_name.to_ascii_lowercase()) {
-                notices.push(unknown_file_notice(&normalized));
+                notices.push(unknown_file_notice(file_name));
             }
         }
     }

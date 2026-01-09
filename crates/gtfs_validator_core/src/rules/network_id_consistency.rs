@@ -40,11 +40,7 @@ fn route_networks_specified_notice(file_name_b: &str) -> ValidationNotice {
     notice.insert_context_field("fieldName", "network_id");
     notice.insert_context_field("fileNameA", ROUTES_FILE);
     notice.insert_context_field("fileNameB", file_name_b);
-    notice.field_order = vec![
-        "fieldName".into(),
-        "fileNameA".into(),
-        "fileNameB".into(),
-    ];
+    notice.field_order = vec!["fieldName".into(), "fileNameA".into(), "fileNameB".into()];
     notice
 }
 
@@ -55,13 +51,15 @@ mod tests {
 
     #[test]
     fn detects_network_id_in_routes_and_route_networks() {
-        let mut feed = GtfsFeed::default();
-        feed.routes = CsvTable {
-            headers: vec!["network_id".into()],
-            rows: vec![Default::default()],
+        let feed = GtfsFeed {
+            routes: CsvTable {
+                headers: vec!["network_id".into()],
+                rows: vec![Default::default()],
+                ..Default::default()
+            },
+            route_networks: Some(CsvTable::default()),
             ..Default::default()
         };
-        feed.route_networks = Some(CsvTable::default());
 
         let mut notices = NoticeContainer::new();
         NetworkIdConsistencyValidator.validate(&feed, &mut notices);
@@ -73,13 +71,15 @@ mod tests {
 
     #[test]
     fn detects_network_id_in_routes_and_networks() {
-        let mut feed = GtfsFeed::default();
-        feed.routes = CsvTable {
-            headers: vec!["network_id".into()],
-            rows: vec![Default::default()],
+        let feed = GtfsFeed {
+            routes: CsvTable {
+                headers: vec!["network_id".into()],
+                rows: vec![Default::default()],
+                ..Default::default()
+            },
+            networks: Some(CsvTable::default()),
             ..Default::default()
         };
-        feed.networks = Some(CsvTable::default());
 
         let mut notices = NoticeContainer::new();
         NetworkIdConsistencyValidator.validate(&feed, &mut notices);
@@ -91,10 +91,12 @@ mod tests {
 
     #[test]
     fn passes_when_only_in_routes() {
-        let mut feed = GtfsFeed::default();
-        feed.routes = CsvTable {
-            headers: vec!["network_id".into()],
-            rows: vec![Default::default()],
+        let feed = GtfsFeed {
+            routes: CsvTable {
+                headers: vec!["network_id".into()],
+                rows: vec![Default::default()],
+                ..Default::default()
+            },
             ..Default::default()
         };
 

@@ -11,7 +11,7 @@ pub const NOTICE_CODE_MISSING_RECOMMENDED_FILE: &str = "missing_recommended_file
 pub const NOTICE_CODE_EMPTY_TABLE: &str = "empty_file";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoticeSeverity {
     Error,
     Warning,
@@ -170,11 +170,7 @@ impl ValidationNotice {
         self.file = Some(file.into());
         self.field = Some(field.into());
         self.row = Some(row);
-        self.field_order = vec![
-            "filename".into(),
-            "csvRowNumber".into(),
-            "fieldName".into(),
-        ];
+        self.field_order = vec!["filename".into(), "csvRowNumber".into(), "fieldName".into()];
     }
 
     pub fn with_location(
@@ -241,5 +237,9 @@ impl NoticeContainer {
 
     pub fn merge(&mut self, other: NoticeContainer) {
         self.notices.extend(other.notices);
+    }
+
+    pub fn into_vec(self) -> Vec<ValidationNotice> {
+        self.notices
     }
 }

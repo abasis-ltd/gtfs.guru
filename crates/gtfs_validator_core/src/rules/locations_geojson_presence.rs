@@ -23,14 +23,11 @@ impl Validator for LocationsGeoJsonPresenceValidator {
             return;
         }
 
-        let has_location_id_value = feed.stop_times.rows.iter().any(|stop_time| {
-            stop_time
-                .location_id
-                .as_deref()
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty())
-                .is_some()
-        });
+        let has_location_id_value = feed
+            .stop_times
+            .rows
+            .iter()
+            .any(|stop_time| stop_time.location_id.map(|id| id.0 != 0).unwrap_or(false));
 
         if has_location_id_value {
             notices.push_missing_file(LOCATIONS_GEOJSON_FILE);
@@ -51,8 +48,8 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".into(),
-                location_id: Some("L1".into()),
+                stop_id: feed.pool.intern("S1"),
+                location_id: Some(feed.pool.intern("L1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -76,8 +73,8 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".into(),
-                location_id: Some("L1".into()),
+                stop_id: feed.pool.intern("S1"),
+                location_id: Some(feed.pool.intern("L1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -96,7 +93,7 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 location_id: None,
                 ..Default::default()
             }],

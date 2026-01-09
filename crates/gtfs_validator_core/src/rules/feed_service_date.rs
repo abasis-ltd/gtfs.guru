@@ -52,19 +52,17 @@ mod tests {
     fn detects_missing_end_date() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec![
-                "feed_publisher_name".into(),
-                "feed_start_date".into(),
-            ],
+            headers: vec!["feed_publisher_name".into(), "feed_start_date".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_end_date: None,
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -89,19 +87,17 @@ mod tests {
     fn detects_missing_start_date() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec![
-                "feed_publisher_name".into(),
-                "feed_end_date".into(),
-            ],
+            headers: vec!["feed_publisher_name".into(), "feed_end_date".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -129,13 +125,14 @@ mod tests {
             ],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: Some(GtfsDate::parse("20240101").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20241231").unwrap()),
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });

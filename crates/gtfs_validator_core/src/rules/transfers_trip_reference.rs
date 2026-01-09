@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::LocationType;
@@ -19,42 +19,28 @@ impl Validator for TransfersTripReferenceValidator {
             return;
         };
 
-        let mut trips_by_id: HashMap<&str, &gtfs_guru_model::Trip> = HashMap::new();
+        let mut trips_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Trip> =
+            HashMap::new();
         for trip in &feed.trips.rows {
-            let trip_id = trip.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = trip.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
             trips_by_id.insert(trip_id, trip);
         }
 
-        let mut stop_times_by_trip: HashMap<&str, HashSet<&str>> = HashMap::new();
-        for stop_time in &feed.stop_times.rows {
-            let stop_id = stop_time.stop_id.trim();
-            if stop_id.is_empty() {
-                continue;
-            }
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .insert(stop_id);
-        }
-
-        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
-        let mut stops_by_parent: HashMap<&str, Vec<&gtfs_guru_model::Stop>> = HashMap::new();
+        let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
+            HashMap::new();
+        let mut stops_by_parent: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>> =
+            HashMap::new();
         for stop in &feed.stops.rows {
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             stops_by_id.insert(stop_id, stop);
-            if let Some(parent_station) = stop.parent_station.as_deref() {
-                let parent_station = parent_station.trim();
-                if !parent_station.is_empty() {
+            if let Some(parent_station) = stop.parent_station {
+                if parent_station.0 != 0 {
                     stops_by_parent
                         .entry(parent_station)
                         .or_default()
@@ -69,21 +55,21 @@ impl Validator for TransfersTripReferenceValidator {
                 transfer,
                 TransferSide::From,
                 &trips_by_id,
-                &stop_times_by_trip,
                 &stops_by_id,
                 &stops_by_parent,
                 row_number,
                 notices,
+                feed,
             );
             validate_trip_side(
                 transfer,
                 TransferSide::To,
                 &trips_by_id,
-                &stop_times_by_trip,
                 &stops_by_id,
                 &stops_by_parent,
                 row_number,
                 notices,
+                feed,
             );
         }
     }
@@ -96,24 +82,24 @@ enum TransferSide {
 }
 
 impl TransferSide {
-    fn trip_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
+    fn trip_id(&self, transfer: &gtfs_guru_model::Transfer) -> Option<gtfs_guru_model::StringId> {
         match self {
-            TransferSide::From => transfer.from_trip_id.as_deref(),
-            TransferSide::To => transfer.to_trip_id.as_deref(),
+            TransferSide::From => transfer.from_trip_id,
+            TransferSide::To => transfer.to_trip_id,
         }
     }
 
-    fn route_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
+    fn route_id(&self, transfer: &gtfs_guru_model::Transfer) -> Option<gtfs_guru_model::StringId> {
         match self {
-            TransferSide::From => transfer.from_route_id.as_deref(),
-            TransferSide::To => transfer.to_route_id.as_deref(),
+            TransferSide::From => transfer.from_route_id,
+            TransferSide::To => transfer.to_route_id,
         }
     }
 
-    fn stop_id<'a>(&self, transfer: &'a gtfs_guru_model::Transfer) -> Option<&'a str> {
+    fn stop_id(&self, transfer: &gtfs_guru_model::Transfer) -> Option<gtfs_guru_model::StringId> {
         match self {
-            TransferSide::From => transfer.from_stop_id.as_ref().map(|value| value.as_str()),
-            TransferSide::To => transfer.to_stop_id.as_ref().map(|value| value.as_str()),
+            TransferSide::From => transfer.from_stop_id,
+            TransferSide::To => transfer.to_stop_id,
         }
     }
 
@@ -142,43 +128,38 @@ impl TransferSide {
 fn validate_trip_side(
     transfer: &gtfs_guru_model::Transfer,
     side: TransferSide,
-    trips_by_id: &HashMap<&str, &gtfs_guru_model::Trip>,
-    stop_times_by_trip: &HashMap<&str, HashSet<&str>>,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stops_by_parent: &HashMap<&str, Vec<&gtfs_guru_model::Stop>>,
+    trips_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Trip>,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
+    stops_by_parent: &HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Stop>>,
     row_number: u64,
     notices: &mut NoticeContainer,
+    feed: &GtfsFeed,
 ) {
-    let trip_id = match side
-        .trip_id(transfer)
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-    {
+    let trip_id = match side.trip_id(transfer).filter(|id| id.0 != 0) {
         Some(trip_id) => trip_id,
         None => return,
     };
-    let trip = match trips_by_id.get(trip_id) {
+    let trip = match trips_by_id.get(&trip_id) {
         Some(trip) => *trip,
         None => return,
     };
 
-    if let Some(route_id) = side
-        .route_id(transfer)
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-    {
-        if route_id != trip.route_id.trim() {
+    if let Some(route_id) = side.route_id(transfer).filter(|id| id.0 != 0) {
+        if route_id != trip.route_id {
+            let expected_route_id = feed.pool.resolve(trip.route_id);
+            let route_id_value = feed.pool.resolve(route_id);
+            let trip_id_value = feed.pool.resolve(trip_id);
             let mut notice = ValidationNotice::new(
                 CODE_TRANSFER_WITH_INVALID_TRIP_AND_ROUTE,
                 NoticeSeverity::Error,
                 "transfer route_id does not match trip route_id",
             );
             notice.insert_context_field("csvRowNumber", row_number);
-            notice.insert_context_field("expectedRouteId", trip.route_id.trim());
+            notice.insert_context_field("expectedRouteId", expected_route_id.as_str());
             notice.insert_context_field("routeFieldName", side.route_field_name());
-            notice.insert_context_field("routeId", route_id);
+            notice.insert_context_field("routeId", route_id_value.as_str());
             notice.insert_context_field("tripFieldName", side.trip_field_name());
-            notice.insert_context_field("tripId", trip_id);
+            notice.insert_context_field("tripId", trip_id_value.as_str());
             notice.field_order = vec![
                 "csvRowNumber".into(),
                 "expectedRouteId".into(),
@@ -191,15 +172,11 @@ fn validate_trip_side(
         }
     }
 
-    let stop_id = match side
-        .stop_id(transfer)
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-    {
+    let stop_id = match side.stop_id(transfer).filter(|id| id.0 != 0) {
         Some(stop_id) => stop_id,
         None => return,
     };
-    let stop = match stops_by_id.get(stop_id) {
+    let stop = match stops_by_id.get(&stop_id) {
         Some(stop) => *stop,
         None => return,
     };
@@ -209,12 +186,17 @@ fn validate_trip_side(
         return;
     }
 
-    let trip_stop_ids = stop_times_by_trip.get(trip_id);
-    let has_match = match trip_stop_ids {
-        Some(trip_stop_ids) => stop_ids.iter().any(|id| trip_stop_ids.contains(*id)),
+    let has_match = match feed.stop_times_by_trip.get(&trip_id) {
+        Some(indices) => indices.iter().any(|&index| {
+            let st = &feed.stop_times.rows[index];
+            stop_ids.contains(&st.stop_id)
+        }),
         None => false,
     };
+
     if !has_match {
+        let stop_id_value = feed.pool.resolve(stop_id);
+        let trip_id_value = feed.pool.resolve(trip_id);
         let mut notice = ValidationNotice::new(
             CODE_TRANSFER_WITH_INVALID_TRIP_AND_STOP,
             NoticeSeverity::Error,
@@ -222,9 +204,9 @@ fn validate_trip_side(
         );
         notice.insert_context_field("csvRowNumber", row_number);
         notice.insert_context_field("stopFieldName", side.stop_field_name());
-        notice.insert_context_field("stopId", stop_id);
+        notice.insert_context_field("stopId", stop_id_value.as_str());
         notice.insert_context_field("tripFieldName", side.trip_field_name());
-        notice.insert_context_field("tripId", trip_id);
+        notice.insert_context_field("tripId", trip_id_value.as_str());
         notice.field_order = vec![
             "csvRowNumber".into(),
             "stopFieldName".into(),
@@ -238,14 +220,14 @@ fn validate_trip_side(
 
 fn expand_stop_ids<'a>(
     stop: &'a gtfs_guru_model::Stop,
-    stops_by_parent: &'a HashMap<&str, Vec<&'a gtfs_guru_model::Stop>>,
-) -> Vec<&'a str> {
+    stops_by_parent: &'a HashMap<gtfs_guru_model::StringId, Vec<&'a gtfs_guru_model::Stop>>,
+) -> Vec<gtfs_guru_model::StringId> {
     let location_type = stop.location_type.unwrap_or(LocationType::StopOrPlatform);
     match location_type {
-        LocationType::StopOrPlatform => vec![stop.stop_id.trim()],
+        LocationType::StopOrPlatform => vec![stop.stop_id],
         LocationType::Station => stops_by_parent
-            .get(stop.stop_id.trim())
-            .map(|stops| stops.iter().map(|child| child.stop_id.trim()).collect())
+            .get(&stop.stop_id)
+            .map(|stops| stops.iter().map(|child| child.stop_id).collect())
             .unwrap_or_default(),
         _ => Vec::new(),
     }
@@ -263,8 +245,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                route_id: "R1".into(),
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -277,10 +259,10 @@ mod tests {
                 "from_route_id".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
-                from_trip_id: Some("T1".into()),
-                from_route_id: Some("R2".into()), // Mismatch
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
+                from_trip_id: Some(feed.pool.intern("T1")),
+                from_route_id: Some(feed.pool.intern("R2")), // Mismatch
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -300,8 +282,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                route_id: "R1".into(),
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -310,11 +292,11 @@ mod tests {
             headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     ..Default::default()
                 },
             ],
@@ -323,12 +305,13 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
-                stop_id: "S1".into(),
+                trip_id: feed.pool.intern("T1"),
+                stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
+        feed.rebuild_stop_times_index();
         feed.transfers = Some(CsvTable {
             headers: vec![
                 "from_stop_id".into(),
@@ -336,9 +319,9 @@ mod tests {
                 "from_trip_id".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S2".into()), // T1 does not stop at S2
-                to_stop_id: Some("S1".into()),
-                from_trip_id: Some("T1".into()),
+                from_stop_id: Some(feed.pool.intern("S2")), // T1 does not stop at S2
+                to_stop_id: Some(feed.pool.intern("S1")),
+                from_trip_id: Some(feed.pool.intern("T1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -358,8 +341,8 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into(), "route_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
-                route_id: "R1".into(),
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -368,11 +351,11 @@ mod tests {
             headers: vec!["stop_id".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     ..Default::default()
                 },
             ],
@@ -381,12 +364,13 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["trip_id".into(), "stop_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
-                stop_id: "S1".into(),
+                trip_id: feed.pool.intern("T1"),
+                stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
+        feed.rebuild_stop_times_index();
         feed.transfers = Some(CsvTable {
             headers: vec![
                 "from_stop_id".into(),
@@ -395,10 +379,10 @@ mod tests {
                 "from_route_id".into(),
             ],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
-                from_trip_id: Some("T1".into()),
-                from_route_id: Some("R1".into()),
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
+                from_trip_id: Some(feed.pool.intern("T1")),
+                from_route_id: Some(feed.pool.intern("R1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

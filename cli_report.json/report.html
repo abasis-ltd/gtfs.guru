@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GTFS Schedule Validation Report</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8; width=device-width, initial-scale=1"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Accordion functionality (vanilla JS)
+        document.querySelectorAll('.accordion tr.notice').forEach(function(row) {
+            row.addEventListener('click', function() {
+                var descRow = this.nextElementSibling;
+                if (descRow && descRow.classList.contains('description')) {
+                    this.classList.toggle('open');
+                    descRow.classList.toggle('open');
+
+                    // Toggle +/- icon
+                    var icon = this.querySelector('span');
+                    if (icon) {
+                        icon.textContent = this.classList.contains('open') ? '–' : '+';
+                    }
+                }
+            });
+        });
+      });
+    </script>
+    <style>
+    :root {
+        --primary: #4f46e5;
+        --primary-hover: #4338ca;
+        --bg: #f8fafc;
+        --card-bg: #ffffff;
+        --text-main: #1e293b;
+        --text-muted: #64748b;
+        --border: #e2e8f0;
+        --error: #ef4444;
+        --warning: #f59e0b;
+        --info: #06b6d4;
+        --success: #10b981;
+    }
+
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--text-main);
+        background-color: var(--bg);
+        margin: 0;
+        padding: 0;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    a {
+        color: var(--primary);
+        text-decoration: none;
+    }
+
+    a:hover {
+        text-decoration: underline;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    header {
+        margin-bottom: 1.5rem;
+        background: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-left: 4px solid var(--primary);
+    }
+
+    header h1 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--text-main);
+    }
+
+    header p {
+        margin: 0.25rem 0;
+        color: var(--text-muted);
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+
+    .error-badge { background: #fee2e2; color: #b91c1c; }
+    .warning-badge { background: #fef3c7; color: #92400e; }
+    .info-badge { background: #e0f2fe; color: #0369a1; }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.6fr 0.9fr 0.7fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1100px) {
+        .summary-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 640px) {
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+
+    .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .card h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.95rem;
+        font-weight: 700;
+        border-bottom: 1px solid var(--bg);
+        padding-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .card dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.1rem 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .card dt {
+        color: var(--text-muted);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .card dd {
+        margin: 0;
+        font-weight: 600;
+        word-break: break-all;
+    }
+
+    .card ul, .card ol {
+        margin: 0;
+        padding-left: 0;
+        list-style: none;
+        font-size: 0.85rem;
+    }
+
+    .card li {
+        margin-bottom: 0.1rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 1.5rem 0 0.75rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .tooltip {
+        position: relative;
+        display: inline-block;
+        border-bottom: 1px dotted var(--text-muted);
+        cursor: help;
+        color: var(--primary);
+        font-size: 0.75rem;
+        margin-left: 0.25rem;
+    }
+
+    .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 240px;
+        background-color: #1e293b;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px;
+        position: absolute;
+        z-index: 10;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -120px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.75rem;
+        line-height: 1.2;
+        font-weight: normal;
+        pointer-events: none;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    .compliance-stats {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .stat-pill {
+        background: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .stat-pill .count {
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    th {
+        background: #f1f5f9;
+        text-align: left;
+        padding: 0.6rem 0.75rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border);
+    }
+
+    td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    tr:last-child td {
+        border-bottom: none;
+    }
+
+    .accordion tr.notice {
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .accordion tr.notice:hover {
+        background: #f8fafc;
+    }
+
+    .accordion tr.notice.open {
+        background: #f1f5f9;
+    }
+
+    .accordion tr.description {
+        display: none;
+    }
+
+    .accordion tr.description.open {
+        display: table-row;
+    }
+
+    .notice-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-weight: 600;
+        color: var(--primary);
+    }
+
+    .desc-content {
+        padding: 1.5rem;
+        background: #f8fafc;
+        border-radius: 8px;
+        margin: 0.5rem;
+        border-left: 4px solid var(--primary);
+    }
+
+    .desc-content h3 {
+        margin: 0 0 0.75rem 0;
+    }
+
+    .spec-feature {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        background: #e2e8f0;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        margin: 0.2rem;
+    }
+
+    .view-map-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .view-map-btn:hover {
+        background: var(--primary-hover);
+    }
+
+    footer {
+        margin-top: 4rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+        text-align: center;
+        color: var(--text-muted);
+        padding-bottom: 4rem;
+    }
+
+    .footer-links {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+    }
+
+    .footer-links a {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    /* Map Modal */
+    #map-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
+
+    #map-modal.open {
+        display: flex;
+    }
+
+    #map-container {
+        width: 100%;
+        max-width: 1000px;
+        height: 70vh;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #map-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    #map {
+        flex: 1;
+    }
+</style>
+
+</head>
+<body>
+    <div class="container">
+    <header>
+        <h1>GTFS Schedule Validation Report</h1>
+        <p>Generated by <strong>GTFS.guru Validator</strong> (version 0.1.1) at 2026-01-09T09:29:09+02:00</p>
+        <p>Dataset: <strong>benchmark-feeds/alexandria.zip</strong>. <span class='badge bg-slate-100'>No country code provided</span></p></header>
+
+    <h2 class="section-title">Summary</h2>
+
+    <div class="summary-grid">
+            <div class="card">
+                <h4>Agencies Included</h4>
+                <ul>
+                    <li>Alexandria DOT
+                        <ul>
+                            <li><b>website: </b><a href="https://www.alexandriava.gov/Paratransit">https://www.alexandriava.gov/Paratransit</a></li>
+                            <li><b>phone number: </b></li>
+                            <li><b>email: </b>Not provided</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+            <div class="card">
+                <h4>Feed Info</h4>
+                <dl>
+                    <dt>Publisher Name:</dt>
+                    <dd>
+                        Trillium Solutions, Inc.
+                    </dd>
+                    <dt>Publisher URL:</dt>
+                    <dd>
+                        <a href="http://www.trilliumtransit.com" target="_blank">http://www.trilliumtransit.com</a>
+                    </dd>
+                    <dt>Feed Email:</dt>
+                    <dd>
+                        support+cityofalexandria-va-us@trilliumtransit.com
+                    </dd>
+                    <dt>Feed Language:</dt>
+                    <dd>
+                        English
+                    </dd>
+                    <dt>Feed Start Date:</dt>
+                    <dd>
+                        2025-12-04
+                    </dd>
+                    <dt>Feed End Date:</dt>
+                    <dd>
+                        2026-12-01
+                    </dd>
+                    <dt>Service Window:</dt>
+                    <dd>
+                        2025-12-01 to 2026-12-01
+                        <a href="#" class="tooltip" onclick="event.preventDefault();">(?)<span class="tooltiptext">The range of service dates covered by the feed, based on trips with an associated service_id in calendar.txt and/or calendar_dates.txt</span></a>
+                    </dd>
+                </dl>
+            </div>
+            <div class="card">
+                <h4>Files Included</h4>
+                <ol>
+                    <li>agency.txt</li>
+                    <li>booking_rules.txt</li>
+                    <li>calendar.txt</li>
+                    <li>calendar_dates.txt</li>
+                    <li>fare_attributes.txt</li>
+                    <li>fare_rules.txt</li>
+                    <li>feed_info.txt</li>
+                    <li>frequencies.txt</li>
+                    <li>location_group_stops.txt</li>
+                    <li>location_groups.txt</li>
+                    <li>locations.geojson</li>
+                    <li>routes.txt</li>
+                    <li>shapes.txt</li>
+                    <li>stop_times.txt</li>
+                    <li>stops.txt</li>
+                    <li>transfers.txt</li>
+                    <li>trips.txt</li>
+                </ol>
+            </div>
+            <div class="card">
+                <h4>Counts</h4>
+                <ul>
+                    <li>Agencies: 1</li>
+                    <li>Blocks: 0</li>
+                    <li>Routes: 1</li>
+                    <li>Shapes: 0</li>
+                    <li>Stops: 1</li>
+                    <li>Trips: 2</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h4>GTFS Features Included</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/base_add-ons/#feed-information" target="_blank">Feed Information</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/flexible_services/#booking-rules" target="_blank">Booking Rules</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/accessibility/#stops-wheelchair-accessibility" target="_blank">Stops Wheelchair Accessibility</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/base_add-ons/#location-types" target="_blank">Location Types</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/flexible_services/#continuous-stops" target="_blank">Continuous Stops</a></span>
+                    <span class="spec-feature"><a href="https://gtfs.org/getting_started/features/flexible_services/#zone-based-demand-responsive-services" target="_blank">Zone-Based Demand Responsive Services</a></span>
+                </div>
+            </div>
+    </div>
+
+    <h2 class="section-title">Specification Compliance</h2>
+
+    <div class="compliance-stats">
+<div class="stat-pill"><span class="count">34</span> Total Notices</div><div class="stat-pill"><span class="badge error-badge">ERROR</span> <span class="count">4</span></div><div class="stat-pill"><span class="badge warning-badge">WARNING</span> <span class="count">1</span></div><div class="stat-pill"><span class="badge info-badge">INFO</span> <span class="count">29</span></div>    </div>
+
+    <table class="accordion">
+        <thead>
+        <tr>
+            <th>Notice Code</th>
+            <th>Severity</th>
+            <th>Total</th>
+        </tr>
+        </thead>
+        <tbody>
+            <tr class="notice">
+                <td style='position:relative; padding-left: 2rem;'>
+                    <span style='position:absolute; left: 0.75rem;'>+</span>
+                    <span class='notice-code'>forbidden_continuous_pickup_drop_off</span>
+                </td>
+                <td><span class="badge error-badge">ERROR</span></td>
+                <td style='font-weight: 700;'>4</td>
+            </tr>
+            <tr class="description">
+                <td colspan="3">
+                    <div class="desc-content">
+                        <h3>forbidden_continuous_pickup_drop_off</h3>
+                        <p style='font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;'>continuous pickup/drop-off forbids pickup/drop-off windows</p>
+                        <p> View documentation for <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#forbidden_continuous_pickup_drop_off-rule" target='_blank'>forbidden_continuous_pickup_drop_off</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>endPickupDropOffWindow</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>routeCsvRowNumber</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>startPickupDropOffWindow</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopTimeCsvRowNumber</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>tripId</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>24:50:00</td>
+                                    <td>2</td>
+                                    <td>05:00:00</td>
+                                    <td>3</td>
+                                    <td>t_6124961_b_85952_tn_0</td>
+                                </tr>
+                                <tr>
+                                    <td>25:00:00</td>
+                                    <td>2</td>
+                                    <td>05:00:00</td>
+                                    <td>4</td>
+                                    <td>t_6124961_b_85952_tn_0</td>
+                                </tr>
+                                <tr>
+                                    <td>24:50:00</td>
+                                    <td>2</td>
+                                    <td>07:00:00</td>
+                                    <td>1</td>
+                                    <td>t_6124409_b_85952_tn_0</td>
+                                </tr>
+                                <tr>
+                                    <td>25:00:00</td>
+                                    <td>2</td>
+                                    <td>07:00:00</td>
+                                    <td>2</td>
+                                    <td>t_6124409_b_85952_tn_0</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="notice">
+                <td style='position:relative; padding-left: 2rem;'>
+                    <span style='position:absolute; left: 0.75rem;'>+</span>
+                    <span class='notice-code'>stop_without_stop_time</span>
+                </td>
+                <td><span class="badge warning-badge">WARNING</span></td>
+                <td style='font-weight: 700;'>1</td>
+            </tr>
+            <tr class="description">
+                <td colspan="3">
+                    <div class="desc-content">
+                        <h3>stop_without_stop_time</h3>
+                        <p style='font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;'>stop has no stop_times entries</p>
+                        <p> View documentation for <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#stop_without_stop_time-rule" target='_blank'>stop_without_stop_time</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>csvRowNumber</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopId</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>stopName</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>2</td>
+                                    <td>4258639</td>
+                                    <td>Alexandria, VA, USA</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="notice">
+                <td style='position:relative; padding-left: 2rem;'>
+                    <span style='position:absolute; left: 0.75rem;'>+</span>
+                    <span class='notice-code'>unknown_column</span>
+                </td>
+                <td><span class="badge info-badge">INFO</span></td>
+                <td style='font-weight: 700;'>21</td>
+            </tr>
+            <tr class="description">
+                <td colspan="3">
+                    <div class="desc-content">
+                        <h3>unknown_column</h3>
+                        <p style='font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;'>unknown column</p>
+                        <p> View documentation for <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#unknown_column-rule" target='_blank'>unknown_column</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>fieldName</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>filename</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <span>index</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>mean_duration_factor</td>
+                                    <td>stop_times.txt</td>
+                                    <td>18</td>
+                                </tr>
+                                <tr>
+                                    <td>mean_duration_offset</td>
+                                    <td>stop_times.txt</td>
+                                    <td>19</td>
+                                </tr>
+                                <tr>
+                                    <td>safe_duration_factor</td>
+                                    <td>stop_times.txt</td>
+                                    <td>20</td>
+                                </tr>
+                                <tr>
+                                    <td>safe_duration_offset</td>
+                                    <td>stop_times.txt</td>
+                                    <td>21</td>
+                                </tr>
+                                <tr>
+                                    <td>tts_stop_headsign</td>
+                                    <td>stop_times.txt</td>
+                                    <td>22</td>
+                                </tr>
+                                <tr>
+                                    <td>trip_type</td>
+                                    <td>trips.txt</td>
+                                    <td>10</td>
+                                </tr>
+                                <tr>
+                                    <td>continuous_pickup_message</td>
+                                    <td>trips.txt</td>
+                                    <td>11</td>
+                                </tr>
+                                <tr>
+                                    <td>continuous_drop_off_message</td>
+                                    <td>trips.txt</td>
+                                    <td>12</td>
+                                </tr>
+                                <tr>
+                                    <td>tts_trip_headsign</td>
+                                    <td>trips.txt</td>
+                                    <td>13</td>
+                                </tr>
+                                <tr>
+                                    <td>tts_trip_short_name</td>
+                                    <td>trips.txt</td>
+                                    <td>14</td>
+                                </tr>
+                                <tr>
+                                    <td>holiday_name</td>
+                                    <td>calendar_dates.txt</td>
+                                    <td>2</td>
+                                </tr>
+                                <tr>
+                                    <td>position</td>
+                                    <td>stops.txt</td>
+                                    <td>12</td>
+                                </tr>
+                                <tr>
+                                    <td>direction</td>
+                                    <td>stops.txt</td>
+                                    <td>13</td>
+                                </tr>
+                                <tr>
+                                    <td>min_headway_minutes</td>
+                                    <td>routes.txt</td>
+                                    <td>10</td>
+                                </tr>
+                                <tr>
+                                    <td>eligibility_restricted</td>
+                                    <td>routes.txt</td>
+                                    <td>11</td>
+                                </tr>
+                                <tr>
+                                    <td>tts_route_short_name</td>
+                                    <td>routes.txt</td>
+                                    <td>14</td>
+                                </tr>
+                                <tr>
+                                    <td>tts_route_long_name</td>
+                                    <td>routes.txt</td>
+                                    <td>15</td>
+                                </tr>
+                                <tr>
+                                    <td>tts_agency_name</td>
+                                    <td>agency.txt</td>
+                                    <td>7</td>
+                                </tr>
+                                <tr>
+                                    <td>service_name</td>
+                                    <td>calendar.txt</td>
+                                    <td>1</td>
+                                </tr>
+                                <tr>
+                                    <td>feed_license</td>
+                                    <td>feed_info.txt</td>
+                                    <td>4</td>
+                                </tr>
+                                <tr>
+                                    <td>feed_id</td>
+                                    <td>feed_info.txt</td>
+                                    <td>9</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="notice">
+                <td style='position:relative; padding-left: 2rem;'>
+                    <span style='position:absolute; left: 0.75rem;'>+</span>
+                    <span class='notice-code'>unknown_file</span>
+                </td>
+                <td><span class="badge info-badge">INFO</span></td>
+                <td style='font-weight: 700;'>8</td>
+            </tr>
+            <tr class="description">
+                <td colspan="3">
+                    <div class="desc-content">
+                        <h3>unknown_file</h3>
+                        <p style='font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;'>unknown file in input</p>
+                        <p> View documentation for <a
+                                href="https://gtfs-validator.mobilitydata.org/rules.html#unknown_file-rule" target='_blank'>unknown_file</a>.
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span>filename</span>
+                                        <a href="#" class="tooltip" onclick="event.preventDefault();"><span>(?)</span>
+                                            <span class="tooltiptext"></span>
+                                        </a>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>timetables.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>stop_attributes.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>directions.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>farezone_attributes.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>runcut.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>linked_datasets.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>calendar_attributes.txt</td>
+                                </tr>
+                                <tr>
+                                    <td>timetable_stop_order.txt</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <br>
+
+    <!-- Map Modal -->
+    <div id="map-modal">
+        <div id="map-container">
+            <div id="map-header">
+                <h3 id="map-title">Geographic Error</h3>
+                <button id="close-map" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p><strong>GTFS.guru</strong> - The Gold Standard for GTFS Validation</p>
+        <div class="footer-links">
+            <a href="https://gtfs.guru" target="_blank">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                Website
+            </a>
+            <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                GitHub
+            </a>
+        </div>
+        <p style="font-size: 0.75rem; margin-top: 1.5rem;">Report generated using GTFS.guru ruleset. Based on open standards.</p>
+    </footer>
+    </div>

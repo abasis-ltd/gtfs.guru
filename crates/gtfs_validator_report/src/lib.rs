@@ -6,6 +6,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::unnecessary_lazy_evaluations)]
 #![allow(clippy::manual_pattern_char_comparison)]
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -26,10 +27,10 @@ use gtfs_guru_core::feed::{
     TIMEFRAMES_FILE, TRANSFERS_FILE, TRANSLATIONS_FILE, TRIPS_FILE,
 };
 use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
-use gtfs_guru_model::ExceptionType;
+use gtfs_guru_model::{ExceptionType, StringId};
 
 mod html;
-pub use html::{write_html_report, HtmlReportContext};
+pub use html::{generate_html_report_string, write_html_report, HtmlReportContext};
 
 mod sarif;
 pub use sarif::SarifReport;
@@ -557,12 +558,15 @@ fn build_feed_info(feed: &GtfsFeed) -> ReportFeedInfo {
         }),
         publisher_url: has_feed_info.then(|| {
             info_row
-                .map(|row| row.feed_publisher_url.to_string())
+                .map(|row| feed.pool.resolve(row.feed_publisher_url))
                 .unwrap_or_default()
         }),
         feed_language: has_feed_info.then(|| {
             info_row
-                .map(|row| language_display_name(&row.feed_lang))
+                .map(|row| {
+                    let language = feed.pool.resolve(row.feed_lang);
+                    language_display_name(&language)
+                })
                 .unwrap_or_default()
         }),
         feed_start_date: has_start_date.then(|| {
@@ -593,7 +597,7 @@ fn build_agencies(feed: &GtfsFeed) -> Vec<ReportAgency> {
         .iter()
         .map(|agency| ReportAgency {
             name: agency.agency_name.to_string(),
-            url: agency.agency_url.to_string(),
+            url: feed.pool.resolve(agency.agency_url),
             phone: agency.agency_phone.clone().unwrap_or_default().to_string(),
             email: agency.agency_email.clone().unwrap_or_default().to_string(),
         })
@@ -604,22 +608,17 @@ fn build_counts(feed: &GtfsFeed) -> ReportCounts {
     let shapes = feed
         .shapes
         .as_ref()
-        .map(|table| unique_count(table.rows.iter(), |row| Some(row.shape_id.as_str())))
+        .map(|table| unique_id_count(table.rows.iter(), |row| Some(row.shape_id)))
         .unwrap_or(0);
-    let stops = unique_count(feed.stops.rows.iter(), |row| Some(row.stop_id.as_str()));
-    let routes = unique_count(feed.routes.rows.iter(), |row| Some(row.route_id.as_str()));
-    let trips = unique_count(feed.trips.rows.iter(), |row| Some(row.trip_id.as_str()));
-    let agencies = if feed.agency.rows.iter().any(|row| {
-        row.agency_id
-            .as_deref()
-            .map(|id| !id.trim().is_empty())
-            .unwrap_or(false)
-    }) {
-        unique_count(feed.agency.rows.iter(), |row| row.agency_id.as_deref())
+    let stops = unique_id_count(feed.stops.rows.iter(), |row| Some(row.stop_id));
+    let routes = unique_id_count(feed.routes.rows.iter(), |row| Some(row.route_id));
+    let trips = unique_id_count(feed.trips.rows.iter(), |row| Some(row.trip_id));
+    let agencies = if feed.agency.rows.iter().any(|row| has_id_opt(row.agency_id)) {
+        unique_id_count(feed.agency.rows.iter(), |row| row.agency_id)
     } else {
         feed.agency.rows.len()
     };
-    let blocks = unique_count(feed.trips.rows.iter(), |row| row.block_id.as_deref());
+    let blocks = unique_id_count(feed.trips.rows.iter(), |row| row.block_id);
 
     ReportCounts {
         shapes,
@@ -631,16 +630,15 @@ fn build_counts(feed: &GtfsFeed) -> ReportCounts {
     }
 }
 
-fn unique_count<'a, T: 'a, F>(items: impl Iterator<Item = &'a T>, key: F) -> usize
+fn unique_id_count<'a, T: 'a, F>(items: impl Iterator<Item = &'a T>, key: F) -> usize
 where
-    F: Fn(&'a T) -> Option<&'a str>,
+    F: Fn(&'a T) -> Option<StringId>,
 {
     let mut unique = HashSet::new();
     for item in items {
         if let Some(value) = key(item) {
-            let trimmed = value.trim();
-            if !trimmed.is_empty() {
-                unique.insert(trimmed.to_string());
+            if has_id(value) {
+                unique.insert(value);
             }
         }
     }
@@ -969,7 +967,7 @@ fn build_gtfs_features(feed: &GtfsFeed) -> Vec<String> {
         feed.routes
             .rows
             .iter()
-            .any(|route| has_text(&route.network_id))
+            .any(|route| has_id_opt(route.network_id))
             || has_rows(&feed.networks),
         &mut ordered,
         &mut index,
@@ -1026,9 +1024,7 @@ fn has_headsigns(feed: &GtfsFeed) -> bool {
 
 fn has_trip_with_only_location_id(feed: &GtfsFeed) -> bool {
     feed.stop_times.rows.iter().any(|stop_time| {
-        has_str(stop_time.trip_id.as_str())
-            && has_text(&stop_time.location_id)
-            && !has_str(stop_time.stop_id.as_str())
+        has_id(stop_time.trip_id) && has_id_opt(stop_time.location_id) && !has_id(stop_time.stop_id)
     })
 }
 
@@ -1042,16 +1038,16 @@ fn has_trip_with_all_fields(feed: &GtfsFeed) -> bool {
         has_departure_time: bool,
     }
 
-    let mut by_trip: HashMap<&str, Flags> = HashMap::new();
+    let mut by_trip: HashMap<StringId, Flags> = HashMap::new();
     for stop_time in &feed.stop_times.rows {
-        let trip_id = stop_time.trip_id.trim();
-        if trip_id.is_empty() {
+        let trip_id = stop_time.trip_id;
+        if !has_id(trip_id) {
             continue;
         }
         let flags = by_trip.entry(trip_id).or_default();
-        flags.has_trip_id |= has_str(stop_time.trip_id.as_str());
-        flags.has_location_id |= has_text(&stop_time.location_id);
-        flags.has_stop_id |= has_str(stop_time.stop_id.as_str());
+        flags.has_trip_id = true;
+        flags.has_location_id |= has_id_opt(stop_time.location_id);
+        flags.has_stop_id |= has_id(stop_time.stop_id);
         flags.has_arrival_time |= stop_time.arrival_time.is_some();
         flags.has_departure_time |= stop_time.departure_time.is_some();
         if flags.has_trip_id
@@ -1087,8 +1083,12 @@ fn has_text(value: &Option<compact_str::CompactString>) -> bool {
         .unwrap_or(false)
 }
 
-fn has_str(value: &str) -> bool {
-    !value.trim().is_empty()
+fn has_id(value: StringId) -> bool {
+    value.0 != 0
+}
+
+fn has_id_opt(value: Option<StringId>) -> bool {
+    value.map_or(false, |id| id.0 != 0)
 }
 
 fn language_display_name(value: &str) -> String {
@@ -1190,104 +1190,97 @@ fn language_display_name(value: &str) -> String {
 }
 
 fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDate>) {
-    let mut service_ids = HashSet::new();
-    for trip in &feed.trips.rows {
-        let service_id = trip.service_id.trim();
-        if !service_id.is_empty() {
-            service_ids.insert(service_id);
-        }
-    }
-
     let has_calendar = feed.calendar.is_some();
     let has_calendar_dates = feed.calendar_dates.is_some();
+
+    // Build set of service_ids used by trips ONCE - O(trips)
+    let used_service_ids: FxHashSet<StringId> = feed
+        .trips
+        .rows
+        .iter()
+        .filter(|trip| has_id(trip.service_id))
+        .map(|trip| trip.service_id)
+        .collect();
+
+    if used_service_ids.is_empty() {
+        return (None, None);
+    }
 
     let mut earliest_start = None;
     let mut latest_end = None;
 
     if has_calendar && !has_calendar_dates {
+        // Single pass through calendar - O(calendar)
         if let Some(calendar) = &feed.calendar {
-            for trip in &feed.trips.rows {
-                let trip_service_id = trip.service_id.trim();
-                if trip_service_id.is_empty() {
+            for row in &calendar.rows {
+                let service_id = row.service_id;
+                if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                     continue;
                 }
-                for row in &calendar.rows {
-                    let service_id = row.service_id.trim();
-                    if service_id.is_empty() || service_id != trip_service_id {
-                        continue;
-                    }
-                    let start = gtfs_date_to_naive(row.start_date);
-                    let end = gtfs_date_to_naive(row.end_date);
-                    if is_epoch(start) || is_epoch(end) {
-                        continue;
-                    }
-                    update_naive_bounds(start, &mut earliest_start, &mut latest_end);
-                    update_naive_bounds(end, &mut earliest_start, &mut latest_end);
+                let start = gtfs_date_to_naive(row.start_date);
+                let end = gtfs_date_to_naive(row.end_date);
+                if is_epoch(start) || is_epoch(end) {
+                    continue;
                 }
+                update_naive_bounds(start, &mut earliest_start, &mut latest_end);
+                update_naive_bounds(end, &mut earliest_start, &mut latest_end);
             }
         }
     } else if has_calendar_dates && !has_calendar {
+        // Single pass through calendar_dates - O(calendar_dates)
         if let Some(calendar_dates) = &feed.calendar_dates {
-            for trip in &feed.trips.rows {
-                let trip_service_id = trip.service_id.trim();
-                if trip_service_id.is_empty() {
+            for row in &calendar_dates.rows {
+                let service_id = row.service_id;
+                if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                     continue;
                 }
-                for row in &calendar_dates.rows {
-                    let service_id = row.service_id.trim();
-                    if service_id.is_empty() || service_id != trip_service_id {
-                        continue;
-                    }
-                    let date = gtfs_date_to_naive(row.date);
-                    if is_epoch(date) {
-                        continue;
-                    }
-                    update_naive_bounds(date, &mut earliest_start, &mut latest_end);
+                let date = gtfs_date_to_naive(row.date);
+                if is_epoch(date) {
+                    continue;
                 }
+                update_naive_bounds(date, &mut earliest_start, &mut latest_end);
             }
         }
     } else if has_calendar && has_calendar_dates {
         let calendar = feed.calendar.as_ref().unwrap();
         let calendar_dates = feed.calendar_dates.as_ref().unwrap();
 
-        let mut dates_by_service: BTreeMap<&str, Vec<&gtfs_guru_model::CalendarDate>> =
-            BTreeMap::new();
+        // Build index by service_id - O(calendar_dates)
+        let mut dates_by_service: FxHashMap<StringId, Vec<&gtfs_guru_model::CalendarDate>> =
+            FxHashMap::default();
         for row in &calendar_dates.rows {
-            let service_id = row.service_id.trim();
-            if service_id.is_empty() {
+            let service_id = row.service_id;
+            if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                 continue;
             }
             dates_by_service.entry(service_id).or_default().push(row);
         }
 
-        let mut service_periods: BTreeMap<&str, ServicePeriodData> = BTreeMap::new();
+        // Build service periods - O(calendar)
+        let mut service_periods: FxHashMap<StringId, ServicePeriodData> = FxHashMap::default();
         for row in &calendar.rows {
-            let service_id = row.service_id.trim();
-            if service_id.is_empty() {
+            let service_id = row.service_id;
+            if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                 continue;
             }
             let dates = dates_by_service
-                .get(service_id)
+                .get(&service_id)
                 .map(|items| items.as_slice())
                 .unwrap_or(&[]);
             service_periods.insert(service_id, create_service_period(Some(row), dates));
         }
-        for (service_id, dates) in dates_by_service {
+
+        // Add calendar_dates-only services
+        for (service_id, dates) in &dates_by_service {
             if service_periods.contains_key(service_id) {
                 continue;
             }
-            service_periods.insert(service_id, create_service_period(None, &dates));
+            service_periods.insert(*service_id, create_service_period(None, dates));
         }
 
+        // Single pass to compute bounds - O(service_periods)
         let mut removed_dates = Vec::new();
-        for trip in &feed.trips.rows {
-            let service_id = trip.service_id.trim();
-            if service_id.is_empty() {
-                continue;
-            }
-            let Some(period) = service_periods.get(service_id) else {
-                continue;
-            };
+        for period in service_periods.values() {
             let start = period.service_start;
             let end = period.service_end;
             if !is_epoch(start) && !is_epoch(end) {

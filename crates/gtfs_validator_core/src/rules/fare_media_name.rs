@@ -33,11 +33,8 @@ impl Validator for FareMediaNameValidator {
                     "fare_media_name is recommended for fare_media_type",
                 );
                 notice.set_location(FARE_MEDIA_FILE, "fare_media_name", row_number);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
         }
@@ -63,7 +60,7 @@ mod tests {
         feed.fare_media = Some(CsvTable {
             headers: vec!["fare_media_id".into(), "fare_media_type".into()],
             rows: vec![FareMedia {
-                fare_media_id: "M1".into(),
+                fare_media_id: feed.pool.intern("M1"),
                 fare_media_type: FareMediaType::TransitCard,
                 fare_media_name: None,
             }],
@@ -90,7 +87,7 @@ mod tests {
                 "fare_media_name".into(),
             ],
             rows: vec![FareMedia {
-                fare_media_id: "M1".into(),
+                fare_media_id: feed.pool.intern("M1"),
                 fare_media_type: FareMediaType::TransitCard,
                 fare_media_name: Some("Pass".into()),
             }],
@@ -109,7 +106,7 @@ mod tests {
         feed.fare_media = Some(CsvTable {
             headers: vec!["fare_media_id".into(), "fare_media_type".into()],
             rows: vec![FareMedia {
-                fare_media_id: "M1".into(),
+                fare_media_id: feed.pool.intern("M1"),
                 fare_media_type: FareMediaType::NoneType,
                 fare_media_name: None,
             }],

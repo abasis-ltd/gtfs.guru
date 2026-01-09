@@ -87,18 +87,21 @@ fn compute_majority_service_coverage(
 
 fn count_trips_for_each_service_date(
     feed: &GtfsFeed,
-    service_dates: &HashMap<String, BTreeSet<NaiveDate>>,
+    service_dates: &HashMap<gtfs_guru_model::StringId, BTreeSet<NaiveDate>>,
 ) -> BTreeMap<NaiveDate, i32> {
     let mut trip_count_by_date: BTreeMap<NaiveDate, i32> = BTreeMap::new();
     if feed.trips.rows.is_empty() || service_dates.is_empty() {
         return trip_count_by_date;
     }
 
-    let mut frequencies_by_trip: HashMap<&str, Vec<&gtfs_guru_model::Frequency>> = HashMap::new();
+    let mut frequencies_by_trip: HashMap<
+        gtfs_guru_model::StringId,
+        Vec<&gtfs_guru_model::Frequency>,
+    > = HashMap::new();
     if let Some(frequencies) = &feed.frequencies {
         for frequency in &frequencies.rows {
-            let trip_id = frequency.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = frequency.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
             frequencies_by_trip
@@ -108,14 +111,14 @@ fn count_trips_for_each_service_date(
         }
     }
 
-    let mut trip_count_by_service_id: HashMap<&str, i32> = HashMap::new();
+    let mut trip_count_by_service_id: HashMap<gtfs_guru_model::StringId, i32> = HashMap::new();
     for trip in &feed.trips.rows {
-        let trip_id = trip.trip_id.trim();
-        if trip_id.is_empty() {
+        let trip_id = trip.trip_id;
+        if trip_id.0 == 0 {
             continue;
         }
-        let service_id = trip.service_id.trim();
-        if service_id.is_empty() {
+        let service_id = trip.service_id;
+        if service_id.0 == 0 {
             continue;
         }
         let trip_count = compute_trip_count(trip_id, &frequencies_by_trip);
@@ -123,7 +126,7 @@ fn count_trips_for_each_service_date(
     }
 
     for (service_id, trip_count) in trip_count_by_service_id {
-        let Some(dates) = service_dates.get(service_id) else {
+        let Some(dates) = service_dates.get(&service_id) else {
             continue;
         };
         for date in dates {
@@ -135,10 +138,10 @@ fn count_trips_for_each_service_date(
 }
 
 fn compute_trip_count(
-    trip_id: &str,
-    frequencies_by_trip: &HashMap<&str, Vec<&gtfs_guru_model::Frequency>>,
+    trip_id: gtfs_guru_model::StringId,
+    frequencies_by_trip: &HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Frequency>>,
 ) -> i32 {
-    let Some(frequencies) = frequencies_by_trip.get(trip_id) else {
+    let Some(frequencies) = frequencies_by_trip.get(&trip_id) else {
         return 1;
     };
 
@@ -159,8 +162,9 @@ fn compute_trip_count(
     trip_count
 }
 
-fn build_service_dates(feed: &GtfsFeed) -> HashMap<String, BTreeSet<NaiveDate>> {
-    let mut dates_by_service: HashMap<String, BTreeSet<NaiveDate>> = HashMap::new();
+fn build_service_dates(feed: &GtfsFeed) -> HashMap<gtfs_guru_model::StringId, BTreeSet<NaiveDate>> {
+    let mut dates_by_service: HashMap<gtfs_guru_model::StringId, BTreeSet<NaiveDate>> =
+        HashMap::new();
 
     if let Some(calendar) = &feed.calendar {
         for row in &calendar.rows {
@@ -174,11 +178,11 @@ fn build_service_dates(feed: &GtfsFeed) -> HashMap<String, BTreeSet<NaiveDate>> 
                 end_date = current;
             }
 
-            let service_id = row.service_id.trim();
-            if service_id.is_empty() {
+            let service_id = row.service_id;
+            if service_id.0 == 0 {
                 continue;
             }
-            let entry = dates_by_service.entry(service_id.to_string()).or_default();
+            let entry = dates_by_service.entry(service_id).or_default();
             while current <= end_date {
                 if service_available_on_date(row, current) {
                     entry.insert(current);
@@ -196,11 +200,11 @@ fn build_service_dates(feed: &GtfsFeed) -> HashMap<String, BTreeSet<NaiveDate>> 
             let Some(date) = gtfs_date_to_naive(row.date) else {
                 continue;
             };
-            let service_id = row.service_id.trim();
-            if service_id.is_empty() {
+            let service_id = row.service_id;
+            if service_id.0 == 0 {
                 continue;
             }
-            let entry = dates_by_service.entry(service_id.to_string()).or_default();
+            let entry = dates_by_service.entry(service_id).or_default();
             match row.exception_type {
                 ExceptionType::Added => {
                     entry.insert(date);
@@ -247,8 +251,8 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.trips = CsvTable {
             rows: vec![gtfs_guru_model::Trip {
-                trip_id: "T1".into(),
-                service_id: "S1".into(),
+                trip_id: feed.pool.intern("T1"),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             ..Default::default()

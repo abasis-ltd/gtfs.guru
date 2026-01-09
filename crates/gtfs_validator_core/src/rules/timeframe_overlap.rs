@@ -27,11 +27,11 @@ impl Validator for TimeframeOverlapValidator {
             };
             let group_id = timeframe
                 .timeframe_group_id
-                .as_deref()
-                .unwrap_or("")
+                .map(|id| feed.pool.resolve(id))
+                .unwrap_or_default()
                 .trim()
                 .to_string();
-            let service_id = timeframe.service_id.trim().to_string();
+            let service_id = feed.pool.resolve(timeframe.service_id).trim().to_string();
             grouped
                 .entry((group_id, service_id))
                 .or_default()
@@ -94,18 +94,16 @@ mod tests {
             ],
             rows: vec![
                 Timeframe {
-                    timeframe_group_id: Some("G1".into()),
+                    timeframe_group_id: Some(feed.pool.intern("G1")),
                     start_time: Some(GtfsTime::from_seconds(3600)),
                     end_time: Some(GtfsTime::from_seconds(7200)),
-                    service_id: "S1".into(),
-                    ..Default::default()
+                    service_id: feed.pool.intern("S1"),
                 },
                 Timeframe {
-                    timeframe_group_id: Some("G1".into()),
+                    timeframe_group_id: Some(feed.pool.intern("G1")),
                     start_time: Some(GtfsTime::from_seconds(7000)), // Overlaps
                     end_time: Some(GtfsTime::from_seconds(10000)),
-                    service_id: "S1".into(),
-                    ..Default::default()
+                    service_id: feed.pool.intern("S1"),
                 },
             ],
             row_numbers: vec![2, 3],
@@ -130,18 +128,16 @@ mod tests {
             ],
             rows: vec![
                 Timeframe {
-                    timeframe_group_id: Some("G1".into()),
+                    timeframe_group_id: Some(feed.pool.intern("G1")),
                     start_time: Some(GtfsTime::from_seconds(3600)),
                     end_time: Some(GtfsTime::from_seconds(7200)),
-                    service_id: "S1".into(),
-                    ..Default::default()
+                    service_id: feed.pool.intern("S1"),
                 },
                 Timeframe {
-                    timeframe_group_id: Some("G1".into()),
+                    timeframe_group_id: Some(feed.pool.intern("G1")),
                     start_time: Some(GtfsTime::from_seconds(7200)), // Starts at end of previous
                     end_time: Some(GtfsTime::from_seconds(10000)),
-                    service_id: "S1".into(),
-                    ..Default::default()
+                    service_id: feed.pool.intern("S1"),
                 },
             ],
             row_numbers: vec![2, 3],

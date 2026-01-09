@@ -14,10 +14,10 @@ impl Validator for TripUsabilityValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let mut stop_counts: HashMap<&str, usize> = HashMap::new();
+        let mut stop_counts: HashMap<gtfs_guru_model::StringId, usize> = HashMap::new();
         for stop_time in &feed.stop_times.rows {
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = stop_time.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
             *stop_counts.entry(trip_id).or_insert(0) += 1;
@@ -25,29 +25,31 @@ impl Validator for TripUsabilityValidator {
 
         for (index, trip) in feed.trips.rows.iter().enumerate() {
             let row_number = feed.trips.row_number(index);
-            let trip_id = trip.trip_id.trim();
-            if trip_id.is_empty() {
+            let trip_id = trip.trip_id;
+            if trip_id.0 == 0 {
                 continue;
             }
-            let stop_count = stop_counts.get(trip_id).copied().unwrap_or(0);
+            let stop_count = stop_counts.get(&trip_id).copied().unwrap_or(0);
             if stop_count == 0 {
+                let trip_id_value = feed.pool.resolve(trip_id);
                 let mut notice = ValidationNotice::new(
                     CODE_MISSING_STOP_TIMES,
                     NoticeSeverity::Error,
                     "trip must have at least one stop_times entry",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("tripId", trip_id);
+                notice.insert_context_field("tripId", trip_id_value.as_str());
                 notice.field_order = vec!["csvRowNumber".into(), "tripId".into()];
                 notices.push(notice);
             } else if stop_count == 1 {
+                let trip_id_value = feed.pool.resolve(trip_id);
                 let mut notice = ValidationNotice::new(
                     CODE_UNUSABLE_TRIP,
                     NoticeSeverity::Warning,
                     "trip must have at least two stop_times entries to be usable",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("tripId", trip_id);
+                notice.insert_context_field("tripId", trip_id_value.as_str());
                 notice.field_order = vec!["csvRowNumber".into(), "tripId".into()];
                 notices.push(notice);
             }
@@ -67,7 +69,7 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -91,7 +93,7 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -99,7 +101,7 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["trip_id".into()],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 ..Default::default()
             }],
@@ -119,7 +121,7 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["trip_id".into()],
             rows: vec![Trip {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -128,12 +130,12 @@ mod tests {
             headers: vec!["trip_id".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
+                    trip_id: feed.pool.intern("T1"),
                     stop_sequence: 2,
                     ..Default::default()
                 },

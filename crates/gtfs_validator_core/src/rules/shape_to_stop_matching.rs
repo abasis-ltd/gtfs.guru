@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::RouteType;
+use gtfs_guru_model::StringId;
 use rstar::{RTree, RTreeObject, AABB};
 
 const CODE_STOP_TOO_FAR_FROM_SHAPE: &str = "stop_too_far_from_shape";
@@ -33,65 +34,53 @@ impl Validator for ShapeToStopMatchingValidator {
             return;
         }
 
-        let mut stops_by_id = HashMap::new();
-        for stop in &feed.stops.rows {
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
-                continue;
-            }
-            stops_by_id.insert(stop_id, stop);
-        }
-
-        let mut routes_by_id = HashMap::new();
-        for route in &feed.routes.rows {
-            let route_id = route.route_id.trim();
-            if route_id.is_empty() {
-                continue;
-            }
-            routes_by_id.insert(route_id, route);
-        }
-
-        let mut stop_times_by_trip: HashMap<&str, Vec<&gtfs_guru_model::StopTime>> = HashMap::new();
         let mut stop_time_rows: HashMap<usize, u64> = HashMap::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             stop_time_rows.insert(
                 stop_time as *const _ as usize,
                 feed.stop_times.row_number(index),
             );
-            let trip_id = stop_time.trip_id.trim();
-            if trip_id.is_empty() {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .push(stop_time);
-        }
-        for stop_times in stop_times_by_trip.values_mut() {
-            stop_times.sort_by_key(|stop_time| stop_time.stop_sequence);
         }
 
-        let mut trip_rows = HashMap::new();
-        let mut trips_by_shape: HashMap<&str, Vec<&gtfs_guru_model::Trip>> = HashMap::new();
+        let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
+            HashMap::new();
+        for stop in &feed.stops.rows {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
+                continue;
+            }
+            stops_by_id.insert(stop_id, stop);
+        }
+
+        let mut routes_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Route> =
+            HashMap::new();
+        for route in &feed.routes.rows {
+            let route_id = route.route_id;
+            if route_id.0 == 0 {
+                continue;
+            }
+            routes_by_id.insert(route_id, route);
+        }
+
+        let mut trip_rows: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
+        let mut trips_by_shape: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Trip>> =
+            HashMap::new();
         for (index, trip) in feed.trips.rows.iter().enumerate() {
-            let trip_id = trip.trip_id.trim();
-            if !trip_id.is_empty() {
+            let trip_id = trip.trip_id;
+            if trip_id.0 != 0 {
                 trip_rows.insert(trip_id, feed.trips.row_number(index));
             }
-            let Some(shape_id) = trip.shape_id.as_deref() else {
+            let Some(shape_id) = trip.shape_id.filter(|id| id.0 != 0) else {
                 continue;
             };
-            let shape_id = shape_id.trim();
-            if shape_id.is_empty() {
-                continue;
-            }
             trips_by_shape.entry(shape_id).or_default().push(trip);
         }
 
-        let mut shapes_by_id: HashMap<&str, Vec<&gtfs_guru_model::Shape>> = HashMap::new();
+        let mut shapes_by_id: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Shape>> =
+            HashMap::new();
         for shape in &shapes.rows {
-            let shape_id = shape.shape_id.trim();
-            if shape_id.is_empty() {
+            let shape_id = shape.shape_id;
+            if shape_id.0 == 0 {
                 continue;
             }
             shapes_by_id.entry(shape_id).or_default().push(shape);
@@ -105,7 +94,7 @@ impl Validator for ShapeToStopMatchingValidator {
                 .into_par_iter()
                 .filter_map(|(shape_id, shape_points_raw)| {
                     let _guards = ctx.apply();
-                    let trips = trips_by_shape.get(shape_id)?;
+                    let trips = trips_by_shape.get(&shape_id)?;
                     let shape_points = ShapePoints::from_shapes(shape_points_raw);
                     if shape_points.is_empty() {
                         return None;
@@ -117,22 +106,27 @@ impl Validator for ShapeToStopMatchingValidator {
                     let matcher = StopToShapeMatcher::default();
 
                     for trip in trips {
-                        let trip_id = trip.trip_id.trim();
-                        if trip_id.is_empty() {
+                        let trip_id = trip.trip_id;
+                        if trip_id.0 == 0 {
                             continue;
                         }
-                        let stop_times = match stop_times_by_trip.get(trip_id) {
-                            Some(stop_times) if !stop_times.is_empty() => stop_times,
+                        let stop_time_indices = match feed.stop_times_by_trip.get(&trip_id) {
+                            Some(indices) if !indices.is_empty() => indices,
                             _ => continue,
                         };
+                        let stop_times: Vec<&gtfs_guru_model::StopTime> = stop_time_indices
+                            .iter()
+                            .map(|&i| &feed.stop_times.rows[i])
+                            .collect();
+                        let stop_times = stop_times.as_slice();
                         if !processed_trip_hashes.insert(trip_hash(stop_times)) {
                             continue;
                         }
-                        let route_id = trip.route_id.trim();
-                        if route_id.is_empty() {
+                        let route_id = trip.route_id;
+                        if route_id.0 == 0 {
                             continue;
                         }
-                        let route = match routes_by_id.get(route_id) {
+                        let route = match routes_by_id.get(&route_id) {
                             Some(route) => *route,
                             None => continue,
                         };
@@ -142,8 +136,8 @@ impl Validator for ShapeToStopMatchingValidator {
                             StopPoints::from_stop_times(stop_times, &stops_by_id, station_size);
                         let geo_result =
                             matcher.match_using_geo_distance(&stop_points, &shape_points);
-                        let trip_row_number = trip_rows.get(trip_id).copied().unwrap_or(2);
-                        let shape_id = trip.shape_id.as_deref().unwrap_or("").trim();
+                        let trip_row_number = trip_rows.get(&trip_id).copied().unwrap_or(2);
+                        let shape_id = trip.shape_id.unwrap_or(StringId(0));
                         report_problems(
                             trip,
                             trip_row_number,
@@ -155,6 +149,7 @@ impl Validator for ShapeToStopMatchingValidator {
                             &stop_time_rows,
                             &shape_points,
                             &mut local_notices,
+                            feed,
                         );
 
                         if stop_points.has_user_distance() && shape_points.has_user_distance() {
@@ -171,6 +166,7 @@ impl Validator for ShapeToStopMatchingValidator {
                                 &stop_time_rows,
                                 &shape_points,
                                 &mut local_notices,
+                                feed,
                             );
                         }
                     }
@@ -187,7 +183,7 @@ impl Validator for ShapeToStopMatchingValidator {
         {
             let matcher = StopToShapeMatcher::default();
             for (shape_id, shape_points_raw) in shapes_by_id {
-                let trips = match trips_by_shape.get(shape_id) {
+                let trips = match trips_by_shape.get(&shape_id) {
                     Some(trips) => trips,
                     None => continue,
                 };
@@ -199,22 +195,27 @@ impl Validator for ShapeToStopMatchingValidator {
                 let mut processed_trip_hashes = HashSet::new();
                 let mut reported_stop_ids = HashSet::new();
                 for trip in trips {
-                    let trip_id = trip.trip_id.trim();
-                    if trip_id.is_empty() {
+                    let trip_id = trip.trip_id;
+                    if trip_id.0 == 0 {
                         continue;
                     }
-                    let stop_times = match stop_times_by_trip.get(trip_id) {
-                        Some(stop_times) if !stop_times.is_empty() => stop_times,
+                    let stop_time_indices = match feed.stop_times_by_trip.get(&trip_id) {
+                        Some(indices) if !indices.is_empty() => indices,
                         _ => continue,
                     };
+                    let stop_times: Vec<&gtfs_guru_model::StopTime> = stop_time_indices
+                        .iter()
+                        .map(|&i| &feed.stop_times.rows[i])
+                        .collect();
+                    let stop_times = stop_times.as_slice();
                     if !processed_trip_hashes.insert(trip_hash(stop_times)) {
                         continue;
                     }
-                    let route_id = trip.route_id.trim();
-                    if route_id.is_empty() {
+                    let route_id = trip.route_id;
+                    if route_id.0 == 0 {
                         continue;
                     }
-                    let route = match routes_by_id.get(route_id) {
+                    let route = match routes_by_id.get(&route_id) {
                         Some(route) => *route,
                         None => continue,
                     };
@@ -223,8 +224,8 @@ impl Validator for ShapeToStopMatchingValidator {
                     let stop_points =
                         StopPoints::from_stop_times(stop_times, &stops_by_id, station_size);
                     let geo_result = matcher.match_using_geo_distance(&stop_points, &shape_points);
-                    let trip_row_number = trip_rows.get(trip_id).copied().unwrap_or(2);
-                    let shape_id = trip.shape_id.as_deref().unwrap_or("").trim();
+                    let trip_row_number = trip_rows.get(&trip_id).copied().unwrap_or(2);
+                    let shape_id = trip.shape_id.unwrap_or(StringId(0));
                     report_problems(
                         trip,
                         trip_row_number,
@@ -236,6 +237,7 @@ impl Validator for ShapeToStopMatchingValidator {
                         &stop_time_rows,
                         &shape_points,
                         notices,
+                        feed,
                     );
 
                     if stop_points.has_user_distance() && shape_points.has_user_distance() {
@@ -252,6 +254,7 @@ impl Validator for ShapeToStopMatchingValidator {
                             &stop_time_rows,
                             &shape_points,
                             notices,
+                            feed,
                         );
                     }
                 }
@@ -263,26 +266,30 @@ impl Validator for ShapeToStopMatchingValidator {
 fn report_problems(
     trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    shape_id: StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     problems: &[Problem<'_>],
     matching_distance: MatchingDistance,
-    reported_stop_ids: &mut HashSet<String>,
+    reported_stop_ids: &mut HashSet<StringId>,
     stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
     notices: &mut NoticeContainer,
+    feed: &GtfsFeed,
 ) {
     for problem in problems {
-        let stop_id = problem.stop_time.stop_id.trim();
-        if stop_id.is_empty() {
+        let stop_id = problem.stop_time.stop_id;
+        if stop_id.0 == 0 {
             continue;
         }
         if problem.problem_type == ProblemType::StopTooFarFromShape
-            && !reported_stop_ids.insert(stop_id.to_string())
+            && !reported_stop_ids.insert(stop_id)
         {
             continue;
         }
-        if !thorough_mode_enabled() && problem.problem_type != ProblemType::StopTooFarFromShape {
+        if !thorough_mode_enabled()
+            && problem.problem_type != ProblemType::StopTooFarFromShape
+            && problem.problem_type != ProblemType::StopsMatchOutOfOrder
+        {
             continue;
         }
         notices.push(problem_notice(
@@ -294,6 +301,7 @@ fn report_problems(
             stops_by_id,
             stop_time_rows,
             shape_points,
+            feed,
         ));
     }
 }
@@ -303,10 +311,11 @@ fn problem_notice(
     matching_distance: MatchingDistance,
     trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    shape_id: StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
     match problem.problem_type {
         ProblemType::StopTooFarFromShape => match matching_distance {
@@ -318,6 +327,7 @@ fn problem_notice(
                 stops_by_id,
                 stop_time_rows,
                 shape_points,
+                feed,
             ),
             MatchingDistance::User => stop_too_far_from_shape_user_notice(
                 problem,
@@ -327,6 +337,7 @@ fn problem_notice(
                 stops_by_id,
                 stop_time_rows,
                 shape_points,
+                feed,
             ),
         },
         ProblemType::StopHasTooManyMatches => stop_has_too_many_matches_notice(
@@ -336,6 +347,7 @@ fn problem_notice(
             shape_id,
             stops_by_id,
             stop_time_rows,
+            feed,
         ),
         ProblemType::StopsMatchOutOfOrder => stops_match_out_of_order_notice(
             problem,
@@ -344,6 +356,7 @@ fn problem_notice(
             shape_id,
             stops_by_id,
             stop_time_rows,
+            feed,
         ),
     }
 }
@@ -352,10 +365,11 @@ fn stop_too_far_from_shape_notice(
     problem: &Problem<'_>,
     trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    shape_id: StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOP_TOO_FAR_FROM_SHAPE,
@@ -371,6 +385,7 @@ fn stop_too_far_from_shape_notice(
         stops_by_id,
         stop_time_rows,
         shape_points,
+        feed,
     );
     notice
 }
@@ -379,10 +394,11 @@ fn stop_too_far_from_shape_user_notice(
     problem: &Problem<'_>,
     trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    shape_id: StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOP_TOO_FAR_FROM_SHAPE_USER_DISTANCE,
@@ -398,6 +414,7 @@ fn stop_too_far_from_shape_user_notice(
         stops_by_id,
         stop_time_rows,
         shape_points,
+        feed,
     );
     notice
 }
@@ -406,26 +423,31 @@ fn stop_has_too_many_matches_notice(
     problem: &Problem<'_>,
     trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    shape_id: StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stop_time_rows: &HashMap<usize, u64>,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOP_HAS_TOO_MANY_MATCHES,
         NoticeSeverity::Warning,
         "stop has too many matches for shape",
     );
+    let shape_id_value = feed.pool.resolve(shape_id);
     notice.insert_context_field("tripCsvRowNumber", trip_row_number);
-    notice.insert_context_field("shapeId", shape_id);
-    notice.insert_context_field("tripId", trip.trip_id.as_str());
+    notice.insert_context_field("shapeId", shape_id_value.as_str());
+    notice.insert_context_field("tripId", feed.pool.resolve(trip.trip_id).as_str());
     notice.insert_context_field(
         "stopTimeCsvRowNumber",
         stop_time_row(stop_time_rows, problem.stop_time),
     );
-    notice.insert_context_field("stopId", problem.stop_time.stop_id.as_str());
+    notice.insert_context_field(
+        "stopId",
+        feed.pool.resolve(problem.stop_time.stop_id).as_str(),
+    );
     notice.insert_context_field(
         "stopName",
-        stop_name_by_id(stops_by_id, &problem.stop_time.stop_id),
+        stop_name_by_id(stops_by_id, problem.stop_time.stop_id),
     );
     notice.insert_context_field("match", lat_lng_array(problem.match_result.location));
     notice.insert_context_field("matchCount", problem.match_count);
@@ -446,38 +468,46 @@ fn stops_match_out_of_order_notice(
     problem: &Problem<'_>,
     trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    shape_id: StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stop_time_rows: &HashMap<usize, u64>,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_STOPS_MATCH_OUT_OF_ORDER,
         NoticeSeverity::Warning,
         "stops match shape out of order",
     );
+    let shape_id_value = feed.pool.resolve(shape_id);
     notice.insert_context_field("tripCsvRowNumber", trip_row_number);
-    notice.insert_context_field("shapeId", shape_id);
-    notice.insert_context_field("tripId", trip.trip_id.as_str());
+    notice.insert_context_field("shapeId", shape_id_value.as_str());
+    notice.insert_context_field("tripId", feed.pool.resolve(trip.trip_id).as_str());
     let prev_stop_time = problem.prev_stop_time.unwrap_or(problem.stop_time);
     let prev_match = problem.prev_match.as_ref().unwrap_or(&problem.match_result);
     notice.insert_context_field(
         "stopTimeCsvRowNumber1",
         stop_time_row(stop_time_rows, problem.stop_time),
     );
-    notice.insert_context_field("stopId1", problem.stop_time.stop_id.as_str());
+    notice.insert_context_field(
+        "stopId1",
+        feed.pool.resolve(problem.stop_time.stop_id).as_str(),
+    );
     notice.insert_context_field(
         "stopName1",
-        stop_name_by_id(stops_by_id, &problem.stop_time.stop_id),
+        stop_name_by_id(stops_by_id, problem.stop_time.stop_id),
     );
     notice.insert_context_field("match1", lat_lng_array(problem.match_result.location));
     notice.insert_context_field(
         "stopTimeCsvRowNumber2",
         stop_time_row(stop_time_rows, prev_stop_time),
     );
-    notice.insert_context_field("stopId2", prev_stop_time.stop_id.as_str());
+    notice.insert_context_field(
+        "stopId2",
+        feed.pool.resolve(prev_stop_time.stop_id).as_str(),
+    );
     notice.insert_context_field(
         "stopName2",
-        stop_name_by_id(stops_by_id, &prev_stop_time.stop_id),
+        stop_name_by_id(stops_by_id, prev_stop_time.stop_id),
     );
     notice.insert_context_field("match2", lat_lng_array(prev_match.location));
     notice.field_order = vec![
@@ -501,25 +531,30 @@ fn populate_stop_too_far_notice(
     problem: &Problem<'_>,
     trip: &gtfs_guru_model::Trip,
     trip_row_number: u64,
-    shape_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    shape_id: StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stop_time_rows: &HashMap<usize, u64>,
     shape_points: &ShapePoints,
+    feed: &GtfsFeed,
 ) {
+    let shape_id_value = feed.pool.resolve(shape_id);
     notice.insert_context_field("tripCsvRowNumber", trip_row_number);
-    notice.insert_context_field("shapeId", shape_id);
-    notice.insert_context_field("tripId", trip.trip_id.as_str());
+    notice.insert_context_field("shapeId", shape_id_value.as_str());
+    notice.insert_context_field("tripId", feed.pool.resolve(trip.trip_id).as_str());
     notice.insert_context_field(
         "stopTimeCsvRowNumber",
         stop_time_row(stop_time_rows, problem.stop_time),
     );
-    notice.insert_context_field("stopId", problem.stop_time.stop_id.as_str());
+    notice.insert_context_field(
+        "stopId",
+        feed.pool.resolve(problem.stop_time.stop_id).as_str(),
+    );
     notice.insert_context_field(
         "stopName",
-        stop_name_by_id(stops_by_id, &problem.stop_time.stop_id),
+        stop_name_by_id(stops_by_id, problem.stop_time.stop_id),
     );
     // Include the actual stop location for map visualization
-    if let Some(stop_location) = stop_location_by_id(stops_by_id, &problem.stop_time.stop_id) {
+    if let Some(stop_location) = stop_location_by_id(stops_by_id, problem.stop_time.stop_id) {
         notice.insert_context_field("stopLocation", lat_lng_array(stop_location));
     }
     notice.insert_context_field("match", lat_lng_array(problem.match_result.location));
@@ -607,7 +642,6 @@ fn trip_hash(stop_times: &[&gtfs_guru_model::StopTime]) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     stop_times.len().hash(&mut hasher);
     for stop_time in stop_times {
-        stop_time.stop_id.len().hash(&mut hasher);
         stop_time.stop_id.hash(&mut hasher);
         let distance = stop_time.shape_dist_traveled.unwrap_or(0.0);
         distance.to_bits().hash(&mut hasher);
@@ -620,28 +654,26 @@ fn lat_lng_array(lat_lng: LatLng) -> [f64; 2] {
 }
 
 fn stop_name_by_id<'a>(
-    stops_by_id: &'a HashMap<&str, &'a gtfs_guru_model::Stop>,
-    stop_id: &str,
+    stops_by_id: &'a HashMap<gtfs_guru_model::StringId, &'a gtfs_guru_model::Stop>,
+    stop_id: gtfs_guru_model::StringId,
 ) -> &'a str {
-    let key = stop_id.trim();
-    if key.is_empty() {
+    if stop_id.0 == 0 {
         return "";
     }
     stops_by_id
-        .get(key)
+        .get(&stop_id)
         .and_then(|stop| stop.stop_name.as_deref())
         .unwrap_or("")
 }
 
 fn stop_location_by_id(
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_id: &str,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
+    stop_id: gtfs_guru_model::StringId,
 ) -> Option<LatLng> {
-    let key = stop_id.trim();
-    if key.is_empty() {
+    if stop_id.0 == 0 {
         return None;
     }
-    stops_by_id.get(key).and_then(|stop| {
+    stops_by_id.get(&stop_id).and_then(|stop| {
         let lat = stop.stop_lat?;
         let lon = stop.stop_lon?;
         Some(LatLng { lat, lon })
@@ -828,7 +860,7 @@ impl Default for StopToShapeMatcherSettings {
         Self {
             max_distance_from_stop_to_shape_meters: 100.0,
             large_station_distance_multiplier: 4.0,
-            potential_matches_for_stop_problem_threshold: 1,
+            potential_matches_for_stop_problem_threshold: 20,
         }
     }
 }
@@ -841,13 +873,13 @@ struct StopPoints<'a> {
 impl<'a> StopPoints<'a> {
     fn from_stop_times(
         stop_times: &[&'a gtfs_guru_model::StopTime],
-        stops_by_id: &HashMap<&str, &'a gtfs_guru_model::Stop>,
+        stops_by_id: &HashMap<gtfs_guru_model::StringId, &'a gtfs_guru_model::Stop>,
         station_size: StationSize,
     ) -> Self {
         let mut points = Vec::with_capacity(stop_times.len());
         for stop_time in stop_times.iter() {
-            let stop_id = stop_time.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop_time.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             let location = match stop_or_parent_location(stops_by_id, stop_id) {
@@ -1135,8 +1167,13 @@ impl ShapePoints {
         let mut last_index = usize::MAX;
 
         for segment in sorted_candidates {
+            // Skip duplicates if any
+            if last_index != usize::MAX && segment.index == last_index {
+                continue;
+            }
+
             // Handle gap between segments (reset state if non-consecutive)
-            if last_index != usize::MAX && segment.index != last_index + 1 {
+            if last_index != usize::MAX && segment.index > last_index + 1 {
                 // Gap detected, reset local match state as if we started fresh or finished a group
                 if local_match.has_best_match() {
                     matches.push(local_match.clone());
@@ -1151,7 +1188,7 @@ impl ShapePoints {
             let left_vec = segment.p1_vec;
             let right = segment.p2;
             let right_vec = segment.p2_vec;
-            let (closest, closest_vec, geo_distance_to_shape) = closest_point_on_segment_vec(
+            let (closest, _closest_vec, geo_distance_to_shape) = closest_point_on_segment_vec(
                 location,
                 location_vec,
                 left,
@@ -1162,9 +1199,8 @@ impl ShapePoints {
 
             if geo_distance_to_shape <= max_distance_from_shape {
                 if local_match.has_best_match()
-                    && (previous_segment_getting_further_away
-                        || (geo_distance_to_shape == 0.0
-                            && distance_to_end_previous_segment == 0.0))
+                    && previous_segment_getting_further_away
+                    && geo_distance_to_shape < distance_to_end_previous_segment
                 {
                     matches.push(local_match.clone());
                     local_match.clear_best_match();
@@ -1255,6 +1291,7 @@ struct ShapePoint {
     geo_distance: f64,
     user_distance: f64,
     location: LatLng,
+    #[allow(dead_code)]
     location_vec: Vec3,
 }
 
@@ -1586,24 +1623,19 @@ fn cmp_f64(a: f64, b: f64) -> Ordering {
 }
 
 fn stop_or_parent_location(
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
-    stop_id: &str,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
+    stop_id: gtfs_guru_model::StringId,
 ) -> Option<LatLng> {
     let mut current_id = stop_id;
     for _ in 0..3 {
-        let stop = match stops_by_id.get(current_id) {
+        let stop = match stops_by_id.get(&current_id) {
             Some(stop) => *stop,
             None => break,
         };
         if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
             return Some(LatLng { lat, lon });
         }
-        let Some(parent_id) = stop
-            .parent_station
-            .as_deref()
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-        else {
+        let Some(parent_id) = stop.parent_station.filter(|id| id.0 != 0) else {
             break;
         };
         current_id = parent_id;
@@ -1654,6 +1686,7 @@ fn distance_meters_vec(a: Vec3, b: Vec3) -> f64 {
     angular_distance(a, b) * EARTH_RADIUS_METERS
 }
 
+#[allow(dead_code)]
 fn closest_point_on_segment(point: LatLng, left: LatLng, right: LatLng) -> (LatLng, f64) {
     let p = lat_lng_to_vec(point);
     let a = lat_lng_to_vec(left);
@@ -1663,7 +1696,7 @@ fn closest_point_on_segment(point: LatLng, left: LatLng, right: LatLng) -> (LatL
 }
 
 fn closest_point_on_segment_vec(
-    point: LatLng,
+    _point: LatLng,
     p: Vec3,
     left: LatLng,
     a: Vec3,
@@ -1774,7 +1807,7 @@ mod tests {
                 "route_type".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_type: RouteType::Bus,
                 ..Default::default()
             }],
@@ -1789,14 +1822,14 @@ mod tests {
             ],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     stop_name: Some("Stop 1".into()),
                     stop_lat: Some(37.7749),
                     stop_lon: Some(-122.4194),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(), // Far from shape
+                    stop_id: feed.pool.intern("S2"), // Far from shape
                     stop_name: Some("Stop 2".into()),
                     stop_lat: Some(38.0),
                     stop_lon: Some(-122.0),
@@ -1814,14 +1847,14 @@ mod tests {
             ],
             rows: vec![
                 Shape {
-                    shape_id: "SH1".into(),
+                    shape_id: feed.pool.intern("SH1"),
                     shape_pt_lat: 37.7749,
                     shape_pt_lon: -122.4194,
                     shape_pt_sequence: 1,
                     ..Default::default()
                 },
                 Shape {
-                    shape_id: "SH1".into(),
+                    shape_id: feed.pool.intern("SH1"),
                     shape_pt_lat: 37.7750,
                     shape_pt_lon: -122.4195,
                     shape_pt_sequence: 2,
@@ -1833,9 +1866,9 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["route_id".into(), "trip_id".into(), "shape_id".into()],
             rows: vec![Trip {
-                route_id: "R1".into(),
-                trip_id: "T1".into(),
-                shape_id: Some("SH1".into()),
+                route_id: feed.pool.intern("R1"),
+                trip_id: feed.pool.intern("T1"),
+                shape_id: Some(feed.pool.intern("SH1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -1844,20 +1877,21 @@ mod tests {
             headers: vec!["trip_id".into(), "stop_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S1".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S2".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
                     stop_sequence: 2,
                     ..Default::default()
                 },
             ],
             row_numbers: vec![2, 3],
         };
+        feed.rebuild_stop_times_index();
 
         let mut notices = NoticeContainer::new();
         ShapeToStopMatchingValidator.validate(&feed, &mut notices);
@@ -1877,7 +1911,7 @@ mod tests {
                 "route_type".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_type: RouteType::Bus,
                 ..Default::default()
             }],
@@ -1892,14 +1926,14 @@ mod tests {
             ],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     stop_name: Some("Stop 1".into()),
                     stop_lat: Some(37.7749),
                     stop_lon: Some(-122.4194),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     stop_name: Some("Stop 2".into()),
                     stop_lat: Some(37.7750),
                     stop_lon: Some(-122.4195),
@@ -1917,14 +1951,14 @@ mod tests {
             ],
             rows: vec![
                 Shape {
-                    shape_id: "SH1".into(),
+                    shape_id: feed.pool.intern("SH1"),
                     shape_pt_lat: 37.7749,
                     shape_pt_lon: -122.4194,
                     shape_pt_sequence: 1,
                     ..Default::default()
                 },
                 Shape {
-                    shape_id: "SH1".into(),
+                    shape_id: feed.pool.intern("SH1"),
                     shape_pt_lat: 37.7750,
                     shape_pt_lon: -122.4195,
                     shape_pt_sequence: 2,
@@ -1936,9 +1970,9 @@ mod tests {
         feed.trips = CsvTable {
             headers: vec!["route_id".into(), "trip_id".into(), "shape_id".into()],
             rows: vec![Trip {
-                route_id: "R1".into(),
-                trip_id: "T1".into(),
-                shape_id: Some("SH1".into()),
+                route_id: feed.pool.intern("R1"),
+                trip_id: feed.pool.intern("T1"),
+                shape_id: Some(feed.pool.intern("SH1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -1947,14 +1981,14 @@ mod tests {
             headers: vec!["trip_id".into(), "stop_id".into(), "stop_sequence".into()],
             rows: vec![
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S1".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
                     stop_sequence: 1,
                     ..Default::default()
                 },
                 StopTime {
-                    trip_id: "T1".into(),
-                    stop_id: "S2".into(),
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
                     stop_sequence: 2,
                     ..Default::default()
                 },
@@ -1966,5 +2000,120 @@ mod tests {
         ShapeToStopMatchingValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 0);
+    }
+    #[test]
+    fn detects_out_of_order_stops() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".into(),
+                "route_short_name".into(),
+                "route_type".into(),
+            ],
+            rows: vec![Route {
+                route_id: feed.pool.intern("R1"),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // Stops are physically ordered: S1 (start), S2 (end)
+        // But trip visits them in order: S2 -> S1 (reverse of shape)
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".into(),
+                "stop_name".into(),
+                "stop_lat".into(),
+                "stop_lon".into(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: feed.pool.intern("S1"),
+                    stop_name: Some("Stop 1".into()),
+                    stop_lat: Some(37.7749),
+                    stop_lon: Some(-122.4194),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: feed.pool.intern("S2"),
+                    stop_name: Some("Stop 2".into()),
+                    stop_lat: Some(37.7750),
+                    stop_lon: Some(-122.4195),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.shapes = Some(CsvTable {
+            headers: vec![
+                "shape_id".into(),
+                "shape_pt_lat".into(),
+                "shape_pt_lon".into(),
+                "shape_pt_sequence".into(),
+            ],
+            rows: vec![
+                Shape {
+                    shape_id: feed.pool.intern("SH1"),
+                    shape_pt_lat: 37.7749,
+                    shape_pt_lon: -122.4194, // Matches S1
+                    shape_pt_sequence: 1,
+                    ..Default::default()
+                },
+                Shape {
+                    shape_id: feed.pool.intern("SH1"),
+                    shape_pt_lat: 37.7750,
+                    shape_pt_lon: -122.4195, // Matches S2
+                    shape_pt_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+        feed.trips = CsvTable {
+            headers: vec!["route_id".into(), "trip_id".into(), "shape_id".into()],
+            rows: vec![Trip {
+                route_id: feed.pool.intern("R1"),
+                trip_id: feed.pool.intern("T1"),
+                shape_id: Some(feed.pool.intern("SH1")),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        // Trip is S2 (idx=2) -> S1 (idx=1)
+        // Shape is S1 -> S2.
+        // So S2 matches point 2, S1 matches point 1.
+        // Sequence: distance(point 2) > distance(point 1) => DECREASING distance.
+        // We expect out-of-order notice.
+        feed.stop_times = CsvTable {
+            headers: vec!["trip_id".into(), "stop_id".into(), "stop_sequence".into()],
+            rows: vec![
+                StopTime {
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
+                    stop_sequence: 1,
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
+                    stop_sequence: 2,
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.rebuild_stop_times_index();
+
+        let mut notices = NoticeContainer::new();
+        ShapeToStopMatchingValidator.validate(&feed, &mut notices);
+
+        let notice = notices
+            .iter()
+            .find(|n| n.code == CODE_STOPS_MATCH_OUT_OF_ORDER);
+        assert!(
+            notice.is_some(),
+            "Expected stops_match_shape_out_of_order notice"
+        );
     }
 }

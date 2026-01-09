@@ -1,4 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_guru_model::StringId;
 use gtfs_guru_model::YesNo;
 
 const CODE_ATTRIBUTION_WITHOUT_ROLE: &str = "attribution_without_role";
@@ -22,7 +23,10 @@ impl Validator for AttributionWithoutRoleValidator {
         for (index, attribution) in attributions.rows.iter().enumerate() {
             let row_number = attributions.row_number(index);
             if !has_some_role(attribution) {
-                let attribution_id = attribution.attribution_id.as_deref().unwrap_or("").trim();
+                let resolved = feed
+                    .pool
+                    .resolve(attribution.attribution_id.unwrap_or(StringId(0)));
+                let attribution_id = resolved.trim();
                 notices.push(attribution_without_role_notice(attribution_id, row_number));
             }
         }
@@ -79,7 +83,7 @@ mod tests {
                 agency_id: None,
                 route_id: None,
                 trip_id: None,
-                organization_name: "Org".into(),
+                organization_name: feed.pool.intern("Org"),
                 is_producer: Some(YesNo::No),
                 is_operator: None,
                 is_authority: Some(YesNo::No),
@@ -110,7 +114,7 @@ mod tests {
                 agency_id: None,
                 route_id: None,
                 trip_id: None,
-                organization_name: "Org".into(),
+                organization_name: feed.pool.intern("Org"),
                 is_producer: None,
                 is_operator: None,
                 is_authority: None,
@@ -137,7 +141,7 @@ mod tests {
                 agency_id: None,
                 route_id: None,
                 trip_id: None,
-                organization_name: "Org".into(),
+                organization_name: feed.pool.intern("Org"),
                 is_producer: Some(YesNo::Yes),
                 is_operator: None,
                 is_authority: None,
@@ -155,73 +159,45 @@ mod tests {
     }
 
     fn base_feed() -> GtfsFeed {
-        GtfsFeed {
-            agency: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Agency {
-                    agency_id: None,
-                    agency_name: "Agency".into(),
-                    agency_url: "https://example.com".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: Vec::new(),
-            },
-            stops: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Stop {
-                    stop_id: "STOP1".into(),
-                    stop_name: Some("Stop".into()),
-                    stop_lat: Some(10.0),
-                    stop_lon: Some(20.0),
-                    ..Default::default()
-                }],
-                row_numbers: Vec::new(),
-            },
-            routes: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Route {
-                    route_id: "R1".into(),
-                    route_short_name: Some("R1".into()),
-                    route_type: RouteType::Bus,
-                    ..Default::default()
-                }],
-                row_numbers: Vec::new(),
-            },
-            trips: CsvTable::default(),
-            stop_times: CsvTable::default(),
-            calendar: None,
-            calendar_dates: None,
-            fare_attributes: None,
-            fare_rules: None,
-            fare_media: None,
-            fare_products: None,
-            fare_leg_rules: None,
-            fare_transfer_rules: None,
-            fare_leg_join_rules: None,
-            areas: None,
-            stop_areas: None,
-            timeframes: None,
-            rider_categories: None,
-            shapes: None,
-            frequencies: None,
-            transfers: None,
-            location_groups: None,
-            location_group_stops: None,
-            locations: None,
-            booking_rules: None,
-            feed_info: None,
-            attributions: None,
-            levels: None,
-            pathways: None,
-            translations: None,
-            networks: None,
-            stop_times_by_trip: std::collections::HashMap::new(),
-            route_networks: None,
-        }
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Agency {
+                agency_id: None,
+                agency_name: "Agency".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed.stops = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Stop {
+                stop_id: feed.pool.intern("STOP1"),
+                stop_name: Some("Stop".into()),
+                stop_lat: Some(10.0),
+                stop_lon: Some(20.0),
+                ..Default::default()
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed.routes = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Route {
+                route_id: feed.pool.intern("R1"),
+                route_short_name: Some("R1".into()),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed.trips = CsvTable::default();
+        feed.stop_times = CsvTable::default();
+        feed
     }
 
     fn context_str<'a>(notice: &'a ValidationNotice, key: &str) -> &'a str {

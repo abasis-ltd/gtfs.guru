@@ -13,6 +13,7 @@ Full compatibility with [MobilityData gtfs-validator](https://github.com/Mobilit
 | **Binary size** | 50MB (JAR) | 5MB (CLI) |
 | **Python bindings** | ❌ | ✅ |
 | **WebAssembly** | ❌ | ✅ |
+| **Parsing Strategy** | Serial | Parallel (Rayon) |
 | **Desktop app** | ❌ | ✅ |
 
 ## Quick Start
@@ -56,6 +57,7 @@ Full compatibility with [MobilityData gtfs-validator](https://github.com/Mobilit
 - **Cross-platform** — macOS, Linux, Windows
 - **Detailed reports** — JSON and HTML output with geographic context
 - **Auto-fix suggestions** — machine-applicable fixes for common issues
+- **Robust CSV Parsing** — handles spaces in headers and other common format issues
 
 ## Next Steps
 

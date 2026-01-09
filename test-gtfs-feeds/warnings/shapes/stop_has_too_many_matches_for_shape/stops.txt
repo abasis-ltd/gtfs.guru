@@ -1,3 +1,0 @@
-stop_id,stop_name,stop_lat,stop_lon
-stop1,First Stop,40.7128,-74.0060
-stop2,Second Stop,40.7130,-74.0058

@@ -1,3 +1,4 @@
+use crate::validation_context::thorough_mode_enabled;
 use crate::{
     feed::{AGENCY_FILE, ROUTES_FILE, STOPS_FILE, STOP_TIMES_FILE, TRIPS_FILE},
     GtfsFeed, NoticeContainer, Validator,
@@ -12,6 +13,10 @@ impl Validator for RequiredTablesNotEmptyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        // Only run in thorough mode to match Java default behavior
+        if !thorough_mode_enabled() {
+            return;
+        }
         if feed.agency.rows.is_empty() {
             notices.push_empty_table(AGENCY_FILE);
         }
@@ -39,6 +44,7 @@ mod tests {
 
     #[test]
     fn detects_empty_required_tables() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         // CsvTable::default() has empty rows and empty headers by default.
         // For stops.txt, it only emits NOTICE_CODE_EMPTY_TABLE if headers are not empty.

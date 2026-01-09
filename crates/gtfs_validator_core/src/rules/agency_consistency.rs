@@ -1,5 +1,6 @@
 use crate::feed::AGENCY_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_guru_model::StringId;
 
 const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
 const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
@@ -22,7 +23,7 @@ impl Validator for AgencyConsistencyValidator {
 
         if agency_count == 1 {
             let agency = &feed.agency.rows[0];
-            if !has_value(agency.agency_id.as_deref()) {
+            if !has_value(agency.agency_id) {
                 let mut notice = ValidationNotice::new(
                     CODE_MISSING_RECOMMENDED_FIELD,
                     NoticeSeverity::Warning,
@@ -31,18 +32,15 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("csvRowNumber", 2_u64);
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", AGENCY_FILE);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
             return;
         }
 
         for (index, agency) in feed.agency.rows.iter().enumerate() {
-            if !has_value(agency.agency_id.as_deref()) {
+            if !has_value(agency.agency_id) {
                 let mut notice = ValidationNotice::new(
                     CODE_MISSING_REQUIRED_FIELD,
                     NoticeSeverity::Error,
@@ -51,19 +49,19 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", AGENCY_FILE);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
         }
 
-        let common_timezone = feed.agency.rows[0].agency_timezone.trim();
+        let common_timezone_id = feed.agency.rows[0].agency_timezone;
         for (index, agency) in feed.agency.rows.iter().enumerate().skip(1) {
-            let timezone = agency.agency_timezone.trim();
-            if common_timezone != timezone {
+            if common_timezone_id != agency.agency_timezone {
+                let timezone = feed.pool.resolve(agency.agency_timezone);
+                let timezone = timezone.trim();
+                let common_timezone = feed.pool.resolve(common_timezone_id);
+                let common_timezone = common_timezone.trim();
                 let mut notice = ValidationNotice::new(
                     CODE_INCONSISTENT_AGENCY_TIMEZONE,
                     NoticeSeverity::Error,
@@ -72,21 +70,19 @@ impl Validator for AgencyConsistencyValidator {
                 notice.insert_context_field("actual", timezone);
                 notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                 notice.insert_context_field("expected", common_timezone);
-                notice.field_order = vec![
-                    "actual".into(),
-                    "csvRowNumber".into(),
-                    "expected".into(),
-                ];
+                notice.field_order =
+                    vec!["actual".into(), "csvRowNumber".into(), "expected".into()];
                 notices.push(notice);
             }
         }
 
         let mut common_lang: Option<String> = None;
         for (index, agency) in feed.agency.rows.iter().enumerate() {
-            let Some(lang) = agency.agency_lang.as_deref() else {
+            let Some(lang) = agency.agency_lang else {
                 continue;
             };
-            let lang = lang.trim();
+            let lang_value = feed.pool.resolve(lang);
+            let lang = lang_value.trim();
             if lang.is_empty() {
                 continue;
             }
@@ -102,11 +98,8 @@ impl Validator for AgencyConsistencyValidator {
                     notice.insert_context_field("actual", normalized.as_str());
                     notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                     notice.insert_context_field("expected", existing.as_str());
-                    notice.field_order = vec![
-                        "actual".into(),
-                        "csvRowNumber".into(),
-                        "expected".into(),
-                    ];
+                    notice.field_order =
+                        vec!["actual".into(), "csvRowNumber".into(), "expected".into()];
                     notices.push(notice);
                 }
                 _ => {}
@@ -115,8 +108,8 @@ impl Validator for AgencyConsistencyValidator {
     }
 }
 
-fn has_value(value: Option<&str>) -> bool {
-    value.map(|val| !val.trim().is_empty()).unwrap_or(false)
+fn has_value(value: Option<StringId>) -> bool {
+    matches!(value, Some(id) if id.0 != 0)
 }
 
 #[cfg(test)]
@@ -144,8 +137,8 @@ mod tests {
         feed.agency.rows.push(gtfs_guru_model::Agency {
             agency_id: None,
             agency_name: "Agency2".into(),
-            agency_url: "https://example.com".into(),
-            agency_timezone: "UTC".into(),
+            agency_url: feed.pool.intern("https://example.com"),
+            agency_timezone: feed.pool.intern("UTC"),
             agency_lang: None,
             agency_phone: None,
             agency_fare_url: None,
@@ -166,10 +159,10 @@ mod tests {
     fn errors_when_timezones_inconsistent() {
         let mut feed = base_feed();
         feed.agency.rows.push(gtfs_guru_model::Agency {
-            agency_id: Some("A2".into()),
+            agency_id: Some(feed.pool.intern("A2")),
             agency_name: "Agency2".into(),
-            agency_url: "https://example.com".into(),
-            agency_timezone: "Europe/Paris".into(),
+            agency_url: feed.pool.intern("https://example.com"),
+            agency_timezone: feed.pool.intern("Europe/Paris"),
             agency_lang: None,
             agency_phone: None,
             agency_fare_url: None,
@@ -187,13 +180,13 @@ mod tests {
     #[test]
     fn warns_when_languages_inconsistent() {
         let mut feed = base_feed();
-        feed.agency.rows[0].agency_lang = Some("en".into());
+        feed.agency.rows[0].agency_lang = Some(feed.pool.intern("en"));
         feed.agency.rows.push(gtfs_guru_model::Agency {
-            agency_id: Some("A2".into()),
+            agency_id: Some(feed.pool.intern("A2")),
             agency_name: "Agency2".into(),
-            agency_url: "https://example.com".into(),
-            agency_timezone: "UTC".into(),
-            agency_lang: Some("fr".into()),
+            agency_url: feed.pool.intern("https://example.com"),
+            agency_timezone: feed.pool.intern("UTC"),
+            agency_lang: Some(feed.pool.intern("fr")),
             agency_phone: None,
             agency_fare_url: None,
             agency_email: None,
@@ -208,69 +201,21 @@ mod tests {
     }
 
     fn base_feed() -> GtfsFeed {
-        GtfsFeed {
-            agency: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Agency {
-                    agency_id: Some("A1".into()),
-                    agency_name: "Agency".into(),
-                    agency_url: "https://example.com".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: Vec::new(),
-            },
-            stops: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            routes: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            trips: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            stop_times: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            calendar: None,
-            calendar_dates: None,
-            fare_attributes: None,
-            fare_rules: None,
-            fare_media: None,
-            fare_products: None,
-            fare_leg_rules: None,
-            fare_transfer_rules: None,
-            fare_leg_join_rules: None,
-            areas: None,
-            stop_areas: None,
-            timeframes: None,
-            rider_categories: None,
-            shapes: None,
-            frequencies: None,
-            transfers: None,
-            location_groups: None,
-            location_group_stops: None,
-            locations: None,
-            booking_rules: None,
-            feed_info: None,
-            attributions: None,
-            levels: None,
-            pathways: None,
-            translations: None,
-            networks: None,
-            stop_times_by_trip: std::collections::HashMap::new(),
-            route_networks: None,
-        }
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Agency {
+                agency_id: Some(feed.pool.intern("A1")),
+                agency_name: "Agency".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed
     }
 }

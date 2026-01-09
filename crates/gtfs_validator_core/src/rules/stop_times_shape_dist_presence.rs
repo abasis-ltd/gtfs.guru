@@ -1,4 +1,5 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_guru_model::StringId;
 
 const CODE_FORBIDDEN_SHAPE_DIST_TRAVELED: &str = "forbidden_shape_dist_traveled";
 
@@ -50,7 +51,8 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
                 if let Some(shape_dist) = stop_time.shape_dist_traveled {
                     notice.insert_context_field("shapeDistTraveled", shape_dist);
                 }
-                notice.insert_context_field("tripId", stop_time.trip_id.as_str());
+                notice
+                    .insert_context_field("tripId", feed.pool.resolve(stop_time.trip_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "shapeDistTraveled".into(),
@@ -60,30 +62,30 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
                 continue;
             }
 
-            if has_stop_id(stop_time) {
+            if has_stop_id(stop_time, feed) {
                 continue;
             }
             if (stop_time.location_group_id.is_some() || stop_time.location_id.is_some())
                 && stop_time.shape_dist_traveled.is_some()
             {
+                let location_group_value = feed
+                    .pool
+                    .resolve(stop_time.location_group_id.unwrap_or(StringId(0)));
+                let location_id_value = stop_time.location_id.map(|id| feed.pool.resolve(id));
                 let mut notice = ValidationNotice::new(
                     CODE_FORBIDDEN_SHAPE_DIST_TRAVELED,
                     NoticeSeverity::Error,
                     "shape_dist_traveled is forbidden without stop_id",
                 );
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field(
-                    "locationGroupId",
-                    stop_time.location_group_id.as_deref().unwrap_or(""),
-                );
-                notice.insert_context_field(
-                    "locationId",
-                    stop_time.location_id.as_deref().unwrap_or(""),
-                );
+                notice.insert_context_field("locationGroupId", location_group_value.as_str());
+                notice
+                    .insert_context_field("locationId", location_id_value.as_deref().unwrap_or(""));
                 if let Some(shape_dist) = stop_time.shape_dist_traveled {
                     notice.insert_context_field("shapeDistTraveled", shape_dist);
                 }
-                notice.insert_context_field("tripId", stop_time.trip_id.as_str());
+                notice
+                    .insert_context_field("tripId", feed.pool.resolve(stop_time.trip_id).as_str());
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "locationGroupId".into(),
@@ -97,8 +99,8 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
     }
 }
 
-fn has_stop_id(stop_time: &gtfs_guru_model::StopTime) -> bool {
-    !stop_time.stop_id.trim().is_empty()
+fn has_stop_id(stop_time: &gtfs_guru_model::StopTime, _feed: &GtfsFeed) -> bool {
+    stop_time.stop_id.0 != 0
 }
 
 #[cfg(test)]
@@ -117,7 +119,7 @@ mod tests {
                 "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 shape_dist_traveled: Some(10.0),
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 ..Default::default()
@@ -151,10 +153,10 @@ mod tests {
                 "location_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 shape_dist_traveled: Some(10.0),
-                location_id: Some("L1".into()),
-                stop_id: "".into(),
+                location_id: Some(feed.pool.intern("L1")),
+                stop_id: StringId(0),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -186,9 +188,9 @@ mod tests {
                 "stop_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 shape_dist_traveled: Some(10.0),
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -139,7 +140,9 @@
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .results {
@@ -163,7 +166,7 @@
       padding: 1.25rem;
       border-radius: 10px;
       text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
     .stat-value {
@@ -178,17 +181,33 @@
       margin-top: 0.25rem;
     }
 
-    .stat.valid { background: var(--success-bg); color: var(--success); }
-    .stat.invalid { background: var(--error-bg); color: var(--error); }
-    .stat.errors { color: var(--error); }
-    .stat.warnings { color: var(--warning); }
-    .stat.info { color: var(--info); }
+    .stat.valid {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .stat.invalid {
+      background: var(--error-bg);
+      color: var(--error);
+    }
+
+    .stat.errors {
+      color: var(--error);
+    }
+
+    .stat.warnings {
+      color: var(--warning);
+    }
+
+    .stat.info {
+      color: var(--info);
+    }
 
     .notices-section {
       background: var(--card-bg);
       border-radius: 12px;
       padding: 1.5rem;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
     .notices-header {
@@ -291,8 +310,160 @@
     footer a:hover {
       text-decoration: underline;
     }
+
+    /* Modal styles for file size error */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+      text-align: center;
+    }
+
+    .modal-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    .modal h2 {
+      margin-bottom: 1rem;
+      color: var(--error);
+    }
+
+    .modal p {
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .modal .file-size {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 1.5rem;
+    }
+
+    .modal-btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .modal-btn.primary {
+      background: var(--primary);
+      color: white;
+      border: none;
+    }
+
+    .modal-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    .modal-btn.secondary {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .modal-btn.secondary:hover {
+      background: var(--bg);
+    }
+
+    .url-zone {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .url-zone h3 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+    }
+
+    .url-input-container {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .url-input-container input {
+      flex: 1;
+      min-width: 250px;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+
+    .url-input-container button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 2rem;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: opacity 0.2s;
+    }
+
+    .url-input-container button:hover {
+      opacity: 0.9;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 1.5rem 0;
+      color: var(--text-muted);
+      font-weight: 500;
+      position: relative;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin: 0 1rem;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -307,6 +478,18 @@
       <p>or</p>
       <label class="file-label" for="fileInput">Choose File</label>
       <input type="file" id="fileInput" accept=".zip">
+    </div>
+
+    <div class="divider">
+      <span>OR</span>
+    </div>
+
+    <div class="url-zone">
+      <h3>Analyze via URL</h3>
+      <div class="url-input-container">
+        <input type="text" id="urlInput" placeholder="Enter GTFS URL (e.g. http://site.com/gtfs.zip)">
+        <button id="urlAnalyzeBtn">Analyze</button>
+      </div>
     </div>
 
     <div class="loading" id="loading">
@@ -333,19 +516,60 @@
 
     <footer>
       <p>
-        Powered by <a href="https://github.com/gtfs-validator/gtfs-validator-rust" target="_blank">gtfs-validator-rust</a>
+        Powered by <a href="https://gtfs.guru" target="_blank">gtfs.guru</a>
         &bull; No data is uploaded &bull; Everything runs locally in your browser
       </p>
     </footer>
   </div>
 
+  <!-- Modal for file size error -->
+  <div class="modal-overlay" id="fileSizeModal">
+    <div class="modal">
+      <div class="modal-icon">⚠️</div>
+      <h2>File Too Large for Browser</h2>
+      <p>
+        Your GTFS file is <span class="file-size" id="modalFileSize">0</span> MB,
+        which exceeds the <strong>50 MB limit</strong> for browser-based validation.
+      </p>
+      <p>
+        WebAssembly (WASM) has memory constraints that limit the size of files
+        we can process in the browser. For larger feeds, please use our
+        <strong>desktop application</strong>, which has no size limits and
+        runs significantly faster.
+      </p>
+      <div class="modal-buttons">
+        <a href="https://github.com/gtfs-validator/gtfs-validator-rust/releases/latest" target="_blank"
+          class="modal-btn primary">
+          Download Desktop App
+        </a>
+        <button class="modal-btn secondary" id="modalClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     // Import WASM module - adjust path as needed
-    import init, { validate_gtfs, version } from '../pkg/gtfs_validator_wasm.js';
+    import init, { validate_gtfs, version } from '../pkg/gtfs_guru_wasm.js';
+
+    // Maximum file size for WASM validation (50 MB)
+    // Larger files may cause memory issues in the browser.
+    // Desktop app has no such limitations.
+    const MAX_FILE_SIZE_MB = 50;
+    const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
     let wasmReady = false;
     let allNotices = [];
     let currentFilter = 'all';
+
+    let wasmInitPromise = null;
+
+    async function ensureWasmLoaded() {
+      if (wasmReady) return;
+      if (!wasmInitPromise) {
+        wasmInitPromise = initWasm();
+      }
+      await wasmInitPromise;
+    }
 
     async function initWasm() {
       try {
@@ -356,12 +580,20 @@
       } catch (error) {
         console.error('Failed to initialize WASM:', error);
         document.getElementById('version').textContent = 'Error loading';
+        throw error;
       }
     }
 
     async function validateFile(file) {
-      if (!wasmReady) {
-        await initWasm();
+      await ensureWasmLoaded();
+
+      // Check file size limit
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        showFileSizeError(fileSizeMB);
+        // Reset input so user can try again or select another file
+        document.getElementById('fileInput').value = '';
+        return;
       }
 
       const dropZone = document.getElementById('dropZone');
@@ -374,32 +606,79 @@
 
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const startTime = performance.now();
-        const result = validate_gtfs(bytes);
-        const elapsed = (performance.now() - startTime).toFixed(0);
-
-        allNotices = JSON.parse(result.json);
-
-        renderSummary(result, elapsed, file.name);
-        renderNotices();
-
-        loading.classList.remove('show');
-        results.classList.add('show');
+        await runValidation(bytes, file.name);
       } catch (error) {
         console.error('Validation error:', error);
         loading.classList.remove('show');
         dropZone.style.display = 'block';
         alert('Error validating file: ' + error.message);
+      } finally {
+        // Reset input so user can select the same file again if needed
+        document.getElementById('fileInput').value = '';
       }
     }
 
+    async function validateUrl(url) {
+      await ensureWasmLoaded();
+
+      const dropZone = document.getElementById('dropZone');
+      // ... rest of function ...
+
+      const loading = document.getElementById('loading');
+      const results = document.getElementById('results');
+
+      dropZone.style.display = 'none';
+      loading.classList.add('show');
+      results.classList.remove('show');
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.statusText}`);
+        }
+        const bytes = new Uint8Array(await response.arrayBuffer());
+
+        let filename = 'remote_feed';
+        try {
+          const urlObj = new URL(url);
+          filename = urlObj.pathname.split('/').pop() || 'remote_feed';
+        } catch (e) { }
+
+        await runValidation(bytes, filename);
+      } catch (error) {
+        console.error('URL Validation error:', error);
+        loading.classList.remove('show');
+        dropZone.style.display = 'block';
+        alert('Error loading URL: ' + error.message + '\nNote: Remote servers must allow CORS.');
+      }
+    }
+
+    async function runValidation(bytes, filename) {
+      const loading = document.getElementById('loading');
+      const results = document.getElementById('results');
+
+      try {
+        const startTime = performance.now();
+        const dateStr = new Date().toISOString().split('T')[0];
+        const result = validate_gtfs(bytes, undefined, dateStr);
+        const elapsed = (performance.now() - startTime).toFixed(0);
+
+        allNotices = JSON.parse(result.json);
+
+        renderSummary(result, elapsed, filename);
+        renderNotices();
+
+        loading.classList.remove('show');
+        results.classList.add('show');
+      } catch (error) {
+        throw error;
+      }
+    }
+
+    // In renderSummary, remove the Valid/Invalid stat
     function renderSummary(result, elapsed, filename) {
       const summary = document.getElementById('summary');
-      summary.innerHTML = `
-        <div class="stat ${result.is_valid ? 'valid' : 'invalid'}">
-          <div class="stat-value">${result.is_valid ? '✓' : '✗'}</div>
-          <div class="stat-label">${result.is_valid ? 'Valid' : 'Invalid'}</div>
-        </div>
+      let html = `
         <div class="stat errors">
           <div class="stat-value">${result.error_count}</div>
           <div class="stat-label">Errors</div>
@@ -417,7 +696,35 @@
           <div class="stat-label">ms</div>
         </div>
       `;
+
+      // Add Download html button
+      if (result.html) {
+        html += `
+          <div class="stat" style="cursor: pointer;" onclick="downloadHtmlReport()">
+             <div class="stat-value">💾</div>
+             <div class="stat-label">Download Report</div>
+          </div>
+          `;
+        // Store html globally or attached to result
+        window.lastReportHtml = result.html;
+      }
+
+      summary.innerHTML = html;
     }
+
+    // Add function to download report
+    window.downloadHtmlReport = function () {
+      if (!window.lastReportHtml) return;
+      const blob = new Blob([window.lastReportHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'validation_report.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
 
     function renderNotices() {
       const noticesEl = document.getElementById('notices');
@@ -429,25 +736,45 @@
         noticesEl.innerHTML = `
           <div class="empty-state">
             ${currentFilter === 'all'
-              ? 'No notices found - your GTFS feed looks great!'
-              : `No ${currentFilter.toLowerCase()} notices`}
+            ? 'No notices found - your GTFS feed looks great!'
+            : `No ${currentFilter.toLowerCase()} notices`}
           </div>
         `;
         return;
       }
 
-      noticesEl.innerHTML = filtered.slice(0, 200).map(notice => `
+      noticesEl.innerHTML = filtered.slice(0, 200).map(notice => {
+        // Build context string
+        let contextHtml = '';
+
+        // Add primary location fields
+        if (notice.filename || notice.file) {
+          contextHtml += `<div class="notice-location">File: ${notice.filename || notice.file}</div>`;
+        }
+        if (notice.csvRowNumber || notice.row) {
+          contextHtml += `<div class="notice-location">Row: ${notice.csvRowNumber || notice.row}</div>`;
+        }
+        if (notice.fieldName || notice.field) {
+          contextHtml += `<div class="notice-location">Field: ${notice.fieldName || notice.field}</div>`;
+        }
+
+        // Add extra context if available
+        if (notice.context) {
+          for (const [key, value] of Object.entries(notice.context)) {
+            // Skip already checked keys if they are redundant (though mostly they might be different)
+            if (!['filename', 'csvRowNumber', 'fieldName', 'file', 'row', 'field'].includes(key)) {
+              contextHtml += `<div class="notice-location">${key}: ${value}</div>`;
+            }
+          }
+        }
+
+        return `
         <div class="notice ${notice.severity}">
           <div class="notice-code">[${notice.code}]</div>
           <div class="notice-title">${notice.title || notice.code}</div>
-          ${notice.filename || notice.csvRowNumber ? `
-            <div class="notice-location">
-              ${notice.filename || ''}${notice.csvRowNumber ? `:${notice.csvRowNumber}` : ''}
-              ${notice.fieldName ? ` (${notice.fieldName})` : ''}
-            </div>
-          ` : ''}
+          ${contextHtml}
         </div>
-      `).join('');
+      `}).join('');
 
       if (filtered.length > 200) {
         noticesEl.innerHTML += `
@@ -458,10 +785,28 @@
       }
     }
 
+
+
     // Event handlers
     document.getElementById('fileInput').addEventListener('change', (e) => {
       if (e.target.files[0]) {
         validateFile(e.target.files[0]);
+      }
+    });
+
+    document.getElementById('urlAnalyzeBtn').addEventListener('click', () => {
+      const url = document.getElementById('urlInput').value.trim();
+      if (url) {
+        validateUrl(url);
+      }
+    });
+
+    document.getElementById('urlInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const url = document.getElementById('urlInput').value.trim();
+        if (url) {
+          validateUrl(url);
+        }
       }
     });
 
@@ -484,7 +829,12 @@
       }
     });
 
-    dropZone.addEventListener('click', () => {
+    dropZone.addEventListener('click', (e) => {
+      // Don't trigger if clicking on the label (which already triggers input natively)
+      // OR if the click is coming from the input itself (bubbling up), which would cause an infinite loop/double open
+      if (e.target.tagName === 'LABEL' || e.target.closest('label') || e.target.tagName === 'INPUT') {
+        return;
+      }
       document.getElementById('fileInput').click();
     });
 
@@ -498,8 +848,27 @@
       });
     });
 
+    // Show file size error modal
+    function showFileSizeError(fileSizeMB) {
+      document.getElementById('modalFileSize').textContent = fileSizeMB;
+      document.getElementById('fileSizeModal').classList.add('show');
+    }
+
+    // Close modal handler
+    document.getElementById('modalClose').addEventListener('click', () => {
+      document.getElementById('fileSizeModal').classList.remove('show');
+    });
+
+    // Close modal on overlay click
+    document.getElementById('fileSizeModal').addEventListener('click', (e) => {
+      if (e.target.id === 'fileSizeModal') {
+        document.getElementById('fileSizeModal').classList.remove('show');
+      }
+    });
+
     // Initialize
     initWasm();
   </script>
 </body>
+
 </html>

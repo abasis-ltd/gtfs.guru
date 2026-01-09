@@ -17,7 +17,7 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "route_type".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_type: RouteType::Bus,
                 route_short_name: None,
                 route_long_name: None,
@@ -42,7 +42,7 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "route_short_name".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_type: RouteType::Bus,
                 route_short_name: Some("VeryLongRouteName".into()),
                 ..Default::default()
@@ -70,7 +70,7 @@ mod tests {
                 "route_long_name".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_type: RouteType::Bus,
                 route_short_name: Some("42".into()),
                 route_long_name: Some("42 Downtown Express".into()),
@@ -99,7 +99,7 @@ mod tests {
                 "route_desc".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_type: RouteType::Bus,
                 route_short_name: Some("42".into()),
                 route_desc: Some("42".into()),
@@ -128,7 +128,7 @@ mod tests {
                 "route_long_name".into(),
             ],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 route_type: RouteType::Bus,
                 route_short_name: Some("42".into()),
                 route_long_name: Some("Downtown Express".into()),
@@ -172,7 +172,7 @@ impl Validator for RoutesValidator {
                     NoticeSeverity::Error,
                     "route_short_name and route_long_name are both missing",
                 );
-                notice.insert_context_field("routeId", route.route_id.as_str());
+                notice.insert_context_field("routeId", feed.pool.resolve(route.route_id).as_str());
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.field_order = vec!["csvRowNumber".into(), "routeId".into()];
                 notices.push(notice);
@@ -186,7 +186,10 @@ impl Validator for RoutesValidator {
                         NoticeSeverity::Warning,
                         "route_short_name is too long",
                     );
-                    notice.insert_context_field("routeId", route.route_id.as_str());
+                    notice.insert_context_field(
+                        "routeId",
+                        feed.pool.resolve(route.route_id).as_str(),
+                    );
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("routeShortName", short);
                     notice.field_order = vec![
@@ -215,7 +218,10 @@ impl Validator for RoutesValidator {
                             NoticeSeverity::Warning,
                             "route_long_name contains route_short_name",
                         );
-                        notice.insert_context_field("routeId", route.route_id.as_str());
+                        notice.insert_context_field(
+                            "routeId",
+                            feed.pool.resolve(route.route_id).as_str(),
+                        );
                         notice.insert_context_field("csvRowNumber", row_number);
                         notice.insert_context_field("routeShortName", short);
                         notice.insert_context_field("routeLongName", long);
@@ -239,7 +245,10 @@ impl Validator for RoutesValidator {
                             "route_desc matches route_short_name",
                         );
                         notice.insert_context_field("csvRowNumber", row_number);
-                        notice.insert_context_field("routeId", route.route_id.as_str());
+                        notice.insert_context_field(
+                            "routeId",
+                            feed.pool.resolve(route.route_id).as_str(),
+                        );
                         notice.insert_context_field("routeDesc", route_desc);
                         notice.insert_context_field("specifiedField", "route_short_name");
                         notice.field_order = vec![
@@ -260,7 +269,10 @@ impl Validator for RoutesValidator {
                             "route_desc matches route_long_name",
                         );
                         notice.insert_context_field("csvRowNumber", row_number);
-                        notice.insert_context_field("routeId", route.route_id.as_str());
+                        notice.insert_context_field(
+                            "routeId",
+                            feed.pool.resolve(route.route_id).as_str(),
+                        );
                         notice.insert_context_field("routeDesc", route_desc);
                         notice.insert_context_field("specifiedField", "route_long_name");
                         notice.field_order = vec![

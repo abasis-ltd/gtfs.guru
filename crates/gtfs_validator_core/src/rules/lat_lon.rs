@@ -23,7 +23,7 @@ impl Validator for StopLatLonValidator {
                     lat,
                     lon,
                     row_number,
-                    Some(stop.stop_id.as_str()),
+                    Some(feed.pool.resolve(stop.stop_id).as_str()),
                 );
             }
         }
@@ -187,7 +187,7 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec![],
             rows: vec![gtfs_guru_model::Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 stop_lat: Some(95.0),  // Too high
                 stop_lon: Some(200.0), // Too high
                 ..Default::default()
@@ -213,11 +213,12 @@ mod tests {
 
     #[test]
     fn test_stop_lat_lon_near_origin() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
             headers: vec![],
             rows: vec![gtfs_guru_model::Stop {
-                stop_id: "S1".into(),
+                stop_id: feed.pool.intern("S1"),
                 stop_lat: Some(0.5),
                 stop_lon: Some(0.5),
                 ..Default::default()

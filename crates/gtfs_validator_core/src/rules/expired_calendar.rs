@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use chrono::{Datelike, NaiveDate};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
-use gtfs_guru_model::{ExceptionType, GtfsDate, ServiceAvailability};
+use gtfs_guru_model::{ExceptionType, GtfsDate, ServiceAvailability, StringId};
 
 const CODE_EXPIRED_CALENDAR: &str = "expired_calendar";
 
@@ -11,9 +11,9 @@ const CODE_EXPIRED_CALENDAR: &str = "expired_calendar";
 pub struct ExpiredCalendarValidator;
 
 struct ServiceDates {
-    dates_by_service: HashMap<String, BTreeSet<NaiveDate>>,
-    calendar_row_by_service_id: HashMap<String, u64>,
-    calendar_date_row_by_service_id: HashMap<String, u64>,
+    dates_by_service: HashMap<StringId, BTreeSet<NaiveDate>>,
+    calendar_row_by_service_id: HashMap<StringId, u64>,
+    calendar_date_row_by_service_id: HashMap<StringId, u64>,
 }
 
 impl Validator for ExpiredCalendarValidator {
@@ -40,14 +40,18 @@ impl Validator for ExpiredCalendarValidator {
             };
             if last_date < validation_date {
                 if let Some(row_number) = service_dates.calendar_row_by_service_id.get(service_id) {
-                    notices_to_return.push(expired_notice(*row_number, service_id));
+                    notices_to_return.push(expired_notice(feed, *row_number, *service_id));
                 } else if is_calendar_empty && all_calendar_expired {
                     let row_number = service_dates
                         .calendar_date_row_by_service_id
                         .get(service_id)
                         .copied()
                         .unwrap_or(0);
-                    expired_calendar_dates_notices.push(expired_notice(row_number, service_id));
+                    expired_calendar_dates_notices.push(expired_notice(
+                        feed,
+                        row_number,
+                        *service_id,
+                    ));
                 }
             } else {
                 all_calendar_expired = false;
@@ -65,22 +69,23 @@ impl Validator for ExpiredCalendarValidator {
     }
 }
 
-fn expired_notice(row_number: u64, service_id: &str) -> ValidationNotice {
+fn expired_notice(feed: &GtfsFeed, row_number: u64, service_id: StringId) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_EXPIRED_CALENDAR,
         NoticeSeverity::Warning,
         "service dates are expired",
     );
+    let service_id_value = feed.pool.resolve(service_id);
     notice.insert_context_field("csvRowNumber", row_number);
-    notice.insert_context_field("serviceId", service_id);
+    notice.insert_context_field("serviceId", service_id_value.as_str());
     notice.field_order = vec!["csvRowNumber".into(), "serviceId".into()];
     notice
 }
 
 fn build_service_dates(feed: &GtfsFeed) -> ServiceDates {
-    let mut dates_by_service: HashMap<String, BTreeSet<NaiveDate>> = HashMap::new();
-    let mut calendar_row_by_service_id: HashMap<String, u64> = HashMap::new();
-    let mut calendar_date_row_by_service_id: HashMap<String, u64> = HashMap::new();
+    let mut dates_by_service: HashMap<StringId, BTreeSet<NaiveDate>> = HashMap::new();
+    let mut calendar_row_by_service_id: HashMap<StringId, u64> = HashMap::new();
+    let mut calendar_date_row_by_service_id: HashMap<StringId, u64> = HashMap::new();
 
     if let Some(calendar) = &feed.calendar {
         for (index, row) in calendar.rows.iter().enumerate() {
@@ -94,14 +99,14 @@ fn build_service_dates(feed: &GtfsFeed) -> ServiceDates {
                 end_date = current;
             }
 
-            let service_id = row.service_id.trim();
-            if service_id.is_empty() {
+            let service_id = row.service_id;
+            if service_id.0 == 0 {
                 continue;
             }
             calendar_row_by_service_id
-                .entry(service_id.to_string())
+                .entry(service_id)
                 .or_insert(calendar.row_number(index));
-            let entry = dates_by_service.entry(service_id.to_string()).or_default();
+            let entry = dates_by_service.entry(service_id).or_default();
             while current <= end_date {
                 if service_available_on_date(row, current) {
                     entry.insert(current);
@@ -119,20 +124,20 @@ fn build_service_dates(feed: &GtfsFeed) -> ServiceDates {
             let Some(date) = gtfs_date_to_naive(row.date) else {
                 continue;
             };
-            let service_id = row.service_id.trim();
-            if service_id.is_empty() {
+            let service_id = row.service_id;
+            if service_id.0 == 0 {
                 continue;
             }
             let row_number = calendar_dates.row_number(index);
             calendar_date_row_by_service_id
-                .entry(service_id.to_string())
+                .entry(service_id)
                 .and_modify(|existing| {
                     if row_number < *existing {
                         *existing = row_number;
                     }
                 })
                 .or_insert(row_number);
-            let entry = dates_by_service.entry(service_id.to_string()).or_default();
+            let entry = dates_by_service.entry(service_id).or_default();
             match row.exception_type {
                 ExceptionType::Added => {
                     entry.insert(date);
@@ -193,7 +198,7 @@ mod tests {
         let mut feed = base_feed();
         feed.calendar = Some(CsvTable {
             headers: Vec::new(),
-            rows: vec![calendar_row("SVC1", past, past)],
+            rows: vec![calendar_row("SVC1", past, past, &feed)],
             row_numbers: Vec::new(),
         });
 
@@ -215,7 +220,7 @@ mod tests {
         let mut feed = base_feed();
         feed.calendar = Some(CsvTable {
             headers: Vec::new(),
-            rows: vec![calendar_row("SVC1", today, future)],
+            rows: vec![calendar_row("SVC1", today, future, &feed)],
             row_numbers: Vec::new(),
         });
 
@@ -235,7 +240,7 @@ mod tests {
         feed.calendar_dates = Some(CsvTable {
             headers: Vec::new(),
             rows: vec![gtfs_guru_model::CalendarDate {
-                service_id: "SVC1".into(),
+                service_id: feed.pool.intern("SVC1"),
                 date: gtfs_date(past),
                 exception_type: ExceptionType::Added,
             }],
@@ -264,12 +269,12 @@ mod tests {
             headers: Vec::new(),
             rows: vec![
                 gtfs_guru_model::CalendarDate {
-                    service_id: "SVC1".into(),
+                    service_id: feed.pool.intern("SVC1"),
                     date: gtfs_date(past),
                     exception_type: ExceptionType::Added,
                 },
                 gtfs_guru_model::CalendarDate {
-                    service_id: "SVC2".into(),
+                    service_id: feed.pool.intern("SVC2"),
                     date: gtfs_date(future),
                     exception_type: ExceptionType::Added,
                 },
@@ -287,9 +292,10 @@ mod tests {
         service_id: &str,
         start: NaiveDate,
         end: NaiveDate,
+        feed: &GtfsFeed,
     ) -> gtfs_guru_model::Calendar {
         gtfs_guru_model::Calendar {
-            service_id: service_id.into(),
+            service_id: feed.pool.intern(service_id),
             monday: ServiceAvailability::Available,
             tuesday: ServiceAvailability::Available,
             wednesday: ServiceAvailability::Available,
@@ -307,70 +313,26 @@ mod tests {
     }
 
     fn base_feed() -> GtfsFeed {
-        GtfsFeed {
-            agency: CsvTable {
-                headers: Vec::new(),
-                rows: vec![gtfs_guru_model::Agency {
-                    agency_id: Some("A1".into()),
-                    agency_name: "Agency".into(),
-                    agency_url: "https://example.com".into(),
-                    agency_timezone: "UTC".into(),
-                    agency_lang: None,
-                    agency_phone: None,
-                    agency_fare_url: None,
-                    agency_email: None,
-                }],
-                row_numbers: Vec::new(),
-            },
-            stops: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            routes: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            trips: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            stop_times: CsvTable {
-                headers: Vec::new(),
-                rows: Vec::new(),
-                row_numbers: Vec::new(),
-            },
-            calendar: None,
-            calendar_dates: None,
-            fare_attributes: None,
-            fare_rules: None,
-            fare_media: None,
-            fare_products: None,
-            fare_leg_rules: None,
-            fare_transfer_rules: None,
-            fare_leg_join_rules: None,
-            areas: None,
-            stop_areas: None,
-            timeframes: None,
-            rider_categories: None,
-            shapes: None,
-            frequencies: None,
-            transfers: None,
-            location_groups: None,
-            location_group_stops: None,
-            locations: None,
-            booking_rules: None,
-            feed_info: None,
-            attributions: None,
-            levels: None,
-            pathways: None,
-            translations: None,
-            networks: None,
-            stop_times_by_trip: std::collections::HashMap::new(),
-            route_networks: None,
-        }
+        let mut feed = GtfsFeed::default();
+        feed.agency = CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::Agency {
+                agency_id: Some(feed.pool.intern("A1")),
+                agency_name: "Agency".into(),
+                agency_url: feed.pool.intern("https://example.com"),
+                agency_timezone: feed.pool.intern("UTC"),
+                agency_lang: None,
+                agency_phone: None,
+                agency_fare_url: None,
+                agency_email: None,
+            }],
+            row_numbers: Vec::new(),
+        };
+        feed.stops = CsvTable::default();
+        feed.routes = CsvTable::default();
+        feed.trips = CsvTable::default();
+        feed.stop_times = CsvTable::default();
+        feed
     }
 
     fn context_u64(notice: &ValidationNotice, key: &str) -> u64 {

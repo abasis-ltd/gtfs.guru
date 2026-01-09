@@ -102,6 +102,14 @@ struct Args {
     /// By default, only mandatory GTFS rules are enforced to match Java validator behavior.
     #[arg(long = "thorough")]
     pub thorough: bool,
+
+    /// Output detailed timing breakdown for performance analysis
+    #[arg(long = "timing")]
+    pub timing: bool,
+
+    /// Output timing report as JSON instead of human-readable format
+    #[arg(long = "timing-json")]
+    pub timing_json: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -144,6 +152,8 @@ fn main() -> anyhow::Result<()> {
     let started_at = Instant::now();
     let mut memory_usage_records = Vec::new();
     let mut last_used_bytes = None;
+    let timing_collector = gtfs_guru_core::TimingCollector::new();
+
     record_memory_usage(
         &mut memory_usage_records,
         &mut last_used_bytes,
@@ -154,6 +164,11 @@ fn main() -> anyhow::Result<()> {
         &runner,
         &mut memory_usage_records,
         &mut last_used_bytes,
+        if args.timing || args.timing_json {
+            Some(&timing_collector)
+        } else {
+            None
+        },
     );
     record_memory_usage(
         &mut memory_usage_records,
@@ -228,6 +243,20 @@ fn main() -> anyhow::Result<()> {
         let sarif_report = SarifReport::from_notices(&notices);
         sarif_report.write(&sarif_path)?;
         info!("SARIF report written to {}", sarif_path.display());
+    }
+
+    // Output timing report if requested
+    if args.timing || args.timing_json {
+        let timing_summary = timing_collector.summary();
+        if args.timing_json {
+            let json = timing_summary.to_json();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json).unwrap_or_default()
+            );
+        } else {
+            eprintln!("{}", timing_summary.format_report());
+        }
     }
 
     // Handle auto-fix options
@@ -515,7 +544,7 @@ impl IndicatifHandler {
         let loading_pb = multi.add(ProgressBar::new(0));
         loading_pb.set_style(
             ProgressStyle::with_template(
-                "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}",
+                "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {percent}% {msg}",
             )
             .unwrap()
             .progress_chars("#>-"),
@@ -525,7 +554,7 @@ impl IndicatifHandler {
         let validation_pb = multi.add(ProgressBar::new(0));
         validation_pb.set_style(
             ProgressStyle::with_template(
-                "{spinner:.green} [{elapsed_precise}] {bar:40.magenta/magenta} {pos}/{len} {msg}",
+                "{spinner:.green} [{elapsed_precise}] {bar:40.magenta/magenta} {percent}% {msg}",
             )
             .unwrap()
             .progress_chars("#>-"),
@@ -578,6 +607,7 @@ fn validate_with_metrics(
     runner: &ValidatorRunner,
     memory_usage_records: &mut Vec<MemoryUsageRecord>,
     last_used_bytes: &mut Option<u64>,
+    timing: Option<&gtfs_guru_core::TimingCollector>,
 ) -> gtfs_guru_core::ValidationOutcome {
     let mut notices = NoticeContainer::new();
 
@@ -602,7 +632,17 @@ fn validate_with_metrics(
     progress_handler
         .loading_pb
         .finish_with_message("Loading complete");
-    eprintln!("[PERF] Feed loading took: {:?}", load_start.elapsed());
+    let load_elapsed = load_start.elapsed();
+    eprintln!("[PERF] Feed loading took: {:?}", load_elapsed);
+
+    // Record loading time in timing collector
+    if let Some(t) = timing {
+        t.record(
+            "feed_loading",
+            load_elapsed,
+            gtfs_guru_core::TimingCategory::Loading,
+        );
+    }
 
     match load_result {
         Ok(Ok(feed)) => {
@@ -613,7 +653,12 @@ fn validate_with_metrics(
             );
             let validate_start = std::time::Instant::now();
             let handler_clone = progress_handler.clone();
-            runner.run_with_progress(&feed, &mut notices, Some(handler_clone.as_ref()));
+            runner.run_with_progress_and_timing(
+                &feed,
+                &mut notices,
+                Some(handler_clone.as_ref()),
+                timing,
+            );
 
             progress_handler
                 .validation_pb

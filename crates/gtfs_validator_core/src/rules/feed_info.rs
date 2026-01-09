@@ -42,7 +42,7 @@ impl Validator for FeedContactValidator {
         for (index, info) in feed_info.rows.iter().enumerate() {
             let row_number = feed_info.row_number(index);
             if is_blank(info.feed_contact_email.as_deref())
-                && is_blank(info.feed_contact_url.as_deref())
+                && info.feed_contact_url.map(|id| id.0 == 0).unwrap_or(true)
             {
                 let mut notice = ValidationNotice::new(
                     CODE_MISSING_FEED_CONTACT_EMAIL_AND_URL,
@@ -132,13 +132,14 @@ mod tests {
             headers: vec!["feed_publisher_name".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: Some(GtfsDate::parse("20250601").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20250101").unwrap()),
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -160,13 +161,14 @@ mod tests {
             headers: vec!["feed_publisher_name".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: None,
                 feed_end_date: None,
                 feed_version: None,
                 feed_contact_email: None,
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });
@@ -189,23 +191,25 @@ mod tests {
             rows: vec![
                 FeedInfo {
                     feed_publisher_name: "Test1".into(),
-                    feed_publisher_url: "http://example1.com".into(),
-                    feed_lang: "en".into(),
+                    feed_publisher_url: feed.pool.intern("http://example1.com"),
+                    feed_lang: feed.pool.intern("en"),
                     feed_start_date: None,
                     feed_end_date: None,
                     feed_version: None,
                     feed_contact_email: Some("test@test.com".into()),
                     feed_contact_url: None,
+                    default_lang: None,
                 },
                 FeedInfo {
                     feed_publisher_name: "Test2".into(),
-                    feed_publisher_url: "http://example2.com".into(),
-                    feed_lang: "en".into(),
+                    feed_publisher_url: feed.pool.intern("http://example2.com"),
+                    feed_lang: feed.pool.intern("en"),
                     feed_start_date: None,
                     feed_end_date: None,
                     feed_version: None,
                     feed_contact_email: Some("test@test.com".into()),
                     feed_contact_url: None,
+                    default_lang: None,
                 },
             ],
             row_numbers: vec![2, 3],
@@ -228,13 +232,14 @@ mod tests {
             headers: vec!["feed_publisher_name".into()],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
-                feed_publisher_url: "http://example.com".into(),
-                feed_lang: "en".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
                 feed_start_date: Some(GtfsDate::parse("20250101").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20251231").unwrap()),
                 feed_version: None,
                 feed_contact_email: Some("test@test.com".into()),
                 feed_contact_url: None,
+                default_lang: None,
             }],
             row_numbers: vec![2],
         });

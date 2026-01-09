@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,9 +10,12 @@ use pyo3::types::{PyDict, PyList};
 
 use gtfs_guru_core::{
     default_runner, set_validation_country_code, set_validation_date, validate_input, GtfsInput,
-    NoticeSeverity,
+    NoticeSeverity, ValidationNotice as RustNotice,
 };
 use gtfs_guru_report::{ReportSummary, ReportSummaryContext, ValidationReport};
+
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 /// A single validation notice (error, warning, or info).
 #[pyclass]
@@ -69,7 +73,8 @@ pub struct ValidationResult {
     pub info_count: usize,
     #[pyo3(get)]
     pub validation_time_seconds: f64,
-    notices: Vec<Notice>,
+    // Store raw Rust notices for lazy conversion
+    raw_notices: Vec<RustNotice>,
     report_json: String,
 }
 
@@ -85,42 +90,42 @@ impl ValidationResult {
     /// Get all notices.
     #[getter]
     fn notices(&self) -> Vec<Notice> {
-        self.notices.clone()
+        self.raw_notices.iter().map(rust_notice_to_py).collect()
     }
 
     /// Get only error notices.
     fn errors(&self) -> Vec<Notice> {
-        self.notices
+        self.raw_notices
             .iter()
-            .filter(|n| n.severity == "ERROR")
-            .cloned()
+            .filter(|n| matches!(n.severity, NoticeSeverity::Error))
+            .map(rust_notice_to_py)
             .collect()
     }
 
     /// Get only warning notices.
     fn warnings(&self) -> Vec<Notice> {
-        self.notices
+        self.raw_notices
             .iter()
-            .filter(|n| n.severity == "WARNING")
-            .cloned()
+            .filter(|n| matches!(n.severity, NoticeSeverity::Warning))
+            .map(rust_notice_to_py)
             .collect()
     }
 
     /// Get only info notices.
     fn infos(&self) -> Vec<Notice> {
-        self.notices
+        self.raw_notices
             .iter()
-            .filter(|n| n.severity == "INFO")
-            .cloned()
+            .filter(|n| matches!(n.severity, NoticeSeverity::Info))
+            .map(rust_notice_to_py)
             .collect()
     }
 
     /// Get notices by code.
     fn by_code(&self, code: &str) -> Vec<Notice> {
-        self.notices
+        self.raw_notices
             .iter()
             .filter(|n| n.code == code)
-            .cloned()
+            .map(rust_notice_to_py)
             .collect()
     }
 
@@ -181,11 +186,12 @@ impl ValidationResult {
 #[pyfunction]
 #[pyo3(signature = (path, country_code=None, date=None))]
 fn validate(
+    py: Python<'_>,
     path: &str,
     country_code: Option<&str>,
     date: Option<&str>,
 ) -> PyResult<ValidationResult> {
-    run_validation(path, country_code, date, None)
+    run_validation(Some(py), path, country_code, date, None)
 }
 
 /// Progress information during validation.
@@ -214,6 +220,7 @@ impl ProgressInfo {
 
 /// Internal function to run validation (used by both sync and async).
 fn run_validation(
+    py: Option<Python<'_>>,
     path: &str,
     country_code: Option<&str>,
     date: Option<&str>,
@@ -260,7 +267,11 @@ fn run_validation(
     // Run validation
     let runner = default_runner();
     let started_at = Instant::now();
-    let outcome = validate_input(&input, &runner);
+    let outcome = if let Some(py) = py {
+        py.allow_threads(|| validate_input(&input, &runner))
+    } else {
+        validate_input(&input, &runner)
+    };
     let elapsed = started_at.elapsed();
 
     // Report finalizing progress
@@ -273,43 +284,21 @@ fn run_validation(
         });
     }
 
-    // Build notices
-    let mut notices = Vec::new();
+    // Count notices by severity (without full conversion)
     let mut error_count = 0;
     let mut warning_count = 0;
     let mut info_count = 0;
 
     for notice in outcome.notices.iter() {
-        let severity_str = match notice.severity {
-            NoticeSeverity::Error => {
-                error_count += 1;
-                "ERROR"
-            }
-            NoticeSeverity::Warning => {
-                warning_count += 1;
-                "WARNING"
-            }
-            NoticeSeverity::Info => {
-                info_count += 1;
-                "INFO"
-            }
-        };
-
-        let mut context = HashMap::new();
-        for (k, v) in &notice.context {
-            context.insert(k.clone(), v.clone());
+        match notice.severity {
+            NoticeSeverity::Error => error_count += 1,
+            NoticeSeverity::Warning => warning_count += 1,
+            NoticeSeverity::Info => info_count += 1,
         }
-
-        notices.push(Notice {
-            code: notice.code.clone(),
-            severity: severity_str.to_string(),
-            message: notice.message.clone(),
-            file: notice.file.clone(),
-            row: notice.row,
-            field: notice.field.clone(),
-            context,
-        });
     }
+
+    // Collect raw notices for lazy conversion
+    let raw_notices: Vec<RustNotice> = outcome.notices.iter().cloned().collect();
 
     // Build report JSON
     let summary_context = ReportSummaryContext::new()
@@ -348,7 +337,7 @@ fn run_validation(
         warning_count,
         info_count,
         validation_time_seconds: elapsed.as_secs_f64(),
-        notices,
+        raw_notices,
         report_json,
     })
 }
@@ -405,6 +394,7 @@ fn validate_async(
                 });
 
             run_validation(
+                None,
                 &path_clone,
                 country_code_clone.as_deref(),
                 date_clone.as_deref(),
@@ -474,6 +464,30 @@ fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyObject {
             }
             dict.into()
         }
+    }
+}
+
+/// Convert a Rust ValidationNotice to a Python Notice object.
+fn rust_notice_to_py(notice: &RustNotice) -> Notice {
+    let severity_str = match notice.severity {
+        NoticeSeverity::Error => "ERROR",
+        NoticeSeverity::Warning => "WARNING",
+        NoticeSeverity::Info => "INFO",
+    };
+
+    let mut context = HashMap::new();
+    for (k, v) in &notice.context {
+        context.insert(k.clone(), v.clone());
+    }
+
+    Notice {
+        code: notice.code.clone(),
+        severity: severity_str.to_string(),
+        message: notice.message.clone(),
+        file: notice.file.clone(),
+        row: notice.row,
+        field: notice.field.clone(),
+        context,
     }
 }
 

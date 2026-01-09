@@ -1,5 +1,6 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::PickupDropOffType;
+use gtfs_guru_model::StringId;
 
 const CODE_MISSING_BOOKING_RULE_ID: &str = "missing_pickup_drop_off_booking_rule_id";
 
@@ -26,25 +27,15 @@ impl Validator for PickupBookingRuleIdValidator {
             .headers
             .iter()
             .any(|header| header.eq_ignore_ascii_case("drop_off_type"));
-        let has_start_window = feed
-            .stop_times
-            .headers
-            .iter()
-            .any(|header| header.eq_ignore_ascii_case("start_pickup_drop_off_window"));
-        let has_end_window = feed
-            .stop_times
-            .headers
-            .iter()
-            .any(|header| header.eq_ignore_ascii_case("end_pickup_drop_off_window"));
-
-        if !has_pickup_type && !has_drop_off_type && !has_start_window && !has_end_window {
+        if !has_pickup_type && !has_drop_off_type {
             return;
         }
 
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             if stop_time.start_pickup_drop_off_window.is_some()
-                && !has_value(stop_time.pickup_booking_rule_id.as_deref())
+                && is_must_phone(stop_time.pickup_type)
+                && !has_value(stop_time.pickup_booking_rule_id)
             {
                 notices.push(missing_booking_rule_notice(
                     stop_time,
@@ -54,7 +45,8 @@ impl Validator for PickupBookingRuleIdValidator {
             }
 
             if stop_time.end_pickup_drop_off_window.is_some()
-                && !has_value(stop_time.drop_off_booking_rule_id.as_deref())
+                && is_must_phone(stop_time.drop_off_type)
+                && !has_value(stop_time.drop_off_booking_rule_id)
             {
                 notices.push(missing_booking_rule_notice(
                     stop_time,
@@ -66,8 +58,12 @@ impl Validator for PickupBookingRuleIdValidator {
     }
 }
 
-fn has_value(value: Option<&str>) -> bool {
-    value.map(|val| !val.trim().is_empty()).unwrap_or(false)
+fn has_value(value: Option<StringId>) -> bool {
+    matches!(value, Some(id) if id.0 != 0)
+}
+
+fn is_must_phone(value: Option<PickupDropOffType>) -> bool {
+    matches!(value, Some(PickupDropOffType::MustPhone))
 }
 
 fn missing_booking_rule_notice(
@@ -119,11 +115,13 @@ mod tests {
             headers: vec![
                 "trip_id".into(),
                 "stop_sequence".into(),
+                "pickup_type".into(),
                 "start_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
+                pickup_type: Some(PickupDropOffType::MustPhone),
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 pickup_booking_rule_id: None,
                 ..Default::default()
@@ -147,11 +145,13 @@ mod tests {
             headers: vec![
                 "trip_id".into(),
                 "stop_sequence".into(),
+                "drop_off_type".into(),
                 "end_pickup_drop_off_window".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
+                drop_off_type: Some(PickupDropOffType::MustPhone),
                 end_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
                 drop_off_booking_rule_id: None,
                 ..Default::default()
@@ -179,10 +179,10 @@ mod tests {
                 "pickup_booking_rule_id".into(),
             ],
             rows: vec![StopTime {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 stop_sequence: 1,
                 start_pickup_drop_off_window: Some(GtfsTime::from_seconds(3600)),
-                pickup_booking_rule_id: Some("B1".into()),
+                pickup_booking_rule_id: Some(feed.pool.intern("B1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

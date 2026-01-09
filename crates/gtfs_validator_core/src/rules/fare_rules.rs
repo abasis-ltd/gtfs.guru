@@ -19,18 +19,18 @@ impl Validator for FareRulesValidator {
                 table
                     .rows
                     .iter()
-                    .map(|fare| fare.fare_id.trim())
-                    .filter(|value| !value.is_empty())
+                    .map(|fare| fare.fare_id)
+                    .filter(|id| id.0 != 0)
                     .collect::<HashSet<_>>(),
             ),
             None => None,
         };
-        let route_ids: HashSet<&str> = feed
+        let route_ids: HashSet<gtfs_guru_model::StringId> = feed
             .routes
             .rows
             .iter()
-            .map(|route| route.route_id.trim())
-            .filter(|value| !value.is_empty())
+            .map(|route| route.route_id)
+            .filter(|id| id.0 != 0)
             .collect();
 
         if feed.fare_rules.is_some() && fare_attributes.is_none() {
@@ -41,32 +41,29 @@ impl Validator for FareRulesValidator {
             for (index, rule) in fare_rules.rows.iter().enumerate() {
                 let row_number = fare_rules.row_number(index);
                 if let Some(ref fare_ids) = fare_attributes {
-                    let fare_id = rule.fare_id.trim();
-                    if !fare_id.is_empty() && !fare_ids.contains(fare_id) {
+                    let fare_id = rule.fare_id;
+                    if fare_id.0 != 0 && !fare_ids.contains(&fare_id) {
+                        let fare_id_value = feed.pool.resolve(fare_id);
                         notices.push(foreign_key_notice(
                             FARE_RULES_FILE,
                             "fare_id",
                             FARE_ATTRIBUTES_FILE,
                             "fare_id",
-                            fare_id,
+                            fare_id_value.as_str(),
                             row_number,
                         ));
                     }
                 }
 
-                if let Some(route_id) = rule
-                    .route_id
-                    .as_deref()
-                    .map(|value| value.trim())
-                    .filter(|value| !value.is_empty())
-                {
-                    if !route_ids.contains(route_id) {
+                if let Some(route_id) = rule.route_id.filter(|id| id.0 != 0) {
+                    if !route_ids.contains(&route_id) {
+                        let route_id_value = feed.pool.resolve(route_id);
                         notices.push(foreign_key_notice(
                             FARE_RULES_FILE,
                             "route_id",
                             ROUTES_FILE,
                             "route_id",
-                            route_id,
+                            route_id_value.as_str(),
                             row_number,
                         ));
                     }
@@ -118,7 +115,7 @@ mod tests {
         feed.fare_attributes = Some(CsvTable {
             headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".into(),
+                fare_id: feed.pool.intern("F1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -126,7 +123,7 @@ mod tests {
         feed.fare_rules = Some(CsvTable {
             headers: vec!["fare_id".into()],
             rows: vec![FareRule {
-                fare_id: "UNKNOWN".into(),
+                fare_id: feed.pool.intern("UNKNOWN"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -148,7 +145,7 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -156,8 +153,8 @@ mod tests {
         feed.fare_rules = Some(CsvTable {
             headers: vec!["fare_id".into(), "route_id".into()],
             rows: vec![FareRule {
-                fare_id: "F1".into(),
-                route_id: Some("UNKNOWN".into()),
+                fare_id: feed.pool.intern("F1"),
+                route_id: Some(feed.pool.intern("UNKNOWN")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -176,7 +173,7 @@ mod tests {
         feed.fare_attributes = Some(CsvTable {
             headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".into(),
+                fare_id: feed.pool.intern("F1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -184,7 +181,7 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
+                route_id: feed.pool.intern("R1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -192,8 +189,8 @@ mod tests {
         feed.fare_rules = Some(CsvTable {
             headers: vec!["fare_id".into(), "route_id".into()],
             rows: vec![FareRule {
-                fare_id: "F1".into(),
-                route_id: Some("R1".into()),
+                fare_id: feed.pool.intern("F1"),
+                route_id: Some(feed.pool.intern("R1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

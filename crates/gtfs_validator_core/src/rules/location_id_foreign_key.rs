@@ -18,6 +18,9 @@ impl Validator for LocationIdForeignKeyValidator {
         if locations.has_fatal_errors() {
             return;
         }
+        if feed.table_has_errors(STOP_TIMES_FILE) {
+            return;
+        }
         if !feed
             .stop_times
             .headers
@@ -28,18 +31,14 @@ impl Validator for LocationIdForeignKeyValidator {
         }
 
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            let Some(location_id) = stop_time
-                .location_id
-                .as_deref()
-                .map(|value| value.trim())
-                .filter(|value| !value.is_empty())
-            else {
+            let Some(location_id) = stop_time.location_id.filter(|id| id.0 != 0) else {
                 continue;
             };
 
-            if !locations.location_ids.contains(location_id) {
+            if !locations.location_ids.contains(&location_id) {
+                let location_id_value = feed.pool.resolve(location_id);
                 notices.push(missing_ref_notice(
-                    location_id,
+                    location_id_value.as_str(),
                     feed.stop_times.row_number(index),
                 ));
             }
@@ -84,14 +83,14 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".into(),
-                location_id: Some("L1".into()),
+                stop_id: feed.pool.intern("S1"),
+                location_id: Some(feed.pool.intern("L1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         let mut locations = LocationsGeoJson::default();
-        locations.location_ids = HashSet::from(["L2".into()]);
+        locations.location_ids = HashSet::from([feed.pool.intern("L2")]);
         feed.locations = Some(locations);
 
         let mut notices = NoticeContainer::new();
@@ -110,14 +109,14 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".into(),
-                location_id: Some("L1".into()),
+                stop_id: feed.pool.intern("S1"),
+                location_id: Some(feed.pool.intern("L1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         let mut locations = LocationsGeoJson::default();
-        locations.location_ids = HashSet::from(["L1".into()]);
+        locations.location_ids = HashSet::from([feed.pool.intern("L1")]);
         feed.locations = Some(locations);
 
         let mut notices = NoticeContainer::new();
@@ -132,8 +131,8 @@ mod tests {
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into()],
             rows: vec![StopTime {
-                stop_id: "S1".into(),
-                location_id: Some("L1".into()),
+                stop_id: feed.pool.intern("S1"),
+                location_id: Some(feed.pool.intern("L1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

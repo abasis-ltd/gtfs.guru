@@ -16,15 +16,15 @@ impl Validator for UrlConsistencyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let agency_by_url = agencies_by_url(&feed.agency);
-        let route_by_url = routes_by_url(&feed.routes);
+        let agency_by_url = agencies_by_url(&feed.agency, feed);
+        let route_by_url = routes_by_url(&feed.routes, feed);
 
         for (index, route) in feed.routes.rows.iter().enumerate() {
             let row_number = feed.routes.row_number(index);
-            let Some(route_url) = route.route_url.as_deref() else {
+            let Some(route_url) = route.route_url.map(|id| feed.pool.resolve(id)) else {
                 continue;
             };
-            let route_key = normalize_url(route_url);
+            let route_key = normalize_url(route_url.as_str());
             if route_key.is_empty() {
                 continue;
             }
@@ -36,9 +36,12 @@ impl Validator for UrlConsistencyValidator {
                         "route_url matches agency_url",
                     );
                     notice.insert_context_field("routeCsvRowNumber", row_number);
-                    notice.insert_context_field("routeId", route.route_id.as_str());
+                    notice.insert_context_field(
+                        "routeId",
+                        feed.pool.resolve(route.route_id).as_str(),
+                    );
                     notice.insert_context_field("agencyName", agency.name.as_str());
-                    notice.insert_context_field("routeUrl", route_url);
+                    notice.insert_context_field("routeUrl", route_url.as_str());
                     notice.insert_context_field("agencyCsvRowNumber", agency.row_number);
                     notice.field_order = vec![
                         "agencyCsvRowNumber".into(),
@@ -54,10 +57,10 @@ impl Validator for UrlConsistencyValidator {
 
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
-            let Some(stop_url) = stop.stop_url.as_deref() else {
+            let Some(stop_url) = stop.stop_url.map(|id| feed.pool.resolve(id)) else {
                 continue;
             };
-            let stop_key = normalize_url(stop_url);
+            let stop_key = normalize_url(stop_url.as_str());
             if stop_key.is_empty() {
                 continue;
             }
@@ -69,9 +72,9 @@ impl Validator for UrlConsistencyValidator {
                         "stop_url matches agency_url",
                     );
                     notice.insert_context_field("stopCsvRowNumber", row_number);
-                    notice.insert_context_field("stopId", stop.stop_id.as_str());
+                    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
                     notice.insert_context_field("agencyName", agency.name.as_str());
-                    notice.insert_context_field("stopUrl", stop_url);
+                    notice.insert_context_field("stopUrl", stop_url.as_str());
                     notice.insert_context_field("agencyCsvRowNumber", agency.row_number);
                     notice.field_order = vec![
                         "agencyCsvRowNumber".into(),
@@ -91,9 +94,12 @@ impl Validator for UrlConsistencyValidator {
                         "stop_url matches route_url",
                     );
                     notice.insert_context_field("stopCsvRowNumber", row_number);
-                    notice.insert_context_field("stopId", stop.stop_id.as_str());
-                    notice.insert_context_field("stopUrl", stop_url);
-                    notice.insert_context_field("routeId", route_entry.route_id.as_str());
+                    notice.insert_context_field("stopId", feed.pool.resolve(stop.stop_id).as_str());
+                    notice.insert_context_field("stopUrl", stop_url.as_str());
+                    notice.insert_context_field(
+                        "routeId",
+                        feed.pool.resolve(route_entry.route_id).as_str(),
+                    );
                     notice.insert_context_field("routeCsvRowNumber", route_entry.row_number);
                     notice.field_order = vec![
                         "routeCsvRowNumber".into(),
@@ -115,10 +121,11 @@ fn normalize_url(value: &str) -> String {
 
 fn agencies_by_url(
     agencies: &crate::CsvTable<gtfs_guru_model::Agency>,
+    feed: &GtfsFeed,
 ) -> HashMap<String, Vec<AgencyEntry>> {
     let mut map = HashMap::new();
     for (index, agency) in agencies.rows.iter().enumerate() {
-        let key = normalize_url(&agency.agency_url);
+        let key = normalize_url(feed.pool.resolve(agency.agency_url).as_str());
         if key.is_empty() {
             continue;
         }
@@ -132,19 +139,20 @@ fn agencies_by_url(
 
 fn routes_by_url(
     routes: &crate::CsvTable<gtfs_guru_model::Route>,
+    feed: &GtfsFeed,
 ) -> HashMap<String, Vec<RouteEntry>> {
     let mut map = HashMap::new();
     for (index, route) in routes.rows.iter().enumerate() {
-        let Some(route_url) = route.route_url.as_deref() else {
+        let Some(route_url) = route.route_url.map(|id| feed.pool.resolve(id)) else {
             continue;
         };
-        let key = normalize_url(route_url);
+        let key = normalize_url(route_url.as_str());
         if key.is_empty() {
             continue;
         }
         map.entry(key).or_insert_with(Vec::new).push(RouteEntry {
             row_number: routes.row_number(index),
-            route_id: route.route_id.clone(),
+            route_id: route.route_id,
         });
     }
     map
@@ -159,7 +167,7 @@ struct AgencyEntry {
 #[derive(Debug, Clone)]
 struct RouteEntry {
     row_number: u64,
-    route_id: CompactString,
+    route_id: gtfs_guru_model::StringId,
 }
 
 #[cfg(test)]
@@ -179,23 +187,19 @@ mod tests {
                 "agency_timezone".into(),
             ],
             rows: vec![Agency {
-                agency_id: Some("A1".into()),
+                agency_id: Some(feed.pool.intern("A1")),
                 agency_name: "Agency A".into(),
-                agency_url: "http://example.com/agency".into(),
+                agency_url: feed.pool.intern("http://example.com/agency"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.routes = CsvTable {
-            headers: vec![
-                "route_id".into(),
-                "agency_id".into(),
-                "route_url".into(),
-            ],
+            headers: vec!["route_id".into(), "agency_id".into(), "route_url".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
-                agency_id: Some("A1".into()),
-                route_url: Some("http://example.com/agency".into()), // Same as agency
+                route_id: feed.pool.intern("R1"),
+                agency_id: Some(feed.pool.intern("A1")),
+                route_url: Some(feed.pool.intern("http://example.com/agency")), // Same as agency
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -220,9 +224,9 @@ mod tests {
                 "agency_timezone".into(),
             ],
             rows: vec![Agency {
-                agency_id: Some("A1".into()),
+                agency_id: Some(feed.pool.intern("A1")),
                 agency_name: "Agency A".into(),
-                agency_url: "http://example.com/agency".into(),
+                agency_url: feed.pool.intern("http://example.com/agency"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -230,8 +234,8 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "stop_url".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
-                stop_url: Some("http://example.com/agency".into()), // Same as agency
+                stop_id: feed.pool.intern("S1"),
+                stop_url: Some(feed.pool.intern("http://example.com/agency")), // Same as agency
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -251,8 +255,8 @@ mod tests {
         feed.routes = CsvTable {
             headers: vec!["route_id".into(), "route_url".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
-                route_url: Some("http://example.com/route".into()),
+                route_id: feed.pool.intern("R1"),
+                route_url: Some(feed.pool.intern("http://example.com/route")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -260,8 +264,8 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "stop_url".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
-                stop_url: Some("http://example.com/route".into()), // Same as route
+                stop_id: feed.pool.intern("S1"),
+                stop_url: Some(feed.pool.intern("http://example.com/route")), // Same as route
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -286,23 +290,19 @@ mod tests {
                 "agency_timezone".into(),
             ],
             rows: vec![Agency {
-                agency_id: Some("A1".into()),
+                agency_id: Some(feed.pool.intern("A1")),
                 agency_name: "Agency A".into(),
-                agency_url: "http://example.com/agency".into(),
+                agency_url: feed.pool.intern("http://example.com/agency"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
         };
         feed.routes = CsvTable {
-            headers: vec![
-                "route_id".into(),
-                "agency_id".into(),
-                "route_url".into(),
-            ],
+            headers: vec!["route_id".into(), "agency_id".into(), "route_url".into()],
             rows: vec![Route {
-                route_id: "R1".into(),
-                agency_id: Some("A1".into()),
-                route_url: Some("http://example.com/route".into()),
+                route_id: feed.pool.intern("R1"),
+                agency_id: Some(feed.pool.intern("A1")),
+                route_url: Some(feed.pool.intern("http://example.com/route")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -310,8 +310,8 @@ mod tests {
         feed.stops = CsvTable {
             headers: vec!["stop_id".into(), "stop_url".into()],
             rows: vec![Stop {
-                stop_id: "S1".into(),
-                stop_url: Some("http://example.com/stop".into()),
+                stop_id: feed.pool.intern("S1"),
+                stop_url: Some(feed.pool.intern("http://example.com/stop")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

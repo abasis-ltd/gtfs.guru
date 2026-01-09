@@ -28,24 +28,31 @@ impl Validator for BookingRulesEntityValidator {
 
         for (index, rule) in booking_rules.rows.iter().enumerate() {
             let row_number = booking_rules.row_number(index);
-            validate_booking_type(rule, row_number, notices);
-            validate_prior_notice_duration_min(rule, row_number, notices);
-            validate_prior_notice_start_day(rule, row_number, notices);
+            let booking_rule_id = feed.pool.resolve(rule.booking_rule_id);
+            let booking_rule_id = booking_rule_id.as_str();
+            validate_booking_type(rule, booking_rule_id, row_number, notices);
+            validate_prior_notice_duration_min(rule, booking_rule_id, row_number, notices);
+            validate_prior_notice_start_day(rule, booking_rule_id, row_number, notices);
             validate_prior_notice_day_range(rule, row_number, notices);
-            validate_missing_prior_day_fields(rule, row_number, notices);
-            validate_prior_notice_start_time(rule, row_number, notices);
+            validate_missing_prior_day_fields(rule, booking_rule_id, row_number, notices);
+            validate_prior_notice_start_time(rule, booking_rule_id, row_number, notices);
         }
     }
 }
 
-fn validate_booking_type(rule: &BookingRules, row_number: u64, notices: &mut NoticeContainer) {
+fn validate_booking_type(
+    rule: &BookingRules,
+    booking_rule_id: &str,
+    row_number: u64,
+    notices: &mut NoticeContainer,
+) {
     match rule.booking_type {
         BookingType::Realtime => {
             let forbidden = find_forbidden_fields_realtime(rule);
             if !forbidden.is_empty() {
                 notices.push(forbidden_realtime_fields_notice(
                     "REALTIME",
-                    &rule.booking_rule_id,
+                    booking_rule_id,
                     &forbidden,
                     row_number,
                 ));
@@ -56,7 +63,7 @@ fn validate_booking_type(rule: &BookingRules, row_number: u64, notices: &mut Not
             if !forbidden.is_empty() {
                 notices.push(forbidden_same_day_fields_notice(
                     "SAMEDAY",
-                    &rule.booking_rule_id,
+                    booking_rule_id,
                     &forbidden,
                     row_number,
                 ));
@@ -67,7 +74,7 @@ fn validate_booking_type(rule: &BookingRules, row_number: u64, notices: &mut Not
             if !forbidden.is_empty() {
                 notices.push(forbidden_prior_day_fields_notice(
                     "PRIORDAY",
-                    &rule.booking_rule_id,
+                    booking_rule_id,
                     &forbidden,
                     row_number,
                 ));
@@ -79,12 +86,13 @@ fn validate_booking_type(rule: &BookingRules, row_number: u64, notices: &mut Not
 
 fn validate_prior_notice_duration_min(
     rule: &BookingRules,
+    booking_rule_id: &str,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
     if rule.booking_type == BookingType::SameDay && rule.prior_notice_duration_min.is_none() {
         notices.push(missing_prior_notice_duration_min_notice(
-            &rule.booking_rule_id,
+            booking_rule_id,
             row_number,
         ));
     }
@@ -95,7 +103,7 @@ fn validate_prior_notice_duration_min(
     ) {
         if max < min {
             notices.push(invalid_duration_min_notice(
-                &rule.booking_rule_id,
+                booking_rule_id,
                 min,
                 max,
                 row_number,
@@ -106,12 +114,13 @@ fn validate_prior_notice_duration_min(
 
 fn validate_prior_notice_start_day(
     rule: &BookingRules,
+    booking_rule_id: &str,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
     if rule.prior_notice_duration_max.is_some() && rule.prior_notice_start_day.is_some() {
         notices.push(forbidden_prior_notice_start_day_notice(
-            &rule.booking_rule_id,
+            booking_rule_id,
             row_number,
             rule.prior_notice_duration_max,
             rule.prior_notice_start_day,
@@ -137,6 +146,7 @@ fn validate_prior_notice_day_range(
 
 fn validate_missing_prior_day_fields(
     rule: &BookingRules,
+    booking_rule_id: &str,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -146,13 +156,13 @@ fn validate_missing_prior_day_fields(
 
     if rule.prior_notice_last_day.is_none() {
         notices.push(missing_prior_notice_last_day_notice(
-            &rule.booking_rule_id,
+            booking_rule_id,
             row_number,
         ));
     }
     if rule.prior_notice_last_time.is_none() {
         notices.push(missing_prior_notice_last_time_notice(
-            &rule.booking_rule_id,
+            booking_rule_id,
             row_number,
         ));
     }
@@ -160,6 +170,7 @@ fn validate_missing_prior_day_fields(
 
 fn validate_prior_notice_start_time(
     rule: &BookingRules,
+    booking_rule_id: &str,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -168,12 +179,12 @@ fn validate_prior_notice_start_time(
         rule.prior_notice_start_day.is_some(),
     ) {
         (true, false) => notices.push(forbidden_prior_notice_start_time_notice(
-            &rule.booking_rule_id,
+            booking_rule_id,
             row_number,
             rule.prior_notice_start_time,
         )),
         (false, true) => notices.push(missing_prior_notice_start_time_notice(
-            &rule.booking_rule_id,
+            booking_rule_id,
             row_number,
             rule.prior_notice_start_day,
         )),
@@ -513,7 +524,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.booking_rules = Some(CsvTable {
             rows: vec![BookingRules {
-                booking_rule_id: "R1".into(),
+                booking_rule_id: feed.pool.intern("R1"),
                 booking_type: BookingType::Realtime,
                 prior_notice_duration_min: Some(10), // Forbidden
                 ..Default::default()
@@ -536,7 +547,7 @@ mod tests {
         let mut feed = GtfsFeed::default();
         feed.booking_rules = Some(CsvTable {
             rows: vec![BookingRules {
-                booking_rule_id: "R1".into(),
+                booking_rule_id: feed.pool.intern("R1"),
                 booking_type: BookingType::SameDay,
                 prior_notice_duration_min: None, // Required
                 ..Default::default()

@@ -23,10 +23,11 @@ impl Validator for TransferDistanceValidator {
             return;
         }
 
-        let mut stops_by_id: HashMap<&str, &gtfs_guru_model::Stop> = HashMap::new();
+        let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
+            HashMap::new();
         for stop in &feed.stops.rows {
-            let stop_id = stop.stop_id.trim();
-            if stop_id.is_empty() {
+            let stop_id = stop.stop_id;
+            if stop_id.0 == 0 {
                 continue;
             }
             stops_by_id.insert(stop_id, stop);
@@ -34,12 +35,9 @@ impl Validator for TransferDistanceValidator {
 
         for (index, transfer) in transfers.rows.iter().enumerate() {
             let row_number = transfers.row_number(index);
-            let from_stop_id = transfer.from_stop_id.as_deref();
-            let to_stop_id = transfer.to_stop_id.as_deref();
-            let (Some(from_stop_id), Some(to_stop_id)) = (
-                trimmed_non_empty(from_stop_id),
-                trimmed_non_empty(to_stop_id),
-            ) else {
+            let from_stop_id = transfer.from_stop_id.filter(|id| id.0 != 0);
+            let to_stop_id = transfer.to_stop_id.filter(|id| id.0 != 0);
+            let (Some(from_stop_id), Some(to_stop_id)) = (from_stop_id, to_stop_id) else {
                 continue;
             };
 
@@ -54,23 +52,27 @@ impl Validator for TransferDistanceValidator {
             let distance_km = distance_meters / 1000.0;
 
             if distance_meters > MAX_DISTANCE_METERS {
+                let from_stop_id_value = feed.pool.resolve(from_stop_id);
+                let to_stop_id_value = feed.pool.resolve(to_stop_id);
                 notices.push(transfer_distance_notice(
                     CODE_TRANSFER_DISTANCE_TOO_LARGE,
                     NoticeSeverity::Warning,
                     "transfer distance is larger than 10 km",
                     row_number,
-                    from_stop_id,
-                    to_stop_id,
+                    from_stop_id_value.as_str(),
+                    to_stop_id_value.as_str(),
                     distance_km,
                 ));
             } else if distance_meters > INFO_DISTANCE_METERS {
+                let from_stop_id_value = feed.pool.resolve(from_stop_id);
+                let to_stop_id_value = feed.pool.resolve(to_stop_id);
                 notices.push(transfer_distance_notice(
                     CODE_TRANSFER_DISTANCE_ABOVE_2_KM,
                     NoticeSeverity::Info,
                     "transfer distance is larger than 2 km",
                     row_number,
-                    from_stop_id,
-                    to_stop_id,
+                    from_stop_id_value.as_str(),
+                    to_stop_id_value.as_str(),
                     distance_km,
                 ));
             }
@@ -87,29 +89,20 @@ fn has_transfer_stop_headers(headers: &[String]) -> bool {
             .any(|header| header.eq_ignore_ascii_case("to_stop_id"))
 }
 
-fn trimmed_non_empty(value: Option<&str>) -> Option<&str> {
-    value.map(|val| val.trim()).filter(|val| !val.is_empty())
-}
-
 fn stop_or_parent_coords(
-    stop_id: &str,
-    stops_by_id: &HashMap<&str, &gtfs_guru_model::Stop>,
+    stop_id: gtfs_guru_model::StringId,
+    stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
 ) -> Option<(f64, f64)> {
     let mut current = stop_id;
     for _ in 0..3 {
-        let stop = match stops_by_id.get(current) {
+        let stop = match stops_by_id.get(&current) {
             Some(stop) => *stop,
             None => break,
         };
         if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
             return Some((lat, lon));
         }
-        if let Some(parent_station) = stop
-            .parent_station
-            .as_deref()
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-        {
+        if let Some(parent_station) = stop.parent_station.filter(|id| id.0 != 0) {
             current = parent_station;
         } else {
             break;
@@ -164,20 +157,16 @@ mod tests {
     fn detects_distance_too_large() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".into(),
-                "stop_lat".into(),
-                "stop_lon".into(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     stop_lat: Some(45.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     stop_lat: Some(45.1), // Approx 11km north
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -188,8 +177,8 @@ mod tests {
         feed.transfers = Some(CsvTable {
             headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -207,20 +196,16 @@ mod tests {
     fn detects_distance_above_2_km() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".into(),
-                "stop_lat".into(),
-                "stop_lon".into(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     stop_lat: Some(45.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     stop_lat: Some(45.02), // Approx 2.2km north
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -231,8 +216,8 @@ mod tests {
         feed.transfers = Some(CsvTable {
             headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -250,20 +235,16 @@ mod tests {
     fn passes_when_short_distance() {
         let mut feed = GtfsFeed::default();
         feed.stops = CsvTable {
-            headers: vec![
-                "stop_id".into(),
-                "stop_lat".into(),
-                "stop_lon".into(),
-            ],
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
             rows: vec![
                 Stop {
-                    stop_id: "S1".into(),
+                    stop_id: feed.pool.intern("S1"),
                     stop_lat: Some(45.0),
                     stop_lon: Some(0.0),
                     ..Default::default()
                 },
                 Stop {
-                    stop_id: "S2".into(),
+                    stop_id: feed.pool.intern("S2"),
                     stop_lat: Some(45.001), // Approx 111m north
                     stop_lon: Some(0.0),
                     ..Default::default()
@@ -274,8 +255,8 @@ mod tests {
         feed.transfers = Some(CsvTable {
             headers: vec!["from_stop_id".into(), "to_stop_id".into()],
             rows: vec![Transfer {
-                from_stop_id: Some("S1".into()),
-                to_stop_id: Some("S2".into()),
+                from_stop_id: Some(feed.pool.intern("S1")),
+                to_stop_id: Some(feed.pool.intern("S2")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

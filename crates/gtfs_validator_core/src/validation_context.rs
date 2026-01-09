@@ -1,6 +1,8 @@
 use std::cell::{Cell, RefCell};
 
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
+#[cfg(not(target_arch = "wasm32"))]
+use chrono::Utc;
 
 thread_local! {
     static VALIDATION_DATE: Cell<Option<NaiveDate>> = const { Cell::new(None) };

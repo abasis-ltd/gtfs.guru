@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How Do I Create a GTFS File? | GTFS Guru</title>
+  <meta name="description"
+    content="Create a GTFS file by making CSV files for your stops, routes, and schedules, then packaging them in a ZIP. Here's a quick guide to get started.">
+  <link rel="canonical" href="https://gtfs.guru/how-to-create-gtfs-file.html">
+  <link rel="icon" type="image/png" href="favicon.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="GTFS Guru">
+  <meta property="og:title" content="How Do I Create a GTFS File? | GTFS Guru">
+  <meta property="og:description"
+    content="Create a GTFS file by making CSV files for your stops, routes, and schedules, then packaging them in a ZIP. Here's a quick guide to get started.">
+  <meta property="og:image" content="https://gtfs.guru/og-image.png">
+  <meta property="og:url" content="https://gtfs.guru/how-to-create-gtfs-file.html">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How Do I Create a GTFS File? | GTFS Guru">
+  <meta name="twitter:description"
+    content="Create a GTFS file by making CSV files for your stops, routes, and schedules, then packaging them in a ZIP. Here's a quick guide to get started.">
+  <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "How do I create a GTFS file?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Create CSV text files for agency info, stops, routes, trips, stop times, and calendar. Put them in a ZIP file. You can use spreadsheet software like Excel or Google Sheets, then export to CSV format."
+      }
+    }]
+  }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+    rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+  <div class="bg-gradient-orb orb-1"></div>
+  <div class="grid-overlay"></div>
+
+  <nav class="glass-nav">
+    <div class="container nav-container">
+      <a href="index.html" class="logo">
+        <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+        <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#validator">Web Validator</a>
+        <a href="index.html#download">Download App</a>
+        <a href="index.html#faq">FAQ</a>
+        <a href="faq.html" class="active">Guides</a>
+        <a href="contact.html">Contact</a>
+        <a href="index.html#developers">Developers</a>
+        <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+      </div>
+      <a href="index.html#download" class="btn btn-primary">Start Validating</a>
+    </div>
+  </nav>
+
+  <article class="faq-article">
+    <a href="faq.html" class="faq-back-link"><i data-lucide="arrow-left"></i> Back to Guides</a>
+
+    <h1>How Do I Create a GTFS File?</h1>
+
+    <p class="short-answer"><strong>A GTFS "file" is just a ZIP archive filled with simple CSV text files. You can
+        create them using spreadsheets, text editors, or specialized tools.</strong></p>
+
+    <h2>What You'll Need</h2>
+
+    <p>Before you start typing, make sure you have these details ready:</p>
+    <p>• Stop locations with GPS coordinates (latitude and longitude).</p>
+    <p>• Your route names and numbers.</p>
+    <p>• Full timetables (arrival times for every stop).</p>
+    <p>• Which days you operate (weekdays vs. weekends).</p>
+    <p>• Basic agency info like your website and timezone.</p>
+
+    <h2>The Required Files</h2>
+
+    <p>A minimal GTFS feed needs these six files:</p>
+
+    <h3>1. agency.txt</h3>
+    <pre><code>agency_id,agency_name,agency_url,agency_timezone
+mybus,My Bus Company,https://mybus.com,America/New_York</code></pre>
+
+    <h3>2. stops.txt</h3>
+    <pre><code>stop_id,stop_name,stop_lat,stop_lon
+stop1,Main Street Station,40.7128,-74.0060
+stop2,Central Park,40.7829,-73.9654</code></pre>
+
+    <h3>3. routes.txt</h3>
+    <pre><code>route_id,route_short_name,route_long_name,route_type
+route1,42,Downtown Express,3</code></pre>
+    <p>(route_type 3 = bus)</p>
+
+    <h3>4. trips.txt</h3>
+    <pre><code>route_id,service_id,trip_id
+route1,weekday,trip1
+route1,weekday,trip2</code></pre>
+
+    <h3>5. stop_times.txt</h3>
+    <pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
+trip1,08:00:00,08:00:00,stop1,1
+trip1,08:30:00,08:30:00,stop2,2</code></pre>
+
+    <h3>6. calendar.txt</h3>
+    <pre><code>service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
+weekday,1,1,1,1,1,0,0,20240101,20241231</code></pre>
+
+    <h2>Tools to Create GTFS</h2>
+
+    <p><strong>Spreadsheets:</strong> Most people start with Excel or Google Sheets. Create a sheet for each file, and
+      export them as "CSV UTF-8." It's the easiest way to manage columns.</p>
+
+    <p><strong>Text Editors:</strong> If you're tech-savvy and your system is small, you can edit the CSV files directly
+      in Notepad++ or VS Code.</p>
+
+    <p><strong>Transit Software:</strong> If you use scheduling software, check if it has a "GTFS Export" button – many
+      do!</p>
+
+    <h2>Package Your Feed</h2>
+
+    <p>Put all .txt files into a ZIP archive. The files must be at the root level (not inside a folder):</p>
+
+    <pre><code>feed.zip
+├── agency.txt
+├── stops.txt
+├── routes.txt
+├── trips.txt
+├── stop_times.txt
+└── calendar.txt</code></pre>
+
+    <h2>Validate Before Publishing</h2>
+
+    <p>Never publish without checking your work. Small typos can break your whole schedule. Look out for:</p>
+    <p>• Typos in ID names.</p>
+    <p>• Wonky GPS coordinates.</p>
+    <p>• Wrong time formats (always use HH:MM:SS).</p>
+
+    <p>Use <a href="https://gtfs.guru">GTFS Guru</a> to catch these mistakes instantly before they reach your riders.
+    </p>
+
+    <h2>Next Steps</h2>
+
+    <p>Once your feed validates without errors:</p>
+    <p>1. Host it at a public URL</p>
+    <p>2. Submit to Google Transit Partner Dashboard</p>
+    <p>3. Also submit to Apple Maps, Transit App, etc.</p>
+
+    <h2>Related Questions</h2>
+    <p>• <a href="what-does-gtfs-stand-for.html">What does GTFS stand for?</a></p>
+    <p>• <a href="how-to-get-my-bus-on-google-maps.html">How do I get my bus on Google Maps?</a></p>
+    <p>• <a href="why-is-my-gtfs-rejected.html">Why was my GTFS feed rejected?</a></p>
+
+    <p>For a complete tutorial, see our <a href="how-to-create-gtfs-feed.html">step-by-step GTFS creation guide</a>.</p>
+
+    <div class="cta-box">
+      <p>Created your feed? <a href="https://gtfs.guru">Validate it for free</a> before publishing.</p>
+    </div>
+
+  </article>
+
+  <footer>
+    <div class="container footer-container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+        <span class="logo-text">GTFS.Guru</span>
+        <p>by Abasis.AI</p>
+      </div>
+      <div class="footer-links">
+        <a href="index.html#faq">FAQ</a>
+        <a href="faq.html">Guides</a>
+        <a href="contact.html">Contact</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+      </div>
+      <div class="footer-copy">
+        &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons();
+    } else {
+      window.addEventListener('load', function () {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+          lucide.createIcons();
+        }
+      });
+    }
+  </script>
+
+</body>
+
+</html>

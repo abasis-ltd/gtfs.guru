@@ -14,13 +14,9 @@ mod tests {
     fn detects_start_after_end() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "start_time".into(),
-                "end_time".into(),
-            ],
+            headers: vec!["trip_id".into(), "start_time".into(), "end_time".into()],
             rows: vec![Frequency {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 start_time: GtfsTime::parse("10:00:00").unwrap(),
                 end_time: GtfsTime::parse("08:00:00").unwrap(),
                 headway_secs: 600,
@@ -43,13 +39,9 @@ mod tests {
     fn detects_start_equals_end() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "start_time".into(),
-                "end_time".into(),
-            ],
+            headers: vec!["trip_id".into(), "start_time".into(), "end_time".into()],
             rows: vec![Frequency {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),
                 end_time: GtfsTime::parse("08:00:00").unwrap(),
                 headway_secs: 600,
@@ -72,13 +64,9 @@ mod tests {
     fn passes_with_valid_frequency() {
         let mut feed = GtfsFeed::default();
         feed.frequencies = Some(CsvTable {
-            headers: vec![
-                "trip_id".into(),
-                "start_time".into(),
-                "end_time".into(),
-            ],
+            headers: vec!["trip_id".into(), "start_time".into(), "end_time".into()],
             rows: vec![Frequency {
-                trip_id: "T1".into(),
+                trip_id: feed.pool.intern("T1"),
                 start_time: GtfsTime::parse("08:00:00").unwrap(),
                 end_time: GtfsTime::parse("10:00:00").unwrap(),
                 headway_secs: 600,
@@ -106,7 +94,8 @@ impl Validator for FrequenciesValidator {
         if let Some(frequencies) = &feed.frequencies {
             for (index, freq) in frequencies.rows.iter().enumerate() {
                 let row_number = frequencies.row_number(index);
-                let trip_id = freq.trip_id.trim();
+                let trip_id = freq.trip_id;
+                let trip_id_value = feed.pool.resolve(trip_id);
                 let start_value = freq.start_time.to_string();
                 let end_value = freq.end_time.to_string();
                 let start = freq.start_time.total_seconds();
@@ -120,7 +109,7 @@ impl Validator for FrequenciesValidator {
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("endFieldName", "end_time");
                     notice.insert_context_field("endValue", end_value);
-                    notice.insert_context_field("entityId", trip_id);
+                    notice.insert_context_field("entityId", trip_id_value.as_str());
                     notice.insert_context_field("filename", FREQUENCIES_FILE);
                     notice.insert_context_field("startFieldName", "start_time");
                     notice.insert_context_field("startValue", start_value);
@@ -142,7 +131,7 @@ impl Validator for FrequenciesValidator {
                     );
                     notice.insert_context_field("csvRowNumber", row_number);
                     notice.insert_context_field("endFieldName", "end_time");
-                    notice.insert_context_field("entityId", trip_id);
+                    notice.insert_context_field("entityId", trip_id_value.as_str());
                     notice.insert_context_field("filename", FREQUENCIES_FILE);
                     notice.insert_context_field("startFieldName", "start_time");
                     notice.insert_context_field("value", start_value);

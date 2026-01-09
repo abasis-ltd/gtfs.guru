@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact | GTFS.Guru</title>
+    <meta name="description" content="Contact the GTFS.Guru team">
+    <link rel="canonical" href="https://gtfs.guru/contact.html">
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="Contact | GTFS Guru">
+    <meta property="og:description"
+        content="Contact the GTFS Guru team for questions, feature requests, or enterprise support.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:url" content="https://gtfs.guru/contact.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Contact | GTFS Guru">
+    <meta name="twitter:description"
+        content="Contact the GTFS Guru team for questions, feature requests, or enterprise support.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS<span class="highlight">.Guru</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html#validator">Web Validator</a>
+                <a href="index.html#download">Download App</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="contact.html" class="active">Contact</a>
+                <a href="index.html#developers">Developers</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+            </div>
+            <a href="index.html#download" class="btn btn-primary">Start Validating</a>
+        </div>
+    </nav>
+
+    <div class="container" style="padding-top: 160px; padding-bottom: 80px; min-height: 80vh;">
+        <h1 style="margin-bottom: 2rem;">Get in Touch</h1>
+
+        <div class="glass-card" style="padding: 3rem;">
+            <p class="lead" style="margin-bottom: 2rem;">
+                Have questions, feature requests, or need enterprise support? We'd love to hear from you.
+            </p>
+
+            <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+
+                <div style="flex: 1; min-width: 300px;">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-primary);">
+                        <i data-lucide="mail" style="vertical-align: middle; margin-right: 8px;"></i> Email
+                    </h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        For general inquiries and support:
+                    </p>
+                    <a href="mailto:gtfs@abasis.ai"
+                        style="font-size: 1.2rem; color: var(--accent-primary); text-decoration: none;">gtfs@abasis.ai</a>
+                </div>
+
+                <div style="flex: 1; min-width: 300px;">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-primary);">
+                        <i data-lucide="github" style="vertical-align: middle; margin-right: 8px;"></i> GitHub
+                    </h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        For bug reports and technical contributions:
+                    </p>
+                    <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank"
+                        style="font-size: 1.2rem; color: var(--accent-primary); text-decoration: none;">abasis-ltd/gtfs.guru</a>
+                </div>
+
+            </div>
+
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 3rem 0;">
+
+            <h3 style="margin-bottom: 1rem;">Developed by Abasis.AI</h3>
+            <p style="color: var(--text-secondary);">
+                We build AI systems and drive AI Transformations of business processes.
+            </p>
+            <a href="https://abasis.ai" target="_blank" class="btn btn-secondary" style="margin-top: 1rem;">Visit
+                Website</a>
+
+        </div>
+    </div>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons with error handling
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

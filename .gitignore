@@ -9,9 +9,21 @@ google-transitfeed/
 __pycache__/
 *.pyc
 
+# Logs
+*.log
+
 # Local config
 .env
 
 # Local test files
 /tmp/
 /benchmark-feeds/
+/test-gtfs-feeds/
+/mobility-data-test-feeds/
+/expected-nl/
+
+# Benchmark and test outputs
+/output*/
+/verification_report*/
+/benchmark-java/
+/benchmark-rust/

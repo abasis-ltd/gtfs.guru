@@ -24,7 +24,7 @@ fn test_version() {
 
 #[wasm_bindgen_test]
 fn test_validate_empty_bytes() {
-    let result = validate_gtfs(&[], None);
+    let result = validate_gtfs(&[], None, None).expect("Validation should not fail");
     // Empty bytes should produce errors
     assert!(
         result.error_count() > 0,
@@ -36,7 +36,7 @@ fn test_validate_empty_bytes() {
 #[wasm_bindgen_test]
 fn test_validate_invalid_zip() {
     let invalid_data = vec![0u8; 100];
-    let result = validate_gtfs(&invalid_data, None);
+    let result = validate_gtfs(&invalid_data, None, None).expect("Validation should not fail");
     // Invalid ZIP should produce errors
     assert!(
         result.error_count() > 0,
@@ -48,13 +48,14 @@ fn test_validate_invalid_zip() {
 #[wasm_bindgen_test]
 fn test_validate_with_country_code() {
     // Should handle country code without panicking
-    let result = validate_gtfs(&[], Some("US".to_string()));
+    let result =
+        validate_gtfs(&[], Some("US".to_string()), None).expect("Validation should not fail");
     assert!(result.error_count() > 0);
 }
 
 #[wasm_bindgen_test]
 fn test_validate_json_returns_valid_json() {
-    let json = validate_gtfs_json(&[], None);
+    let json = validate_gtfs_json(&[], None, None).expect("Validation should not fail");
     // Should be valid JSON (at minimum an empty array or error object)
     assert!(
         json.starts_with('[') || json.starts_with('{'),
@@ -64,7 +65,7 @@ fn test_validate_json_returns_valid_json() {
 
 #[wasm_bindgen_test]
 fn test_validation_result_accessors() {
-    let result = validate_gtfs(&[], None);
+    let result = validate_gtfs(&[], None, None).expect("Validation should not fail");
 
     // All accessors should work without panic
     let _ = result.json();
@@ -76,7 +77,7 @@ fn test_validation_result_accessors() {
 
 #[wasm_bindgen_test]
 fn test_json_parseable() {
-    let result = validate_gtfs(&[], None);
+    let result = validate_gtfs(&[], None, None).expect("Validation should not fail");
     let json = result.json();
 
     // JSON should be parseable

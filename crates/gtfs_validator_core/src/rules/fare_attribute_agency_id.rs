@@ -1,5 +1,6 @@
 use crate::feed::FARE_ATTRIBUTES_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_guru_model::StringId;
 
 const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
 const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
@@ -24,7 +25,7 @@ impl Validator for FareAttributeAgencyIdValidator {
 
         for (index, fare) in fare_attributes.rows.iter().enumerate() {
             let row_number = fare_attributes.row_number(index);
-            if !has_value(fare.agency_id.as_deref()) {
+            if !has_value(fare.agency_id) {
                 let (code, severity, message) = if total_agencies > 1 {
                     (
                         CODE_MISSING_REQUIRED_FIELD,
@@ -42,19 +43,16 @@ impl Validator for FareAttributeAgencyIdValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", FARE_ATTRIBUTES_FILE);
-                notice.field_order = vec![
-                    "csvRowNumber".into(),
-                    "fieldName".into(),
-                    "filename".into(),
-                ];
+                notice.field_order =
+                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
                 notices.push(notice);
             }
         }
     }
 }
 
-fn has_value(value: Option<&str>) -> bool {
-    value.map(|val| !val.trim().is_empty()).unwrap_or(false)
+fn has_value(value: Option<StringId>) -> bool {
+    matches!(value, Some(id) if id.0 != 0)
 }
 
 #[cfg(test)]
@@ -77,7 +75,7 @@ mod tests {
         feed.fare_attributes = Some(CsvTable {
             headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".into(),
+                fare_id: feed.pool.intern("F1"),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -114,7 +112,7 @@ mod tests {
         feed.fare_attributes = Some(CsvTable {
             headers: vec!["fare_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".into(),
+                fare_id: feed.pool.intern("F1"),
                 agency_id: None,
                 ..Default::default()
             }],
@@ -137,7 +135,7 @@ mod tests {
         feed.agency = CsvTable {
             headers: vec!["agency_id".into(), "agency_name".into()],
             rows: vec![Agency {
-                agency_id: Some("A1".into()),
+                agency_id: Some(feed.pool.intern("A1")),
                 agency_name: "Agency".into(),
                 ..Default::default()
             }],
@@ -146,8 +144,8 @@ mod tests {
         feed.fare_attributes = Some(CsvTable {
             headers: vec!["fare_id".into(), "agency_id".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".into(),
-                agency_id: Some("A1".into()),
+                fare_id: feed.pool.intern("F1"),
+                agency_id: Some(feed.pool.intern("A1")),
                 ..Default::default()
             }],
             row_numbers: vec![2],

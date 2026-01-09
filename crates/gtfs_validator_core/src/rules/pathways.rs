@@ -99,7 +99,7 @@ mod tests {
         feed.pathways = Some(CsvTable {
             headers: vec!["pathway_id".into(), "pathway_mode".into()],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
+                pathway_id: feed.pool.intern("P1"),
                 pathway_mode: PathwayMode::Walkway,
                 length: None,
                 ..Default::default()
@@ -121,7 +121,7 @@ mod tests {
         feed.pathways = Some(CsvTable {
             headers: vec!["pathway_id".into(), "traversal_time".into()],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
+                pathway_id: feed.pool.intern("P1"),
                 traversal_time: Some(0),
                 ..Default::default()
             }],
@@ -141,7 +141,7 @@ mod tests {
         feed.pathways = Some(CsvTable {
             headers: vec!["pathway_id".into(), "pathway_mode".into()],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
+                pathway_id: feed.pool.intern("P1"),
                 pathway_mode: PathwayMode::Stairs,
                 stair_count: None,
                 ..Default::default()
@@ -171,7 +171,7 @@ mod tests {
                 "traversal_time".into(),
             ],
             rows: vec![Pathway {
-                pathway_id: "P1".into(),
+                pathway_id: feed.pool.intern("P1"),
                 pathway_mode: PathwayMode::Walkway,
                 length: Some(10.0),
                 traversal_time: Some(5),

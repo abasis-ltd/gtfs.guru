@@ -19,11 +19,14 @@ impl Validator for ShapeIncreasingDistanceValidator {
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         if let Some(shapes) = &feed.shapes {
-            let mut by_shape: HashMap<&str, Vec<(u64, &gtfs_guru_model::Shape)>> = HashMap::new();
+            let mut by_shape: HashMap<
+                gtfs_guru_model::StringId,
+                Vec<(u64, &gtfs_guru_model::Shape)>,
+            > = HashMap::new();
             for (index, shape) in shapes.rows.iter().enumerate() {
                 let row_number = shapes.row_number(index);
-                let shape_id = shape.shape_id.trim();
-                if shape_id.is_empty() {
+                let shape_id = shape.shape_id;
+                if shape_id.0 == 0 {
                     continue;
                 }
                 by_shape
@@ -57,6 +60,7 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             None,
+                            feed,
                         ));
                         continue;
                     }
@@ -79,6 +83,7 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             None,
+                            feed,
                         ));
                         continue;
                     }
@@ -101,6 +106,7 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             Some(distance),
+                            feed,
                         ));
                     } else if distance > 0.0 {
                         notices.push(shape_notice(
@@ -114,6 +120,7 @@ impl Validator for ShapeIncreasingDistanceValidator {
                             prev_dist,
                             curr_dist,
                             Some(distance),
+                            feed,
                         ));
                     }
                 }
@@ -133,14 +140,16 @@ fn shape_notice(
     prev_dist: f64,
     curr_dist: f64,
     distance: Option<f64>,
+    feed: &GtfsFeed,
 ) -> ValidationNotice {
+    let shape_id_value = feed.pool.resolve(curr.shape_id);
     let mut notice = ValidationNotice::new(code, severity, message);
     notice.insert_context_field("csvRowNumber", row_number);
     notice.insert_context_field("prevCsvRowNumber", prev_row);
     notice.insert_context_field("prevShapeDistTraveled", prev_dist);
     notice.insert_context_field("prevShapePtSequence", prev.shape_pt_sequence);
     notice.insert_context_field("shapeDistTraveled", curr_dist);
-    notice.insert_context_field("shapeId", curr.shape_id.trim());
+    notice.insert_context_field("shapeId", shape_id_value.as_str());
     notice.insert_context_field("shapePtSequence", curr.shape_pt_sequence);
     if let Some(distance) = distance {
         notice.insert_context_field("actualDistanceBetweenShapePoints", distance);
@@ -194,14 +203,14 @@ mod tests {
             headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: Some(100.0),
                 },
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.01,
                     shape_pt_lon: -74.01,
                     shape_pt_sequence: 2,
@@ -228,14 +237,14 @@ mod tests {
             headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: Some(100.0),
                 },
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 2,
@@ -262,14 +271,14 @@ mod tests {
             headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: Some(0.0),
                 },
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.01,
                     shape_pt_lon: -74.01,
                     shape_pt_sequence: 2,
@@ -292,14 +301,14 @@ mod tests {
             headers: vec!["shape_id".into()],
             rows: vec![
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.0,
                     shape_pt_lon: -74.0,
                     shape_pt_sequence: 1,
                     shape_dist_traveled: None,
                 },
                 Shape {
-                    shape_id: "S1".into(),
+                    shape_id: feed.pool.intern("S1"),
                     shape_pt_lat: 40.01,
                     shape_pt_lon: -74.01,
                     shape_pt_sequence: 2,

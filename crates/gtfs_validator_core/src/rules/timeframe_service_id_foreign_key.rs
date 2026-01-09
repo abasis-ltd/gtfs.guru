@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::feed::TIMEFRAMES_FILE;
+use crate::feed::{CALENDAR_DATES_FILE, CALENDAR_FILE, TIMEFRAMES_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_FOREIGN_KEY_VIOLATION: &str = "foreign_key_violation";
@@ -17,20 +17,33 @@ impl Validator for TimeframeServiceIdForeignKeyValidator {
         let Some(timeframes) = &feed.timeframes else {
             return;
         };
+        if feed.table_has_errors(TIMEFRAMES_FILE)
+            || feed.table_has_errors(CALENDAR_FILE)
+            || feed.table_has_errors(CALENDAR_DATES_FILE)
+        {
+            return;
+        }
+        if !timeframes
+            .headers
+            .iter()
+            .any(|header| header.eq_ignore_ascii_case("service_id"))
+        {
+            return;
+        }
 
-        let mut service_ids: HashSet<&str> = HashSet::new();
+        let mut service_ids: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         if let Some(calendar) = &feed.calendar {
             for row in &calendar.rows {
-                let service_id = row.service_id.trim();
-                if !service_id.is_empty() {
+                let service_id = row.service_id;
+                if service_id.0 != 0 {
                     service_ids.insert(service_id);
                 }
             }
         }
         if let Some(calendar_dates) = &feed.calendar_dates {
             for row in &calendar_dates.rows {
-                let service_id = row.service_id.trim();
-                if !service_id.is_empty() {
+                let service_id = row.service_id;
+                if service_id.0 != 0 {
                     service_ids.insert(service_id);
                 }
             }
@@ -38,8 +51,12 @@ impl Validator for TimeframeServiceIdForeignKeyValidator {
 
         for (index, timeframe) in timeframes.rows.iter().enumerate() {
             let row_number = timeframes.row_number(index);
-            let service_id = timeframe.service_id.trim();
-            if service_id.is_empty() || !service_ids.contains(service_id) {
+            let service_id = timeframe.service_id;
+            if service_id.0 == 0 {
+                continue;
+            }
+            if !service_ids.contains(&service_id) {
+                let service_id_value = feed.pool.resolve(service_id);
                 let mut notice = ValidationNotice::new(
                     CODE_FOREIGN_KEY_VIOLATION,
                     NoticeSeverity::Error,
@@ -48,7 +65,7 @@ impl Validator for TimeframeServiceIdForeignKeyValidator {
                 notice.insert_context_field("childFieldName", "service_id");
                 notice.insert_context_field("childFilename", TIMEFRAMES_FILE);
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("fieldValue", service_id);
+                notice.insert_context_field("fieldValue", service_id_value.as_str());
                 notice.insert_context_field("parentFieldName", "service_id");
                 notice.insert_context_field("parentFilename", "calendar.txt or calendar_dates.txt");
                 notice.field_order = vec![
@@ -77,7 +94,7 @@ mod tests {
         feed.timeframes = Some(CsvTable {
             headers: vec!["service_id".into()],
             rows: vec![Timeframe {
-                service_id: "S1".into(),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -100,7 +117,7 @@ mod tests {
         feed.timeframes = Some(CsvTable {
             headers: vec!["service_id".into()],
             rows: vec![Timeframe {
-                service_id: "S1".into(),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -108,7 +125,7 @@ mod tests {
         feed.calendar = Some(CsvTable {
             headers: vec!["service_id".into()],
             rows: vec![Calendar {
-                service_id: "S1".into(),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -126,7 +143,7 @@ mod tests {
         feed.timeframes = Some(CsvTable {
             headers: vec!["service_id".into()],
             rows: vec![Timeframe {
-                service_id: "S1".into(),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],
@@ -134,7 +151,7 @@ mod tests {
         feed.calendar_dates = Some(CsvTable {
             headers: vec!["service_id".into()],
             rows: vec![CalendarDate {
-                service_id: "S1".into(),
+                service_id: feed.pool.intern("S1"),
                 ..Default::default()
             }],
             row_numbers: vec![2],

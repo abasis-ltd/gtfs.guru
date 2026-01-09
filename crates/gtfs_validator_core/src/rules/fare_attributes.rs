@@ -61,7 +61,7 @@ mod tests {
         feed.fare_attributes = Some(CsvTable {
             headers: vec!["fare_id".into(), "price".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".into(),
+                fare_id: feed.pool.intern("F1"),
                 price: -5.0,
                 ..Default::default()
             }],
@@ -84,7 +84,7 @@ mod tests {
         feed.fare_attributes = Some(CsvTable {
             headers: vec!["fare_id".into(), "price".into()],
             rows: vec![FareAttribute {
-                fare_id: "F1".into(),
+                fare_id: feed.pool.intern("F1"),
                 price: 5.0,
                 ..Default::default()
             }],
