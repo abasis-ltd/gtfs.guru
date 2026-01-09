@@ -2,15 +2,7 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [main]
-    tags: ['v*']
-    paths-ignore:
-      - 'website/**'
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '**/*.md'
-  pull_request:
-    branches: [main]
+    tags: ['v*']  # Only build on version tags, not every push
 
 env:
   REGISTRY: ghcr.io

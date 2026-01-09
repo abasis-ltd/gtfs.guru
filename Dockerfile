@@ -3,10 +3,18 @@
 # Multi-stage build for minimal, secure production image
 # ============================================================================
 
-# Stage 1: Build
-FROM rust:1.83-bookworm AS builder
-
+# Stage 1: Chef - prepare recipe for dependency caching
+FROM rust:1.83-bookworm AS chef
+RUN cargo install cargo-chef
 WORKDIR /usr/src/app
+
+# Stage 2: Prepare dependency recipe
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Stage 3: Build dependencies (cached layer)
+FROM chef AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,10 +22,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the entire workspace
-COPY . .
+# Build dependencies first (this layer is cached)
+COPY --from=planner /usr/src/app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
-# Build the web service in release mode with optimizations
+# Copy full source and build the application
+COPY . .
 RUN CARGO_INCREMENTAL=0 cargo build --release --bin gtfs-guru-web
 
 # ============================================================================
