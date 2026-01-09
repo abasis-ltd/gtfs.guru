@@ -11,7 +11,7 @@ pub const NOTICE_CODE_MISSING_RECOMMENDED_FILE: &str = "missing_recommended_file
 pub const NOTICE_CODE_EMPTY_TABLE: &str = "empty_file";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoticeSeverity {
     Error,
     Warning,

@@ -68,6 +68,14 @@ pub fn write_html_report<P: AsRef<Path>>(
     Ok(())
 }
 
+pub fn generate_html_report_string(
+    notices: &NoticeContainer,
+    summary: &ReportSummary,
+    context: HtmlReportContext,
+) -> String {
+    render_html(notices, summary, &context)
+}
+
 fn render_html(
     notices: &NoticeContainer,
     summary: &ReportSummary,

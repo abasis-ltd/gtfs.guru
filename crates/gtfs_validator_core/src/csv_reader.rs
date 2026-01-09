@@ -194,8 +194,6 @@ where
     V: Fn(&csv::StringRecord, u64) -> Vec<ValidationNotice> + Sync + Send,
     I: Fn() + Sync + Send,
 {
-    use rayon::prelude::*;
-
     let file = file_name.into();
     let mut buf_reader = BufReader::new(reader);
     if let Err(err) = skip_utf8_bom(&mut buf_reader) {
@@ -251,7 +249,7 @@ where
     // Parallel deserialization using rayon
     let file_ref = &file;
     let headers_ref = &headers_record;
-    let byte_headers_ref = &byte_headers;
+    let _byte_headers_ref = &byte_headers;
     let validator_ref = &validator;
     let _interner_setup_ref = &interner_setup;
 

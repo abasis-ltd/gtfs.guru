@@ -449,6 +449,7 @@ impl RowValidator {
     }
 }
 
+#[allow(dead_code)]
 pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeContainer) {
     let data = strip_utf8_bom(data);
     let mut reader = ReaderBuilder::new()
@@ -499,6 +500,7 @@ pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeConta
     }
 }
 
+#[allow(dead_code)]
 fn strip_utf8_bom(data: &[u8]) -> &[u8] {
     if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
         &data[3..]
@@ -1877,23 +1879,6 @@ fn decimal_scale(value: &str) -> Option<u8> {
             u8::try_from(part.len()).ok()
         }
     }
-}
-
-fn missing_recommended_field_notice(
-    file: &str,
-    field_name: &str,
-    row_number: u64,
-) -> ValidationNotice {
-    let mut notice = ValidationNotice::new(
-        "missing_recommended_field",
-        NoticeSeverity::Warning,
-        "recommended field is missing",
-    );
-    notice.file = Some(file.to_string());
-    notice.row = Some(row_number);
-    notice.field = Some(field_name.to_string());
-    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
-    notice
 }
 
 #[allow(dead_code)]

@@ -4,6 +4,9 @@ use gtfs_guru_core::{
     default_runner, set_thorough_mode_enabled, set_validation_country_code, set_validation_date,
     validate_bytes, NoticeContainer, NoticeSeverity,
 };
+use gtfs_guru_report::{
+    generate_html_report_string, HtmlReportContext, ReportSummary, ReportSummaryContext,
+};
 
 #[cfg(feature = "console_error_panic_hook")]
 pub use console_error_panic_hook::set_once as set_panic_hook;
@@ -25,6 +28,7 @@ pub fn version() -> String {
 #[wasm_bindgen]
 pub struct ValidationResult {
     json: String,
+    html: String,
     error_count: u32,
     warning_count: u32,
     info_count: u32,
@@ -36,6 +40,12 @@ impl ValidationResult {
     #[wasm_bindgen(getter)]
     pub fn json(&self) -> String {
         self.json.clone()
+    }
+
+    /// Get the full validation report as HTML
+    #[wasm_bindgen(getter)]
+    pub fn html(&self) -> String {
+        self.html.clone()
     }
 
     /// Get the number of errors
@@ -96,6 +106,10 @@ pub fn validate_gtfs(
     }
 
     // Set validation context
+    // We clone these for the report context later
+    let report_country_code = country_code.clone();
+    let report_date = date.clone();
+
     let _country_guard = set_validation_country_code(country_code);
     let naive_date = date.and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
     let _date_guard = set_validation_date(naive_date);
@@ -110,12 +124,31 @@ pub fn validate_gtfs(
     // Count notices by severity
     let (error_count, warning_count, info_count) = count_notices(&outcome.notices);
 
-    // Serialize notices to JSON
-    let notices: Vec<_> = outcome.notices.iter().collect();
-    let json = serde_json::to_string(&notices).unwrap_or_else(|_| "[]".to_string());
+    // Encode notices to JSON
+    let notices_vec: Vec<_> = outcome.notices.iter().collect();
+    let json = serde_json::to_string(&notices_vec).unwrap_or_else(|_| "[]".to_string());
+
+    // Generate HTML Report
+    let mut summary_context = ReportSummaryContext::new().with_validator_version(version());
+
+    if let Some(cc) = report_country_code {
+        summary_context = summary_context.with_country_code(cc);
+    }
+    if let Some(d) = report_date {
+        summary_context = summary_context.with_date_for_validation(d);
+    }
+
+    if let Some(feed) = &outcome.feed {
+        summary_context = summary_context.with_feed(feed);
+    }
+
+    let summary = ReportSummary::from_context(summary_context);
+    let html_context = HtmlReportContext::from_summary(&summary, "Uploaded File");
+    let html = generate_html_report_string(&outcome.notices, &summary, html_context);
 
     Ok(ValidationResult {
         json,
+        html,
         error_count,
         warning_count,
         info_count,

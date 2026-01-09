@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ | GTFS.Guru</title>
+    <meta name="description" content="Frequently Asked Questions about GTFS and the GTFS Guru validator.">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html#features">Solutions</a>
+                <a href="faq.html" class="active">FAQ</a>
+                <a href="contact.html">Contact</a>
+                <a href="index.html#tech">Developers</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+            </div>
+            <a href="index.html#download" class="btn btn-primary">Start Validating</a>
+        </div>
+    </nav>
+
+    <div class="container" style="padding-top: 160px; padding-bottom: 80px; min-height: 80vh;">
+        <h1 style="margin-bottom: 2rem;">Frequently Asked Questions</h1>
+
+        <div class="glass-card" style="padding: 3rem;">
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">What is a GTFS validator and why do I
+                    need one?</h3>
+                <p style="color: var(--text-secondary);">
+                    A GTFS validator checks your transit data feed for errors before you submit it to Google Maps, Apple
+                    Maps, or other transit apps. Without validation, errors in your GTFS file can cause routes to
+                    display incorrectly, schedules to break, or your entire feed to be rejected. GTFS Guru catches these
+                    issues instantly, saving hours of debugging.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is GTFS Guru free to use?</h3>
+                <p style="color: var(--text-secondary);">
+                    Yes, GTFS Guru is completely free and open source under the Apache 2.0 license. You can use the web
+                    validator, download the desktop app, or integrate the Python/Rust libraries into your projects at no
+                    cost. There are no usage limits or premium tiers.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is my transit data safe? Do you store
+                    or upload my GTFS files?</h3>
+                <p style="color: var(--text-secondary);">
+                    Your data never leaves your device. GTFS Guru runs entirely in your browser using WebAssembly (WASM)
+                    technology. The desktop app and CLI tools also process everything locally. We don't upload, store,
+                    or have access to your transit data—zero bytes are sent to any server.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">How is GTFS Guru different from the
+                    official Google/MobilityData validator?</h3>
+                <p style="color: var(--text-secondary);">
+                    GTFS Guru is built in Rust for maximum performance. It validates small feeds up to 100x faster than
+                    the canonical Java validator and uses 10x less memory (~150MB vs ~1.5GB). It also offers native
+                    Python integration, browser-based validation, and desktop apps—making it easier to integrate into
+                    modern workflows.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">What GTFS errors can this validator
+                    detect?</h3>
+                <p style="color: var(--text-secondary);">
+                    GTFS Guru checks for all standard GTFS specification errors including: missing required files,
+                    invalid field values, broken foreign key references, overlapping trips, impossible travel times,
+                    invalid coordinates, calendar inconsistencies, and more. The validator follows the official GTFS
+                    reference and MobilityData best practices.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Can I use GTFS Guru in my CI/CD
+                    pipeline?</h3>
+                <p style="color: var(--text-secondary);">
+                    Yes, GTFS Guru is designed for automation. Use the Python package
+                    (<code>pip install gtfs-guru</code>) or Rust CLI (<code>cargo install gtfs-guru-cli</code>) in your
+                    build pipelines. Both support JSON output for easy parsing, exit codes for pass/fail checks, and can
+                    generate HTML reports automatically.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Does GTFS Guru support GTFS-realtime
+                    validation?</h3>
+                <p style="color: var(--text-secondary);">
+                    Currently, GTFS Guru focuses on static GTFS Schedule validation. GTFS-realtime (GTFS-RT) validation
+                    for vehicle positions, trip updates, and service alerts is on our roadmap. Join our GitHub to follow
+                    development and request features.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">How do I add my bus routes to Google
+                    Maps?</h3>
+                <p style="color: var(--text-secondary);">
+                    First, create a valid GTFS feed with your routes, stops, and schedules. Use GTFS Guru to validate it
+                    and fix any errors. Then submit your feed through the Google Transit Partner Dashboard. Google
+                    reviews submissions and typically publishes approved feeds within 1-4 weeks. A clean, error-free
+                    GTFS file speeds up the approval process.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">What file format does the validator
+                    accept?</h3>
+                <p style="color: var(--text-secondary);">
+                    GTFS Guru accepts standard GTFS ZIP files containing the required CSV files (agency.txt, stops.txt,
+                    routes.txt, trips.txt, stop_times.txt, calendar.txt or calendar_dates.txt). Simply drag and drop
+                    your .zip file into the validator or select it using the file browser.
+                </p>
+            </div>
+
+            <div style="margin-bottom: 0;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Can I validate GTFS feeds larger than
+                    50MB?</h3>
+                <p style="color: var(--text-secondary);">
+                    Yes. The browser validator handles most feeds but may be slower for very large files due to browser
+                    memory limits. For feeds over 50MB, we recommend using the desktop app or CLI tools, which can
+                    process feeds of any size efficiently using your system's full resources.
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="faq.html" style="color: var(--text-primary);">FAQ</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

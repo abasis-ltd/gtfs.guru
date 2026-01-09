@@ -271,13 +271,27 @@ document.addEventListener('DOMContentLoaded', () => {
         urlInputContainer.classList.add('hidden');
         processingState.classList.remove('hidden');
 
-        try {
-            const response = await fetch(url);
+        const tryFetch = async (fetchUrl) => {
+            const response = await fetch(fetchUrl);
             if (!response.ok) {
                 throw new Error(`Failed to fetch: ${response.statusText}`);
             }
+            return await response.arrayBuffer();
+        };
 
-            const arrayBuffer = await response.arrayBuffer();
+        try {
+            let arrayBuffer;
+            try {
+                // Try direct fetch first
+                arrayBuffer = await tryFetch(url);
+            } catch (err) {
+                console.warn("Direct fetch failed, trying local CORS proxy...", err);
+                // Try via local proxy on the same server
+                // This requires Nginx to be configured with the /cors-proxy/ location
+                const proxyUrl = '/cors-proxy/' + url;
+                arrayBuffer = await tryFetch(proxyUrl);
+            }
+
             const bytes = new Uint8Array(arrayBuffer);
 
             // Try to extract filename from URL
@@ -295,9 +309,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             await runValidation(bytes);
+
         } catch (err) {
             console.error("URL fetch error:", err);
-            alert(`Error loading from URL: ${err.message}\nNote: Remote servers must allow CORS.`);
+            alert(`Error loading from URL: ${err.message}\n
+If the server blocks cross-origin requests (CORS), we tried to use a local proxy but that failed too.
+Please ensure the Nginx container is configured with the proxy settings.`);
             processingState.classList.add('hidden');
             uploadState.classList.remove('hidden');
             urlInputContainer.classList.remove('hidden');

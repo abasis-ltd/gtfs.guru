@@ -1732,6 +1732,7 @@ dependencies = [
  "chrono",
  "console_error_panic_hook",
  "gtfs-guru-core",
+ "gtfs-guru-report",
  "js-sys",
  "serde",
  "serde_json",

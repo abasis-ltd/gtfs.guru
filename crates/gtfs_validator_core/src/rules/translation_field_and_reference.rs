@@ -175,10 +175,6 @@ fn is_blank_id(value: StringId) -> bool {
     value.0 == 0
 }
 
-fn is_blank_opt_id(value: Option<StringId>) -> bool {
-    value.map(|id| id.0 == 0).unwrap_or(true)
-}
-
 fn missing_required_field_notice(field: &str, row_number: u64) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_MISSING_REQUIRED_FIELD,

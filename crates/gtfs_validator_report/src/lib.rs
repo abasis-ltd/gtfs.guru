@@ -30,7 +30,7 @@ use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, Valida
 use gtfs_guru_model::{ExceptionType, StringId};
 
 mod html;
-pub use html::{write_html_report, HtmlReportContext};
+pub use html::{generate_html_report_string, write_html_report, HtmlReportContext};
 
 mod sarif;
 pub use sarif::SarifReport;

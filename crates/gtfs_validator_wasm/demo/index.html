@@ -396,6 +396,71 @@
     .modal-btn.secondary:hover {
       background: var(--bg);
     }
+
+    .url-zone {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .url-zone h3 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+    }
+
+    .url-input-container {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .url-input-container input {
+      flex: 1;
+      min-width: 250px;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+
+    .url-input-container button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 2rem;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: opacity 0.2s;
+    }
+
+    .url-input-container button:hover {
+      opacity: 0.9;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 1.5rem 0;
+      color: var(--text-muted);
+      font-weight: 500;
+      position: relative;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin: 0 1rem;
+    }
   </style>
 </head>
 
@@ -413,12 +478,17 @@
       <p>or</p>
       <label class="file-label" for="fileInput">Choose File</label>
       <input type="file" id="fileInput" accept=".zip">
+    </div>
 
-      <div style="margin-top: 1.5rem; display: flex; gap: 8px; justify-content: center;">
-        <input type="text" id="urlInput" placeholder="Enter GTFS URL or path..."
-          style="padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--border); width: 300px;">
-        <button id="urlAnalyzeBtn" class="file-label"
-          style="margin-top: 0; padding: 0.75rem 1.5rem; border: none;">Analyze</button>
+    <div class="divider">
+      <span>OR</span>
+    </div>
+
+    <div class="url-zone">
+      <h3>Analyze via URL</h3>
+      <div class="url-input-container">
+        <input type="text" id="urlInput" placeholder="Enter GTFS URL (e.g. http://site.com/gtfs.zip)">
+        <button id="urlAnalyzeBtn">Analyze</button>
       </div>
     </div>
 
@@ -446,8 +516,7 @@
 
     <footer>
       <p>
-        Powered by <a href="https://github.com/gtfs-validator/gtfs-validator-rust"
-          target="_blank">gtfs-validator-rust</a>
+        Powered by <a href="https://gtfs.guru" target="_blank">gtfs.guru</a>
         &bull; No data is uploaded &bull; Everything runs locally in your browser
       </p>
     </footer>
@@ -480,7 +549,7 @@
 
   <script type="module">
     // Import WASM module - adjust path as needed
-    import init, { validate_gtfs, version } from '../pkg/gtfs_validator_wasm.js';
+    import init, { validate_gtfs, version } from '../pkg/gtfs_guru_wasm.js';
 
     // Maximum file size for WASM validation (50 MB)
     // Larger files may cause memory issues in the browser.
@@ -492,6 +561,16 @@
     let allNotices = [];
     let currentFilter = 'all';
 
+    let wasmInitPromise = null;
+
+    async function ensureWasmLoaded() {
+      if (wasmReady) return;
+      if (!wasmInitPromise) {
+        wasmInitPromise = initWasm();
+      }
+      await wasmInitPromise;
+    }
+
     async function initWasm() {
       try {
         await init();
@@ -501,18 +580,19 @@
       } catch (error) {
         console.error('Failed to initialize WASM:', error);
         document.getElementById('version').textContent = 'Error loading';
+        throw error;
       }
     }
 
     async function validateFile(file) {
-      if (!wasmReady) {
-        await initWasm();
-      }
+      await ensureWasmLoaded();
 
       // Check file size limit
       const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
       if (file.size > MAX_FILE_SIZE_BYTES) {
         showFileSizeError(fileSizeMB);
+        // Reset input so user can try again or select another file
+        document.getElementById('fileInput').value = '';
         return;
       }
 
@@ -532,15 +612,18 @@
         loading.classList.remove('show');
         dropZone.style.display = 'block';
         alert('Error validating file: ' + error.message);
+      } finally {
+        // Reset input so user can select the same file again if needed
+        document.getElementById('fileInput').value = '';
       }
     }
 
     async function validateUrl(url) {
-      if (!wasmReady) {
-        await initWasm();
-      }
+      await ensureWasmLoaded();
 
       const dropZone = document.getElementById('dropZone');
+      // ... rest of function ...
+
       const loading = document.getElementById('loading');
       const results = document.getElementById('results');
 
@@ -576,7 +659,8 @@
 
       try {
         const startTime = performance.now();
-        const result = validate_gtfs(bytes);
+        const dateStr = new Date().toISOString().split('T')[0];
+        const result = validate_gtfs(bytes, undefined, dateStr);
         const elapsed = (performance.now() - startTime).toFixed(0);
 
         allNotices = JSON.parse(result.json);
@@ -591,13 +675,10 @@
       }
     }
 
+    // In renderSummary, remove the Valid/Invalid stat
     function renderSummary(result, elapsed, filename) {
       const summary = document.getElementById('summary');
-      summary.innerHTML = `
-        <div class="stat ${result.is_valid ? 'valid' : 'invalid'}">
-          <div class="stat-value">${result.is_valid ? '✓' : '✗'}</div>
-          <div class="stat-label">${result.is_valid ? 'Valid' : 'Invalid'}</div>
-        </div>
+      let html = `
         <div class="stat errors">
           <div class="stat-value">${result.error_count}</div>
           <div class="stat-label">Errors</div>
@@ -615,7 +696,35 @@
           <div class="stat-label">ms</div>
         </div>
       `;
+
+      // Add Download html button
+      if (result.html) {
+        html += `
+          <div class="stat" style="cursor: pointer;" onclick="downloadHtmlReport()">
+             <div class="stat-value">💾</div>
+             <div class="stat-label">Download Report</div>
+          </div>
+          `;
+        // Store html globally or attached to result
+        window.lastReportHtml = result.html;
+      }
+
+      summary.innerHTML = html;
     }
+
+    // Add function to download report
+    window.downloadHtmlReport = function () {
+      if (!window.lastReportHtml) return;
+      const blob = new Blob([window.lastReportHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'validation_report.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
 
     function renderNotices() {
       const noticesEl = document.getElementById('notices');
@@ -634,18 +743,38 @@
         return;
       }
 
-      noticesEl.innerHTML = filtered.slice(0, 200).map(notice => `
+      noticesEl.innerHTML = filtered.slice(0, 200).map(notice => {
+        // Build context string
+        let contextHtml = '';
+
+        // Add primary location fields
+        if (notice.filename || notice.file) {
+          contextHtml += `<div class="notice-location">File: ${notice.filename || notice.file}</div>`;
+        }
+        if (notice.csvRowNumber || notice.row) {
+          contextHtml += `<div class="notice-location">Row: ${notice.csvRowNumber || notice.row}</div>`;
+        }
+        if (notice.fieldName || notice.field) {
+          contextHtml += `<div class="notice-location">Field: ${notice.fieldName || notice.field}</div>`;
+        }
+
+        // Add extra context if available
+        if (notice.context) {
+          for (const [key, value] of Object.entries(notice.context)) {
+            // Skip already checked keys if they are redundant (though mostly they might be different)
+            if (!['filename', 'csvRowNumber', 'fieldName', 'file', 'row', 'field'].includes(key)) {
+              contextHtml += `<div class="notice-location">${key}: ${value}</div>`;
+            }
+          }
+        }
+
+        return `
         <div class="notice ${notice.severity}">
           <div class="notice-code">[${notice.code}]</div>
           <div class="notice-title">${notice.title || notice.code}</div>
-          ${notice.filename || notice.csvRowNumber ? `
-            <div class="notice-location">
-              ${notice.filename || ''}${notice.csvRowNumber ? `:${notice.csvRowNumber}` : ''}
-              ${notice.fieldName ? ` (${notice.fieldName})` : ''}
-            </div>
-          ` : ''}
+          ${contextHtml}
         </div>
-      `).join('');
+      `}).join('');
 
       if (filtered.length > 200) {
         noticesEl.innerHTML += `
@@ -655,6 +784,8 @@
         `;
       }
     }
+
+
 
     // Event handlers
     document.getElementById('fileInput').addEventListener('change', (e) => {
@@ -698,7 +829,12 @@
       }
     });
 
-    dropZone.addEventListener('click', () => {
+    dropZone.addEventListener('click', (e) => {
+      // Don't trigger if clicking on the label (which already triggers input natively)
+      // OR if the click is coming from the input itself (bubbling up), which would cause an infinite loop/double open
+      if (e.target.tagName === 'LABEL' || e.target.closest('label') || e.target.tagName === 'INPUT') {
+        return;
+      }
       document.getElementById('fileInput').click();
     });
 

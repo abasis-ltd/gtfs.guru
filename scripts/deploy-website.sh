@@ -29,7 +29,7 @@ if [[ "$SERVER" != *"@"* ]]; then
     SERVER="botuser@$SERVER"
 fi
 
-REMOTE_DIR="~/gtfs-deploy"
+REMOTE_DIR="~/gtfs-guru-web"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 WEBSITE_DIR="$PROJECT_DIR/website"

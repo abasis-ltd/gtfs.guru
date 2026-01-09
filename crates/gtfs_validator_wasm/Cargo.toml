@@ -32,6 +32,11 @@ path = "../gtfs_validator_core"
 version = "0.1.1"
 default-features = false  # Disable rayon for WASM
 
+[dependencies.gtfs-guru-report]
+path = "../gtfs_validator_report"
+version = "0.1.1"
+default-features = false
+
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 serde_json = { workspace = true }

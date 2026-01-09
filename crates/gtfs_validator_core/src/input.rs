@@ -12,9 +12,9 @@ use crate::csv_reader::read_csv_from_reader_parallel;
 #[cfg(not(feature = "parallel"))]
 use crate::csv_reader::read_csv_from_reader_with_errors;
 use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
-use crate::csv_validation::{
-    is_value_validated_field, validate_csv_data, validate_headers, RowValidator,
-};
+#[cfg(not(feature = "parallel"))]
+use crate::csv_validation::validate_csv_data;
+use crate::csv_validation::{is_value_validated_field, validate_headers, RowValidator};
 
 use crate::feed::GTFS_FILE_NAMES;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
@@ -210,13 +210,12 @@ impl GtfsInputReader {
 
                 let mut files = HashMap::new();
                 for index in 0..archive.len() {
-                    let mut file =
-                        archive
-                            .by_index(index)
-                            .map_err(|err| GtfsInputError::ZipFile {
-                                file: self.path.to_string_lossy().to_string(),
-                                source: err,
-                            })?;
+                    let file = archive
+                        .by_index(index)
+                        .map_err(|err| GtfsInputError::ZipFile {
+                            file: self.path.to_string_lossy().to_string(),
+                            source: err,
+                        })?;
                     if !file.is_dir() {
                         // Only include root-level files (mirroring current logic)
                         let name = file.name().to_string();
@@ -810,7 +809,7 @@ impl GtfsBytesReader {
 
         let mut files = HashMap::new();
         for index in 0..archive.len() {
-            let mut file = archive
+            let file = archive
                 .by_index(index)
                 .map_err(|err| GtfsInputError::ZipFile {
                     file: "<memory>".into(),
