@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What is GTFS Used For? | GTFS Guru</title>
+    <meta name="description"
+        content="GTFS is used to share public transit schedules with apps like Google Maps. Learn all the ways transit agencies and developers use GTFS data.">
+    <link rel="canonical" href="https://gtfs.guru/faq/what-is-gtfs-used-for">
+
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "What is GTFS used for?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "GTFS is used to share public transit information with navigation apps, trip planners, and data analysis tools. It enables features like transit directions in Google Maps, real-time bus tracking apps, and transportation research."
+      }
+    }]
+  }
+  </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+                        <div class="nav-links">
+                <a href="index.html#validator">Web Validator</a>
+                <a href="index.html#download">Download App</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html" class="active">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="index.html#developers">Developers</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+            </div>
+            <a href="index.html#download" class="btn btn-primary">Start Validating</a>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <a href="faq.html" class="faq-back-link"><i data-lucide="arrow-left"></i> Back to Guides</a>
+
+        <h1>What is GTFS Used For?</h1>
+
+        <p>When you open Google Maps and check for bus directions, you're seeing GTFS in action. But trip planning is
+            just the beginning – there are plenty of other cool ways this data gets used.</p>
+
+        <h2>Primary Uses of GTFS</h2>
+
+        <h3>1. Trip Planning Apps</h3>
+        <p>The most visible use of GTFS is powering transit directions in consumer apps. When you search "how to get to
+            the airport by bus," apps like Google Maps, Apple Maps, Citymapper, Transit, and Moovit use GTFS data to
+            show you which routes to take, where to board, when to transfer, and what time you'll arrive.</p>
+
+        <h3>2. Real-Time Arrival Info</h3>
+        <p>When combined with live GPS data (GTFS-Realtime), static schedules help apps show you those "Arriving in 4
+            mins" predictions. The app compares the planned schedule with the bus's actual position to keep you updated.
+        </p>
+
+        <h3>3. Transit Agency Websites</h3>
+        <p>Many agencies use their own GTFS data to power schedule lookups and trip planners on their websites. Rather
+            than maintaining separate databases, they publish GTFS and use tools that consume it.</p>
+
+        <h3>4. Accessibility Tools</h3>
+        <p>GTFS can include details on wheelchair accessibility for both stops and vehicles. This helps riders with
+            limited mobility plan trips that they know will be safe and accessible.</p>
+
+        <h3>5. City Planning and Research</h3>
+        <p>Urban planners and researchers use GTFS to study how well a city's transit system is performing. They can
+            identify gaps in service, measure equity, and plan for future improvements using standardized data.</p>
+
+        <h3>6. Data Visualization</h3>
+        <p>Developers create visualizations showing transit networks, service frequency, coverage gaps, and travel time
+            maps. GTFS provides the raw data for these projects.</p>
+
+        <h3>7. Integration with Other Services</h3>
+        <p>Ride-sharing apps, bike-share systems, and mobility-as-a-service platforms integrate GTFS to show public
+            transit as one option alongside other transportation modes.</p>
+
+        <h2>Who Benefits from GTFS?</h2>
+
+        <p><strong>Riders</strong> get reliable info in the apps they already use, without having to hunt down
+            individual schedules on different websites.</p>
+
+        <p><strong>Transit Agencies</strong> get their services in front of millions of people for free, which often
+            leads to more riders and fewer confused phone calls to customer service.</p>
+
+        <p><strong>Developers</strong> can build transit apps without having to negotiate separate data deals with every
+            single bus company in the country.</p>
+
+        <p><strong>Cities</strong> benefit from better transit information leading to higher ridership and more
+            efficient transportation systems.</p>
+
+        <h2>What Data Does GTFS Contain?</h2>
+
+        <p>A GTFS feed includes:</p>
+        <p>• Stop locations (names, coordinates, accessibility)</p>
+        <p>• Route definitions (names, types, colors)</p>
+        <p>• Complete timetables (arrival/departure times at every stop)</p>
+        <p>• Service calendars (which days routes operate)</p>
+        <p>• Route shapes (geographic paths for map display)</p>
+        <p>• Fare information (prices, payment rules)</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="what-does-gtfs-stand-for.html">What does GTFS stand for?</a></p>
+        <p>• <a href="is-gtfs-free.html">Is GTFS free to use?</a></p>
+        <p>• <a href="how-to-get-my-bus-on-google-maps.html">How do I get my bus routes on Google Maps?</a></p>
+
+        <div class="cta-box">
+            <p>Creating a GTFS feed? <a href="https://gtfs.guru">Validate it for free</a> before publishing.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+                        <div class="footer-links">
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>

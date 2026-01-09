@@ -149,7 +149,7 @@ def rebuild_summary(output_base_dir):
     return results
 
 
-def run_full_comparison(current_dir):
+def run_full_comparison(current_dir, runner_cmd=None):
     all_test_dirs = [
         current_dir / "mobility-data-test-feeds",
         current_dir / "test-gtfs-feeds",
@@ -223,18 +223,31 @@ def run_full_comparison(current_dir):
         except Exception:
             java_duration = 0
 
-        # --- Rust Run ---
+        # --- Rust (or Custom Runner) Run ---
         rust_out = case_output_dir / "rust"
         rust_out.mkdir(parents=True, exist_ok=True)
         rust_start = time.time()
-        rust_cmd = [str(rust_bin), "--input", str(test_path), "--output", str(rust_out)]
+        
+        if runner_cmd:
+            # Split command string into list for subprocess
+            import shlex
+            cmd_parts = shlex.split(runner_cmd)
+            rust_cmd = cmd_parts + ["--input", str(test_path), "--output", str(rust_out)]
+        else:
+            rust_cmd = [str(rust_bin), "--input", str(test_path), "--output", str(rust_out)]
+            
         rust_success = False
         try:
-            proc = subprocess.run(rust_cmd, capture_output=True, text=True, timeout=120)
+            # Increase timeout for custom runners (e.g. Node or Python startup)
+            proc = subprocess.run(rust_cmd, capture_output=True, text=True, timeout=180)
             rust_duration = time.time() - rust_start
             if proc.returncode == 0:
                 rust_success = True
-        except Exception:
+            else:
+                print(f"  Runner failed with code {proc.returncode}")
+                # print(f"  Stderr: {proc.stderr}") 
+        except Exception as e:
+            print(f"  Runner execution error: {e}")
             rust_duration = 0
 
         # Analyze results
@@ -282,6 +295,11 @@ def parse_args():
         action="store_true",
         help="Rebuild summary using existing outputs without re-running validators.",
     )
+    parser.add_argument(
+        "--runner",
+        type=str,
+        help="Custom command to run validation (e.g., 'python3 scripts/run_python_single.py'). Replaces the Rust binary.",
+    )
     return parser.parse_args()
 
 
@@ -296,7 +314,7 @@ def main():
             return
         results = rebuild_summary(output_base_dir)
     else:
-        results = run_full_comparison(current_dir)
+        results = run_full_comparison(current_dir, runner_cmd=args.runner)
 
     write_summary(output_base_dir, results)
     print(f"Benchmark complete. Results saved to {output_base_dir}")

@@ -78,16 +78,18 @@ mod tests {
 
     #[test]
     fn detects_only_one_time_specified() {
-        let mut feed = GtfsFeed::default();
-        feed.timeframes = Some(CsvTable {
-            headers: vec!["start_time".into()],
-            rows: vec![Timeframe {
-                start_time: Some(GtfsTime::from_seconds(3600)),
-                end_time: None,
-                ..Default::default()
-            }],
-            row_numbers: vec![2],
-        });
+        let feed = GtfsFeed {
+            timeframes: Some(CsvTable {
+                headers: vec!["start_time".into()],
+                rows: vec![Timeframe {
+                    start_time: Some(GtfsTime::from_seconds(3600)),
+                    end_time: None,
+                    ..Default::default()
+                }],
+                row_numbers: vec![2],
+            }),
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         TimeframeStartAndEndTimeValidator.validate(&feed, &mut notices);
@@ -97,16 +99,18 @@ mod tests {
 
     #[test]
     fn detects_time_greater_than_24() {
-        let mut feed = GtfsFeed::default();
-        feed.timeframes = Some(CsvTable {
-            headers: vec!["start_time".into(), "end_time".into()],
-            rows: vec![Timeframe {
-                start_time: Some(GtfsTime::from_seconds(25 * 3600)),
-                end_time: Some(GtfsTime::from_seconds(26 * 3600)),
-                ..Default::default()
-            }],
-            row_numbers: vec![2],
-        });
+        let feed = GtfsFeed {
+            timeframes: Some(CsvTable {
+                headers: vec!["start_time".into(), "end_time".into()],
+                rows: vec![Timeframe {
+                    start_time: Some(GtfsTime::from_seconds(25 * 3600)),
+                    end_time: Some(GtfsTime::from_seconds(26 * 3600)),
+                    ..Default::default()
+                }],
+                row_numbers: vec![2],
+            }),
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         TimeframeStartAndEndTimeValidator.validate(&feed, &mut notices);
@@ -117,16 +121,18 @@ mod tests {
 
     #[test]
     fn passes_valid_times() {
-        let mut feed = GtfsFeed::default();
-        feed.timeframes = Some(CsvTable {
-            headers: vec!["start_time".into(), "end_time".into()],
-            rows: vec![Timeframe {
-                start_time: Some(GtfsTime::from_seconds(3600)),
-                end_time: Some(GtfsTime::from_seconds(7200)),
-                ..Default::default()
-            }],
-            row_numbers: vec![2],
-        });
+        let feed = GtfsFeed {
+            timeframes: Some(CsvTable {
+                headers: vec!["start_time".into(), "end_time".into()],
+                rows: vec![Timeframe {
+                    start_time: Some(GtfsTime::from_seconds(3600)),
+                    end_time: Some(GtfsTime::from_seconds(7200)),
+                    ..Default::default()
+                }],
+                row_numbers: vec![2],
+            }),
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         TimeframeStartAndEndTimeValidator.validate(&feed, &mut notices);

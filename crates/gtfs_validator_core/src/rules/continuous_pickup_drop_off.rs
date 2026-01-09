@@ -1,8 +1,20 @@
 use std::collections::HashMap;
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use gtfs_guru_model::ContinuousPickupDropOff;
 
 const CODE_FORBIDDEN_CONTINUOUS_PICKUP_DROP_OFF: &str = "forbidden_continuous_pickup_drop_off";
+
+/// Returns true if continuous pickup/drop-off is enabled (values 0, 2, 3).
+/// Value 1 (NoContinuous) means disabled and should not trigger validation.
+fn is_continuous_enabled(value: Option<ContinuousPickupDropOff>) -> bool {
+    matches!(
+        value,
+        Some(ContinuousPickupDropOff::Continuous)
+            | Some(ContinuousPickupDropOff::MustPhone)
+            | Some(ContinuousPickupDropOff::MustCoordinateWithDriver)
+    )
+}
 
 #[derive(Debug, Default)]
 pub struct ContinuousPickupDropOffValidator;
@@ -41,7 +53,9 @@ impl Validator for ContinuousPickupDropOffValidator {
             if route_id.0 == 0 {
                 continue;
             }
-            if route.continuous_pickup.is_none() && route.continuous_drop_off.is_none() {
+            if !is_continuous_enabled(route.continuous_pickup)
+                && !is_continuous_enabled(route.continuous_drop_off)
+            {
                 continue;
             }
             for trip in feed
@@ -119,7 +133,7 @@ fn time_value(value: Option<gtfs_guru_model::GtfsTime>) -> String {
 mod tests {
     use super::*;
     use crate::CsvTable;
-    use gtfs_guru_model::{ContinuousPickupDropOff, GtfsTime, Route, StopTime, Trip};
+    use gtfs_guru_model::{GtfsTime, Route, StopTime, Trip};
 
     #[test]
     fn detects_forbidden_windows() {
@@ -223,6 +237,55 @@ mod tests {
         let mut notices = NoticeContainer::new();
         ContinuousPickupDropOffValidator.validate(&feed, &mut notices);
 
+        assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_when_continuous_disabled() {
+        // NoContinuous (value=1) means continuous is disabled, should not trigger error
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![
+                "route_id".into(),
+                "continuous_pickup".into(),
+                "continuous_drop_off".into(),
+            ],
+            rows: vec![Route {
+                route_id: feed.pool.intern("R1"),
+                continuous_pickup: Some(ContinuousPickupDropOff::NoContinuous),
+                continuous_drop_off: Some(ContinuousPickupDropOff::NoContinuous),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["route_id".into(), "trip_id".into()],
+            rows: vec![Trip {
+                route_id: feed.pool.intern("R1"),
+                trip_id: feed.pool.intern("T1"),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".into(),
+                "start_pickup_drop_off_window".into(),
+                "end_pickup_drop_off_window".into(),
+            ],
+            rows: vec![StopTime {
+                trip_id: feed.pool.intern("T1"),
+                start_pickup_drop_off_window: Some(GtfsTime::parse("08:00:00").unwrap()),
+                end_pickup_drop_off_window: Some(GtfsTime::parse("18:00:00").unwrap()),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+
+        let mut notices = NoticeContainer::new();
+        ContinuousPickupDropOffValidator.validate(&feed, &mut notices);
+
+        // Should NOT generate error because continuous is disabled (value=1)
         assert_eq!(notices.len(), 0);
     }
 }

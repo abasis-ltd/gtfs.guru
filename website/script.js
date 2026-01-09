@@ -326,7 +326,8 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         return new Promise((resolve) => {
             setTimeout(() => {
                 try {
-                    const result = validate_gtfs(bytes, null);
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    const result = validate_gtfs(bytes, null, dateStr);
                     lastValidationResult = result;
                     showResults(result);
                     resolve();
@@ -387,9 +388,9 @@ Please ensure the Nginx container is configured with the proxy settings.`);
 
         // Group by severity
         const groups = {
-            error: notices.filter(n => n.severity === 'error'),
-            warning: notices.filter(n => n.severity === 'warning'),
-            info: notices.filter(n => n.severity === 'info')
+            error: notices.filter(n => n.severity === 'ERROR'),
+            warning: notices.filter(n => n.severity === 'WARNING'),
+            info: notices.filter(n => n.severity === 'INFO')
         };
 
         let html = '';
@@ -489,9 +490,9 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         }
 
         const groups = {
-            error: notices.filter(n => n.severity === 'error'),
-            warning: notices.filter(n => n.severity === 'warning'),
-            info: notices.filter(n => n.severity === 'info')
+            error: notices.filter(n => n.severity === 'ERROR'),
+            warning: notices.filter(n => n.severity === 'WARNING'),
+            info: notices.filter(n => n.severity === 'INFO')
         };
 
         const win = window.open('', '_blank');

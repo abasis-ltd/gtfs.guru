@@ -41,12 +41,15 @@
                 <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
                 <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
             </a>
+
+
             <div class="nav-links">
-                <a href="#validator">Web Validator</a>
-                <a href="#download">Download App</a>
-                <a href="faq.html">FAQ</a>
+                <a href="index.html#validator">Web Validator</a>
+                <a href="index.html#download">Download App</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
                 <a href="contact.html">Contact</a>
-                <a href="#developers">Developers</a>
+                <a href="index.html#developers">Developers</a>
                 <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
             </div>
             <a href="#download" class="btn btn-primary">Get the App</a>
@@ -63,7 +66,7 @@
                 <h1>Ensure your transit data is<br><span class="gradient-text">Production Ready</span></h1>
                 <p class="hero-sub">
                     The world’s fastest GTFS validator. Catch errors instantly before they reach Google Maps.
-                    Runs entirely on your device—your data never leaves your computer.
+                    Runs entirely on your device-your data never leaves your computer.
                 </p>
 
                 <div class="hero-actions">
@@ -297,6 +300,81 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
         </div>
     </section>
 
+
+    <section id="faq" class="comparison-section" style="background: rgba(0, 0, 0, 0.1);">
+        <div class="container">
+            <div class="section-header fade-up">
+                <h2>Frequently Asked Questions</h2>
+                <p>Everything you need to know about GTFS Guru.</p>
+            </div>
+
+
+            <div class="glass-card fade-up delay-100" style="padding: 3rem; max-width: 800px; margin: 0 auto;">
+                <div style="display: grid; grid-template-columns: 1fr; gap: 2.5rem;">
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">What is a GTFS validator?</h3>
+                        <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
+                            Think of it as a spell-checker for transit data. A validator catches errors in your feed
+                            before you submit it to apps like Google Maps or Apple Maps. GTFS Guru finds these issues
+                            instantly, saving you from a lot of debugging headaches.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is it free?</h3>
+                        <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
+                            Absolutely. GTFS Guru is completely free and open source (Apache 2.0 license). Whether
+                            you're using the web validator, the desktop app, or our libraries, there are no costs, no
+                            usage limits, and no hidden "premium" versions.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is my data safe?</h3>
+                        <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
+                            Your data never leaves your computer. We use WebAssembly (WASM) to run the validator
+                            directly in your browser. Our desktop and CLI tools also process everything locally. We
+                            don't upload, store, or even see your files.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">How is this different?</h3>
+                        <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
+                            GTFS Guru is built for speed. It's written in Rust, which means it can be up to 100x faster
+                            and use 10x less memory than the standard Java-based validator. It's also much easier to use
+                            in modern environments like web browsers or Python scripts.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">How do I get my routes on
+                            Google Maps?</h3>
+                        <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
+                            It's a three-step process: Create a GTFS feed, use GTFS Guru to make sure it's error-free,
+                            and then submit it through the Google Transit Partner Dashboard. Having a clean, validated
+                            file is the best way to speed up publication.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is there a file size limit?
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
+                            The browser validator handles most feeds, but very large files (over 50MB) can hit browser
+                            memory limits. For those feeds, we recommend our desktop app or CLI tools—they can handle
+                            any size without breaking a sweat.
+                        </p>
+                    </div>
+                </div>
+
+                <div
+                    style="margin-top: 3rem; text-align: center; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 2rem;">
+                    <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Need more technical details or
+                        step-by-step guides?</p>
+                    <a href="faq.html" class="btn btn-secondary">
+                        <i data-lucide="book-open"></i> View In-Depth Guides
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <footer>
         <div class="container footer-container">
             <div class="footer-brand">
@@ -305,7 +383,8 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                 <p>Made with ❤️ by <a href="https://abasis.ai">Abasis.AI</a></p>
             </div>
             <div class="footer-links">
-                <a href="faq.html">FAQ</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
                 <a href="contact.html">Contact</a>
                 <a href="privacy.html">Privacy</a>
                 <a href="terms.html">Terms</a>

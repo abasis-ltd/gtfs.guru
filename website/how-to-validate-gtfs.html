@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How Do I Validate My GTFS Feed? | GTFS Guru</title>
+    <meta name="description"
+        content="Validate your GTFS feed online using GTFS Guru – just drag and drop your ZIP file. Catches errors before you submit to Google Maps.">
+    <link rel="canonical" href="https://gtfs.guru/faq/how-to-validate-gtfs">
+
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "How do I validate my GTFS feed?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Use a GTFS validator like GTFS Guru. Simply upload or drag-and-drop your GTFS ZIP file. The validator checks for missing fields, broken references, invalid data, and other errors. Fix all errors before submitting to Google Maps."
+      }
+    }]
+  }
+  </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+                        <div class="nav-links">
+                <a href="index.html#validator">Web Validator</a>
+                <a href="index.html#download">Download App</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html" class="active">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="index.html#developers">Developers</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+            </div>
+            <a href="index.html#download" class="btn btn-primary">Start Validating</a>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <a href="faq.html" class="faq-back-link"><i data-lucide="arrow-left"></i> Back to Guides</a>
+
+        <h1>How Do I Validate My GTFS Feed?</h1>
+
+        <p class="short-answer"><strong>The easiest way is to drop your GTFS ZIP file into a tool like <a
+                    href="https://gtfs.guru">GTFS Guru</a>. It'll scan your data and show you exactly what needs
+                fixing.</strong></p>
+
+        <p>Validating is like proofreading before you publish. It's much easier to fix an error now than to deal with it
+            after your riders see it:</p>
+        <p>• Google will reject feeds that have even minor validation errors.</p>
+        <p>• Small typos can accidentally cancel hundreds of trips.</p>
+        <p>• It ensures your maps look clean and professional.</p>
+        <p>• It saves you hours of back-and-forth debugging with Google's support team.</p>
+
+        <h2>How to Validate with GTFS Guru</h2>
+
+        <p><strong>Step 1:</strong> Go to <a href="https://gtfs.guru">gtfs.guru</a></p>
+
+        <p><strong>Step 2:</strong> Drag and drop your GTFS ZIP file onto the validator (or click to browse)</p>
+
+        <p><strong>Step 3:</strong> Wait a few seconds for validation to complete</p>
+
+        <p><strong>Step 4:</strong> Review the results – fix any errors, address warnings</p>
+
+        <p>Your data never leaves your device. GTFS Guru runs entirely in your browser using WebAssembly technology.</p>
+
+        <h2>What Gets Checked?</h2>
+
+        <p><strong>Required files:</strong> Are all mandatory files present?</p>
+
+        <p><strong>Required fields:</strong> Does each file have all required columns?</p>
+
+        <p><strong>Data types:</strong> Are numbers actually numbers? Dates in correct format?</p>
+
+        <p><strong>References:</strong> Does every trip_id in stop_times.txt exist in trips.txt?</p>
+
+        <p><strong>Coordinates:</strong> Are stop locations valid lat/lon values?</p>
+
+        <p><strong>Times:</strong> Are arrival/departure times in HH:MM:SS format?</p>
+
+        <p><strong>Logic:</strong> Do times progress forward? Are sequences continuous?</p>
+
+        <p><strong>Errors (Must Fix):</strong> These are "blockers." Your feed won't work properly if these exist, and
+            Google will definitely reject it.</p>
+
+        <p><strong>Warnings (Should Fix):</strong> These are usually best practices. Your feed might still work, but
+            fixing them makes the experience better for your riders.</p>
+
+        <p><strong>Score:</strong> We give you a quality score to help you track your progress. Aim for zero errors and
+            a high overall score!</p>
+
+        <h2>Other Validation Options</h2>
+
+        <p><strong>GTFS Guru Desktop App:</strong> Download for Windows, Mac, or Linux to validate offline.</p>
+
+        <p><strong>GTFS Guru CLI:</strong> Use in scripts and CI/CD pipelines with
+            <code>cargo install gtfs-guru-cli</code>
+        </p>
+
+        <p><strong>GTFS Guru Python:</strong> Integrate into Python code with <code>pip install gtfs-guru</code></p>
+
+        <p><strong>Canonical Validator:</strong> The official Java validator from MobilityData (slower, requires Java).
+        </p>
+
+        <p><strong>Google Transit Dashboard:</strong> Google validates when you submit, but it's better to catch errors
+            beforehand.</p>
+
+        <h2>Validation Best Practices</h2>
+
+        <p>• Validate after every significant change</p>
+        <p>• Validate the complete ZIP, not individual files</p>
+        <p>• Fix errors before worrying about warnings</p>
+        <p>• Also test your feed in a trip planner to see how it displays</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="why-is-my-gtfs-rejected.html">Why was my GTFS feed rejected?</a></p>
+        <p>• <a href="how-to-create-gtfs-file.html">How do I create a GTFS file?</a></p>
+        <p>• <a href="gtfs-validation-guide.html">GTFS Validation Guide (full article)</a></p>
+
+        <div class="cta-box">
+            <p>Ready? <a href="https://gtfs.guru">Validate your GTFS feed now</a> – it's free and instant.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+                        <div class="footer-links">
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>

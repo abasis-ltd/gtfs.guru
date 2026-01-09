@@ -77,21 +77,23 @@ mod tests {
 
     #[test]
     fn detects_missing_stop_ids_for_regular_transfer() {
-        let mut feed = GtfsFeed::default();
-        feed.transfers = Some(CsvTable {
-            headers: vec![
-                "from_stop_id".into(),
-                "to_stop_id".into(),
-                "transfer_type".into(),
-            ],
-            rows: vec![Transfer {
-                from_stop_id: None, // Missing
-                to_stop_id: None,   // Missing
-                transfer_type: Some(TransferType::Recommended),
-                ..Default::default()
-            }],
-            row_numbers: vec![2],
-        });
+        let feed = GtfsFeed {
+            transfers: Some(CsvTable {
+                headers: vec![
+                    "from_stop_id".into(),
+                    "to_stop_id".into(),
+                    "transfer_type".into(),
+                ],
+                rows: vec![Transfer {
+                    from_stop_id: None, // Missing
+                    to_stop_id: None,   // Missing
+                    transfer_type: Some(TransferType::Recommended),
+                    ..Default::default()
+                }],
+                row_numbers: vec![2],
+            }),
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         TransferStopIdsConditionalValidator.validate(&feed, &mut notices);
@@ -107,21 +109,23 @@ mod tests {
 
     #[test]
     fn skips_check_for_in_seat_transfer() {
-        let mut feed = GtfsFeed::default();
-        feed.transfers = Some(CsvTable {
-            headers: vec![
-                "from_stop_id".into(),
-                "to_stop_id".into(),
-                "transfer_type".into(),
-            ],
-            rows: vec![Transfer {
-                from_stop_id: None,
-                to_stop_id: None,
-                transfer_type: Some(TransferType::InSeat),
-                ..Default::default()
-            }],
-            row_numbers: vec![2],
-        });
+        let feed = GtfsFeed {
+            transfers: Some(CsvTable {
+                headers: vec![
+                    "from_stop_id".into(),
+                    "to_stop_id".into(),
+                    "transfer_type".into(),
+                ],
+                rows: vec![Transfer {
+                    from_stop_id: None,
+                    to_stop_id: None,
+                    transfer_type: Some(TransferType::InSeat),
+                    ..Default::default()
+                }],
+                row_numbers: vec![2],
+            }),
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         TransferStopIdsConditionalValidator.validate(&feed, &mut notices);
@@ -131,21 +135,23 @@ mod tests {
 
     #[test]
     fn passes_valid_transfer() {
-        let mut feed = GtfsFeed::default();
-        feed.transfers = Some(CsvTable {
-            headers: vec![
-                "from_stop_id".into(),
-                "to_stop_id".into(),
-                "transfer_type".into(),
-            ],
-            rows: vec![Transfer {
-                from_stop_id: Some(feed.pool.intern("S1")),
-                to_stop_id: Some(feed.pool.intern("S2")),
-                transfer_type: Some(TransferType::Recommended),
-                ..Default::default()
-            }],
-            row_numbers: vec![2],
-        });
+        let feed = GtfsFeed {
+            transfers: Some(CsvTable {
+                headers: vec![
+                    "from_stop_id".into(),
+                    "to_stop_id".into(),
+                    "transfer_type".into(),
+                ],
+                rows: vec![Transfer {
+                    from_stop_id: Some(feed.pool.intern("S1")),
+                    to_stop_id: Some(feed.pool.intern("S2")),
+                    transfer_type: Some(TransferType::Recommended),
+                    ..Default::default()
+                }],
+                row_numbers: vec![2],
+            }),
+            ..Default::default()
+        };
 
         let mut notices = NoticeContainer::new();
         TransferStopIdsConditionalValidator.validate(&feed, &mut notices);

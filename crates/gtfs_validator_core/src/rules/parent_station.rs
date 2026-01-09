@@ -211,12 +211,10 @@ fn normalized_location_type(location_type: Option<LocationType>) -> LocationType
 }
 
 fn requires_parent_station(location_type: LocationType) -> bool {
-    match location_type {
-        LocationType::EntranceOrExit | LocationType::GenericNode | LocationType::BoardingArea => {
-            true
-        }
-        _ => false,
-    }
+    matches!(
+        location_type,
+        LocationType::EntranceOrExit | LocationType::GenericNode | LocationType::BoardingArea
+    )
 }
 
 fn expected_parent_location_type(location_type: LocationType) -> Option<LocationType> {
