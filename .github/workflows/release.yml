@@ -195,7 +195,7 @@ jobs:
       - name: Build Wasm
         run: |
           cd crates/gtfs_validator_wasm
-          wasm-pack build --target web --scope gtfs-guru
+          wasm-pack build --target web --scope abasisltd
       - name: Publish to NPM
         run: |
           cd crates/gtfs_validator_wasm/pkg
