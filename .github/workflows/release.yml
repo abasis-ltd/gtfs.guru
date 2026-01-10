@@ -109,17 +109,35 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R artifacts || echo "No artifacts directory"
 
+      - name: Rename artifacts to consistent names
+        run: |
+          mkdir -p release
+          
+          # macOS - DMG (Universal binary)
+          find artifacts -name "*.dmg" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-macOS.dmg || true
+          
+          # Windows - MSI installer
+          find artifacts -name "*.msi" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Windows.msi || true
+          
+          # Windows - NSIS exe installer
+          find artifacts -name "*.exe" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Windows-Setup.exe || true
+          
+          # Linux - DEB package
+          find artifacts -name "*.deb" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Linux.deb || true
+          
+          # Linux - AppImage
+          find artifacts -name "*.AppImage" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Linux.AppImage || true
+          
+          # Linux - RPM package
+          find artifacts -name "*.rpm" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Linux.rpm || true
+          
+          echo "=== Release files ==="
+          ls -la release/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/**/*.dmg
-            artifacts/**/*.app
-            artifacts/**/*.deb
-            artifacts/**/*.AppImage
-            artifacts/**/*.rpm
-            artifacts/**/*.msi
-            artifacts/**/*.exe
+          files: release/*
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
