@@ -11,7 +11,7 @@ WORKDIR /usr/src/app
 # Stage 2: Prepare dependency recipe
 FROM chef AS planner
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare --recipe-path recipe.json -p gtfs-guru-web
 
 # Stage 3: Build dependencies (cached layer)
 FROM chef AS builder
@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Build dependencies first (this layer is cached)
 COPY --from=planner /usr/src/app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json -p gtfs-guru-web
 
 # Copy full source and build the application
 COPY . .
