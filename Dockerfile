@@ -16,11 +16,15 @@ RUN cargo chef prepare --recipe-path recipe.json
 # Stage 3: Build dependencies (cached layer)
 FROM chef AS builder
 
-# Install build dependencies (including GTK for GUI crate compilation)
+# Install build dependencies (including GTK/WebKitGTK for GUI crate compilation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     libgtk-3-dev \
+    libwebkit2gtk-4.1-dev \
+    libsoup-3.0-dev \
+    libappindicator3-dev \
+    librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Build dependencies first (this layer is cached)
