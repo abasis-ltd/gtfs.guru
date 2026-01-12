@@ -41,13 +41,23 @@ impl StringPool {
             return StringId(0);
         }
         let s_compact = CompactString::new(trimmed);
+
+        // Fast path: check if already interned
+        if let Some(id) = self.inner.map.get(&s_compact) {
+            return *id;
+        }
+
+        // Slow path: need to insert
+        // Use entry API but handle the case where another thread inserted first
         match self.inner.map.entry(s_compact.clone()) {
             Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
                 let id_val = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
                 let id = StringId(id_val);
-                entry.insert(id);
+                // Insert into resolver FIRST, before map, to avoid race condition
+                // where another thread sees the id in map but resolver is empty
                 self.inner.resolver.insert(id_val, s_compact);
+                entry.insert(id);
                 id
             }
         }
