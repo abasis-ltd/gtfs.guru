@@ -68,8 +68,8 @@ jobs:
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
           
-          # Decode certificate
-          echo "$APPLE_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          # Decode certificate using OpenSSL (more robust)
+          echo "$APPLE_CERTIFICATE" | openssl base64 -d -A -out $RUNNER_TEMP/certificate.p12
           
           # Create and configure keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
