@@ -16,14 +16,19 @@ impl Validator for BikesAllowanceValidator {
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         let has_bikes_allowed_column = feed.trips.headers.iter().any(|h| h == "bikes_allowed");
 
-        let mut trips_by_route: HashMap<gtfs_guru_model::StringId, Vec<(usize, &gtfs_guru_model::Trip)>> =
-            HashMap::new();
+        let mut trips_by_route: HashMap<
+            gtfs_guru_model::StringId,
+            Vec<(usize, &gtfs_guru_model::Trip)>,
+        > = HashMap::new();
         for (index, trip) in feed.trips.rows.iter().enumerate() {
             let route_id = trip.route_id;
             if route_id.0 == 0 {
                 continue;
             }
-            trips_by_route.entry(route_id).or_default().push((index, trip));
+            trips_by_route
+                .entry(route_id)
+                .or_default()
+                .push((index, trip));
         }
 
         for route in &feed.routes.rows {
@@ -49,8 +54,7 @@ impl Validator for BikesAllowanceValidator {
                 notice.insert_context_field("csvRowNumber", row_number);
                 notice.insert_context_field("routeId", route_id_value.as_str());
                 notice.insert_context_field("tripId", trip_id_value.as_str());
-                notice.field_order =
-                    vec!["csvRowNumber".into(), "routeId".into(), "tripId".into()];
+                notice.field_order = vec!["csvRowNumber".into(), "routeId".into(), "tripId".into()];
                 notices.push(notice);
             }
         }

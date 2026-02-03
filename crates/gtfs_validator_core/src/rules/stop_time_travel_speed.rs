@@ -93,10 +93,9 @@ impl Validator for StopTimeTravelSpeedValidator {
                 .push(trip_id);
         }
 
-        let pattern_order =
-            java_hashmap_iteration_order(&pattern_insertion_order, |fingerprint| {
-                java_long_hash(*fingerprint)
-            });
+        let pattern_order = java_hashmap_iteration_order(&pattern_insertion_order, |fingerprint| {
+            java_long_hash(*fingerprint)
+        });
         let mut pattern_groups = Vec::new();
         for fingerprint in pattern_order {
             if let Some(trip_ids) = trips_by_pattern.get(&fingerprint) {

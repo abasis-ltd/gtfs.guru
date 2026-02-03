@@ -64,10 +64,7 @@ fn trip_coverage_notice(
         "serviceWindowStartDate",
         format_date_yyyymmdd(majority_start),
     );
-    notice.insert_context_field(
-        "serviceWindowEndDate",
-        format_date_yyyymmdd(majority_end),
-    );
+    notice.insert_context_field("serviceWindowEndDate", format_date_yyyymmdd(majority_end));
     notice.field_order = vec![
         "currentDate".into(),
         "serviceWindowStartDate".into(),
