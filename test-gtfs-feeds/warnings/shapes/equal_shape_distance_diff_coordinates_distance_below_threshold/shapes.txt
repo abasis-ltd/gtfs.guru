@@ -1,5 +1,5 @@
 shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,shape_dist_traveled
 shape1,40.7128,-74.0060,1,0.0
 shape1,40.7129,-74.0059,2,100.0
-shape1,40.7130,-74.0058,3,100.0
+shape1,40.712901,-74.005899,3,100.0
 shape1,40.7138,-74.0050,4,200.0

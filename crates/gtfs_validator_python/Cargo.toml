@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-python"
-version = "0.1.1"
+version = "0.9.0"
 edition.workspace = true
 license.workspace = true
 description = "Fast GTFS validator written in Rust"
@@ -15,8 +15,8 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38", "generate-import-lib"] }
 pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
-gtfs-guru-core = { path = "../gtfs_validator_core", version = "0.1.1" }
-gtfs-guru-report = { path = "../gtfs_validator_report", version = "0.1.1" }
+gtfs-guru-core = { path = "../gtfs_validator_core", version = "0.9.0" }
+gtfs-guru-report = { path = "../gtfs_validator_report", version = "0.9.0" }
 serde_json = "1.0"
 chrono = "0.4"
 mimalloc = { version = "0.1", default-features = false }

@@ -3,16 +3,16 @@
 ## Installation
 
 ```bash
-pip install gtfs-validator
+pip install gtfs-guru
 ```
 
 ## Basic Usage
 
 ```python
-import gtfs_validator
+import gtfs_guru
 
 # Validate a GTFS feed
-result = gtfs_validator.validate("/path/to/gtfs.zip")
+result = gtfs_guru.validate("/path/to/gtfs.zip")
 
 # Check results
 print(f"Valid: {result.is_valid}")
@@ -23,7 +23,7 @@ print(f"Warnings: {result.warning_count}")
 ## Validation Options
 
 ```python
-result = gtfs_validator.validate(
+result = gtfs_guru.validate(
     "/path/to/gtfs.zip",
     country_code="US",      # ISO country code
     date="2025-01-15"       # Validation date (YYYY-MM-DD)

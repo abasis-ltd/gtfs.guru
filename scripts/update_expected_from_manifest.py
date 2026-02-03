@@ -36,7 +36,7 @@ def resolve_expected_file(expected_dir: Path, name: str) -> Path:
 def validator_cmd(gtfs_bin: str | None):
     if gtfs_bin:
         return [gtfs_bin]
-    return ["cargo", "run", "-p", "gtfs_validator_cli", "--"]
+    return ["cargo", "run", "-p", "gtfs-guru", "--"]
 
 
 def main() -> int:

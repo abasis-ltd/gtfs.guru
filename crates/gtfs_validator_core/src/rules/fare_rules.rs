@@ -14,6 +14,10 @@ impl Validator for FareRulesValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(ROUTES_FILE) || feed.table_has_errors(FARE_RULES_FILE) {
+            return;
+        }
+
         let fare_attributes = match &feed.fare_attributes {
             Some(table) => Some(
                 table
@@ -107,6 +111,7 @@ fn foreign_key_notice(
 mod tests {
     use super::*;
     use crate::CsvTable;
+    use crate::TableStatus;
     use gtfs_guru_model::{FareAttribute, FareRule, Route};
 
     #[test]
@@ -200,5 +205,26 @@ mod tests {
         FareRulesValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_when_routes_missing() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_rules = Some(CsvTable {
+            headers: vec!["fare_id".into(), "route_id".into()],
+            rows: vec![FareRule {
+                fare_id: feed.pool.intern("F1"),
+                route_id: Some(feed.pool.intern("R1")),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        feed.table_statuses
+            .insert(ROUTES_FILE, TableStatus::MissingFile);
+
+        let mut notices = NoticeContainer::new();
+        FareRulesValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
     }
 }

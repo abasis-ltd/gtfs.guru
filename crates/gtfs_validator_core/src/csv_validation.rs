@@ -43,6 +43,10 @@ const FLOAT_FIELDS: &[&str] = &[
     "stop_lat",
     "stop_lon",
 ];
+const LATITUDE_FIELDS: &[&str] = &["shape_pt_lat", "stop_lat"];
+const LONGITUDE_FIELDS: &[&str] = &["shape_pt_lon", "stop_lon"];
+const LATITUDE_FIELD_TYPE: &str = "latitude within [-90, 90]";
+const LONGITUDE_FIELD_TYPE: &str = "longitude within [-180, 180]";
 
 const INTEGER_FIELDS: &[&str] = &[
     "duration_limit",
@@ -61,6 +65,22 @@ const INTEGER_FIELDS: &[&str] = &[
     "transfer_duration",
     "traversal_time",
 ];
+
+const NON_NEGATIVE_INTEGER_FIELDS: &[&str] = &[
+    "min_transfer_time",
+    "route_sort_order",
+    "rule_priority",
+    "shape_pt_sequence",
+    "stop_sequence",
+    "transfer_duration",
+];
+const POSITIVE_INTEGER_FIELDS: &[&str] = &["duration_limit", "headway_secs", "traversal_time"];
+const NON_ZERO_INTEGER_FIELDS: &[&str] = &["stair_count"];
+
+const NON_NEGATIVE_FLOAT_FIELDS: &[&str] = &["length", "shape_dist_traveled"];
+const POSITIVE_FLOAT_FIELDS: &[&str] = &["min_width"];
+
+const NON_NEGATIVE_DECIMAL_FIELDS: &[&str] = &["amount", "price"];
 
 const DATE_FIELDS: &[&str] = &[
     "date",
@@ -139,6 +159,20 @@ const CURRENCY_ZERO_DECIMALS: &[&str] = &[
 const CURRENCY_THREE_DECIMALS: &[&str] = &["BHD", "JOD", "KWD", "LYD", "OMR", "TND"];
 
 const CURRENCY_FOUR_DECIMALS: &[&str] = &["CLF", "UYW"];
+
+#[derive(Debug, Clone, Copy)]
+enum NumberBounds {
+    Positive,
+    NonNegative,
+    NonZero,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum NumberKind {
+    Integer,
+    Float,
+    Decimal,
+}
 
 #[derive(Debug, Clone, Copy)]
 enum EnumKind {
@@ -227,6 +261,29 @@ impl RowValidator {
                 header_len,
                 record.len(),
             ));
+            return notices;
+        }
+
+        if let Some(schema) = self.schema {
+            for required in schema.required_fields {
+                let Some(&index) = self.header_index.get(*required) else {
+                    continue;
+                };
+                let raw = record.get(index).unwrap_or("");
+                let trimmed = trim_java_whitespace(raw);
+                if trimmed.is_empty() {
+                    let header_name = self
+                        .headers
+                        .get(index)
+                        .map(|value| value.trim())
+                        .unwrap_or(required);
+                    notices.push(missing_required_field_notice(
+                        &self.file_name,
+                        header_name,
+                        row_number,
+                    ));
+                }
+            }
         }
 
         let mut temp_container = NoticeContainer::new();
@@ -273,14 +330,6 @@ impl RowValidator {
                 ));
             }
             let trimmed = trim_java_whitespace(value);
-            if is_schema_field && trimmed.len() < value.len() {
-                notices.push(leading_trailing_whitespace_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    value,
-                ));
-            }
 
             if trimmed.is_empty() {
                 continue;
@@ -306,14 +355,6 @@ impl RowValidator {
                     trimmed,
                 ));
             }
-            if is_language_field(normalized_header) && trimmed.chars().any(|ch| ch.is_uppercase()) {
-                notices.push(mixed_case_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-            }
 
             if let Some(kind) = enum_kind(normalized_header) {
                 let mut temp_container = NoticeContainer::new();
@@ -330,25 +371,84 @@ impl RowValidator {
             }
 
             if is_integer_field(normalized_header) {
-                if trimmed.parse::<i64>().is_err() {
-                    notices.push(invalid_integer_notice(
-                        &self.file_name,
-                        header_name,
-                        row_number,
-                        trimmed,
-                    ));
+                match trimmed.parse::<i64>() {
+                    Ok(value) => {
+                        if let Some(bounds) = integer_bounds(normalized_header) {
+                            if violates_bounds_i64(value, bounds) {
+                                notices.push(number_out_of_range_notice_int(
+                                    &self.file_name,
+                                    header_name,
+                                    row_number,
+                                    bounds_field_type(bounds, NumberKind::Integer),
+                                    value,
+                                ));
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        notices.push(invalid_integer_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
                 }
                 continue;
             }
 
             if is_float_field(normalized_header) {
-                if trimmed.parse::<f64>().is_err() {
-                    notices.push(invalid_float_notice(
-                        &self.file_name,
-                        header_name,
-                        row_number,
-                        trimmed,
-                    ));
+                match trimmed.parse::<f64>() {
+                    Ok(value) => {
+                        if is_latitude_field(normalized_header) && !(-90.0..=90.0).contains(&value)
+                        {
+                            notices.push(number_out_of_range_notice(
+                                &self.file_name,
+                                header_name,
+                                row_number,
+                                LATITUDE_FIELD_TYPE,
+                                value,
+                            ));
+                        } else if is_longitude_field(normalized_header)
+                            && !(-180.0..=180.0).contains(&value)
+                        {
+                            notices.push(number_out_of_range_notice(
+                                &self.file_name,
+                                header_name,
+                                row_number,
+                                LONGITUDE_FIELD_TYPE,
+                                value,
+                            ));
+                        } else if let Some(bounds) = decimal_bounds(normalized_header) {
+                            if violates_bounds_f64(value, bounds) {
+                                notices.push(number_out_of_range_notice(
+                                    &self.file_name,
+                                    header_name,
+                                    row_number,
+                                    bounds_field_type(bounds, NumberKind::Decimal),
+                                    value,
+                                ));
+                            }
+                        } else if let Some(bounds) = float_bounds(normalized_header) {
+                            if violates_bounds_f64(value, bounds) {
+                                notices.push(number_out_of_range_notice(
+                                    &self.file_name,
+                                    header_name,
+                                    row_number,
+                                    bounds_field_type(bounds, NumberKind::Float),
+                                    value,
+                                ));
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        notices.push(invalid_float_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
                 }
                 continue;
             }
@@ -393,7 +493,10 @@ impl RowValidator {
                 continue;
             }
 
-            if is_language_field(normalized_header) && !is_valid_language_code(trimmed) {
+            if is_language_field(normalized_header)
+                && crate::validation_context::thorough_mode_enabled()
+                && !is_valid_language_code(trimmed)
+            {
                 notices.push(invalid_language_notice(
                     &self.file_name,
                     header_name,
@@ -452,6 +555,10 @@ impl RowValidator {
 #[allow(dead_code)]
 pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeContainer) {
     let data = strip_utf8_bom(data);
+    if data.is_empty() {
+        notices.push_empty_table(file_name);
+        return;
+    }
     let mut reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
@@ -512,52 +619,55 @@ fn strip_utf8_bom(data: &[u8]) -> &[u8] {
 pub fn validate_headers(file_name: &str, headers: &[String], notices: &mut NoticeContainer) {
     let schema = schema_for_file(file_name);
     let mut seen: HashMap<String, usize> = HashMap::new();
+    let mut normalized_headers: Vec<String> = Vec::with_capacity(headers.len());
     for (index, header) in headers.iter().enumerate() {
-        let trimmed = header.trim();
-        if trimmed.is_empty() {
-            notices.push(empty_column_name_notice(file_name, index));
+        let column = trim_header_name(header);
+        normalized_headers.push(column.to_string());
+        let column_index = index + 1;
+        if column.is_empty() {
+            notices.push(empty_column_name_notice(file_name, column_index));
             continue;
         }
-        let normalized = trimmed.to_ascii_lowercase();
-        if let Some(first_index) = seen.get(&normalized) {
+        if let Some(first_index) = seen.get(column) {
             notices.push(duplicated_column_notice(
                 file_name,
-                trimmed,
+                column,
                 *first_index,
-                index,
+                column_index,
             ));
         } else {
-            seen.insert(normalized, index);
+            seen.insert(column.to_string(), column_index);
         }
         if let Some(schema) = schema {
-            if !schema
-                .fields
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(trimmed))
-            {
-                notices.push(unknown_column_notice(file_name, trimmed, index));
+            if !schema.fields.contains(&column) {
+                notices.push(unknown_column_notice(file_name, column, column_index));
             }
         }
     }
     if let Some(schema) = schema {
         let thorough = thorough_mode_enabled();
-        let header_set: HashSet<String> = headers
+        let header_set: HashSet<&str> = normalized_headers
             .iter()
-            .map(|value| value.trim().to_ascii_lowercase())
+            .map(|value| value.as_str())
             .collect();
         for required in schema.required_fields {
-            if !header_set.contains(&required.to_ascii_lowercase()) {
+            if !header_set.contains(required) {
                 notices.push(missing_required_column_notice(file_name, required));
             }
         }
         if thorough {
             for recommended in schema.recommended_fields {
-                if !header_set.contains(&recommended.to_ascii_lowercase()) {
+                if !header_set.contains(recommended) {
                     notices.push(missing_recommended_column_notice(file_name, recommended));
                 }
             }
         }
     }
+}
+
+fn trim_header_name(value: &str) -> &str {
+    // Match Java String.trim(), which strips <= U+0020 control/space characters.
+    value.trim_matches(|ch: char| ch <= '\u{20}')
 }
 
 fn empty_column_name_notice(file: &str, index: usize) -> ValidationNotice {
@@ -663,30 +773,6 @@ fn invalid_row_length_notice(
     notice
 }
 
-fn leading_trailing_whitespace_notice(
-    file: &str,
-    field_name: &str,
-    row_number: u64,
-    value: &str,
-) -> ValidationNotice {
-    let mut notice = ValidationNotice::new(
-        "leading_or_trailing_whitespaces",
-        NoticeSeverity::Warning,
-        "value has leading or trailing whitespace",
-    );
-    notice.insert_context_field("csvRowNumber", row_number);
-    notice.insert_context_field("fieldName", field_name);
-    notice.insert_context_field("fieldValue", value);
-    notice.insert_context_field("filename", file);
-    notice.field_order = vec![
-        "csvRowNumber".into(),
-        "fieldName".into(),
-        "fieldValue".into(),
-        "filename".into(),
-    ];
-    notice
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -712,6 +798,66 @@ mod tests {
             .find(|notice| notice.code == "empty_row")
             .expect("empty row notice");
         assert_eq!(context_u64(notice, "csvRowNumber"), 2);
+    }
+
+    #[test]
+    fn mixed_case_violation_matches_java_tokenization() {
+        assert!(!is_mixed_case_violation("FOO"));
+        assert!(is_mixed_case_violation("foo"));
+        assert!(is_mixed_case_violation("'FOO"));
+        assert!(is_mixed_case_violation("FOO BAR"));
+        assert!(!is_mixed_case_violation("Foo Bar"));
+        assert!(is_mixed_case_violation("'\u{05D0}\u{05D1}"));
+    }
+
+    #[test]
+    fn number_out_of_range_uses_java_field_types() {
+        let mut notices = NoticeContainer::new();
+        let data = b"stop_id,stop_lat,stop_lon\nS1,91.0,181.0\n";
+
+        validate_csv_data("stops.txt", data, &mut notices);
+
+        let mut field_types: Vec<_> = notices
+            .iter()
+            .filter(|notice| notice.code == "number_out_of_range")
+            .filter_map(|notice| notice.context.get("fieldType"))
+            .filter_map(|value| value.as_str())
+            .collect();
+        field_types.sort();
+        assert_eq!(
+            field_types,
+            vec!["latitude within [-90, 90]", "longitude within [-180, 180]"]
+        );
+    }
+
+    #[test]
+    fn missing_required_field_emits_notice() {
+        let mut notices = NoticeContainer::new();
+        let data = b"agency_name,agency_url,agency_timezone\n,https://example.com,UTC\n";
+
+        validate_csv_data("agency.txt", data, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|notice| notice.code == "missing_required_field"));
+    }
+
+    #[test]
+    fn non_negative_integer_out_of_range_uses_java_field_type() {
+        let mut notices = NoticeContainer::new();
+        let data = b"trip_id,stop_sequence\nT1,-2\n";
+
+        validate_csv_data("stop_times.txt", data, &mut notices);
+
+        let notice = notices
+            .iter()
+            .find(|notice| notice.code == "number_out_of_range")
+            .expect("number_out_of_range notice");
+        let field_type = notice
+            .context
+            .get("fieldType")
+            .and_then(|value| value.as_str());
+        assert_eq!(field_type, Some("non-negative integer"));
     }
 }
 
@@ -822,6 +968,60 @@ fn invalid_float_notice(
         "field cannot be parsed as float",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    notice
+}
+
+fn number_out_of_range_notice(
+    file: &str,
+    field_name: &str,
+    row_number: u64,
+    field_type: &str,
+    value: f64,
+) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        "number_out_of_range",
+        NoticeSeverity::Error,
+        "field value is out of range",
+    );
+    notice.file = Some(file.to_string());
+    notice.row = Some(row_number);
+    notice.field = Some(field_name.to_string());
+    notice.insert_context_field("fieldType", field_type);
+    notice.insert_context_field("fieldValue", value);
+    notice.field_order = vec![
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldType".into(),
+        "fieldValue".into(),
+        "filename".into(),
+    ];
+    notice
+}
+
+fn number_out_of_range_notice_int(
+    file: &str,
+    field_name: &str,
+    row_number: u64,
+    field_type: &str,
+    value: i64,
+) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        "number_out_of_range",
+        NoticeSeverity::Error,
+        "field value is out of range",
+    );
+    notice.file = Some(file.to_string());
+    notice.row = Some(row_number);
+    notice.field = Some(field_name.to_string());
+    notice.insert_context_field("fieldType", field_type);
+    notice.insert_context_field("fieldValue", value);
+    notice.field_order = vec![
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldType".into(),
+        "fieldValue".into(),
+        "filename".into(),
+    ];
     notice
 }
 
@@ -1148,7 +1348,7 @@ fn enum_value_allowed(kind: EnumKind, value: i64) -> bool {
     match kind {
         EnumKind::LocationType => matches!(value, 0 | 1 | 2 | 3 | 4),
         EnumKind::WheelchairBoarding => matches!(value, 0 | 1 | 2),
-        EnumKind::RouteType => matches!(value, 0..=7 | 11 | 12 | 100..=1702),
+        EnumKind::RouteType => matches!(value, 0..=7 | 11 | 12),
         EnumKind::ContinuousPickupDropOff => matches!(value, 0 | 1 | 2 | 3),
         EnumKind::PickupDropOffType => matches!(value, 0 | 1 | 2 | 3),
         EnumKind::BookingType => matches!(value, 0 | 1 | 2),
@@ -1180,8 +1380,76 @@ fn is_float_field(field: &str) -> bool {
     FLOAT_FIELDS.contains(&field)
 }
 
+fn is_latitude_field(field: &str) -> bool {
+    LATITUDE_FIELDS.contains(&field)
+}
+
+fn is_longitude_field(field: &str) -> bool {
+    LONGITUDE_FIELDS.contains(&field)
+}
+
 fn is_integer_field(field: &str) -> bool {
     INTEGER_FIELDS.contains(&field)
+}
+
+fn integer_bounds(field: &str) -> Option<NumberBounds> {
+    if NON_NEGATIVE_INTEGER_FIELDS.contains(&field) {
+        Some(NumberBounds::NonNegative)
+    } else if POSITIVE_INTEGER_FIELDS.contains(&field) {
+        Some(NumberBounds::Positive)
+    } else if NON_ZERO_INTEGER_FIELDS.contains(&field) {
+        Some(NumberBounds::NonZero)
+    } else {
+        None
+    }
+}
+
+fn float_bounds(field: &str) -> Option<NumberBounds> {
+    if NON_NEGATIVE_FLOAT_FIELDS.contains(&field) {
+        Some(NumberBounds::NonNegative)
+    } else if POSITIVE_FLOAT_FIELDS.contains(&field) {
+        Some(NumberBounds::Positive)
+    } else {
+        None
+    }
+}
+
+fn decimal_bounds(field: &str) -> Option<NumberBounds> {
+    if NON_NEGATIVE_DECIMAL_FIELDS.contains(&field) {
+        Some(NumberBounds::NonNegative)
+    } else {
+        None
+    }
+}
+
+fn bounds_field_type(bounds: NumberBounds, kind: NumberKind) -> &'static str {
+    match (bounds, kind) {
+        (NumberBounds::Positive, NumberKind::Integer) => "positive integer",
+        (NumberBounds::NonNegative, NumberKind::Integer) => "non-negative integer",
+        (NumberBounds::NonZero, NumberKind::Integer) => "non-zero integer",
+        (NumberBounds::Positive, NumberKind::Float) => "positive float",
+        (NumberBounds::NonNegative, NumberKind::Float) => "non-negative float",
+        (NumberBounds::NonZero, NumberKind::Float) => "non-zero float",
+        (NumberBounds::Positive, NumberKind::Decimal) => "positive decimal",
+        (NumberBounds::NonNegative, NumberKind::Decimal) => "non-negative decimal",
+        (NumberBounds::NonZero, NumberKind::Decimal) => "non-zero decimal",
+    }
+}
+
+fn violates_bounds_i64(value: i64, bounds: NumberBounds) -> bool {
+    match bounds {
+        NumberBounds::Positive => value <= 0,
+        NumberBounds::NonNegative => value < 0,
+        NumberBounds::NonZero => value == 0,
+    }
+}
+
+fn violates_bounds_f64(value: f64, bounds: NumberBounds) -> bool {
+    match bounds {
+        NumberBounds::Positive => value <= 0.0,
+        NumberBounds::NonNegative => value < 0.0,
+        NumberBounds::NonZero => value == 0.0,
+    }
 }
 
 fn is_date_field(field: &str) -> bool {
@@ -1240,10 +1508,7 @@ pub fn is_value_validated_field(field: &str) -> bool {
 }
 
 fn is_mixed_case_violation(value: &str) -> bool {
-    let tokens: Vec<&str> = value
-        .split(|ch: char| !ch.is_alphabetic())
-        .filter(|token| !token.is_empty())
-        .collect();
+    let tokens = java_split_on_non_letters(value);
 
     if tokens.is_empty() {
         return false;
@@ -1259,44 +1524,67 @@ fn is_mixed_case_violation(value: &str) -> bool {
         if token.chars().any(|ch| ch.is_numeric()) {
             return false;
         }
-        // Violation if ALL lowercase (and implies has lowercase chars).
-        // Also need to have at least one cased character.
-        // For Hebrew/Arabic/CJK, is_lowercase() returns false, so no violation.
-        let has_cased = token
-            .chars()
-            .any(|ch| ch.is_uppercase() || ch.is_lowercase());
-        if !has_cased {
-            return false;
-        }
         return token.chars().all(|ch| ch.is_lowercase());
     }
 
     let mut has_mixed_case_token = false;
-    let mut cased_tokens = 0;
+    let mut no_number_tokens = 0;
 
     for token in tokens {
         let token_len = token.chars().count();
-        if token_len <= 1 || token.chars().any(|ch| ch.is_numeric()) {
+        if token_len == 1 || token.chars().any(|ch| ch.is_numeric()) {
             continue;
         }
+
+        no_number_tokens += 1;
 
         let has_upper = token.chars().any(|ch| ch.is_uppercase());
         let has_lower = token.chars().any(|ch| ch.is_lowercase());
-
-        // Skip tokens without any cased characters (e.g., Hebrew, Arabic, CJK)
-        if !has_upper && !has_lower {
-            continue;
-        }
-
-        cased_tokens += 1;
 
         if has_upper && has_lower {
             has_mixed_case_token = true;
         }
     }
 
-    // Java logic: if >= 2 cased tokens without numbers, and NO token is mixed case -> Violation.
-    cased_tokens >= 2 && !has_mixed_case_token
+    // Java logic: if >= 2 tokens without numbers, and NO token is mixed case -> Violation.
+    no_number_tokens >= 2 && !has_mixed_case_token
+}
+
+fn java_split_on_non_letters(value: &str) -> Vec<&str> {
+    if value.is_empty() {
+        return vec![""];
+    }
+
+    let starts_with_non_letter = value
+        .chars()
+        .next()
+        .map(|ch| !ch.is_alphabetic())
+        .unwrap_or(false);
+
+    let mut tokens = Vec::new();
+    let mut run_start = None;
+    for (idx, ch) in value.char_indices() {
+        if ch.is_alphabetic() {
+            if run_start.is_none() {
+                run_start = Some(idx);
+            }
+        } else if let Some(start) = run_start.take() {
+            tokens.push(&value[start..idx]);
+        }
+    }
+    if let Some(start) = run_start {
+        tokens.push(&value[start..]);
+    }
+
+    if tokens.is_empty() {
+        return Vec::new();
+    }
+
+    if starts_with_non_letter {
+        tokens.insert(0, "");
+    }
+
+    tokens
 }
 
 fn trim_java_whitespace(value: &str) -> &str {
@@ -1906,11 +2194,6 @@ mod tests_whitespaces {
     #[test]
     fn test_whitespace_checks_schema_aware() {
         let mut notices = NoticeContainer::new();
-        // Agency file has schema.
-        // Headers: agency_name (known), extra_col (unknown)
-        // Values contain whitespace.
-        // agency_name -> should trigger warning (schema field)
-        // extra_col -> should NOT trigger warning (unknown field)
         let data = b"agency_name,extra_col,agency_url,agency_timezone\n agency 1 , val ,url,tz";
         validate_csv_data("agency.txt", data, &mut notices);
 
@@ -1919,19 +2202,10 @@ mod tests_whitespaces {
             .filter(|n| n.code == "leading_or_trailing_whitespaces")
             .collect();
 
-        assert_eq!(
-            whitespace_notices.len(),
-            1,
-            "Expected 1 whitespace notice (for agency_name), found: {:?}",
+        assert!(
+            whitespace_notices.is_empty(),
+            "Did not expect whitespace notices, found: {:?}",
             whitespace_notices
         );
-
-        let notice = &whitespace_notices[0];
-        // verify context fieldName
-        let field_name_json = notice
-            .context
-            .get("fieldName")
-            .expect("Should have fieldName in context");
-        assert_eq!(field_name_json.as_str(), Some("agency_name"));
     }
 }

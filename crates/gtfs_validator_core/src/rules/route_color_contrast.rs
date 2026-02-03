@@ -29,8 +29,8 @@ impl Validator for RouteColorContrastValidator {
                 );
                 notice.insert_context_field("routeId", feed.pool.resolve(route.route_id).as_str());
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("routeColor", route_color);
-                notice.insert_context_field("routeTextColor", route_text_color);
+                notice.insert_context_field("routeColor", format!("#{}", route_color));
+                notice.insert_context_field("routeTextColor", format!("#{}", route_text_color));
                 notice.field_order = vec![
                     "csvRowNumber".into(),
                     "routeColor".into(),

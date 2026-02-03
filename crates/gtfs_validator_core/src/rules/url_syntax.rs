@@ -1,6 +1,6 @@
 use crate::{
-    Fix, FixOperation, FixSafety, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice,
-    Validator,
+    validation_context::thorough_mode_enabled, Fix, FixOperation, FixSafety, GtfsFeed,
+    NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
 };
 use url::Url;
 
@@ -15,6 +15,9 @@ impl Validator for UrlSyntaxValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         for (index, agency) in feed.agency.rows.iter().enumerate() {
             let agency_url = feed.pool.resolve(agency.agency_url);
             validate_url(
@@ -146,6 +149,7 @@ mod tests {
 
     #[test]
     fn detects_invalid_agency_url() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![
@@ -180,6 +184,7 @@ mod tests {
 
     #[test]
     fn suggests_fix_for_url_missing_scheme() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.agency = CsvTable {
             headers: vec![

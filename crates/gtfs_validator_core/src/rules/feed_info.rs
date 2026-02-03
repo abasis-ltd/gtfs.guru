@@ -1,9 +1,12 @@
-use crate::feed::FEED_INFO_FILE;
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use std::collections::HashSet;
+
+use crate::feed::{FEED_INFO_FILE, TRANSLATIONS_FILE};
+use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, TableStatus, ValidationNotice, Validator};
 
 const CODE_START_AND_END_RANGE_OUT_OF_ORDER: &str = "start_and_end_range_out_of_order";
 const CODE_MISSING_FEED_CONTACT_EMAIL_AND_URL: &str = "missing_feed_contact_email_and_url";
 const CODE_MORE_THAN_ONE_ENTITY: &str = "more_than_one_entity";
+const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
 
 #[derive(Debug, Default)]
 pub struct MissingFeedInfoValidator;
@@ -18,7 +21,22 @@ impl Validator for MissingFeedInfoValidator {
             return;
         }
 
-        if feed.translations.is_some() {
+        if feed.table_status(TRANSLATIONS_FILE) == TableStatus::ParseError {
+            return;
+        }
+
+        let translations_use_table_name = feed
+            .translations
+            .as_ref()
+            .map(|translations| {
+                translations
+                    .headers
+                    .iter()
+                    .any(|header| header.eq_ignore_ascii_case("table_name"))
+            })
+            .unwrap_or(false);
+
+        if translations_use_table_name {
             notices.push_missing_file(FEED_INFO_FILE);
         } else {
             notices.push_missing_recommended_file(FEED_INFO_FILE);
@@ -67,11 +85,26 @@ impl Validator for FeedInfoValidator {
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         if let Some(feed_info) = &feed.feed_info {
+            let header_set: HashSet<String> = feed_info
+                .headers
+                .iter()
+                .map(|header| header.trim().to_ascii_lowercase())
+                .collect();
+            let mut missing_recommended_fields = Vec::new();
+            for field in ["feed_start_date", "feed_end_date", "feed_version"] {
+                if !header_set.contains(field) {
+                    missing_recommended_fields.push(field);
+                }
+            }
+
             if feed_info.rows.len() > 1 {
                 notices.push(more_than_one_entity_notice(feed_info.rows.len()));
             }
             for (index, info) in feed_info.rows.iter().enumerate() {
                 let row_number = feed_info.row_number(index);
+                for field in &missing_recommended_fields {
+                    notices.push(missing_recommended_field_notice(field, row_number));
+                }
                 if let (Some(start), Some(end)) = (info.feed_start_date, info.feed_end_date) {
                     if start > end {
                         let mut notice = ValidationNotice::new(
@@ -115,6 +148,19 @@ fn more_than_one_entity_notice(count: usize) -> ValidationNotice {
     notice
 }
 
+fn missing_recommended_field_notice(field: &str, row_number: u64) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        CODE_MISSING_RECOMMENDED_FIELD,
+        NoticeSeverity::Warning,
+        "recommended field is missing",
+    );
+    notice.insert_context_field("csvRowNumber", row_number);
+    notice.insert_context_field("fieldName", field);
+    notice.insert_context_field("filename", FEED_INFO_FILE);
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
+    notice
+}
+
 fn is_blank(value: Option<&str>) -> bool {
     value.map(|val| val.trim().is_empty()).unwrap_or(true)
 }
@@ -147,11 +193,9 @@ mod tests {
         let mut notices = NoticeContainer::new();
         FeedInfoValidator.validate(&feed, &mut notices);
 
-        assert_eq!(notices.len(), 1);
-        assert_eq!(
-            notices.iter().next().unwrap().code,
-            CODE_START_AND_END_RANGE_OUT_OF_ORDER
-        );
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_START_AND_END_RANGE_OUT_OF_ORDER));
     }
 
     #[test]
@@ -218,18 +262,48 @@ mod tests {
         let mut notices = NoticeContainer::new();
         FeedInfoValidator.validate(&feed, &mut notices);
 
-        assert_eq!(notices.len(), 1);
-        assert_eq!(
-            notices.iter().next().unwrap().code,
-            CODE_MORE_THAN_ONE_ENTITY
-        );
+        assert!(notices.iter().any(|n| n.code == CODE_MORE_THAN_ONE_ENTITY));
+    }
+
+    #[test]
+    fn detects_missing_recommended_fields() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec!["feed_publisher_name".into()],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
+                feed_start_date: None,
+                feed_end_date: None,
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+                default_lang: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedInfoValidator.validate(&feed, &mut notices);
+
+        let missing: Vec<_> = notices
+            .iter()
+            .filter(|n| n.code == CODE_MISSING_RECOMMENDED_FIELD)
+            .collect();
+        assert_eq!(missing.len(), 3);
     }
 
     #[test]
     fn passes_with_valid_feed_info() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
-            headers: vec!["feed_publisher_name".into()],
+            headers: vec![
+                "feed_publisher_name".into(),
+                "feed_start_date".into(),
+                "feed_end_date".into(),
+                "feed_version".into(),
+            ],
             rows: vec![FeedInfo {
                 feed_publisher_name: "Test".into(),
                 feed_publisher_url: feed.pool.intern("http://example.com"),

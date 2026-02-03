@@ -25,14 +25,23 @@ wasm-pack build "$WASM_CRATE" --target nodejs --release --out-dir pkg-node
 if command -v wasm-opt &> /dev/null; then
     echo "Optimizing WASM binary with wasm-opt..."
     WASM_OPT_FLAGS="-Oz --enable-bulk-memory --enable-nontrapping-float-to-int"
-    wasm-opt $WASM_OPT_FLAGS -o "$WASM_CRATE/pkg/gtfs_validator_wasm_bg.wasm.opt" "$WASM_CRATE/pkg/gtfs_validator_wasm_bg.wasm"
-    mv "$WASM_CRATE/pkg/gtfs_validator_wasm_bg.wasm.opt" "$WASM_CRATE/pkg/gtfs_validator_wasm_bg.wasm"
-    wasm-opt $WASM_OPT_FLAGS -o "$WASM_CRATE/pkg-node/gtfs_validator_wasm_bg.wasm.opt" "$WASM_CRATE/pkg-node/gtfs_validator_wasm_bg.wasm"
-    mv "$WASM_CRATE/pkg-node/gtfs_validator_wasm_bg.wasm.opt" "$WASM_CRATE/pkg-node/gtfs_validator_wasm_bg.wasm"
+
+    WEB_WASM="$(ls "$WASM_CRATE/pkg/"*_bg.wasm 2>/dev/null | head -n 1)"
+    NODE_WASM="$(ls "$WASM_CRATE/pkg-node/"*_bg.wasm 2>/dev/null | head -n 1)"
+
+    if [ -z "$WEB_WASM" ] || [ -z "$NODE_WASM" ]; then
+        echo "Expected *_bg.wasm in pkg/ and pkg-node/ but did not find them."
+        exit 1
+    fi
+
+    wasm-opt $WASM_OPT_FLAGS -o "${WEB_WASM}.opt" "$WEB_WASM"
+    mv "${WEB_WASM}.opt" "$WEB_WASM"
+    wasm-opt $WASM_OPT_FLAGS -o "${NODE_WASM}.opt" "$NODE_WASM"
+    mv "${NODE_WASM}.opt" "$NODE_WASM"
 
     # Report sizes
-    WEB_SIZE=$(du -h "$WASM_CRATE/pkg/gtfs_validator_wasm_bg.wasm" | cut -f1)
-    NODE_SIZE=$(du -h "$WASM_CRATE/pkg-node/gtfs_validator_wasm_bg.wasm" | cut -f1)
+    WEB_SIZE=$(du -h "$WEB_WASM" | cut -f1)
+    NODE_SIZE=$(du -h "$NODE_WASM" | cut -f1)
     echo "Optimized sizes: web=$WEB_SIZE, node=$NODE_SIZE"
 else
     echo "wasm-opt not found. Skipping optimization."
@@ -49,7 +58,7 @@ if [ -f "$WASM_CRATE/package.json.template" ]; then
     echo "Applying package.json template..."
     # Merge template with generated package.json
     VERSION=$(grep -o '"version": "[^"]*"' "$WASM_CRATE/pkg/package.json" | head -1 | cut -d'"' -f4)
-    sed "s/\"version\": \"0.1.0\"/\"version\": \"$VERSION\"/" "$WASM_CRATE/package.json.template" > "$WASM_CRATE/pkg/package.json.new"
+    sed -E "s/\"version\": \"[^\"]+\"/\"version\": \"$VERSION\"/" "$WASM_CRATE/package.json.template" > "$WASM_CRATE/pkg/package.json.new"
     mv "$WASM_CRATE/pkg/package.json.new" "$WASM_CRATE/pkg/package.json"
 fi
 

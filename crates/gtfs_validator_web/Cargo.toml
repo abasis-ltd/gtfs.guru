@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-web"
-version = "0.1.1"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Web API for GTFS Guru validator"
@@ -19,8 +19,8 @@ tracing-subscriber = { workspace = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "0.1.1"
+version = "0.9.0"
 
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
-version = "0.1.1"
+version = "0.9.0"

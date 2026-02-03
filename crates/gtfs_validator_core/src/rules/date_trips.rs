@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use chrono::{Datelike, Duration, NaiveDate};
 
+use crate::feed::{CALENDAR_DATES_FILE, CALENDAR_FILE, FREQUENCIES_FILE, TRIPS_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::{ExceptionType, GtfsDate, ServiceAvailability};
 
@@ -20,6 +21,14 @@ impl Validator for DateTripsValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(TRIPS_FILE)
+            || feed.table_has_errors(CALENDAR_FILE)
+            || feed.table_has_errors(CALENDAR_DATES_FILE)
+            || feed.table_has_errors(FREQUENCIES_FILE)
+        {
+            return;
+        }
+
         let service_dates = build_service_dates(feed);
         let trip_counts = count_trips_for_each_service_date(feed, &service_dates);
         let Some((majority_start, majority_end)) = compute_majority_service_coverage(&trip_counts)
@@ -31,17 +40,44 @@ impl Validator for DateTripsValidator {
         let validation_date_plus_seven_days = validation_date + Duration::days(7);
 
         if majority_start > validation_date || majority_end < validation_date_plus_seven_days {
-            notices.push(trip_coverage_notice());
+            notices.push(trip_coverage_notice(
+                validation_date,
+                majority_start,
+                majority_end,
+            ));
         }
     }
 }
 
-fn trip_coverage_notice() -> ValidationNotice {
-    ValidationNotice::new(
+fn trip_coverage_notice(
+    validation_date: NaiveDate,
+    majority_start: NaiveDate,
+    majority_end: NaiveDate,
+) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
         CODE_TRIP_COVERAGE_NOT_ACTIVE_FOR_NEXT_7_DAYS,
         NoticeSeverity::Warning,
         "trip coverage is not active for the next 7 days",
-    )
+    );
+    notice.insert_context_field("currentDate", format_date_yyyymmdd(validation_date));
+    notice.insert_context_field(
+        "serviceWindowStartDate",
+        format_date_yyyymmdd(majority_start),
+    );
+    notice.insert_context_field(
+        "serviceWindowEndDate",
+        format_date_yyyymmdd(majority_end),
+    );
+    notice.field_order = vec![
+        "currentDate".into(),
+        "serviceWindowStartDate".into(),
+        "serviceWindowEndDate".into(),
+    ];
+    notice
+}
+
+fn format_date_yyyymmdd(date: NaiveDate) -> String {
+    date.format("%Y%m%d").to_string()
 }
 
 fn compute_majority_service_coverage(

@@ -7,7 +7,7 @@ const CODE_EQUAL_SHAPE_DISTANCE_SAME_COORDS: &str = "equal_shape_distance_same_c
 const CODE_EQUAL_SHAPE_DISTANCE_DIFF_COORDS: &str = "equal_shape_distance_diff_coordinates";
 const CODE_EQUAL_SHAPE_DISTANCE_DIFF_COORDS_BELOW_THRESHOLD: &str =
     "equal_shape_distance_diff_coordinates_distance_below_threshold";
-const DISTANCE_THRESHOLD_METERS: f64 = 20.0;
+const DISTANCE_THRESHOLD_METERS: f64 = 1.11;
 
 #[derive(Debug, Default)]
 pub struct ShapeIncreasingDistanceValidator;
@@ -112,7 +112,7 @@ impl Validator for ShapeIncreasingDistanceValidator {
                         notices.push(shape_notice(
                             CODE_EQUAL_SHAPE_DISTANCE_DIFF_COORDS_BELOW_THRESHOLD,
                             NoticeSeverity::Warning,
-                            "equal shape_dist_traveled with near-identical coordinates",
+                            "equal shape_dist_traveled with different coordinates (below threshold)",
                             prev_row,
                             prev,
                             curr_row,

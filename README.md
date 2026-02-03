@@ -38,9 +38,9 @@ The easiest way to validate feeds without using the command line.
 
 1. Go to the [**Releases Page**](https://github.com/abasis-ltd/gtfs.guru/releases/latest).
 2. Download the installer for your OS:
-    * 🍎 **macOS**: `gtfs-guru_0.1.1_aarch64.dmg` (Apple Silicon) or `x64.dmg` (Intel)
-    * 🪟 **Windows**: `gtfs-guru_0.1.1_x64-setup.exe`
-    * 🐧 **Linux**: `gtfs-guru_0.1.1_amd64.deb` or `.AppImage`
+    * 🍎 **macOS**: `gtfs-guru_0.9.0_aarch64.dmg` (Apple Silicon) or `x64.dmg` (Intel)
+    * 🪟 **Windows**: `gtfs-guru_0.9.0_x64-setup.exe`
+    * 🐧 **Linux**: `gtfs-guru_0.9.0_amd64.deb` or `.AppImage`
 3. Run the installer and launch the app. Drag and drop your `gtfs.zip` file to validate!
 
 ### 🐍 For Python Developers (Data Science)
@@ -72,7 +72,7 @@ The classic high-performance command-line interface.
 **From Crates.io:**
 
 ```bash
-cargo install gtfs-guru-cli
+cargo install gtfs-guru
 ```
 
 **Build from Source:**
@@ -80,7 +80,7 @@ cargo install gtfs-guru-cli
 ```bash
 git clone https://github.com/abasis-ltd/gtfs.guru
 cd gtfs.guru
-cargo build --release -p gtfs-guru-cli
+cargo build --release -p gtfs-guru
 ```
 
 ---
@@ -96,7 +96,8 @@ gtfs-guru -i /path/to/gtfs.zip -o ./output_report
 **Options:**
 * `-i, --input <FILE>`: Path to GTFS zip file or directory.
 * `-o, --output <DIR>`: Directory to save HTML/JSON reports.
-* `-j, --json`: Output JSON report to stdout (useful for piping).
+
+See the [LLM Guide](docs/llm.md) for a compact, copy/paste reference.
 
 ---
 

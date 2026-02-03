@@ -1630,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1647,7 +1647,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-core"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1670,7 +1670,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-gui"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1689,7 +1689,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-model"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "compact_str",
@@ -1699,7 +1699,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-python"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "gtfs-guru-core",
@@ -1713,7 +1713,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-report"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1727,7 +1727,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-wasm"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "console_error_panic_hook",
@@ -1742,7 +1742,7 @@ dependencies = [
 
 [[package]]
 name = "gtfs-guru-web"
-version = "0.1.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "axum",

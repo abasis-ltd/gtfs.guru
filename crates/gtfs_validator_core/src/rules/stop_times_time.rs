@@ -1,9 +1,11 @@
+use crate::feed::STOP_TIMES_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_STOP_TIME_WITH_ONLY_ARRIVAL_OR_DEPARTURE_TIME: &str =
     "stop_time_with_only_arrival_or_departure_time";
 const CODE_STOP_TIME_WITH_ARRIVAL_BEFORE_PREVIOUS_DEPARTURE_TIME: &str =
     "stop_time_with_arrival_before_previous_departure_time";
+const CODE_START_AND_END_RANGE_OUT_OF_ORDER: &str = "start_and_end_range_out_of_order";
 const CODE_STOP_TIME_TIMEPOINT_WITHOUT_TIMES: &str = "stop_time_timepoint_without_times";
 const CODE_MISSING_TIMEPOINT_VALUE: &str = "missing_timepoint_value";
 
@@ -46,6 +48,33 @@ impl Validator for StopTimeArrivalAndDepartureTimeValidator {
                         "tripId".into(),
                     ];
                     notices.push(notice);
+                }
+
+                if let (Some(arrival), Some(departure)) =
+                    (stop_time.arrival_time, stop_time.departure_time)
+                {
+                    if arrival.total_seconds() > departure.total_seconds() {
+                        let mut notice = ValidationNotice::new(
+                            CODE_START_AND_END_RANGE_OUT_OF_ORDER,
+                            NoticeSeverity::Error,
+                            "arrival_time must be <= departure_time",
+                        );
+                        notice.insert_context_field("csvRowNumber", row_number);
+                        notice.insert_context_field("endFieldName", "departure_time");
+                        notice.insert_context_field("endValue", departure.to_string());
+                        notice.insert_context_field("filename", STOP_TIMES_FILE);
+                        notice.insert_context_field("startFieldName", "arrival_time");
+                        notice.insert_context_field("startValue", arrival.to_string());
+                        notice.field_order = vec![
+                            "csvRowNumber".into(),
+                            "endFieldName".into(),
+                            "endValue".into(),
+                            "filename".into(),
+                            "startFieldName".into(),
+                            "startValue".into(),
+                        ];
+                        notices.push(notice);
+                    }
                 }
 
                 if let (Some(arrival), Some((prev_departure, prev_row_number))) =
@@ -238,6 +267,35 @@ mod tests {
         assert!(notices
             .iter()
             .any(|n| n.code == CODE_STOP_TIME_WITH_ARRIVAL_BEFORE_PREVIOUS_DEPARTURE_TIME));
+    }
+
+    #[test]
+    fn detects_arrival_after_departure_in_row() {
+        let mut feed = GtfsFeed::default();
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".into(),
+                "stop_sequence".into(),
+                "arrival_time".into(),
+                "departure_time".into(),
+            ],
+            rows: vec![StopTime {
+                trip_id: feed.pool.intern("T1"),
+                stop_sequence: 1,
+                arrival_time: Some(GtfsTime::from_seconds(4000)),
+                departure_time: Some(GtfsTime::from_seconds(3600)),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.rebuild_stop_times_index();
+
+        let mut notices = NoticeContainer::new();
+        StopTimeArrivalAndDepartureTimeValidator.validate(&feed, &mut notices);
+
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_START_AND_END_RANGE_OUT_OF_ORDER));
     }
 
     #[test]

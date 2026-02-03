@@ -71,7 +71,7 @@ EOT
 cat <<'EOT' > "$REPO/crates/gtfs_model/Cargo.toml"
 [package]
 name = "gtfs_model"
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -366,7 +366,7 @@ EOT
 cat <<'EOT' > "$REPO/crates/gtfs_validator_core/Cargo.toml"
 [package]
 name = "gtfs_validator_core"
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -529,7 +529,7 @@ EOT
 cat <<'EOT' > "$REPO/crates/gtfs_validator_report/Cargo.toml"
 [package]
 name = "gtfs_validator_report"
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -576,7 +576,7 @@ EOT
 cat <<'EOT' > "$REPO/crates/gtfs_validator_cli/Cargo.toml"
 [package]
 name = "gtfs_validator_cli"
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -644,7 +644,7 @@ EOT
 cat <<'EOT' > "$REPO/crates/gtfs_validator_web/Cargo.toml"
 [package]
 name = "gtfs_validator_web"
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -680,7 +680,7 @@ EOT
 cat <<'EOT' > "$REPO/crates/gtfs_validator_gui/Cargo.toml"
 [package]
 name = "gtfs_validator_gui"
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 

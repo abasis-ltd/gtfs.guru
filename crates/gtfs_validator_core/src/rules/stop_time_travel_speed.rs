@@ -1,8 +1,10 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    feed::STOPS_FILE, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
+};
 use gtfs_guru_model::RouteType;
 
 const CODE_FAST_TRAVEL_CONSECUTIVE: &str = "fast_travel_between_consecutive_stops";
@@ -20,6 +22,9 @@ impl Validator for StopTimeTravelSpeedValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(STOPS_FILE) {
+            return;
+        }
         let mut stops_by_id: HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop> =
             HashMap::new();
         for stop in &feed.stops.rows {
@@ -56,9 +61,21 @@ impl Validator for StopTimeTravelSpeedValidator {
             trips_by_id,
         };
 
+        let trip_ids_insertion_order = trip_ids_in_stop_time_order(feed);
+        let trip_ids_java_order =
+            java_hashmap_iteration_order(&trip_ids_insertion_order, |trip_id| {
+                java_string_hash(feed.pool.resolve(*trip_id).as_str())
+            });
+
         let mut trips_by_pattern: HashMap<u64, Vec<gtfs_guru_model::StringId>> = HashMap::new();
-        for (trip_id, indices) in &feed.stop_times_by_trip {
-            let (_, trip) = match context.trips_by_id.get(trip_id) {
+        let mut pattern_insertion_order: Vec<u64> = Vec::new();
+        let mut seen_patterns = HashSet::new();
+        for trip_id in trip_ids_java_order {
+            let indices = match feed.stop_times_by_trip.get(&trip_id) {
+                Some(indices) => indices,
+                None => continue,
+            };
+            let (_, trip) = match context.trips_by_id.get(&trip_id) {
                 Some(t) => *t,
                 None => continue,
             };
@@ -67,14 +84,25 @@ impl Validator for StopTimeTravelSpeedValidator {
                 continue;
             }
             let fingerprint = Self::trip_fingerprint(trip, indices, feed);
+            if seen_patterns.insert(fingerprint) {
+                pattern_insertion_order.push(fingerprint);
+            }
             trips_by_pattern
                 .entry(fingerprint)
                 .or_default()
-                .push(*trip_id);
+                .push(trip_id);
         }
 
-        let pattern_groups: Vec<Vec<gtfs_guru_model::StringId>> =
-            trips_by_pattern.into_values().collect();
+        let pattern_order =
+            java_hashmap_iteration_order(&pattern_insertion_order, |fingerprint| {
+                java_long_hash(*fingerprint)
+            });
+        let mut pattern_groups = Vec::new();
+        for fingerprint in pattern_order {
+            if let Some(trip_ids) = trips_by_pattern.get(&fingerprint) {
+                pattern_groups.push(trip_ids.clone());
+            }
+        }
 
         #[cfg(feature = "parallel")]
         {
@@ -148,10 +176,7 @@ impl StopTimeTravelSpeedValidator {
         if first_indices.len() <= 1 {
             return notices;
         }
-        let distances_km = match Self::distances_for_pattern(first_indices, feed, context) {
-            Some(distances) => distances,
-            None => return notices,
-        };
+        let distances_km = Self::distances_for_pattern(first_indices, feed, context);
 
         let stop_times: Vec<&gtfs_guru_model::StopTime> = first_indices
             .iter()
@@ -256,14 +281,14 @@ impl StopTimeTravelSpeedValidator {
         indices: &[usize],
         feed: &GtfsFeed,
         context: &ValidationContext,
-    ) -> Option<Vec<f64>> {
+    ) -> Vec<f64> {
         if indices.len() <= 1 {
-            return Some(Vec::new());
+            return Vec::new();
         }
         let mut coords = Vec::with_capacity(indices.len());
         for &index in indices {
             let stop_time = &feed.stop_times.rows[index];
-            let coords_for_stop = stop_coords(stop_time, &context.stops_by_id)?;
+            let coords_for_stop = stop_coords(stop_time, &context.stops_by_id);
             coords.push(coords_for_stop);
         }
         let mut distances_km = Vec::with_capacity(coords.len() - 1);
@@ -272,7 +297,7 @@ impl StopTimeTravelSpeedValidator {
             let (lat2, lon2) = coords[i + 1];
             distances_km.push(haversine_km(lat1, lon1, lat2, lon2));
         }
-        Some(distances_km)
+        distances_km
     }
 }
 
@@ -434,10 +459,10 @@ fn populate_travel_speed_notice(
 fn stop_coords(
     stop_time: &gtfs_guru_model::StopTime,
     stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
-) -> Option<(f64, f64)> {
+) -> (f64, f64) {
     let mut current_id = stop_time.stop_id;
     if current_id.0 == 0 {
-        return None;
+        return (0.0, 0.0);
     }
     for _ in 0..3 {
         let stop = match stops_by_id.get(&current_id) {
@@ -445,14 +470,15 @@ fn stop_coords(
             None => break,
         };
         if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
-            return Some((lat, lon));
+            return (lat, lon);
         }
         let Some(parent) = stop.parent_station.filter(|id| id.0 != 0) else {
             break;
         };
         current_id = parent;
     }
-    None
+    // Match Java behavior: fall back to (0,0) if no coordinates are found.
+    (0.0, 0.0)
 }
 
 fn stop_by_id<'a>(
@@ -462,7 +488,83 @@ fn stop_by_id<'a>(
     if stop_id.0 == 0 {
         return None;
     }
-    stops_by_id.get(&stop_id).copied()
+    let stop = stops_by_id.get(&stop_id).copied()?;
+    if stop_has_invalid_coords(stop) {
+        return None;
+    }
+    Some(stop)
+}
+
+fn trip_ids_in_stop_time_order(feed: &GtfsFeed) -> Vec<gtfs_guru_model::StringId> {
+    let mut seen = HashSet::new();
+    let mut ordered = Vec::new();
+    for stop_time in &feed.stop_times.rows {
+        let trip_id = stop_time.trip_id;
+        if trip_id.0 == 0 {
+            continue;
+        }
+        if seen.insert(trip_id) {
+            ordered.push(trip_id);
+        }
+    }
+    ordered
+}
+
+fn java_hashmap_iteration_order<T: Copy>(
+    keys_in_insertion_order: &[T],
+    hash: impl Fn(&T) -> i32,
+) -> Vec<T> {
+    let mut capacity = 16usize;
+    let mut threshold = (capacity as f32 * 0.75) as usize;
+    let mut size = 0usize;
+    let mut buckets: Vec<Vec<T>> = vec![Vec::new(); capacity];
+
+    for key in keys_in_insertion_order {
+        let h = java_spread_hash(hash(key));
+        let idx = (capacity - 1) & (h as usize);
+        buckets[idx].push(*key);
+        size += 1;
+        if size > threshold {
+            capacity *= 2;
+            threshold = (capacity as f32 * 0.75) as usize;
+            let mut new_buckets: Vec<Vec<T>> = vec![Vec::new(); capacity];
+            for bucket in buckets {
+                for entry in bucket {
+                    let h = java_spread_hash(hash(&entry));
+                    let idx = (capacity - 1) & (h as usize);
+                    new_buckets[idx].push(entry);
+                }
+            }
+            buckets = new_buckets;
+        }
+    }
+
+    buckets.into_iter().flatten().collect()
+}
+
+fn java_spread_hash(hash: i32) -> u32 {
+    let h = hash as u32;
+    h ^ (h >> 16)
+}
+
+fn java_string_hash(value: &str) -> i32 {
+    let mut hash: i32 = 0;
+    for code_unit in value.encode_utf16() {
+        hash = hash.wrapping_mul(31).wrapping_add(code_unit as i32);
+    }
+    hash
+}
+
+fn java_long_hash(value: u64) -> i32 {
+    let mixed = value ^ (value >> 32);
+    (mixed as u32) as i32
+}
+
+fn stop_has_invalid_coords(stop: &gtfs_guru_model::Stop) -> bool {
+    let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) else {
+        return false;
+    };
+    !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lon)
 }
 
 fn speed_kph(distance_km: f64, departure_sec: i32, arrival_sec: i32) -> f64 {
@@ -509,7 +611,8 @@ fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CsvTable;
+    use crate::feed::STOPS_FILE;
+    use crate::{CsvTable, TableStatus};
     use gtfs_guru_model::{GtfsTime, Route, RouteType, Stop, StopTime, Trip};
 
     #[test]
@@ -747,5 +850,80 @@ mod tests {
         StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_when_stops_have_errors() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".into(), "stop_lat".into(), "stop_lon".into()],
+            rows: vec![
+                Stop {
+                    stop_id: feed.pool.intern("S1"),
+                    stop_lat: Some(0.0),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: feed.pool.intern("S2"),
+                    stop_lat: Some(0.1),
+                    stop_lon: Some(0.0),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.routes = CsvTable {
+            headers: vec!["route_id".into(), "route_type".into()],
+            rows: vec![Route {
+                route_id: feed.pool.intern("R1"),
+                route_type: RouteType::Bus,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".into(), "route_id".into()],
+            rows: vec![Trip {
+                trip_id: feed.pool.intern("T1"),
+                route_id: feed.pool.intern("R1"),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.stop_times = CsvTable {
+            headers: vec![
+                "trip_id".into(),
+                "stop_id".into(),
+                "stop_sequence".into(),
+                "departure_time".into(),
+                "arrival_time".into(),
+            ],
+            rows: vec![
+                StopTime {
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S1"),
+                    stop_sequence: 1,
+                    departure_time: Some(GtfsTime::from_seconds(0)),
+                    ..Default::default()
+                },
+                StopTime {
+                    trip_id: feed.pool.intern("T1"),
+                    stop_id: feed.pool.intern("S2"),
+                    stop_sequence: 2,
+                    arrival_time: Some(GtfsTime::from_seconds(120)),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        };
+        feed.rebuild_stop_times_index();
+        feed.table_statuses
+            .insert(STOPS_FILE, TableStatus::ParseError);
+
+        let mut notices = NoticeContainer::new();
+        StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
     }
 }

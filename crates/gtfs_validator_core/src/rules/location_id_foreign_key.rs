@@ -12,11 +12,11 @@ impl Validator for LocationIdForeignKeyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let Some(locations) = &feed.locations else {
-            return;
-        };
-        if locations.has_fatal_errors() {
-            return;
+        let locations = feed.locations.as_ref();
+        if let Some(locations) = locations {
+            if locations.has_fatal_errors() {
+                return;
+            }
         }
         if feed.table_has_errors(STOP_TIMES_FILE) {
             return;
@@ -35,7 +35,10 @@ impl Validator for LocationIdForeignKeyValidator {
                 continue;
             };
 
-            if !locations.location_ids.contains(&location_id) {
+            let found = locations
+                .map(|locations| locations.location_ids.contains(&location_id))
+                .unwrap_or(false);
+            if !found {
                 let location_id_value = feed.pool.resolve(location_id);
                 notices.push(missing_ref_notice(
                     location_id_value.as_str(),

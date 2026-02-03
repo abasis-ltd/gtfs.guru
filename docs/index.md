@@ -21,13 +21,13 @@ Full compatibility with [MobilityData gtfs-validator](https://github.com/Mobilit
 === "Python"
 
     ```bash
-    pip install gtfs-validator
+    pip install gtfs-guru
     ```
 
     ```python
-    import gtfs_validator
+    import gtfs_guru
 
-    result = gtfs_validator.validate("/path/to/gtfs.zip")
+    result = gtfs_guru.validate("/path/to/gtfs.zip")
     print(f"Valid: {result.is_valid}, Errors: {result.error_count}")
     ```
 
@@ -35,10 +35,10 @@ Full compatibility with [MobilityData gtfs-validator](https://github.com/Mobilit
 
     ```bash
     # Build
-    cargo build --release -p gtfs_validator_cli
+    cargo build --release -p gtfs-guru
 
     # Run
-    ./target/release/gtfs_validator_cli \
+    ./target/release/gtfs-guru \
         --input /path/to/gtfs.zip \
         --output_base /tmp/report
     ```
@@ -46,7 +46,7 @@ Full compatibility with [MobilityData gtfs-validator](https://github.com/Mobilit
 === "Web API"
 
     ```bash
-    cargo run --release -p gtfs_validator_web
+    cargo run --release -p gtfs-guru-web
     # API at http://localhost:3000
     ```
 

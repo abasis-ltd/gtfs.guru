@@ -17,11 +17,11 @@ Binaries will be in `target/release/`:
 
 ```bash
 # From PyPI (when published)
-pip install gtfs-validator
+pip install gtfs-guru
 
 # From source
 cd crates/gtfs_validator_python
 pip install maturin
 maturin build --release
-pip install target/wheels/gtfs_validator-*.whl
+pip install target/wheels/gtfs_guru-*.whl
 ```

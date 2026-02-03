@@ -1084,7 +1084,7 @@ pub struct FareLegJoinRule {
 pub struct RiderCategory {
     pub rider_category_id: StringId,
     pub rider_category_name: CompactString,
-    #[serde(rename = "is_default_category")]
+    #[serde(rename = "is_default_fare_category")]
     pub is_default_fare_category: Option<RiderFareCategory>,
     pub eligibility_url: Option<StringId>,
 }

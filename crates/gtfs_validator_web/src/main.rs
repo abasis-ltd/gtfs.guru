@@ -18,7 +18,7 @@ use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 
-use gtfs_guru_core::{default_runner, validate_input, GtfsInput};
+use gtfs_guru_core::{default_runner, validate_input, GtfsInput, NoticeContainer};
 use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
@@ -485,6 +485,11 @@ fn run_validation(
     let runner = default_runner();
     let outcome = validate_input(&input, &runner);
     let elapsed = started_at.elapsed();
+    let (validation_notices, system_errors) = if outcome.feed.is_none() {
+        (NoticeContainer::new(), outcome.notices)
+    } else {
+        (outcome.notices, NoticeContainer::new())
+    };
 
     let mut summary_context = ReportSummaryContext::new()
         .with_gtfs_input(input_path)
@@ -509,13 +514,14 @@ fn run_validation(
     let html_context = HtmlReportContext::from_summary(&summary, gtfs_source_label);
     write_html_report(
         output_dir.join("report.html"),
-        &outcome.notices,
+        &validation_notices,
         &summary,
         html_context,
     )?;
-    let report = ValidationReport::from_container_with_summary(&outcome.notices, summary);
+    let report = ValidationReport::from_container_with_summary(&validation_notices, summary);
     report.write_json(output_dir.join("report.json"))?;
-    ValidationReport::empty().write_json(output_dir.join("system_errors.json"))?;
+    ValidationReport::from_container(&system_errors)
+        .write_json(output_dir.join("system_errors.json"))?;
     Ok(())
 }
 

@@ -1,5 +1,5 @@
 use crate::feed::LOCATIONS_GEOJSON_FILE;
-use crate::{GtfsFeed, NoticeContainer, Validator};
+use crate::{validation_context::thorough_mode_enabled, GtfsFeed, NoticeContainer, Validator};
 
 #[derive(Debug, Default)]
 pub struct LocationsGeoJsonPresenceValidator;
@@ -10,6 +10,9 @@ impl Validator for LocationsGeoJsonPresenceValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         if feed.locations.is_some() {
             return;
         }
@@ -44,6 +47,7 @@ mod tests {
 
     #[test]
     fn detects_missing_locations_geojson() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],
@@ -69,6 +73,7 @@ mod tests {
 
     #[test]
     fn passes_when_locations_geojson_present() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],
@@ -89,6 +94,7 @@ mod tests {
 
     #[test]
     fn passes_when_no_location_id_used() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec!["stop_id".into(), "location_id".into()],

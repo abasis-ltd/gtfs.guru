@@ -7,7 +7,7 @@ current_dir = Path.cwd()
 tests_data_dir = current_dir / "test-gtfs-feeds/google_transitfeed/tests/data"
 output_base_dir = current_dir / "output_google_tests"
 validator_bin = "cargo"
-validator_args = ["run", "--release", "-p", "gtfs-guru-cli", "--"]
+validator_args = ["run", "--release", "-p", "gtfs-guru", "--"]
 
 # Ensure output directory exists
 output_base_dir.mkdir(parents=True, exist_ok=True)

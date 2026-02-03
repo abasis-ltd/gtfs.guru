@@ -1,7 +1,10 @@
+use crate::feed::{SHAPES_FILE, STOPS_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_POINT_NEAR_ORIGIN: &str = "point_near_origin";
 const CODE_POINT_NEAR_POLE: &str = "point_near_pole";
+const LATITUDE_FIELD_TYPE: &str = "latitude within [-90, 90]";
+const LONGITUDE_FIELD_TYPE: &str = "longitude within [-180, 180]";
 
 #[derive(Debug, Default)]
 pub struct StopLatLonValidator;
@@ -12,6 +15,9 @@ impl Validator for StopLatLonValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(STOPS_FILE) {
+            return;
+        }
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
             if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
@@ -39,6 +45,9 @@ impl Validator for ShapeLatLonValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(SHAPES_FILE) {
+            return;
+        }
         if let Some(shapes) = &feed.shapes {
             for (index, shape) in shapes.rows.iter().enumerate() {
                 let row_number = shapes.row_number(index);
@@ -79,7 +88,7 @@ fn check_point(
         notice.insert_context_field("csvRowNumber", row_number);
         notice.insert_context_field("fieldName", lat_field);
         notice.insert_context_field("fieldValue", lat);
-        notice.insert_context_field("fieldType", "float");
+        notice.insert_context_field("fieldType", LATITUDE_FIELD_TYPE);
         if let Some(entity_id) = entity_id {
             notice.insert_context_field("entityId", entity_id);
         }
@@ -104,7 +113,7 @@ fn check_point(
         notice.insert_context_field("csvRowNumber", row_number);
         notice.insert_context_field("fieldName", lon_field);
         notice.insert_context_field("fieldValue", lon);
-        notice.insert_context_field("fieldType", "float");
+        notice.insert_context_field("fieldType", LONGITUDE_FIELD_TYPE);
         if let Some(entity_id) = entity_id {
             notice.insert_context_field("entityId", entity_id);
         }
