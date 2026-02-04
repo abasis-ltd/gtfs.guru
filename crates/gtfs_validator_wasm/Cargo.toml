@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-wasm"
-version = "0.9.0"
+version = "0.9.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "GTFS validator compiled to WebAssembly for browser-based validation"
@@ -29,12 +29,12 @@ console_error_panic_hook = { version = "0.1", optional = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "0.9.0"
+version = "0.9.1"
 default-features = false  # Disable rayon for WASM
 
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
-version = "0.9.0"
+version = "0.9.1"
 default-features = false
 
 [dev-dependencies]
