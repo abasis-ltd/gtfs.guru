@@ -8,6 +8,8 @@
     <meta name="description"
         content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
     <link rel="canonical" href="https://gtfs.guru/">
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="https://gtfs.guru/sitemap.xml">
+    <meta name="robots" content="index, follow">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
@@ -24,6 +26,26 @@
     <meta name="twitter:description"
         content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
     <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+    <meta name="theme-color" content="#0f172a">
+
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "GTFS Guru",
+        "url": "https://gtfs.guru/",
+        "logo": "https://gtfs.guru/logo.png"
+      },
+      {
+        "@type": "WebSite",
+        "name": "GTFS Guru",
+        "url": "https://gtfs.guru/"
+      }
+    ]
+  }
+  </script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -256,7 +278,7 @@
                     <div class="os-icon"><i data-lucide="apple"></i></div>
                     <h3>macOS</h3>
                     <p class="sub-text">Universal (Intel & Apple Silicon)</p>
-                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/download/v0.9.0/GTFS-Guru-macOS.dmg"
+                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-macos.dmg"
                         class="btn btn-primary width-full">
                         <i data-lucide="download"></i> Download DMG
                     </a>
@@ -266,7 +288,7 @@
                     <div class="os-icon"><i data-lucide="monitor"></i></div>
                     <h3>Windows</h3>
                     <p class="sub-text">x64 Installer</p>
-                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/download/v0.9.0/GTFS-Guru-Windows-Setup.exe"
+                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-windows-x64-setup.exe"
                         class="btn btn-primary width-full">
                         <i data-lucide="download"></i> Download EXE
                     </a>
@@ -276,9 +298,13 @@
                     <div class="os-icon"><i data-lucide="server"></i></div>
                     <h3>Linux</h3>
                     <p class="sub-text">Debian / AppImage</p>
-                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/download/v0.9.0/GTFS-Guru-Linux.deb"
+                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-amd64.deb"
                         class="btn btn-primary width-full">
                         <i data-lucide="download"></i> Download DEB
+                    </a>
+                    <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-amd64.AppImage"
+                        class="btn btn-secondary width-full" style="margin-top: 0.6rem;">
+                        <i data-lucide="download"></i> Download AppImage
                     </a>
                 </div>
             </div>

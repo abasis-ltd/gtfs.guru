@@ -453,6 +453,44 @@
         .legend-dot.match {
             background: #3498db;
         }
+
+        .btn-small {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .update-banner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+            color: #9a3412;
+            border-radius: 10px;
+            padding: 0.5rem 0.75rem;
+            margin: 0 auto 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .update-banner.hidden {
+            display: none;
+        }
+
+        .update-log {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-align: center;
+            margin: 0 auto 0.75rem;
+        }
+
+        .update-log.error {
+            color: #b91c1c;
+        }
+
+        .update-log.hidden {
+            display: none;
+        }
     </style>
 </head>
 
@@ -463,6 +501,12 @@
             <h1 style="font-size: 1.25rem; margin: 0; color: #1e293b;">GTFS Guru — The world's fastest GTFS validator
             </h1>
         </header>
+
+        <div class="update-banner hidden" id="updateBanner">
+            <span id="updateText">Update available</span>
+            <button class="btn btn-primary btn-small" id="updateBtn">Download update</button>
+        </div>
+        <div class="update-log hidden" id="updateLog"></div>
 
         <div class="card" id="uploadCard">
             <div class="form-group">
@@ -860,10 +904,15 @@
         const jsonReportBtn = document.getElementById('jsonReportBtn');
         const progressFill = document.getElementById('progressFill');
         const progressStatus = document.getElementById('progressStatus');
+        const updateBanner = document.getElementById('updateBanner');
+        const updateText = document.getElementById('updateText');
+        const updateBtn = document.getElementById('updateBtn');
+        const updateLog = document.getElementById('updateLog');
 
         let selectedFilePath = null;
         let lastResult = null;
         let unlistenProgress = null;
+        let updateDownloadUrl = null;
 
         // Initialize
         async function init() {
@@ -873,9 +922,55 @@
             } catch (e) {
                 console.error('Failed to get version:', e);
             }
+
+            try {
+                updateDownloadUrl = await invoke('get_update_download_url');
+            } catch (e) {
+                updateDownloadUrl = null;
+            }
+
+            await checkForUpdates();
         }
 
         init();
+
+        function showUpdateLog(message, isError = false) {
+            if (!updateLog) return;
+            updateLog.textContent = message;
+            updateLog.classList.remove('hidden');
+            updateLog.classList.toggle('error', isError);
+            const logger = isError ? console.warn : console.log;
+            logger('[Updater]', message);
+        }
+
+        async function checkForUpdates() {
+            if (!invoke || !updateBanner || !updateText || !updateBtn) return;
+
+            try {
+                showUpdateLog('Checking for updates...');
+                const result = await invoke('check_for_updates');
+                if (result && result.available) {
+                    const latest = result.version ? `v${result.version}` : 'a new version';
+                    updateText.textContent = `Update available: ${latest}`;
+                    updateBanner.classList.remove('hidden');
+                    updateBanner.hidden = false;
+                    showUpdateLog(`Update available: ${latest}`);
+                } else {
+                    showUpdateLog('Update check: no updates.');
+                }
+            } catch (e) {
+                showUpdateLog(`Update check failed: ${String(e)}`, true);
+            }
+        }
+
+        updateBtn.addEventListener('click', async () => {
+            const url = updateDownloadUrl || 'https://github.com/abasis-ltd/gtfs.guru/releases/latest';
+            if (shellOpen) {
+                await shellOpen(url);
+            } else {
+                window.open(url, '_blank');
+            }
+        });
 
         // Drop zone handlers
         dropZone.addEventListener('click', async () => {

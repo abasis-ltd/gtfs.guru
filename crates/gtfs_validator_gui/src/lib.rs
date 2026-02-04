@@ -18,6 +18,8 @@ use gtfs_guru_report::{
 };
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::{AppHandle, Emitter};
+#[cfg(desktop)]
+use tauri_plugin_updater::UpdaterExt;
 
 struct TauriProgressHandler {
     app: AppHandle,
@@ -154,14 +156,33 @@ pub struct AppState {
     pub last_output_dir: Mutex<Option<PathBuf>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateNotice {
+    pub available: bool,
+    pub version: Option<String>,
+    pub body: Option<String>,
+    pub pub_date: Option<String>,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            #[cfg(desktop)]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
+            Ok(())
+        })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             validate_gtfs,
+            check_for_updates,
+            get_update_download_url,
             get_version,
             open_path
         ])
@@ -204,6 +225,66 @@ async fn validate_gtfs(
 #[tauri::command]
 fn get_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+async fn check_for_updates(app: AppHandle) -> Result<UpdateNotice, String> {
+    let updater = app.updater_builder().build().map_err(|e| e.to_string())?;
+
+    let update = updater.check().await.map_err(|e| e.to_string())?;
+
+    Ok(match update {
+        Some(update) => UpdateNotice {
+            available: true,
+            version: Some(update.version),
+            body: update.body,
+            pub_date: update.date.map(|date| date.to_string()),
+        },
+        None => UpdateNotice {
+            available: false,
+            version: None,
+            body: None,
+            pub_date: None,
+        },
+    })
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+async fn check_for_updates(_app: AppHandle) -> Result<UpdateNotice, String> {
+    Ok(UpdateNotice {
+        available: false,
+        version: None,
+        body: None,
+        pub_date: None,
+    })
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+fn get_update_download_url() -> Option<String> {
+    let target = tauri_plugin_updater::target()?;
+    let filename = if target.starts_with("darwin-") {
+        "gtfs-guru-macos.dmg"
+    } else if target.starts_with("windows-") {
+        "gtfs-guru-windows-x64.msi"
+    } else if target.starts_with("linux-") {
+        "gtfs-guru-linux-amd64.AppImage"
+    } else {
+        return None;
+    };
+
+    Some(format!(
+        "https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/{}",
+        filename
+    ))
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+fn get_update_download_url() -> Option<String> {
+    None
 }
 
 #[tauri::command]

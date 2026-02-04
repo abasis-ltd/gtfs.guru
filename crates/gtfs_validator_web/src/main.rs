@@ -6,17 +6,22 @@ use std::time::Instant;
 
 use anyhow::Context;
 use axum::{
+    body::Body,
     extract::{Path as AxumPath, State},
     http::{header, StatusCode},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
 };
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use chrono::Utc;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
+
+use include_dir::{include_dir, Dir};
+use mime_guess::MimeGuess;
 
 use gtfs_guru_core::{default_runner, validate_input, GtfsInput, NoticeContainer};
 use gtfs_guru_report::{
@@ -24,6 +29,7 @@ use gtfs_guru_report::{
 };
 
 static JOB_COUNTER: AtomicU64 = AtomicU64::new(1);
+static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../website");
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -36,7 +42,6 @@ async fn main() -> anyhow::Result<()> {
     spawn_job_cleanup(state.clone());
 
     let app = Router::new()
-        .route("/", get(index_html))
         .route("/healthz", get(|| async { "ok" }))
         .route("/version", get(version))
         .route("/create-job", post(create_job))
@@ -51,6 +56,9 @@ async fn main() -> anyhow::Result<()> {
             "/jobs/:job_id/execution_result.json",
             get(job_execution_result),
         )
+        .route("/sitemap.xml", get(sitemap_xml))
+        .route("/", get(index_html))
+        .route("/*path", get(static_file))
         .with_state(state);
     let addr = "0.0.0.0:3000";
     let listener = TcpListener::bind(addr).await?;
@@ -159,13 +167,100 @@ struct ExecutionResult {
     error: String,
 }
 
-const INDEX_HTML: &str = include_str!("../static/index.html");
+async fn index_html() -> Response {
+    serve_static_path("index.html")
+}
 
-async fn index_html() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        INDEX_HTML,
-    )
+async fn sitemap_xml() -> Response {
+    let lastmod = Utc::now().format("%Y-%m-%d").to_string();
+    let base_url = "https://gtfs.guru";
+
+    let mut paths: Vec<String> = WEBSITE_DIR
+        .files()
+        .filter_map(|file| {
+            let path = file.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("html") {
+                return None;
+            }
+            let path_str = path.to_string_lossy().to_string();
+            if path_str == "index.html" {
+                return None;
+            }
+            Some(path_str)
+        })
+        .collect();
+    paths.sort();
+
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+    xml.push_str("  <url>\n");
+    xml.push_str(&format!("    <loc>{}/</loc>\n", base_url));
+    xml.push_str(&format!("    <lastmod>{}</lastmod>\n", lastmod));
+    xml.push_str("  </url>\n");
+    for path in paths {
+        xml.push_str("  <url>\n");
+        xml.push_str(&format!("    <loc>{}/{}</loc>\n", base_url, path));
+        xml.push_str(&format!("    <lastmod>{}</lastmod>\n", lastmod));
+        xml.push_str("  </url>\n");
+    }
+    xml.push_str("</urlset>");
+
+    let mut response = Response::new(Body::from(xml));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/xml; charset=utf-8"),
+    );
+    response
+}
+
+async fn static_file(AxumPath(path): AxumPath<String>) -> Response {
+    let Some(clean_path) = sanitize_path(&path) else {
+        return not_found();
+    };
+    if clean_path.is_empty() {
+        return serve_static_path("index.html");
+    }
+    serve_static_path(&clean_path)
+}
+
+fn sanitize_path(path: &str) -> Option<String> {
+    let trimmed = path.trim_start_matches('/');
+    if trimmed.is_empty() {
+        return Some(String::new());
+    }
+    let mut segments = Vec::new();
+    for segment in trimmed.split('/') {
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        if segment == ".." {
+            return None;
+        }
+        segments.push(segment);
+    }
+    Some(segments.join("/"))
+}
+
+fn serve_static_path(path: &str) -> Response {
+    let Some(file) = WEBSITE_DIR.get_file(path) else {
+        return not_found();
+    };
+    let mime = MimeGuess::from_path(path).first_or_octet_stream();
+    let mut response = Response::new(Body::from(file.contents().to_owned()));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_str(mime.as_ref())
+            .unwrap_or_else(|_| header::HeaderValue::from_static("application/octet-stream")),
+    );
+    response
+}
+
+fn not_found() -> Response {
+    Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from("Not Found"))
+        .unwrap_or_else(|_| Response::new(Body::from("Not Found")))
 }
 
 async fn version() -> Json<VersionResponse> {
