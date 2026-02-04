@@ -29,7 +29,7 @@ use gtfs_guru_report::{
 };
 
 static JOB_COUNTER: AtomicU64 = AtomicU64::new(1);
-static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../website");
+static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/website");
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

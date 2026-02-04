@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How Do I Get My Bus Routes on Google Maps? | GTFS Guru</title>
+    <meta name="description"
+        content="To add your bus routes to Google Maps, create a GTFS feed and submit it through Google Transit Partner Dashboard. Here's exactly how to do it.">
+    <link rel="canonical" href="https://gtfs.guru/how-to-get-my-bus-on-google-maps.html">
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="How Do I Get My Bus Routes on Google Maps? | GTFS Guru">
+    <meta property="og:description"
+        content="To add your bus routes to Google Maps, create a GTFS feed and submit it through Google Transit Partner Dashboard.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:url" content="https://gtfs.guru/how-to-get-my-bus-on-google-maps.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How Do I Get My Bus Routes on Google Maps? | GTFS Guru">
+    <meta name="twitter:description"
+        content="To add your bus routes to Google Maps, create a GTFS feed and submit it through Google Transit Partner Dashboard.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "How do I get my bus routes on Google Maps?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "To add your bus routes to Google Maps: 1) Create a GTFS feed with your routes and schedules, 2) Validate it to fix errors, 3) Host the file at a public URL, 4) Submit through Google Transit Partner Dashboard. Review takes 2-4 weeks."
+      }
+    }]
+  }
+  </script>
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "How Do I Get My Bus Routes on Google Maps?",
+  "description": "To add your bus routes to Google Maps, create a GTFS feed and submit it through Google Transit Partner Dashboard. Here's exactly how to do it.",
+  "author": {
+    "@type": "Organization",
+    "name": "GTFS Guru"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "GTFS Guru",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://gtfs.guru/logo.png"
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/how-to-get-my-bus-on-google-maps.html"
+  },
+  "dateModified": "2026-02-04"
+}
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html#validator">Web Validator</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html" class="active">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="index.html#developers">Developers</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+            </div>
+            <a href="index.html#download" class="btn btn-primary">Get the App</a>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <a href="faq.html" class="faq-back-link"><i data-lucide="arrow-left"></i> Back to Guides</a>
+
+        <h1>How Do I Get My Bus Routes on Google Maps?</h1>
+
+        <p class="short-answer"><strong>Just create a GTFS feed for your system, validate it, host it online, and then
+                submit the link through the Google Transit Partner Dashboard.</strong></p>
+
+        <p>Getting your transit routes on Google Maps is free, but requires creating data in a specific format called
+            GTFS (General Transit Feed Specification). Here's the process:</p>
+
+        <h2>Step 1: Create Your GTFS Feed</h2>
+
+        <p>A GTFS feed is a ZIP file containing CSV files that describe your transit system:</p>
+        <p>• <strong>agency.txt</strong> – Your company name, website, timezone</p>
+        <p>• <strong>stops.txt</strong> – All stop locations with GPS coordinates</p>
+        <p>• <strong>routes.txt</strong> – Your route names and numbers</p>
+        <p>• <strong>trips.txt</strong> – Each trip a vehicle makes</p>
+        <p>• <strong>stop_times.txt</strong> – Arrival times at each stop</p>
+        <p>• <strong>calendar.txt</strong> – Which days services operate</p>
+
+        <p>You can create these files manually in spreadsheet software, use dedicated GTFS editing tools, or export from
+            scheduling software that supports GTFS.</p>
+
+        <p>Before you send anything to Google, you need to check it for errors. Google's team will reject any feed that
+            has validation issues, so catching them early will save you weeks of back-and-forth.</p>
+
+
+        <h2>Step 2: Validate Your Feed</h2>
+
+        <p>Drop your ZIP file into <a href="https://gtfs.guru">GTFS Guru</a> – it'll show you if
+            you're missing any fields or if your coordinates are slightly off.</p>
+
+
+        <h2>Step 3: Host Your Feed (Recommended)</h2>
+
+
+        <p>While you can initially upload a ZIP file directly to the Google Transit Partner Dashboard for testing,
+            Google ultimately needs to fetch your data from a stable URL to handle regular updates. You should
+            eventually host your ZIP file on:</p>
+        <p>• Your website (e.g., yourcompany.com/gtfs/feed.zip)</p>
+        <p>• Cloud storage (Google Cloud, AWS S3, etc.)</p>
+        <p>• An open data portal</p>
+
+        <p>The URL must be publicly accessible without login.</p>
+
+
+        <h2>Step 4: Register and Submit to Google</h2>
+
+
+        <p>If you're a new partner, you first need to fill out the <a
+                href="https://support.google.com/transitpartners/contact/agency_participate" rel="nofollow">Google
+                Transit Partner participation form</a>. For a detailed overview of the process, see the <a
+                href="https://support.google.com/transitpartners/answer/1111481" rel="nofollow">Official Google
+                Transit Onboarding Guide</a>.</p>
+
+        <p>Once you're set up, go to the <a href="https://partnerdash.google.com/transit" rel="nofollow">Google Transit
+                Partner Dashboard</a> and sign in with a Google account. If your agency isn't registered yet, create a
+            new profile with your company information.</p>
+
+
+        <p>Add your feed URL (or upload your ZIP). Google will fetch it, run validation, and show you a preview of how
+            your routes will appear. Review the preview carefully – check that stops are in the right places and
+            schedules look correct.
+        </p>
+
+        <p>Once you submit, Google's team will take a look. This step usually takes 2-4 weeks. They might reach out with
+            a few questions or ask for small corrections.</p>
+
+        <p>Once everything looks good and they hit the "approve" button, your routes will start showing up in Google
+            Maps within a few days.</p>
+
+        <p><strong>You must have permission.</strong> You need to be the actual transit operator or have their explicit
+            "okay" to publish the data.</p>
+
+        <p><strong>Accuracy is everything.</strong> Your data needs to match what's happening on the street. If your
+            schedules are outdated, Google will eventually flag or remove the feed.</p>
+
+        <p><strong>Keep it fresh.</strong> Whenever your schedules change, update your ZIP file. Google will handle the
+            re-fetching automatically.</p>
+
+        <h2>How Long Does It Take?</h2>
+
+        <p>• Creating a simple feed: 1–5 days (depending on system size)</p>
+        <p>• Google review: 2–4 weeks</p>
+        <p>• Total time to go live: 3–6 weeks typically</p>
+
+        <h2>Is It Free?</h2>
+
+        <p>Yes. Google doesn't charge transit agencies to include their data. The only costs are your time to create and
+            maintain the feed.</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="what-is-gtfs-used-for.html">What is GTFS used for?</a></p>
+        <p>• <a href="how-to-create-gtfs-file.html">How do I create a GTFS file?</a></p>
+        <p>• <a href="why-is-my-gtfs-rejected.html">Why was my GTFS feed rejected?</a></p>
+
+        <div class="cta-box">
+            <p>Ready to submit? <a href="https://gtfs.guru">Validate your GTFS feed first</a> to avoid rejection.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>

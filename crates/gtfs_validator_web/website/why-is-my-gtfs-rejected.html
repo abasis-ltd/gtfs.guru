@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Why Was My GTFS Feed Rejected by Google? | GTFS Guru</title>
+    <meta name="description"
+        content="Common reasons Google rejects GTFS feeds: validation errors, inaccurate stops, missing shapes, expired calendars. Learn how to fix these issues.">
+    <link rel="canonical" href="https://gtfs.guru/why-is-my-gtfs-rejected.html">
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="Why Was My GTFS Feed Rejected by Google? | GTFS Guru">
+    <meta property="og:description"
+        content="Common reasons Google rejects GTFS feeds: validation errors, inaccurate stops, missing shapes, expired calendars. Learn how to fix these issues.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:url" content="https://gtfs.guru/why-is-my-gtfs-rejected.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Why Was My GTFS Feed Rejected by Google? | GTFS Guru">
+    <meta name="twitter:description"
+        content="Common reasons Google rejects GTFS feeds: validation errors, inaccurate stops, missing shapes, expired calendars. Learn how to fix these issues.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "Why was my GTFS feed rejected by Google?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Common rejection reasons include: validation errors (missing fields, broken references), inaccurate stop locations, missing shapes.txt, expired calendar dates, and data quality issues. Validate your feed before submitting to identify and fix problems."
+      }
+    }]
+  }
+  </script>
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Why Was My GTFS Feed Rejected by Google?",
+  "description": "Common reasons Google rejects GTFS feeds: validation errors, inaccurate stops, missing shapes, expired calendars. Learn how to fix these issues.",
+  "author": {
+    "@type": "Organization",
+    "name": "GTFS Guru"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "GTFS Guru",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://gtfs.guru/logo.png"
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/why-is-my-gtfs-rejected.html"
+  },
+  "dateModified": "2026-02-04"
+}
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html#validator">Web Validator</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html" class="active">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="index.html#developers">Developers</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+            </div>
+            <a href="index.html#download" class="btn btn-primary">Get the App</a>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <a href="faq.html" class="faq-back-link"><i data-lucide="arrow-left"></i> Back to Guides</a>
+
+        <h1>Why Was My GTFS Feed Rejected by Google?</h1>
+
+        <p class="short-answer"><strong>Google usually rejects feeds because of validation errors, inaccurate stop
+                locations, or missing required info. Always validate before you submit.</strong></p>
+
+        <h2>Common Rejection Reasons</h2>
+
+        <h3>1. Validation Errors</h3>
+        <p>This is the #1 reason for rejection. Google runs a strict check on every file you send. If columns are
+            missing or dates are in the wrong format, they'll send it back.</p>
+
+        <p><strong>The Fix:</strong> Run your file through <a href="https://gtfs.guru">GTFS Guru</a> first. If it finds
+            even one error, Google will too. Fix them all before hitting submit.</p>
+
+        <h3>2. Inaccurate Stop Locations</h3>
+        <p>Google's reviewers are eagle-eyed. If they see a bus stop in the middle of a lake or inside someone's living
+            room, they'll reject the feed. Swapping your latitude and longitude is a very common mistake!</p>
+
+        <p><strong>The Fix:</strong> Double-check your coordinates. Try plotting a few of them on a map to make sure
+            they're actually on the street where they belong.</p>
+
+        <h3>3. Missing shapes.txt</h3>
+        <p>While technically optional, Google strongly prefers feeds with shapes. Without them, routes appear as
+            straight lines between stops, which looks unprofessional and confuses users.</p>
+
+        <p><strong>Fix:</strong> Add shapes.txt with the geographic paths your vehicles follow.</p>
+
+        <h3>4. Expired Calendars</h3>
+        <p>If your calendar dates have already passed, your buses will simply vanish from the map. It's the most common
+            reason for a suddenly "broken" feed.</p>
+
+        <p><strong>The Fix:</strong> Keep your calendars extending at least 3-6 months into the future. Update them
+            before they expire!</p>
+
+        <h3>5. Invalid Timezones</h3>
+        <p>Google needs timezones in a very specific format (like "America/New_York"). If you use something like "EST,"
+            the whole schedule will break.</p>
+
+        <p><strong>The Fix:</strong> Use the official IANA timezone name for your region. When in doubt, look it up!</p>
+
+        <h3>6. Impossible Schedules</h3>
+        <p>If your schedule says a bus travels 10 miles in 1 minute, the reviewer will flag it as "impossible." Same
+            goes for arrival times that happen before the bus even departs.</p>
+
+        <p><strong>The Fix:</strong> Review your stop times. Make sure the travel durations are realistic for your
+            vehicles and traffic conditions.</p>
+
+        <h3>7. Duplicate or Conflicting Submissions</h3>
+        <p>If someone else has already submitted data for your routes (perhaps an outdated feed from a previous
+            partnership), Google may flag the conflict.</p>
+
+        <p><strong>Fix:</strong> Contact Google through the Partner Dashboard to resolve duplicates.</p>
+
+        <h3>8. Not Authorized</h3>
+        <p>Google requires that submitters have legitimate authority to publish the data. If you're submitting on behalf
+            of an agency, you may need to prove authorization.</p>
+
+        <p><strong>Fix:</strong> Ensure you have proper authorization. Use an official agency email address.</p>
+
+        <h2>How to Avoid Rejection</h2>
+
+        <p><strong>1. Validate first.</strong> Always run your feed through a validator before submitting. Fix all
+            errors and address warnings.</p>
+
+        <p><strong>2. Include shapes.</strong> Take the time to create accurate route shapes.</p>
+
+        <p><strong>3. Check coordinates.</strong> Plot a sample of stops on a map to verify accuracy.</p>
+
+        <p><strong>4. Review the preview.</strong> Google's Partner Dashboard shows a preview. Check it carefully before
+            requesting publication.</p>
+
+        <p><strong>5. Keep it current.</strong> Update your feed regularly, especially calendar dates.</p>
+
+        <h2>Still Getting Rejected?</h2>
+
+        <p>If you've fixed all validation errors and still face issues:</p>
+        <p>• Check the Partner Dashboard for specific feedback</p>
+        <p>• Contact Google Transit support through the dashboard</p>
+        <p>• Review Google's GTFS best practices documentation</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="how-to-get-my-bus-on-google-maps.html">How do I get my bus on Google Maps?</a></p>
+        <p>• <a href="how-to-create-gtfs-file.html">How do I create a GTFS file?</a></p>
+        <p>• <a href="gtfs-validation-guide.html">GTFS Validation Guide</a></p>
+
+        <div class="cta-box">
+            <p><a href="https://gtfs.guru">Validate your GTFS feed</a> to catch errors before Google does.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>
