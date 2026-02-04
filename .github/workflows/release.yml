@@ -360,20 +360,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Publish gtfs-guru-model
-        run: cargo publish -p gtfs-guru-model --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru-core
-        run: cargo publish -p gtfs-guru-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru-report
-        run: cargo publish -p gtfs-guru-report --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru
-        run: cargo publish -p gtfs-guru --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru-web
-        run: cargo publish -p gtfs-guru-web --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Publish crates (skip if already published)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          crate_exists() {
+            local name="$1"
+            local code
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/${name}/${VERSION}" || true)
+            if [ "$code" = "200" ]; then
+              return 0
+            fi
+            if [ "$code" = "404" ]; then
+              return 1
+            fi
+            echo "Unexpected crates.io status ${code} for ${name} ${VERSION}" >&2
+            exit 1
+          }
+
+          publish_if_missing() {
+            local name="$1"
+            if crate_exists "$name"; then
+              echo "Skip ${name} ${VERSION} (already published)"
+              return 0
+            fi
+            cargo publish -p "$name"
+            sleep 30
+          }
+
+          publish_if_missing gtfs-guru-model
+          publish_if_missing gtfs-guru-core
+          publish_if_missing gtfs-guru-report
+          publish_if_missing gtfs-guru
+          publish_if_missing gtfs-guru-web
 
   publish-pypi:
     needs: build-and-release
@@ -407,7 +430,13 @@ jobs:
           wasm-pack build --target web --scope abasisltd
       - name: Publish to NPM
         run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
           cd crates/gtfs_validator_wasm/pkg
-          npm publish --access public
+          if npm view "@abasisltd/gtfs-guru-wasm@${VERSION}" version >/dev/null 2>&1; then
+            echo "Skip @abasisltd/gtfs-guru-wasm ${VERSION} (already published)"
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

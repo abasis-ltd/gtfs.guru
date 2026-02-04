@@ -1,6 +1,6 @@
 {
   "name": "gtfs.guru",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "GTFS feed validator - WebAssembly build. Validate GTFS feeds entirely in the browser.",
   "main": "gtfs_validator_wasm.js",
   "types": "gtfs_validator_wasm.d.ts",
