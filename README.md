@@ -17,8 +17,9 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 
 1. **Unmatched Speed**: Validates large feeds in milliseconds, not minutes. Typically **50x-100x faster** than the reference Java validator.
 2. **Privacy First**: Runs locally on your machine. No need to upload sensitive or pre-release schedules to the cloud.
-3. **Cross-Platform**: Available as a desktop app, command-line tool, Python library, and WebAssembly module.
-4. **Developer Friendly**: integrate directly into your data pipelines with native Python (`pip`) and Rust (`cargo`) bindings.
+3. **Cross-Platform**: Available as a desktop app, command-line tool, Python library, Web API, and WebAssembly module.
+4. **CI & Integrations**: JSON/HTML/SARIF reports, notice schema export, URL validation, and timing breakdowns.
+5. **Deep Coverage**: 100+ validators, Google-specific rules, and an optional `--thorough` mode.
 
 | Feature | Java Validator | **GTFS Guru (Rust)** |
 | :--- | :---: | :---: |
@@ -27,6 +28,14 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 | **Platform** | Java Runtime Required | **Standalone Binary** |
 | **Python** | ❌ Wrapper only | ✅ **Native (`pip install`)** |
 | **Web** | ❌ Server-side only | ✅ **Browser-native (WASM)** |
+| **CI Output** | ❌ | ✅ **SARIF + JSON/HTML** |
+
+---
+
+## 📌 Versions
+
+* Current engine/CLI/report/model/python/wasm/web crate versions: **`v0.9.3`**
+* Desktop app releases are tagged on GitHub; download the latest for your OS.
 
 ---
 
@@ -38,15 +47,15 @@ The easiest way to validate feeds without using the command line.
 
 1. Go to the [**Releases Page**](https://github.com/abasis-ltd/gtfs.guru/releases/latest).
 2. Download the installer for your OS (these links always point to the latest release):
-    * 🍎 **macOS (Universal)**: [`gtfs-guru-macos.dmg`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-macos.dmg)
-    * 🪟 **Windows (x64)**: [`gtfs-guru-windows-x64-setup.exe`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-windows-x64-setup.exe)
+    * 🍎 **macOS (DMG)**: [`gtfs-guru-macos.dmg`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-macos.dmg)
+    * 🪟 **Windows (x64)**: [`gtfs-guru-windows-x64.msi`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-windows-x64.msi) or [`gtfs-guru-windows-x64-setup.exe`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-windows-x64-setup.exe)
     * 🐧 **Linux (Debian)**: [`gtfs-guru-linux-amd64.deb`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-amd64.deb)
     * 🐧 **Linux (AppImage)**: [`gtfs-guru-linux-amd64.AppImage`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-amd64.AppImage)
 3. Run the installer and launch the app. Drag and drop your `gtfs.zip` file to validate!
 
 ### 🐍 For Python Developers (Data Science)
 
-Perfect for checking data integrity within Jupyter Notebooks or ETL pipelines.
+Perfect for checking data integrity within Jupyter Notebooks or ETL pipelines (Python 3.8+).
 
 ```bash
 pip install gtfs-guru
@@ -55,7 +64,7 @@ pip install gtfs-guru
 ```python
 import gtfs_guru
 
-# Validate a feed return a rich report object
+# Validate a feed and return a rich report object
 report = gtfs_guru.validate("path/to/gtfs.zip")
 
 print(f"Valid: {report.is_valid}")
@@ -70,12 +79,10 @@ report.save_json("report.json")
 
 Download the latest CLI for your platform:
 
-* 🍎 **macOS (Universal)**: [`gtfs-guru-macos-universal.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-macos-universal.tar.gz)
 * 🍎 **macOS (arm64)**: [`gtfs-guru-macos-arm64.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-macos-arm64.tar.gz)
 * 🍎 **macOS (x86_64)**: [`gtfs-guru-macos-x86_64.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-macos-x86_64.tar.gz)
-* 🐧 **Linux (x86_64, glibc)**: [`gtfs-guru-linux-x86_64.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-x86_64.tar.gz)
+* 🐧 **Linux (x86_64, glibc/gnu)**: [`gtfs-guru-linux-x86_64.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-x86_64.tar.gz)
 * 🐧 **Linux (x86_64, musl)**: [`gtfs-guru-linux-x86_64-musl.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-x86_64-musl.tar.gz)
-* 🐧 **Linux (x86_64, static alias)**: [`gtfs-guru-linux-x86_64-static.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-x86_64-static.tar.gz)
 * 🐧 **Linux (arm64)**: [`gtfs-guru-linux-aarch64.tar.gz`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-linux-aarch64.tar.gz)
 * 🪟 **Windows (x64)**: [`gtfs-guru-windows-x64.zip`](https://github.com/abasis-ltd/gtfs.guru/releases/latest/download/gtfs-guru-windows-x64.zip)
 
@@ -93,7 +100,7 @@ iwr -useb https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/in
 
 Optional env vars:
 * `INSTALL_DIR=/custom/bin`
-* `GTFS_GURU_LINUX_FLAVOR=musl` (x86_64 Linux only)
+* `GTFS_GURU_LINUX_FLAVOR=gnu|musl` (x86_64 Linux only)
 * `GTFS_GURU_VERSION=v0.9.3`
 
 **CI examples (GitHub Actions):**
@@ -153,9 +160,32 @@ Validate a feed and output the report to a directory:
 gtfs-guru -i /path/to/gtfs.zip -o ./output_report
 ```
 
-**Options:**
+Validate from a URL (with an optional download cache):
+
+```bash
+gtfs-guru -u https://example.com/gtfs.zip -s /tmp/gtfs -o ./output_report
+```
+
+Default outputs in the report directory:
+* `report.json`
+* `report.html`
+* `system_errors.json`
+
+Optional outputs:
+* `--sarif report.sarif.json`
+* `--export-notices-schema` (writes `notice_schema.json`)
+
+**Options (highlights):**
 * `-i, --input <FILE>`: Path to GTFS zip file or directory.
-* `-o, --output <DIR>`: Directory to save HTML/JSON reports.
+* `-u, --url <URL>`: Validate a remote GTFS zip.
+* `-s, --storage_directory <DIR>`: Save downloaded feeds when using `--url`.
+* `-o, --output <DIR>`: Directory to save reports.
+* `--google-rules`: Enable Google-specific rules.
+* `--thorough`: Enable recommended-field checks.
+* `--sarif <FILE>`: Write SARIF report for CI.
+* `--timing` / `--timing-json`: Print timing breakdowns.
+
+Auto-fix flags (`--fix-dry-run`, `--fix`, `--fix-unsafe`) currently print planned edits; file rewriting is not implemented yet.
 
 See the [LLM Guide](docs/llm.md) for a compact, copy/paste reference.
 
@@ -165,8 +195,11 @@ See the [LLM Guide](docs/llm.md) for a compact, copy/paste reference.
 
 This monorepo houses the entire ecosystem:
 
-* **`crates/gtfs_validator_core`**: The validation engine (88+ rules).
+* **`crates/gtfs_model`**: Shared GTFS data model types.
+* **`crates/gtfs_validator_core`**: The validation engine (100+ validators).
+* **`crates/gtfs_validator_report`**: Report generation (JSON/HTML/SARIF).
 * **`crates/gtfs_validator_cli`**: CLI tool implementation.
+* **`crates/gtfs_validator_web`**: Web API service.
 * **`crates/gtfs_validator_gui`**: Desktop application (Tauri).
 * **`crates/gtfs_validator_python`**: Python bindings (via PyO3/Maturin).
 * **`crates/gtfs_validator_wasm`**: WebAssembly bindings for browser usage.
