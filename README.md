@@ -94,7 +94,7 @@ iwr -useb https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/in
 Optional env vars:
 * `INSTALL_DIR=/custom/bin`
 * `GTFS_GURU_LINUX_FLAVOR=musl` (x86_64 Linux only)
-* `GTFS_GURU_VERSION=v0.9.2`
+* `GTFS_GURU_VERSION=v0.9.3`
 
 **CI examples (GitHub Actions):**
 
