@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-model"
-version = "0.9.3"
+version = "0.9.4"
 edition = "2021"
 license = "Apache-2.0"
 description = "Data models for GTFS (General Transit Feed Specification)"

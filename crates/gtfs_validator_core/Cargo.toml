@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-core"
-version = "0.9.3"
+version = "0.9.4"
 edition = "2021"
 license = "Apache-2.0"
 description = "Core validation logic for GTFS Guru"
@@ -28,7 +28,7 @@ rustc-hash = "2.1"
 
 [dependencies.gtfs-guru-model]
 path = "../gtfs_model"
-version = "0.9.3"
+version = "0.9.4"
 
 [build-dependencies]
 regex = { workspace = true }

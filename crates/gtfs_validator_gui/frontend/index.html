@@ -948,9 +948,12 @@
 
             try {
                 showUpdateLog('Checking for updates...');
+                const currentVersion = await invoke('get_version');
                 const result = await invoke('check_for_updates');
-                if (result && result.available) {
-                    const latest = result.version ? `v${result.version}` : 'a new version';
+                
+                // Only show update banner if latest version is actually newer
+                if (result && result.available && result.version && result.version !== currentVersion) {
+                    const latest = `v${result.version}`;
                     updateText.textContent = `Update available: ${latest}`;
                     updateBanner.classList.remove('hidden');
                     updateBanner.hidden = false;
