@@ -368,35 +368,36 @@ jobs:
 
           VERSION="${GITHUB_REF_NAME#v}"
 
-          crate_exists() {
+          publish_or_skip() {
             local name="$1"
-            local code
-            code=$(curl -s -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/${name}/${VERSION}" || true)
-            if [ "$code" = "200" ]; then
+            local output
+            local status
+
+            set +e
+            output=$(cargo publish -p "$name" 2>&1)
+            status=$?
+            set -e
+
+            if [ "$status" -eq 0 ]; then
+              echo "$output"
+              sleep 30
               return 0
             fi
-            if [ "$code" = "404" ]; then
-              return 1
-            fi
-            echo "Unexpected crates.io status ${code} for ${name} ${VERSION}" >&2
-            exit 1
-          }
 
-          publish_if_missing() {
-            local name="$1"
-            if crate_exists "$name"; then
+            if echo "$output" | grep -q "already exists"; then
               echo "Skip ${name} ${VERSION} (already published)"
               return 0
             fi
-            cargo publish -p "$name"
-            sleep 30
+
+            echo "$output"
+            return "$status"
           }
 
-          publish_if_missing gtfs-guru-model
-          publish_if_missing gtfs-guru-core
-          publish_if_missing gtfs-guru-report
-          publish_if_missing gtfs-guru
-          publish_if_missing gtfs-guru-web
+          publish_or_skip gtfs-guru-model
+          publish_or_skip gtfs-guru-core
+          publish_or_skip gtfs-guru-report
+          publish_or_skip gtfs-guru
+          publish_or_skip gtfs-guru-web
 
   publish-pypi:
     needs: build-and-release
