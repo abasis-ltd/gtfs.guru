@@ -14,44 +14,49 @@ impl Validator for BikesAllowanceValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
-        let route_types: HashMap<gtfs_guru_model::StringId, RouteType> = feed
-            .routes
-            .rows
-            .iter()
-            .map(|r| (r.route_id, r.route_type))
-            .collect();
-
         let has_bikes_allowed_column = feed.trips.headers.iter().any(|h| h == "bikes_allowed");
 
+        let mut trips_by_route: HashMap<
+            gtfs_guru_model::StringId,
+            Vec<(usize, &gtfs_guru_model::Trip)>,
+        > = HashMap::new();
         for (index, trip) in feed.trips.rows.iter().enumerate() {
-            let row_number = feed.trips.row_number(index);
             let route_id = trip.route_id;
+            if route_id.0 == 0 {
+                continue;
+            }
+            trips_by_route
+                .entry(route_id)
+                .or_default()
+                .push((index, trip));
+        }
 
-            // Java only checks ferry routes.
-            let Some(&route_type) = route_types.get(&route_id) else {
+        for route in &feed.routes.rows {
+            if route.route_type != RouteType::Ferry {
+                continue;
+            }
+            let Some(trips) = trips_by_route.get(&route.route_id) else {
                 continue;
             };
-            if route_type != RouteType::Ferry {
-                continue;
-            }
+            for (index, trip) in trips {
+                if has_bikes_allowed_column && has_bike_allowance(trip.bikes_allowed) {
+                    continue;
+                }
 
-            if has_bikes_allowed_column && has_bike_allowance(trip.bikes_allowed) {
-                continue;
+                let row_number = feed.trips.row_number(*index);
+                let route_id_value = feed.pool.resolve(trip.route_id);
+                let trip_id_value = feed.pool.resolve(trip.trip_id);
+                let mut notice = ValidationNotice::new(
+                    CODE_MISSING_BIKE_ALLOWANCE,
+                    NoticeSeverity::Warning,
+                    "trips should define bikes_allowed",
+                );
+                notice.insert_context_field("csvRowNumber", row_number);
+                notice.insert_context_field("routeId", route_id_value.as_str());
+                notice.insert_context_field("tripId", trip_id_value.as_str());
+                notice.field_order = vec!["csvRowNumber".into(), "routeId".into(), "tripId".into()];
+                notices.push(notice);
             }
-
-            let trip_id = trip.trip_id;
-            let route_id_value = feed.pool.resolve(route_id);
-            let trip_id_value = feed.pool.resolve(trip_id);
-            let mut notice = ValidationNotice::new(
-                CODE_MISSING_BIKE_ALLOWANCE,
-                NoticeSeverity::Warning,
-                "trips should define bikes_allowed",
-            );
-            notice.insert_context_field("csvRowNumber", row_number);
-            notice.insert_context_field("routeId", route_id_value.as_str());
-            notice.insert_context_field("tripId", trip_id_value.as_str());
-            notice.field_order = vec!["csvRowNumber".into(), "routeId".into(), "tripId".into()];
-            notices.push(notice);
         }
     }
 }

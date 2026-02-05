@@ -1,4 +1,5 @@
 use crate::feed::TRANSFERS_FILE;
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
@@ -12,6 +13,9 @@ impl Validator for TransfersValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         if let Some(transfers) = &feed.transfers {
             for (index, transfer) in transfers.rows.iter().enumerate() {
                 let row_number = transfers.row_number(index);
@@ -42,6 +46,7 @@ mod tests {
 
     #[test]
     fn emits_notice_when_min_time_missing() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![gtfs_guru_model::Transfer {
@@ -66,6 +71,7 @@ mod tests {
 
     #[test]
     fn passes_when_min_time_present() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.transfers = Some(CsvTable {
             rows: vec![gtfs_guru_model::Transfer {

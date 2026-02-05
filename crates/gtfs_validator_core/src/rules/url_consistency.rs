@@ -1,7 +1,10 @@
 use compact_str::CompactString;
 use std::collections::HashMap;
 
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    feed::{AGENCY_FILE, ROUTES_FILE, STOPS_FILE},
+    GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
+};
 
 const CODE_SAME_ROUTE_AND_AGENCY_URL: &str = "same_route_and_agency_url";
 const CODE_SAME_STOP_AND_AGENCY_URL: &str = "same_stop_and_agency_url";
@@ -16,6 +19,12 @@ impl Validator for UrlConsistencyValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(AGENCY_FILE)
+            || feed.table_has_errors(ROUTES_FILE)
+            || feed.table_has_errors(STOPS_FILE)
+        {
+            return;
+        }
         let agency_by_url = agencies_by_url(&feed.agency, feed);
         let route_by_url = routes_by_url(&feed.routes, feed);
 

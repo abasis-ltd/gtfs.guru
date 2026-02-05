@@ -42,18 +42,81 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.platform == 'ubuntu-22.04' && 'x86_64-unknown-linux-musl,aarch64-unknown-linux-gnu' || '' }}
 
       - name: Install dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf musl-tools gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
+
+      - name: Build CLI (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          cargo build --release -p gtfs-guru
+          cargo build --release -p gtfs-guru --target x86_64-unknown-linux-musl
+          cargo build --release -p gtfs-guru --target aarch64-unknown-linux-gnu
+
+          mkdir -p dist
+          tar -C target/release -czf dist/gtfs-guru-linux-x86_64.tar.gz gtfs-guru
+          tar -C target/x86_64-unknown-linux-musl/release -czf dist/gtfs-guru-linux-x86_64-musl.tar.gz gtfs-guru
+          tar -C target/aarch64-unknown-linux-gnu/release -czf dist/gtfs-guru-linux-aarch64.tar.gz gtfs-guru
+          cp dist/gtfs-guru-linux-x86_64-musl.tar.gz dist/gtfs-guru-linux-x86_64-static.tar.gz
+
+      - name: Build CLI (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          cargo build --release -p gtfs-guru --target x86_64-apple-darwin
+          cargo build --release -p gtfs-guru --target aarch64-apple-darwin
+
+          mkdir -p dist
+          tar -C target/x86_64-apple-darwin/release -czf dist/gtfs-guru-macos-x86_64.tar.gz gtfs-guru
+          tar -C target/aarch64-apple-darwin/release -czf dist/gtfs-guru-macos-arm64.tar.gz gtfs-guru
+          lipo -create -output dist/gtfs-guru \
+            target/x86_64-apple-darwin/release/gtfs-guru \
+            target/aarch64-apple-darwin/release/gtfs-guru
+          tar -C dist -czf dist/gtfs-guru-macos-universal.tar.gz gtfs-guru
+          rm -f dist/gtfs-guru
+
+      - name: Build CLI (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          cargo build --release -p gtfs-guru
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Path target\\release\\gtfs-guru.exe -Destination dist\\gtfs-guru.exe -Force
+          Compress-Archive -Path dist\\gtfs-guru.exe -DestinationPath dist\\gtfs-guru-windows-x64.zip -Force
+
+      - name: Upload CLI artifacts (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-linux
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+      - name: Upload CLI artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-macos
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+      - name: Upload CLI artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-windows
+          path: dist/*.zip
+          if-no-files-found: error
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
@@ -91,6 +154,9 @@ jobs:
           APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
           APPLE_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+          # Tauri updater signing
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cd crates/gtfs_validator_gui
           cargo tauri build ${{ matrix.args }}
@@ -128,6 +194,8 @@ jobs:
           path: |
             target/universal-apple-darwin/release/bundle/dmg/*.dmg
             target/universal-apple-darwin/release/bundle/macos/*.app
+            target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: warn
 
       - name: Upload Linux artifacts
@@ -138,6 +206,7 @@ jobs:
           path: |
             target/release/bundle/deb/*.deb
             target/release/bundle/appimage/*.AppImage
+            target/release/bundle/appimage/*.AppImage.sig
             target/release/bundle/rpm/*.rpm
           if-no-files-found: warn
 
@@ -148,7 +217,9 @@ jobs:
           name: windows-installers
           path: |
             target/release/bundle/msi/*.msi
+            target/release/bundle/msi/*.msi.sig
             target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*.exe.sig
           if-no-files-found: warn
 
   create-release:
@@ -166,28 +237,109 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R artifacts || echo "No artifacts directory"
 
-      - name: Rename artifacts to consistent names
+      - name: Prepare release artifacts (original + stable names)
         run: |
           mkdir -p release
           
-          # macOS - DMG (Universal binary)
-          find artifacts -name "*.dmg" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-macOS.dmg || true
+          # Copy original installer filenames (versioned) as-is
+          find artifacts -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.zip" -o -name "*.sig" \) -print0 \
+            | while IFS= read -r -d '' file; do
+                cp "$file" release/
+              done
+
+          copy_first() {
+            local pattern="$1"
+            local dest="$2"
+            local src
+            src=$(find artifacts -name "$pattern" -type f | head -1)
+            if [ -n "$src" ]; then
+              cp "$src" "release/$dest"
+            fi
+          }
+
+          # Stable names for "latest" links
+          copy_first "*.dmg" "gtfs-guru-macos.dmg"
+          copy_first "*.msi" "gtfs-guru-windows-x64.msi"
+          copy_first "*.exe" "gtfs-guru-windows-x64-setup.exe"
+          copy_first "*.deb" "gtfs-guru-linux-amd64.deb"
+          copy_first "*.AppImage" "gtfs-guru-linux-amd64.AppImage"
+          copy_first "*.rpm" "gtfs-guru-linux-x86_64.rpm"
+          copy_first "*.app.tar.gz" "gtfs-guru-macos-universal.app.tar.gz"
+          copy_first "*.app.tar.gz.sig" "gtfs-guru-macos-universal.app.tar.gz.sig"
+          copy_first "*.msi.sig" "gtfs-guru-windows-x64.msi.sig"
+          copy_first "*.exe.sig" "gtfs-guru-windows-x64-setup.exe.sig"
+          copy_first "*.AppImage.sig" "gtfs-guru-linux-amd64.AppImage.sig"
+
+          # Versioned CLI copies for reproducibility
+          VERSION="${GITHUB_REF_NAME:-unknown}"
+          for file in release/gtfs-guru-*.tar.gz release/gtfs-guru-*.zip; do
+            [ -f "$file" ] || continue
+            base="$(basename "$file")"
+            if [[ "$base" == *.tar.gz ]]; then
+              stem="${base%.tar.gz}"
+              ext="tar.gz"
+            else
+              stem="${base%.*}"
+              ext="${base##*.}"
+            fi
+            cp "$file" "release/${stem}-${VERSION}.${ext}"
+          done
+
+      - name: Generate updater manifest (latest.json)
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import json
+          import os
+          import pathlib
+          import urllib.parse
           
-          # Windows - MSI installer
-          find artifacts -name "*.msi" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Windows.msi || true
+          release_dir = pathlib.Path("release")
+          tag = os.environ.get("GITHUB_REF_NAME", "unknown")
+          version = tag[1:] if tag.startswith("v") else tag
+          pub_date = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+          base_url = f"https://github.com/abasis-ltd/gtfs.guru/releases/download/{tag}/"
           
-          # Windows - NSIS exe installer
-          find artifacts -name "*.exe" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Windows-Setup.exe || true
+          def asset_url(name: str) -> str:
+            return base_url + urllib.parse.quote(name)
           
-          # Linux - DEB package
-          find artifacts -name "*.deb" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Linux.deb || true
+          def add_platform(platforms, key, file_name, sig_name, required=False):
+            file_path = release_dir / file_name
+            sig_path = release_dir / sig_name
+            if file_path.exists() and sig_path.exists():
+              platforms[key] = {
+                "url": asset_url(file_name),
+                "signature": sig_path.read_text().strip(),
+              }
+              return True
+            if required:
+              missing = []
+              if not file_path.exists():
+                missing.append(file_name)
+              if not sig_path.exists():
+                missing.append(sig_name)
+              raise SystemExit(f"Missing updater assets for {key}: {', '.join(missing)}")
+            return False
           
-          # Linux - AppImage
-          find artifacts -name "*.AppImage" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Linux.AppImage || true
+          platforms = {}
+          add_platform(platforms, "darwin-aarch64", "gtfs-guru-macos-universal.app.tar.gz", "gtfs-guru-macos-universal.app.tar.gz.sig", required=True)
+          add_platform(platforms, "darwin-x86_64", "gtfs-guru-macos-universal.app.tar.gz", "gtfs-guru-macos-universal.app.tar.gz.sig", required=True)
+          add_platform(platforms, "windows-x86_64", "gtfs-guru-windows-x64.msi", "gtfs-guru-windows-x64.msi.sig", required=True)
+          add_platform(platforms, "linux-x86_64", "gtfs-guru-linux-amd64.AppImage", "gtfs-guru-linux-amd64.AppImage.sig", required=False)
           
-          # Linux - RPM package
-          find artifacts -name "*.rpm" -type f | head -1 | xargs -I {} cp {} release/GTFS-Guru-Linux.rpm || true
+          data = {
+            "version": version,
+            "pub_date": pub_date,
+            "platforms": platforms,
+          }
           
+          (release_dir / "latest.json").write_text(json.dumps(data, indent=2))
+          print("Generated latest.json with platforms:", ", ".join(platforms.keys()))
+          PY
+
+          # Checksums (include latest.json)
+          (cd release && sha256sum * > gtfs-guru-SHA256SUMS.txt)
+
           echo "=== Release files ==="
           ls -la release/
 
@@ -208,20 +360,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Publish gtfs-guru-model
-        run: cargo publish -p gtfs-guru-model --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru-core
-        run: cargo publish -p gtfs-guru-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru-report
-        run: cargo publish -p gtfs-guru-report --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru-cli
-        run: cargo publish -p gtfs-guru-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - name: Publish gtfs-guru-web
-        run: cargo publish -p gtfs-guru-web --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Publish crates (skip if already published)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          publish_or_skip() {
+            local name="$1"
+            local output
+            local status
+
+            set +e
+            output=$(cargo publish -p "$name" 2>&1)
+            status=$?
+            set -e
+
+            if [ "$status" -eq 0 ]; then
+              echo "$output"
+              sleep 30
+              return 0
+            fi
+
+            if echo "$output" | grep -q "already exists"; then
+              echo "Skip ${name} ${VERSION} (already published)"
+              return 0
+            fi
+
+            echo "$output"
+            return "$status"
+          }
+
+          publish_or_skip gtfs-guru-model
+          publish_or_skip gtfs-guru-core
+          publish_or_skip gtfs-guru-report
+          publish_or_skip gtfs-guru
+          publish_or_skip gtfs-guru-web
 
   publish-pypi:
     needs: build-and-release
@@ -255,7 +431,13 @@ jobs:
           wasm-pack build --target web --scope abasisltd
       - name: Publish to NPM
         run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
           cd crates/gtfs_validator_wasm/pkg
-          npm publish --access public
+          if npm view "@abasisltd/gtfs-guru-wasm@${VERSION}" version >/dev/null 2>&1; then
+            echo "Skip @abasisltd/gtfs-guru-wasm ${VERSION} (already published)"
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

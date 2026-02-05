@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use crate::feed::{
-    AGENCY_FILE, AREAS_FILE, BOOKING_RULES_FILE, FARE_ATTRIBUTES_FILE, FARE_MEDIA_FILE,
-    FARE_PRODUCTS_FILE, LEVELS_FILE, LOCATION_GROUPS_FILE, NETWORKS_FILE, PATHWAYS_FILE,
-    RIDER_CATEGORIES_FILE, ROUTES_FILE, STOPS_FILE, TRANSFERS_FILE, TRIPS_FILE,
+    AGENCY_FILE, AREAS_FILE, BOOKING_RULES_FILE, CALENDAR_FILE, FARE_ATTRIBUTES_FILE,
+    FARE_MEDIA_FILE, FARE_PRODUCTS_FILE, LEVELS_FILE, LOCATION_GROUPS_FILE, NETWORKS_FILE,
+    PATHWAYS_FILE, RIDER_CATEGORIES_FILE, ROUTES_FILE, STOPS_FILE, TRANSFERS_FILE, TRIPS_FILE,
 };
 use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
@@ -103,6 +103,29 @@ impl Validator for DuplicateKeyValidator {
                             TRIPS_FILE,
                             row_number,
                             "trip_id",
+                            id_value.as_str(),
+                            *prev_row,
+                        ));
+                    } else {
+                        seen.insert(id, row_number);
+                    }
+                }
+            }
+        }
+
+        // Calendar: service_id
+        if let Some(ref calendar) = feed.calendar {
+            let mut seen: HashMap<StringId, u64> = HashMap::new();
+            for (index, row) in calendar.rows.iter().enumerate() {
+                let row_number = calendar.row_number(index);
+                let id = row.service_id;
+                if id.0 != 0 {
+                    if let Some(prev_row) = seen.get(&id) {
+                        let id_value = feed.pool.resolve(id);
+                        notices.push(duplicate_key_notice(
+                            CALENDAR_FILE,
+                            row_number,
+                            "service_id",
                             id_value.as_str(),
                             *prev_row,
                         ));

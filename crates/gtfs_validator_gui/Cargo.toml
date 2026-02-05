@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-gui"
-version = "0.1.1"
+version = "0.9.3"
 edition = "2021"
 license = "Apache-2.0"
 description = "Desktop GUI for GTFS Validator"
@@ -20,8 +20,8 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-gtfs-guru-core = { path = "../gtfs_validator_core", version = "0.1.1" }
-gtfs-guru-report = { path = "../gtfs_validator_report", version = "0.1.1" }
+gtfs-guru-core = { path = "../gtfs_validator_core", version = "0.9.3" }
+gtfs-guru-report = { path = "../gtfs_validator_report", version = "0.9.3" }
 
 # Tauri
 tauri = { version = "2", features = [] }
@@ -44,3 +44,6 @@ url = "2.5"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+tauri-plugin-updater = "2"

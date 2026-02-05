@@ -97,7 +97,7 @@ while IFS=$'\t' read -r feed_path expected_dir case_name extra_json html_name va
       continue
     fi
   else
-    if ! cargo run -p gtfs_validator_cli -- --input "$feed_path" --output_base "$actual_dir" "$@" "${case_validator_args[@]}"; then
+    if ! cargo run -p gtfs-guru -- --input "$feed_path" --output_base "$actual_dir" "$@" "${case_validator_args[@]}"; then
       echo "Line ${line_no}: validator failed for ${case_name}" >&2
       fail_count=$((fail_count + 1))
       continue

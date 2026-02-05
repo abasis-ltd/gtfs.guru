@@ -1,8 +1,8 @@
-# CLI (gtfs-guru-cli)
+# CLI (gtfs-guru)
 
 ## Scope
 
-- Binary name: `gtfs-guru` (crate `gtfs-guru-cli`).
+- Binary name: `gtfs-guru` (crate `gtfs-guru`).
 - Clap-based interface for local file or URL validation.
 
 ## Inputs

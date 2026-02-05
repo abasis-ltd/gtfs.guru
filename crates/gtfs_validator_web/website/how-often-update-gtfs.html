@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How Often Should I Update My GTFS Feed? | GTFS Guru</title>
+    <meta name="description"
+        content="Update your GTFS feed whenever schedules change, and at least monthly to extend calendar dates. Google re-fetches feeds automatically.">
+    <link rel="canonical" href="https://gtfs.guru/how-often-update-gtfs.html">
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="How Often Should I Update My GTFS Feed? | GTFS Guru">
+    <meta property="og:description"
+        content="Update your GTFS feed whenever schedules change, and at least monthly to extend calendar dates. Google re-fetches feeds automatically.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:url" content="https://gtfs.guru/how-often-update-gtfs.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How Often Should I Update My GTFS Feed? | GTFS Guru">
+    <meta name="twitter:description"
+        content="Update your GTFS feed whenever schedules change, and at least monthly to extend calendar dates. Google re-fetches feeds automatically.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "How often should I update my GTFS feed?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Update your GTFS feed whenever schedules change (new routes, seasonal changes, service adjustments). At minimum, update monthly to extend calendar dates and keep data fresh. Google automatically re-fetches feeds, or you can trigger updates manually."
+      }
+    }]
+  }
+  </script>
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "How Often Should I Update My GTFS Feed?",
+  "description": "Update your GTFS feed whenever schedules change, and at least monthly to extend calendar dates. Google re-fetches feeds automatically.",
+  "author": {
+    "@type": "Organization",
+    "name": "GTFS Guru"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "GTFS Guru",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://gtfs.guru/logo.png"
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/how-often-update-gtfs.html"
+  },
+  "dateModified": "2026-02-04"
+}
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+    <div class="bg-gradient-orb orb-1"></div>
+    <div class="grid-overlay"></div>
+
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html#validator">Web Validator</a>
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html" class="active">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="index.html#developers">Developers</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+            </div>
+            <a href="index.html#download" class="btn btn-primary">Get the App</a>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <a href="faq.html" class="faq-back-link"><i data-lucide="arrow-left"></i> Back to Guides</a>
+
+        <h1>How Often Should I Update My GTFS Feed?</h1>
+
+        <p class="short-answer"><strong>Update your feed whenever your schedules change, and at least once a month to
+                keep the dates fresh and avoid expiring.</strong></p>
+
+        <h2>When to Update</h2>
+
+        <h3>Required Updates</h3>
+        <p>You definitely need to publish a new version when:</p>
+        <p>• <strong>Schedules change:</strong> New times or seasonal adjustments.</p>
+        <p>• <strong>Routes change:</strong> New lines added or old ones removed.</p>
+        <p>• <strong>Stops change:</strong> Moving a bus stop even a few meters matters.</p>
+        <p>• <strong>Calendars expire:</strong> You reach the "end_date" in your files.</p>
+
+        <h3>Recommended Updates</h3>
+        <p>Even without major changes, update regularly:</p>
+        <p>• <strong>Monthly:</strong> Extend calendar dates, incorporate minor fixes</p>
+        <p>• <strong>After issues reported:</strong> When riders report incorrect information</p>
+        <p>• <strong>Quality improvements:</strong> Adding shapes, fixing coordinates</p>
+
+        <p>The most common reason a feed "breaks" is an expired calendar. Your <code>calendar.txt</code> has an
+            <code>end_date</code> – if that date passes, your buses will simply disappear from apps like Google Maps.
+        </p>
+
+        <p><strong>Best practice:</strong> Keep your calendar dates extending at least 3-6 months into the future. It
+            gives you a comfortable buffer.</p>
+
+        <h2>How Updates Work</h2>
+
+        <p><strong>1. You publish:</strong> Replace the ZIP file at your URL with the new version.</p>
+
+        <p><strong>2. Google fetches:</strong> Google re-downloads your feed automatically (usually once a day).</p>
+
+        <p><strong>3. Apps refresh:</strong> The new data usually shows up for riders within 24–48 hours.</p>
+
+        <h2>Update Frequency by Agency Type</h2>
+
+        <p><strong>Large metro systems:</strong> Often weekly or even daily, due to frequent service changes.</p>
+
+        <p><strong>Medium agencies:</strong> Monthly updates are typical, with additional updates for schedule changes.
+        </p>
+
+        <p><strong>Small operators:</strong> Monthly or quarterly may be sufficient if schedules are stable.</p>
+
+        <h2>Tips for Smooth Updates</h2>
+
+        <p><strong>Validate every time.</strong> Never publish a new version without validating it first. A "stale" feed
+            is bad, but a "broken" feed is much worse.</p>
+
+        <p><strong>Keep your URL the same.</strong> Don't change the web address of your ZIP file. Google expects it to
+            stay in one place.</p>
+
+        <p><strong>Watch the Dashboard.</strong> Check your Google Transit Partner Dashboard after an update to catch
+            any new warnings.</p>
+
+        <h2>What Happens If You Don't Update?</h2>
+
+        <p>• Routes may disappear when calendar dates expire</p>
+        <p>• Riders see incorrect schedules</p>
+        <p>• Google may flag your feed as stale</p>
+        <p>• User complaints increase</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="how-to-get-my-bus-on-google-maps.html">How do I get my bus on Google Maps?</a></p>
+        <p>• <a href="how-to-validate-gtfs.html">How do I validate my GTFS feed?</a></p>
+        <p>• <a href="why-is-my-gtfs-rejected.html">Why was my GTFS feed rejected?</a></p>
+
+        <div class="cta-box">
+            <p>Updating your feed? <a href="https://gtfs.guru">Validate the new version</a> before publishing.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <span class="logo-text">GTFS.Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="index.html#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>

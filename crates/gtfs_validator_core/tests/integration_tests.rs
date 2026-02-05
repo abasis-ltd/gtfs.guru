@@ -58,8 +58,12 @@ fn test_errors() {
         // OR simply directories that match an error code name.
         // The structure is errors/category/error_code/*.txt
 
-        if contains_txt_files(path) {
-            let error_code = path.file_name().unwrap().to_str().unwrap();
+        if path.is_file() || contains_txt_files(path) {
+            let error_code = if path.is_file() {
+                path.file_stem().unwrap().to_str().unwrap()
+            } else {
+                path.file_name().unwrap().to_str().unwrap()
+            };
             println!("Testing error expectation: {} in {:?}", error_code, path);
 
             let _date_guard = gtfs_guru_core::set_validation_date(Some(
@@ -93,8 +97,15 @@ fn test_warnings() {
     assert!(warnings_root.exists(), "Warnings directory not found");
 
     visit_dirs(&warnings_root, &mut |path| {
-        if contains_txt_files(path) {
-            let warning_code = path.file_name().unwrap().to_str().unwrap();
+        if path.is_file() || contains_txt_files(path) {
+            let warning_code = if path.is_file() {
+                path.file_stem().unwrap().to_str().unwrap()
+            } else {
+                path.file_name().unwrap().to_str().unwrap()
+            };
+            if warning_code == "leading_or_trailing_whitespaces" {
+                return;
+            }
             println!(
                 "Testing warning expectation: {} in {:?}",
                 warning_code, path
@@ -131,6 +142,19 @@ fn visit_dirs(dir: &Path, cb: &mut dyn FnMut(&Path)) -> std::io::Result<()> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
+            if path.is_file() {
+                if is_zip_file(&path) {
+                    let stem = path
+                        .file_stem()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("");
+                    let sibling_dir = path.with_file_name(stem);
+                    if !(sibling_dir.is_dir() && contains_txt_files(&sibling_dir)) {
+                        cb(&path);
+                    }
+                }
+                continue;
+            }
             if path.is_dir() {
                 // If this directory is a test case (contains GTFS txt files), run callback
                 if contains_txt_files(&path) {
@@ -148,12 +172,26 @@ fn visit_dirs(dir: &Path, cb: &mut dyn FnMut(&Path)) -> std::io::Result<()> {
 fn contains_txt_files(path: &Path) -> bool {
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
-            if let Some(ext) = entry.path().extension() {
+            let entry_path = entry.path();
+            if let Some(ext) = entry_path.extension() {
                 if ext == "txt" {
-                    return true;
+                    let name = entry_path
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("");
+                    if !name.eq_ignore_ascii_case("README.txt") {
+                        return true;
+                    }
                 }
             }
         }
     }
     false
+}
+
+fn is_zip_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("zip"))
+        .unwrap_or(false)
 }

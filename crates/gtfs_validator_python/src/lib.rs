@@ -178,8 +178,8 @@ impl ValidationResult {
 ///     ValidationResult with all notices and summary
 ///
 /// Example:
-///     >>> import gtfs_validator
-///     >>> result = gtfs_validator.validate("/path/to/gtfs.zip")
+///     >>> import gtfs_guru
+///     >>> result = gtfs_guru.validate("/path/to/gtfs.zip")
 ///     >>> print(f"Valid: {result.is_valid}")
 ///     >>> for error in result.errors():
 ///     ...     print(f"{error.code}: {error.message}")
@@ -355,11 +355,11 @@ fn run_validation(
 ///
 /// Example:
 ///     >>> import asyncio
-///     >>> import gtfs_validator
+///     >>> import gtfs_guru
 ///     >>> async def main():
 ///     ...     def on_progress(info):
 ///     ...         print(f"{info.stage}: {info.current}/{info.total}")
-///     ...     result = await gtfs_validator.validate_async("/path/to/gtfs.zip", on_progress=on_progress)
+///     ...     result = await gtfs_guru.validate_async("/path/to/gtfs.zip", on_progress=on_progress)
 ///     ...     print(f"Valid: {result.is_valid}")
 ///     >>> asyncio.run(main())
 #[pyfunction]

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What's the Difference Between GTFS and GTFS-Realtime? | GTFS Guru</title>
+  <meta name="description"
+    content="GTFS contains planned schedules (static data), while GTFS-Realtime provides live updates like vehicle positions and delays. Learn when you need each.">
+  <link rel="canonical" href="https://gtfs.guru/gtfs-vs-gtfs-realtime.html">
+  <link rel="icon" type="image/png" href="favicon.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="GTFS Guru">
+  <meta property="og:title" content="What's the Difference Between GTFS and GTFS-Realtime? | GTFS Guru">
+  <meta property="og:description"
+    content="GTFS contains planned schedules (static data), while GTFS-Realtime provides live updates like vehicle positions and delays.">
+  <meta property="og:image" content="https://gtfs.guru/og-image.png">
+  <meta property="og:url" content="https://gtfs.guru/gtfs-vs-gtfs-realtime.html">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="What's the Difference Between GTFS and GTFS-Realtime? | GTFS Guru">
+  <meta name="twitter:description"
+    content="GTFS contains planned schedules (static data), while GTFS-Realtime provides live updates like vehicle positions and delays.">
+  <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "What's the difference between GTFS and GTFS-Realtime?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "GTFS (also called GTFS Static or GTFS Schedule) contains planned timetables and is updated weekly/monthly. GTFS-Realtime (GTFS-RT) provides live data like vehicle positions, delays, and alerts, updated every few seconds. You need GTFS first; GTFS-RT is an optional enhancement."
+      }
+    }]
+  }
+  </script>
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "What's the Difference Between GTFS and GTFS-Realtime?",
+  "description": "GTFS contains planned schedules (static data), while GTFS-Realtime provides live updates like vehicle positions and delays. Learn when you need each.",
+  "author": {
+    "@type": "Organization",
+    "name": "GTFS Guru"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "GTFS Guru",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://gtfs.guru/logo.png"
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/gtfs-vs-gtfs-realtime.html"
+  },
+  "dateModified": "2026-02-04"
+}
+    </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&display=swap"
+    rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+</head>
+
+<body>
+  <div class="bg-gradient-orb orb-1"></div>
+  <div class="grid-overlay"></div>
+
+  <nav class="glass-nav">
+    <div class="container nav-container">
+      <a href="index.html" class="logo">
+        <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+        <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#validator">Web Validator</a>
+        <a href="index.html#faq">FAQ</a>
+        <a href="faq.html" class="active">Guides</a>
+        <a href="contact.html">Contact</a>
+        <a href="index.html#developers">Developers</a>
+        <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+      </div>
+      <a href="index.html#download" class="btn btn-primary">Get the App</a>
+    </div>
+  </nav>
+
+  <article class="faq-article">
+    <a href="faq.html" class="faq-back-link"><i data-lucide="arrow-left"></i> Back to Guides</a>
+
+    <h1>What's the Difference Between GTFS and GTFS-Realtime?</h1>
+
+    <p class="short-answer"><strong>GTFS is your planned schedule (updated every few weeks), while GTFS-Realtime is the
+        "live" version showing where vehicles are right now (updated every few seconds).</strong></p>
+
+    <p>The original GTFS format – often called "GTFS Static" or "GTFS Schedule" – is the foundation of your data:</p>
+
+    <p>• <strong>What:</strong> Routes, stops, timetables, and fares.</p>
+    <p>• <strong>Format:</strong> Simple CSV files bundled in a ZIP archive.</p>
+    <p>• <strong>Updates:</strong> Usually weekly, monthly, or whenever your schedules change.</p>
+    <p>• <strong>The Goal:</strong> To let riders know when the bus is <em>scheduled</em> to arrive.</p>
+
+    <p>This is the "must-have" file to get your routes onto Google Maps. It answers the basic questions: "Which bus goes
+      to the airport?" and "What time is the first train?"</p>
+
+    <h2>GTFS-Realtime (GTFS-RT)</h2>
+
+    <p>GTFS-Realtime is a companion to your static data. It provides the "live" overlay:</p>
+
+    <p>• <strong>What:</strong> Vehicle locations, arrival predictions, and service alerts.</p>
+    <p>• <strong>Format:</strong> Protocol Buffers (a more technical, binary format).</p>
+    <p>• <strong>Updates:</strong> Continuously, usually every 10-30 seconds.</p>
+    <p>• <strong>The Goal:</strong> To let riders know where the bus <em>actually</em> is right now.</p>
+
+    <h3>GTFS-RT Feed Types</h3>
+
+    <p><strong>Vehicle Positions:</strong> Where each vehicle is right now (GPS coordinates).</p>
+
+    <p><strong>Trip Updates:</strong> Predicted arrival times based on actual vehicle progress.</p>
+
+    <p><strong>Service Alerts:</strong> Messages about delays, detours, or disruptions.</p>
+
+    <h2>Comparison Table</h2>
+
+    <table class="comparison-table">
+      <tr>
+        <th></th>
+        <th>GTFS Static</th>
+        <th>GTFS-Realtime</th>
+      </tr>
+      <tr>
+        <td>Data type</td>
+        <td>Planned schedules</td>
+        <td>Live updates</td>
+      </tr>
+      <tr>
+        <td>File format</td>
+        <td>CSV in ZIP</td>
+        <td>Protocol Buffers</td>
+      </tr>
+      <tr>
+        <td>Update frequency</td>
+        <td>Weekly/monthly</td>
+        <td>Every 10-30 seconds</td>
+      </tr>
+      <tr>
+        <td>Required for Google Maps</td>
+        <td>Yes</td>
+        <td>No (but recommended)</td>
+      </tr>
+      <tr>
+        <td>Infrastructure needed</td>
+        <td>File hosting</td>
+        <td>GPS tracking + servers</td>
+      </tr>
+      <tr>
+        <td>Complexity</td>
+        <td>Moderate</td>
+        <td>High</td>
+      </tr>
+    </table>
+
+    <p><strong>Start with GTFS Static.</strong> This is mandatory. You can't appear in Google Maps or any other major
+      trip planner without a static feed first.</p>
+
+    <p><strong>Add GTFS-RT when you're ready.</strong> Live updates are awesome for riders, but they require more
+      technical setup. Consider it if you already have GPS tracking on your fleet and the servers to handle constant
+      data streams.</p>
+
+    <p>GTFS-RT doesn't replace your static data; it builds on top of it. Apps typically use both:</p>
+
+    <p>1. Static GTFS sets the stage (which routes exist, where the stops are).</p>
+    <p>2. GTFS-RT adds the live action (where the buses are and any delays).</p>
+    <p>3. The app shows the rider: "Bus 42 to Airport – Scheduled for 8:30, arriving in 4 min."</p>
+
+    <p>Without static GTFS, your live updates have no context. They work best as a team.</p>
+
+    <h2>Related Questions</h2>
+    <p>• <a href="what-does-gtfs-stand-for.html">What does GTFS stand for?</a></p>
+    <p>• <a href="how-to-get-my-bus-on-google-maps.html">How do I get my bus on Google Maps?</a></p>
+    <p>• <a href="gtfs-realtime-explained.html">GTFS-Realtime Explained (full article)</a></p>
+
+    <div class="cta-box">
+      <p>Creating your static GTFS feed? <a href="https://gtfs.guru">Validate it for free</a> before publishing.</p>
+    </div>
+
+  </article>
+
+  <footer>
+    <div class="container footer-container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+        <span class="logo-text">GTFS.Guru</span>
+        <p>by Abasis.AI</p>
+      </div>
+      <div class="footer-links">
+        <a href="index.html#faq">FAQ</a>
+        <a href="faq.html">Guides</a>
+        <a href="contact.html">Contact</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+      </div>
+      <div class="footer-copy">
+        &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons();
+    } else {
+      window.addEventListener('load', function () {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+          lucide.createIcons();
+        }
+      });
+    }
+  </script>
+
+</body>
+
+</html>

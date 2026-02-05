@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::feed::LOCATIONS_GEOJSON_FILE;
+use crate::validation_context::thorough_mode_enabled;
 use crate::{NoticeSeverity, ValidationNotice};
 
 #[derive(Debug, Clone, Default)]
@@ -91,7 +92,9 @@ impl LocationsGeoJson {
                 };
             }
             None => {
-                notices.push(missing_required_element_notice(None, "type", None));
+                if thorough_mode_enabled() {
+                    notices.push(missing_required_element_notice(None, "type", None));
+                }
                 return Self {
                     location_ids,
                     bounds_by_id,
@@ -102,7 +105,9 @@ impl LocationsGeoJson {
         }
 
         if collection.features.is_none() {
-            notices.push(missing_required_element_notice(None, "features", None));
+            if thorough_mode_enabled() {
+                notices.push(missing_required_element_notice(None, "features", None));
+            }
             return Self {
                 location_ids,
                 bounds_by_id,
@@ -163,12 +168,14 @@ impl LocationsGeoJson {
             }
 
             if !missing_required_fields.is_empty() {
-                for missing in missing_required_fields {
-                    notices.push(missing_required_element_notice(
-                        feature_id.as_deref(),
-                        missing,
-                        Some(index),
-                    ));
+                if thorough_mode_enabled() {
+                    for missing in missing_required_fields {
+                        notices.push(missing_required_element_notice(
+                            feature_id.as_deref(),
+                            missing,
+                            Some(index),
+                        ));
+                    }
                 }
                 continue;
             }
@@ -196,7 +203,8 @@ impl LocationsGeoJson {
                     "Polygon" => {
                         if let Some(coords) = geometry.coordinates.as_ref() {
                             let signature = coords.to_string();
-                            if !seen_geometries.insert(signature.clone()) {
+                            if !seen_geometries.insert(signature.clone()) && thorough_mode_enabled()
+                            {
                                 notices.push(geojson_duplicated_element_notice(&signature));
                             }
                             match points_from_polygon(coords) {
@@ -261,11 +269,13 @@ impl LocationsGeoJson {
                         }
                     }
                     other => {
-                        notices.push(unsupported_geometry_type_notice(
-                            index,
-                            feature_id_str.as_str(),
-                            other,
-                        ));
+                        if thorough_mode_enabled() {
+                            notices.push(unsupported_geometry_type_notice(
+                                index,
+                                feature_id_str.as_str(),
+                                other,
+                            ));
+                        }
                     }
                 }
             }

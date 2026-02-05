@@ -27,7 +27,18 @@ gtfs-guru --url https://example.com/gtfs.zip --output_base ./report
 | `--storage_directory <DIR>` | `-s` | Save downloaded feed to directory |
 | `--validation_report_name <NAME>` | `-v` | Custom name for JSON report |
 | `--html_report_name <NAME>` | `-r` | Custom name for HTML report |
+| `--system_errors_report_name <NAME>` | `-e` | Custom name for system errors report |
+| `--skip_validator_update` | | Skip validator update check |
+| `--validated-at <TIMESTAMP>` | | Override `validated_at` in report metadata |
 | `--threads <N>` | | Number of threads (default: 1) |
+| `--google_rules` | | Enable Google-specific rules |
+| `--sarif <FILE>` | | Write SARIF report for CI/CD |
+| `--fix-dry-run` | | Show auto-fixes without modifying files |
+| `--fix` | | Apply safe auto-fixes |
+| `--fix-unsafe` | | Apply all fixes (implies `--fix`) |
+| `--thorough` | | Enable thorough validation (recommended fields) |
+| `--timing` | | Print timing breakdown |
+| `--timing-json` | | Print timing report as JSON |
 
 ## Web API
 

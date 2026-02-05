@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    validation_context::thorough_mode_enabled, GtfsFeed, NoticeContainer, NoticeSeverity,
+    ValidationNotice, Validator,
+};
 use gtfs_guru_model::{PickupDropOffType, StopTime};
 
 const CODE_OVERLAPPING_ZONE_AND_WINDOW: &str = "overlapping_zone_and_pickup_drop_off_window";
@@ -14,6 +17,9 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         let locations = feed.locations.as_ref();
 
         // Collect stops by trip (sequential grouping is fine as O(N))
@@ -204,6 +210,7 @@ mod tests {
 
     #[test]
     fn detects_overlapping_windows_for_same_location() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
@@ -252,6 +259,7 @@ mod tests {
 
     #[test]
     fn passes_when_no_temporal_overlap() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![

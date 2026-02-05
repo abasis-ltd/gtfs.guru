@@ -1,6 +1,5 @@
 use chrono::{Duration, NaiveDate};
 
-use crate::feed::FEED_INFO_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::GtfsDate;
 
@@ -34,9 +33,19 @@ impl Validator for FeedExpirationDateValidator {
             };
 
             if feed_end_date <= threshold_7_days {
-                notices.push(expiration_notice_7_days(row_number));
+                notices.push(expiration_notice_7_days(
+                    row_number,
+                    validation_date,
+                    feed_end_date,
+                    threshold_7_days,
+                ));
             } else if feed_end_date <= threshold_30_days {
-                notices.push(expiration_notice_30_days(row_number));
+                notices.push(expiration_notice_30_days(
+                    row_number,
+                    validation_date,
+                    feed_end_date,
+                    threshold_30_days,
+                ));
             }
         }
     }
@@ -46,29 +55,72 @@ fn gtfs_date_to_naive(date: GtfsDate) -> Option<NaiveDate> {
     NaiveDate::from_ymd_opt(date.year(), date.month() as u32, date.day() as u32)
 }
 
-fn expiration_notice_7_days(row_number: u64) -> ValidationNotice {
+fn expiration_notice_7_days(
+    row_number: u64,
+    current_date: NaiveDate,
+    feed_end_date: NaiveDate,
+    suggested_expiration_date: NaiveDate,
+) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FEED_EXPIRATION_DATE_7_DAYS,
         NoticeSeverity::Warning,
         "feed_end_date is within 7 days of current date",
     );
-    populate_expiration_notice(&mut notice, row_number);
+    populate_expiration_notice(
+        &mut notice,
+        row_number,
+        current_date,
+        feed_end_date,
+        suggested_expiration_date,
+    );
     notice
 }
 
-fn expiration_notice_30_days(row_number: u64) -> ValidationNotice {
+fn expiration_notice_30_days(
+    row_number: u64,
+    current_date: NaiveDate,
+    feed_end_date: NaiveDate,
+    suggested_expiration_date: NaiveDate,
+) -> ValidationNotice {
     let mut notice = ValidationNotice::new(
         CODE_FEED_EXPIRATION_DATE_30_DAYS,
         NoticeSeverity::Warning,
         "feed_end_date is within 30 days of current date",
     );
-    populate_expiration_notice(&mut notice, row_number);
+    populate_expiration_notice(
+        &mut notice,
+        row_number,
+        current_date,
+        feed_end_date,
+        suggested_expiration_date,
+    );
     notice
 }
 
-fn populate_expiration_notice(notice: &mut ValidationNotice, row_number: u64) {
-    notice.set_location(FEED_INFO_FILE, "feed_end_date", row_number);
-    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
+fn populate_expiration_notice(
+    notice: &mut ValidationNotice,
+    row_number: u64,
+    current_date: NaiveDate,
+    feed_end_date: NaiveDate,
+    suggested_expiration_date: NaiveDate,
+) {
+    notice.row = Some(row_number);
+    notice.insert_context_field("currentDate", format_date(current_date));
+    notice.insert_context_field("feedEndDate", format_date(feed_end_date));
+    notice.insert_context_field(
+        "suggestedExpirationDate",
+        format_date(suggested_expiration_date),
+    );
+    notice.field_order = vec![
+        "csvRowNumber".into(),
+        "currentDate".into(),
+        "feedEndDate".into(),
+        "suggestedExpirationDate".into(),
+    ];
+}
+
+fn format_date(date: NaiveDate) -> String {
+    date.format("%Y%m%d").to_string()
 }
 
 #[cfg(test)]

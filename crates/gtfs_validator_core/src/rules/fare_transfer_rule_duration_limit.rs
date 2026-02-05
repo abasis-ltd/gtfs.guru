@@ -32,6 +32,9 @@ impl Validator for FareTransferRuleDurationLimitTypeValidator {
                 notices.push(notice);
             }
             if !has_duration_limit && has_duration_limit_type {
+                if !crate::validation_context::thorough_mode_enabled() {
+                    continue;
+                }
                 let mut notice = ValidationNotice::new(
                     CODE_TYPE_WITHOUT_DURATION_LIMIT,
                     NoticeSeverity::Error,
@@ -76,6 +79,7 @@ mod tests {
 
     #[test]
     fn detects_type_without_duration_limit() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
             headers: vec!["duration_limit_type".into()],

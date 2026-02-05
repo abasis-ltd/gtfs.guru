@@ -151,7 +151,7 @@ pub fn collect_input_notices(input: &GtfsInput) -> Result<Vec<ValidationNotice>,
         }
     }
 
-    if reader.has_nested_gtfs_files()? {
+    if matches!(input.source(), GtfsInputSource::Zip) && reader.has_nested_gtfs_files()? {
         notices.push(invalid_input_files_notice());
     }
 
@@ -254,6 +254,10 @@ impl GtfsInputReader {
         notices: &mut NoticeContainer,
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
+        if strip_utf8_bom(&data).is_empty() {
+            notices.push_empty_table(file_name);
+            return Ok(CsvTable::default());
+        }
         let data_str = decode_utf8_lossy(&data);
         let data_bytes = data_str.as_bytes();
         // Peek headers for validator setup
@@ -343,6 +347,10 @@ impl GtfsInputReader {
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         match self.read_file(file_name) {
             Ok(data) => {
+                if strip_utf8_bom(&data).is_empty() {
+                    notices.push_empty_table(file_name);
+                    return Ok(Some(CsvTable::default()));
+                }
                 let data_str = decode_utf8_lossy(&data);
                 let data_bytes = data_str.as_bytes();
                 // Peek headers for validator setup

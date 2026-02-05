@@ -287,8 +287,12 @@ fn report_problems(
             continue;
         }
         if !thorough_mode_enabled()
-            && problem.problem_type != ProblemType::StopTooFarFromShape
-            && problem.problem_type != ProblemType::StopsMatchOutOfOrder
+            && !matches!(
+                problem.problem_type,
+                ProblemType::StopTooFarFromShape
+                    | ProblemType::StopsMatchOutOfOrder
+                    | ProblemType::StopHasTooManyMatches
+            )
         {
             continue;
         }

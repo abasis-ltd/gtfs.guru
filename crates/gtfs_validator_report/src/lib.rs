@@ -294,6 +294,7 @@ pub struct ReportAgency {
     pub url: String,
     pub phone: String,
     pub email: String,
+    pub timezone: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -600,6 +601,7 @@ fn build_agencies(feed: &GtfsFeed) -> Vec<ReportAgency> {
             url: feed.pool.resolve(agency.agency_url),
             phone: agency.agency_phone.clone().unwrap_or_default().to_string(),
             email: agency.agency_email.clone().unwrap_or_default().to_string(),
+            timezone: feed.pool.resolve(agency.agency_timezone),
         })
         .collect()
 }

@@ -152,7 +152,7 @@ curl https://yourdomain.com/healthz
 ### Version Check
 ```bash
 curl https://yourdomain.com/version
-# Returns: {"version":"0.1.0"}
+# Returns: {"version":"0.9.0"}
 ```
 
 ## Backup

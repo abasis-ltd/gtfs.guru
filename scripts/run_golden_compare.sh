@@ -21,7 +21,7 @@ shift 3
 if [ -n "${GTFS_VALIDATOR_BIN:-}" ]; then
   "$GTFS_VALIDATOR_BIN" --input "$feed_path" --output_base "$actual_dir" "$@"
 else
-  cargo run -p gtfs_validator_cli -- --input "$feed_path" --output_base "$actual_dir" "$@"
+  cargo run -p gtfs-guru -- --input "$feed_path" --output_base "$actual_dir" "$@"
 fi
 
 compare_args=()

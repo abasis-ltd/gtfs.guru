@@ -338,7 +338,11 @@ const RIDER_CATEGORIES_FIELDS: &[&str] = &[
     "is_default_fare_category",
     "eligibility_url",
 ];
-const RIDER_CATEGORIES_REQUIRED_FIELDS: &[&str] = &["rider_category_id", "rider_category_name"];
+const RIDER_CATEGORIES_REQUIRED_FIELDS: &[&str] = &[
+    "rider_category_id",
+    "rider_category_name",
+    "is_default_fare_category",
+];
 const LOCATION_GROUPS_FIELDS: &[&str] = &[
     "location_group_id",
     "location_group_name",

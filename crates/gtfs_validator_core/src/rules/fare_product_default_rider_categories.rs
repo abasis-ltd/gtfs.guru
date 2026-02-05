@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    validation_context::thorough_mode_enabled, GtfsFeed, NoticeContainer, NoticeSeverity,
+    ValidationNotice, Validator,
+};
 use gtfs_guru_model::RiderFareCategory;
 
 const CODE_MULTIPLE_DEFAULT_RIDER_CATEGORIES: &str =
@@ -15,6 +18,9 @@ impl Validator for FareProductDefaultRiderCategoriesValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         let (Some(fare_products), Some(rider_categories)) =
             (&feed.fare_products, &feed.rider_categories)
         else {
@@ -162,6 +168,7 @@ mod tests {
 
     #[test]
     fn detects_multiple_global_defaults() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
             headers: vec!["rider_category_id".into(), "is_default_category".into()],
@@ -200,6 +207,7 @@ mod tests {
 
     #[test]
     fn detects_multiple_defaults_for_one_product() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
             headers: vec!["rider_category_id".into(), "is_default_category".into()],
@@ -247,6 +255,7 @@ mod tests {
 
     #[test]
     fn passes_single_default() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.rider_categories = Some(CsvTable {
             headers: vec!["rider_category_id".into(), "is_default_category".into()],

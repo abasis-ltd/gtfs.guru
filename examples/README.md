@@ -1,14 +1,14 @@
 # Examples
 
-This directory contains examples of how to use the GTFS Validator.
+This directory contains examples of how to use GTFS Guru.
 
 ## Python Demo
 
-`python_demo.ipynb` demonstrates how to interact with the GTFS Validator using its Python bindings. You can use it to validate GTFS feeds programmatically and analyze the results within a Python environment.
+`python_demo.ipynb` demonstrates how to interact with GTFS Guru using its Python bindings. You can use it to validate GTFS feeds programmatically and analyze the results within a Python environment.
 
 ### Prerequisites
 
-To run this demo, you need to install the `gtfs-validator` Python package. Since this package is backed by high-performance Rust code, you need to build it from the source initially.
+To run this demo, you need to install the `gtfs-guru` Python package. Since this package is backed by high-performance Rust code, you need to build it from the source initially.
 
 **Requirements:**
 

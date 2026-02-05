@@ -52,6 +52,14 @@ pub const LEVELS_FILE: &str = "levels.txt";
 pub const PATHWAYS_FILE: &str = "pathways.txt";
 pub const TRANSLATIONS_FILE: &str = "translations.txt";
 
+const REQUIRED_GTFS_FILES: &[&str] = &[
+    AGENCY_FILE,
+    STOPS_FILE,
+    ROUTES_FILE,
+    TRIPS_FILE,
+    STOP_TIMES_FILE,
+];
+
 pub const GTFS_FILE_NAMES: &[&str] = &[
     AGENCY_FILE,
     STOPS_FILE,
@@ -140,7 +148,11 @@ impl GtfsFeed {
     }
 
     pub fn table_has_errors(&self, file_name: &str) -> bool {
-        !self.table_status(file_name).is_parsed_successfully()
+        match self.table_status(file_name) {
+            TableStatus::ParseError => true,
+            TableStatus::MissingFile => is_required_file(file_name),
+            TableStatus::Ok => false,
+        }
     }
 
     pub fn from_input(input: &GtfsInput) -> Result<Self, GtfsInputError> {
@@ -624,6 +636,18 @@ impl GtfsFeed {
                                                                 LOCATIONS_GEOJSON_FILE,
                                                             );
                                                         }
+                                                        let _g1 = crate::validation_context::set_thorough_mode_enabled(
+                                                            loader.thorough,
+                                                        );
+                                                        let _g2 = crate::validation_context::set_google_rules_enabled(
+                                                            loader.google,
+                                                        );
+                                                        let _g3 = crate::validation_context::set_validation_country_code(
+                                                            loader.country.clone(),
+                                                        );
+                                                        let _g4 = crate::validation_context::set_validation_date(
+                                                            Some(loader.date),
+                                                        );
                                                         let (locations, n4) = match reader
                                                             .read_optional_json::<GeoJsonFeatureCollection>(
                                                                 LOCATIONS_GEOJSON_FILE,
@@ -1155,6 +1179,12 @@ fn record_table_status<T>(
     table_statuses.insert(file_name, status_from_load_result(result, notices));
 }
 
+fn is_required_file(file_name: &str) -> bool {
+    REQUIRED_GTFS_FILES
+        .iter()
+        .any(|required| file_name.eq_ignore_ascii_case(required))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1308,5 +1338,17 @@ mod tests {
         );
 
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn table_has_errors_flags_missing_required_files() {
+        let mut feed = GtfsFeed::default();
+        feed.table_statuses
+            .insert(AGENCY_FILE, TableStatus::MissingFile);
+        feed.table_statuses
+            .insert(CALENDAR_FILE, TableStatus::MissingFile);
+
+        assert!(feed.table_has_errors(AGENCY_FILE));
+        assert!(!feed.table_has_errors(CALENDAR_FILE));
     }
 }

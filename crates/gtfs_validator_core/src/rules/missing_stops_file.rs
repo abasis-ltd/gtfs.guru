@@ -1,5 +1,5 @@
 use crate::feed::STOPS_FILE;
-use crate::{GtfsFeed, NoticeContainer, Validator};
+use crate::{GtfsFeed, NoticeContainer, TableStatus, Validator};
 
 #[derive(Debug, Default)]
 pub struct MissingStopsFileValidator;
@@ -10,6 +10,9 @@ impl Validator for MissingStopsFileValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_status(STOPS_FILE) == TableStatus::MissingFile {
+            return;
+        }
         if !feed.stops.headers.is_empty() || !feed.stops.rows.is_empty() {
             return;
         }

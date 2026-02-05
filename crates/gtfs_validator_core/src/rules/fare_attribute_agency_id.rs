@@ -1,4 +1,4 @@
-use crate::feed::FARE_ATTRIBUTES_FILE;
+use crate::feed::{AGENCY_FILE, FARE_ATTRIBUTES_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::StringId;
 
@@ -14,6 +14,10 @@ impl Validator for FareAttributeAgencyIdValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(AGENCY_FILE) || feed.table_has_errors(FARE_ATTRIBUTES_FILE) {
+            return;
+        }
+
         let Some(fare_attributes) = &feed.fare_attributes else {
             return;
         };

@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use chrono::{Datelike, NaiveDate};
 
+use crate::feed::{CALENDAR_DATES_FILE, CALENDAR_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::{ExceptionType, GtfsDate, ServiceAvailability, StringId};
 
@@ -22,6 +23,9 @@ impl Validator for ExpiredCalendarValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(CALENDAR_FILE) || feed.table_has_errors(CALENDAR_DATES_FILE) {
+            return;
+        }
         let service_dates = build_service_dates(feed);
         let validation_date = crate::validation_date();
 

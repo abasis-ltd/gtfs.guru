@@ -11,7 +11,7 @@
 - Build the Rust CLI:
 
 ```bash
-cargo build --release -p gtfs-guru-cli
+cargo build --release -p gtfs-guru
 ```
 
 - Run the Rust validator on a feed and write to a dedicated output dir:

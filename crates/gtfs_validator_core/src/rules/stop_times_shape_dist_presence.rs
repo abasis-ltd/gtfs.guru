@@ -1,4 +1,7 @@
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    validation_context::thorough_mode_enabled, GtfsFeed, NoticeContainer, NoticeSeverity,
+    ValidationNotice, Validator,
+};
 use gtfs_guru_model::StringId;
 
 const CODE_FORBIDDEN_SHAPE_DIST_TRAVELED: &str = "forbidden_shape_dist_traveled";
@@ -12,6 +15,9 @@ impl Validator for StopTimesShapeDistTraveledPresenceValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if !thorough_mode_enabled() {
+            return;
+        }
         let headers = &feed.stop_times.headers;
         let has_shape_dist = headers
             .iter()
@@ -111,6 +117,7 @@ mod tests {
 
     #[test]
     fn detects_shape_dist_with_flex_window() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
@@ -145,6 +152,7 @@ mod tests {
 
     #[test]
     fn detects_shape_dist_without_stop_id() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![
@@ -180,6 +188,7 @@ mod tests {
 
     #[test]
     fn passes_valid_shape_dist() {
+        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.stop_times = CsvTable {
             headers: vec![

@@ -1,11 +1,11 @@
-# GTFS Validator Python
+# GTFS Guru Python
 
 High-performance GTFS feed validator with Python bindings. Written in Rust, exposed via PyO3.
 
 ## Installation
 
 ```bash
-pip install gtfs-validator
+pip install gtfs-guru
 ```
 
 ### From Source
@@ -13,16 +13,16 @@ pip install gtfs-validator
 ```bash
 pip install maturin
 maturin build --release
-pip install target/wheels/gtfs_validator-*.whl
+pip install target/wheels/gtfs_guru-*.whl
 ```
 
 ## Quick Start
 
 ```python
-import gtfs_validator
+import gtfs_guru
 
 # Validate a GTFS feed
-result = gtfs_validator.validate("/path/to/gtfs.zip")
+result = gtfs_guru.validate("/path/to/gtfs.zip")
 
 print(f"Valid: {result.is_valid}")
 print(f"Errors: {result.error_count}")
@@ -50,7 +50,7 @@ Validate a GTFS feed.
 
 **Example:**
 ```python
-result = gtfs_validator.validate(
+result = gtfs_guru.validate(
     "/path/to/gtfs.zip",
     country_code="US",
     date="2025-01-15"
@@ -75,7 +75,7 @@ async def main():
     def on_progress(info):
         print(f"{info.stage}: {info.current}/{info.total}")
         
-    result = await gtfs_validator.validate_async(
+    result = await gtfs_guru.validate_async(
         "/path/to/gtfs.zip",
         on_progress=on_progress
     )
@@ -88,8 +88,8 @@ asyncio.run(main())
 Get validator version.
 
 ```python
->>> gtfs_validator.version()
-'0.1.0'
+>>> gtfs_guru.version()
+'0.9.0'
 ```
 
 #### `notice_codes() -> list[str]`
@@ -97,9 +97,9 @@ Get validator version.
 Get list of all available notice codes.
 
 ```python
->>> len(gtfs_validator.notice_codes())
+>>> len(gtfs_guru.notice_codes())
 164
->>> gtfs_validator.notice_codes()[:3]
+>>> gtfs_guru.notice_codes()[:3]
 ['attribution_without_role', 'bidirectional_exit_gate', 'block_trips_with_overlapping_stop_times']
 ```
 
@@ -108,7 +108,7 @@ Get list of all available notice codes.
 Get schema for all notice types with descriptions and severity levels.
 
 ```python
->>> schema = gtfs_validator.notice_schema()
+>>> schema = gtfs_guru.notice_schema()
 >>> schema['missing_required_field']
 {'severity': 'ERROR', 'description': '...'}
 ```
@@ -176,9 +176,9 @@ ctx = notice.context()  # dict[str, Any]
 ### Basic Validation
 
 ```python
-import gtfs_validator
+import gtfs_guru
 
-result = gtfs_validator.validate("/path/to/gtfs.zip")
+result = gtfs_guru.validate("/path/to/gtfs.zip")
 
 if result.is_valid:
     print("Feed is valid!")
@@ -193,7 +193,7 @@ else:
 ```python
 from collections import Counter
 
-result = gtfs_validator.validate("/path/to/gtfs.zip")
+result = gtfs_guru.validate("/path/to/gtfs.zip")
 
 # Count notices by code
 error_counts = Counter(e.code for e in result.errors())
@@ -211,7 +211,7 @@ for notice in result.by_code("missing_required_field"):
 ### Save Reports
 
 ```python
-result = gtfs_validator.validate("/path/to/gtfs.zip")
+result = gtfs_guru.validate("/path/to/gtfs.zip")
 
 # Save JSON report (same format as Java validator)
 result.save_json("report.json")
@@ -230,13 +230,13 @@ print(f"Routes: {summary.get('routes', {}).get('count', 0)}")
 
 ```python
 # Validate for specific country (affects some rules)
-result = gtfs_validator.validate(
+result = gtfs_guru.validate(
     "/path/to/gtfs.zip",
     country_code="DE"
 )
 
 # Validate as of specific date
-result = gtfs_validator.validate(
+result = gtfs_guru.validate(
     "/path/to/gtfs.zip",
     date="2025-06-01"
 )

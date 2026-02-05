@@ -22,8 +22,8 @@ use gtfs_guru_report::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "gtfs-validator")]
-#[command(about = "GTFS validator (Rust rewrite)")]
+#[command(name = "gtfs-guru")]
+#[command(about = "GTFS Guru validator (Rust rewrite)")]
 struct Args {
     #[arg(short = 'i', long = "input")]
     input: Option<PathBuf>,
@@ -176,7 +176,11 @@ fn main() -> anyhow::Result<()> {
         "ValidationRunner.run",
     );
     let elapsed = started_at.elapsed();
-    let notices = outcome.notices;
+    let (validation_notices, system_errors) = if outcome.feed.is_none() {
+        (NoticeContainer::new(), outcome.notices)
+    } else {
+        (outcome.notices, NoticeContainer::new())
+    };
 
     std::fs::create_dir_all(&args.output)
         .with_context(|| format!("create output dir {}", args.output.display()))?;
@@ -228,19 +232,19 @@ fn main() -> anyhow::Result<()> {
     let html_context = HtmlReportContext::from_summary(&summary, resolved.gtfs_source_label);
     write_html_report(
         args.output.join(&html_report_name),
-        &notices,
+        &validation_notices,
         &summary,
         html_context,
     )?;
-    let report = ValidationReport::from_container_with_summary(&notices, summary);
+    let report = ValidationReport::from_container_with_summary(&validation_notices, summary);
     report.write_json_with_format(args.output.join(&validation_report_name), args.pretty)?;
-    ValidationReport::empty()
+    ValidationReport::from_container(&system_errors)
         .write_json_with_format(args.output.join(&system_errors_report_name), args.pretty)?;
 
     // Generate SARIF report if requested
     if let Some(sarif_name) = &args.sarif {
         let sarif_path = args.output.join(sarif_name);
-        let sarif_report = SarifReport::from_notices(&notices);
+        let sarif_report = SarifReport::from_notices(&validation_notices);
         sarif_report.write(&sarif_path)?;
         info!("SARIF report written to {}", sarif_path.display());
     }
@@ -261,7 +265,7 @@ fn main() -> anyhow::Result<()> {
 
     // Handle auto-fix options
     if args.fix_dry_run || args.fix || args.fix_unsafe {
-        handle_fixes(&notices, &args, input.path())?;
+        handle_fixes(&validation_notices, &args, input.path())?;
     }
 
     Ok(())

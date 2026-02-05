@@ -44,5 +44,6 @@ nav:
   - Home: index.md
   - Installation: installation.md
   - Usage: usage.md
+  - LLM Guide: llm.md
   - Python API: python_api.md
   - Validation Rules: rules.md

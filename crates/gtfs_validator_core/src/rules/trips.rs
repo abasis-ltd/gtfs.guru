@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use crate::feed::{STOP_TIMES_FILE, TRIPS_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_UNUSABLE_TRIP: &str = "unusable_trip";
-const CODE_MISSING_STOP_TIMES: &str = "missing_stop_times_record";
 
 #[derive(Debug, Default)]
 pub struct TripUsabilityValidator;
@@ -14,6 +14,10 @@ impl Validator for TripUsabilityValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        if feed.table_has_errors(TRIPS_FILE) || feed.table_has_errors(STOP_TIMES_FILE) {
+            return;
+        }
+
         let mut stop_counts: HashMap<gtfs_guru_model::StringId, usize> = HashMap::new();
         for stop_time in &feed.stop_times.rows {
             let trip_id = stop_time.trip_id;
@@ -30,18 +34,7 @@ impl Validator for TripUsabilityValidator {
                 continue;
             }
             let stop_count = stop_counts.get(&trip_id).copied().unwrap_or(0);
-            if stop_count == 0 {
-                let trip_id_value = feed.pool.resolve(trip_id);
-                let mut notice = ValidationNotice::new(
-                    CODE_MISSING_STOP_TIMES,
-                    NoticeSeverity::Error,
-                    "trip must have at least one stop_times entry",
-                );
-                notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("tripId", trip_id_value.as_str());
-                notice.field_order = vec!["csvRowNumber".into(), "tripId".into()];
-                notices.push(notice);
-            } else if stop_count == 1 {
+            if stop_count <= 1 {
                 let trip_id_value = feed.pool.resolve(trip_id);
                 let mut notice = ValidationNotice::new(
                     CODE_UNUSABLE_TRIP,
@@ -61,6 +54,7 @@ impl Validator for TripUsabilityValidator {
 mod tests {
     use super::*;
     use crate::CsvTable;
+    use crate::TableStatus;
     use gtfs_guru_model::{StopTime, Trip};
 
     #[test]
@@ -84,7 +78,7 @@ mod tests {
         TripUsabilityValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices.iter().next().unwrap().code, CODE_MISSING_STOP_TIMES);
+        assert_eq!(notices.iter().next().unwrap().code, CODE_UNUSABLE_TRIP);
     }
 
     #[test]
@@ -147,5 +141,25 @@ mod tests {
         TripUsabilityValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 0);
+    }
+
+    #[test]
+    fn skips_when_stop_times_missing() {
+        let mut feed = GtfsFeed::default();
+        feed.trips = CsvTable {
+            headers: vec!["trip_id".into()],
+            rows: vec![Trip {
+                trip_id: feed.pool.intern("T1"),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.table_statuses
+            .insert(STOP_TIMES_FILE, TableStatus::MissingFile);
+
+        let mut notices = NoticeContainer::new();
+        TripUsabilityValidator.validate(&feed, &mut notices);
+
+        assert!(notices.is_empty());
     }
 }
