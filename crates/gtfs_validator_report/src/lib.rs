@@ -7,12 +7,12 @@
 #![allow(clippy::unnecessary_lazy_evaluations)]
 #![allow(clippy::manual_pattern_char_comparison)]
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use chrono::{Local, NaiveDate, SecondsFormat};
+use chrono::{Datelike, Local, NaiveDate, SecondsFormat};
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use serde_json::{Number, Value};
@@ -1190,9 +1190,6 @@ fn language_display_name(value: &str) -> String {
 }
 
 fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDate>) {
-    let has_calendar = feed.calendar.is_some();
-    let has_calendar_dates = feed.calendar_dates.is_some();
-
     // Build set of service_ids used by trips ONCE - O(trips)
     let used_service_ids: FxHashSet<StringId> = feed
         .trips
@@ -1206,48 +1203,10 @@ fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDa
         return (None, None);
     }
 
-    let mut earliest_start = None;
-    let mut latest_end = None;
-
-    if has_calendar && !has_calendar_dates {
-        // Single pass through calendar - O(calendar)
-        if let Some(calendar) = &feed.calendar {
-            for row in &calendar.rows {
-                let service_id = row.service_id;
-                if !has_id(service_id) || !used_service_ids.contains(&service_id) {
-                    continue;
-                }
-                let start = gtfs_date_to_naive(row.start_date);
-                let end = gtfs_date_to_naive(row.end_date);
-                if is_epoch(start) || is_epoch(end) {
-                    continue;
-                }
-                update_naive_bounds(start, &mut earliest_start, &mut latest_end);
-                update_naive_bounds(end, &mut earliest_start, &mut latest_end);
-            }
-        }
-    } else if has_calendar_dates && !has_calendar {
-        // Single pass through calendar_dates - O(calendar_dates)
-        if let Some(calendar_dates) = &feed.calendar_dates {
-            for row in &calendar_dates.rows {
-                let service_id = row.service_id;
-                if !has_id(service_id) || !used_service_ids.contains(&service_id) {
-                    continue;
-                }
-                let date = gtfs_date_to_naive(row.date);
-                if is_epoch(date) {
-                    continue;
-                }
-                update_naive_bounds(date, &mut earliest_start, &mut latest_end);
-            }
-        }
-    } else if has_calendar && has_calendar_dates {
-        let calendar = feed.calendar.as_ref().unwrap();
-        let calendar_dates = feed.calendar_dates.as_ref().unwrap();
-
-        // Build index by service_id - O(calendar_dates)
-        let mut dates_by_service: FxHashMap<StringId, Vec<&gtfs_guru_model::CalendarDate>> =
-            FxHashMap::default();
+    // Index calendar_dates by used service_id - O(calendar_dates)
+    let mut dates_by_service: FxHashMap<StringId, Vec<&gtfs_guru_model::CalendarDate>> =
+        FxHashMap::default();
+    if let Some(calendar_dates) = &feed.calendar_dates {
         for row in &calendar_dates.rows {
             let service_id = row.service_id;
             if !has_id(service_id) || !used_service_ids.contains(&service_id) {
@@ -1255,52 +1214,39 @@ fn compute_service_window(feed: &GtfsFeed) -> (Option<NaiveDate>, Option<NaiveDa
             }
             dates_by_service.entry(service_id).or_default().push(row);
         }
+    }
 
-        // Build service periods - O(calendar)
-        let mut service_periods: FxHashMap<StringId, ServicePeriodData> = FxHashMap::default();
+    let mut earliest_start: Option<NaiveDate> = None;
+    let mut latest_end: Option<NaiveDate> = None;
+    let mut services_with_calendar: FxHashSet<StringId> = FxHashSet::default();
+
+    // Services defined in calendar.txt, optionally extended/trimmed by calendar_dates.
+    if let Some(calendar) = &feed.calendar {
         for row in &calendar.rows {
             let service_id = row.service_id;
             if !has_id(service_id) || !used_service_ids.contains(&service_id) {
                 continue;
             }
+            services_with_calendar.insert(service_id);
             let dates = dates_by_service
                 .get(&service_id)
                 .map(|items| items.as_slice())
                 .unwrap_or(&[]);
-            service_periods.insert(service_id, create_service_period(Some(row), dates));
+            if let Some((min, max)) = service_min_max(Some(row), dates) {
+                update_naive_bounds(min, &mut earliest_start, &mut latest_end);
+                update_naive_bounds(max, &mut earliest_start, &mut latest_end);
+            }
         }
+    }
 
-        // Add calendar_dates-only services
-        for (service_id, dates) in &dates_by_service {
-            if service_periods.contains_key(service_id) {
-                continue;
-            }
-            service_periods.insert(*service_id, create_service_period(None, dates));
+    // Services that appear only in calendar_dates.txt.
+    for (service_id, dates) in &dates_by_service {
+        if services_with_calendar.contains(service_id) {
+            continue;
         }
-
-        // Single pass to compute bounds - O(service_periods)
-        let mut removed_dates = Vec::new();
-        for period in service_periods.values() {
-            let start = period.service_start;
-            let end = period.service_end;
-            if !is_epoch(start) && !is_epoch(end) {
-                update_naive_bounds(start, &mut earliest_start, &mut latest_end);
-                update_naive_bounds(end, &mut earliest_start, &mut latest_end);
-            }
-            removed_dates.extend(period.removed_days.iter().copied());
-        }
-
-        for date in removed_dates {
-            if let Some(earliest) = earliest_start {
-                if date == earliest {
-                    earliest_start = earliest.checked_add_signed(chrono::Duration::days(1));
-                }
-            }
-            if let Some(latest) = latest_end {
-                if date == latest {
-                    latest_end = latest.checked_sub_signed(chrono::Duration::days(1));
-                }
-            }
+        if let Some((min, max)) = service_min_max(None, dates) {
+            update_naive_bounds(min, &mut earliest_start, &mut latest_end);
+            update_naive_bounds(max, &mut earliest_start, &mut latest_end);
         }
     }
 
@@ -1346,51 +1292,76 @@ fn is_epoch(date: NaiveDate) -> bool {
     date == NaiveDate::from_ymd_opt(1970, 1, 1).expect("epoch")
 }
 
-#[derive(Debug, Clone)]
-struct ServicePeriodData {
-    service_start: NaiveDate,
-    service_end: NaiveDate,
-    removed_days: Vec<NaiveDate>,
-}
-
-fn create_service_period(
+/// Earliest and latest actual service day for a single `service_id`, expanding the
+/// `calendar.txt` weekday pattern across `[start_date, end_date]` and then applying
+/// `calendar_dates.txt` exceptions (`exception_type=1` adds a day, `=2` removes one),
+/// matching GTFS service-day semantics. Returns `None` when the service has no active day.
+///
+/// Added exceptions extend the window even when the service also has a `calendar.txt`
+/// row: feeds such as VBB's define a narrow base period in `calendar.txt` and reach the
+/// rest of the year through added exceptions (gtfs.guru#3).
+fn service_min_max(
     calendar: Option<&gtfs_guru_model::Calendar>,
     calendar_dates: &[&gtfs_guru_model::CalendarDate],
-) -> ServicePeriodData {
-    let mut service_start = calendar.map(|row| gtfs_date_to_naive(row.start_date));
-    let mut service_end = calendar.map(|row| gtfs_date_to_naive(row.end_date));
+) -> Option<(NaiveDate, NaiveDate)> {
+    let mut days: BTreeSet<NaiveDate> = BTreeSet::new();
 
-    if let (Some(start), Some(end)) = (service_start, service_end) {
-        if start > end {
-            service_end = Some(start);
+    if let Some(row) = calendar {
+        let start = gtfs_date_to_naive(row.start_date);
+        let mut end = gtfs_date_to_naive(row.end_date);
+        if !is_epoch(start) && !is_epoch(end) {
+            if start > end {
+                end = start;
+            }
+            let mut current = start;
+            while current <= end {
+                if service_available_on_date(row, current) {
+                    days.insert(current);
+                }
+                match current.succ_opt() {
+                    Some(next) => current = next,
+                    None => break,
+                }
+            }
         }
     }
 
-    let mut removed_days = Vec::new();
     for row in calendar_dates {
         let date = gtfs_date_to_naive(row.date);
-        if calendar.is_none() && row.exception_type == ExceptionType::Added {
-            if service_start.map_or(true, |current| date < current) {
-                service_start = Some(date);
-            }
-            if service_end.map_or(true, |current| date > current) {
-                service_end = Some(date);
-            }
+        if is_epoch(date) {
+            continue;
         }
-        if row.exception_type == ExceptionType::Removed {
-            removed_days.push(date);
+        match row.exception_type {
+            ExceptionType::Added => {
+                days.insert(date);
+            }
+            ExceptionType::Removed => {
+                days.remove(&date);
+            }
+            ExceptionType::Other => {}
         }
     }
 
-    let service_start =
-        service_start.unwrap_or_else(|| NaiveDate::from_ymd_opt(1970, 1, 1).expect("epoch"));
-    let service_end = service_end.unwrap_or(service_start);
-
-    ServicePeriodData {
-        service_start,
-        service_end,
-        removed_days,
+    match (days.first().copied(), days.last().copied()) {
+        (Some(min), Some(max)) => Some((min, max)),
+        _ => None,
     }
+}
+
+fn service_available_on_date(calendar: &gtfs_guru_model::Calendar, date: NaiveDate) -> bool {
+    let availability = match date.weekday() {
+        chrono::Weekday::Mon => calendar.monday,
+        chrono::Weekday::Tue => calendar.tuesday,
+        chrono::Weekday::Wed => calendar.wednesday,
+        chrono::Weekday::Thu => calendar.thursday,
+        chrono::Weekday::Fri => calendar.friday,
+        chrono::Weekday::Sat => calendar.saturday,
+        chrono::Weekday::Sun => calendar.sunday,
+    };
+    matches!(
+        availability,
+        gtfs_guru_model::ServiceAvailability::Available
+    )
 }
 
 fn path_to_file_url(path: &Path) -> Option<String> {
@@ -1511,5 +1482,115 @@ mod tests {
                 "extra"
             ]
         );
+    }
+
+    fn calendar_all_week(
+        service_id: StringId,
+        start: &str,
+        end: &str,
+    ) -> gtfs_guru_model::Calendar {
+        use gtfs_guru_model::ServiceAvailability::Available;
+        gtfs_guru_model::Calendar {
+            service_id,
+            monday: Available,
+            tuesday: Available,
+            wednesday: Available,
+            thursday: Available,
+            friday: Available,
+            saturday: Available,
+            sunday: Available,
+            start_date: gtfs_guru_model::GtfsDate::parse(start).unwrap(),
+            end_date: gtfs_guru_model::GtfsDate::parse(end).unwrap(),
+        }
+    }
+
+    fn calendar_date(
+        service_id: StringId,
+        date: &str,
+        exception_type: ExceptionType,
+    ) -> gtfs_guru_model::CalendarDate {
+        gtfs_guru_model::CalendarDate {
+            service_id,
+            date: gtfs_guru_model::GtfsDate::parse(date).unwrap(),
+            exception_type,
+        }
+    }
+
+    // Regression for https://github.com/abasis-ltd/gtfs.guru/issues/3: a narrow
+    // calendar.txt window extended by calendar_dates `exception_type=1` (added) entries
+    // must widen the reported service window. Previously added exceptions were ignored
+    // whenever the service also had a calendar.txt row.
+    #[test]
+    fn service_window_extends_past_calendar_via_added_dates() {
+        let mut feed = GtfsFeed::default();
+        let service_id = feed.pool.intern("S1");
+
+        feed.trips = CsvTable {
+            rows: vec![gtfs_guru_model::Trip {
+                trip_id: feed.pool.intern("T1"),
+                service_id,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        feed.calendar = Some(CsvTable {
+            rows: vec![calendar_all_week(service_id, "20260620", "20260908")],
+            ..Default::default()
+        });
+        feed.calendar_dates = Some(CsvTable {
+            rows: vec![
+                calendar_date(service_id, "20260212", ExceptionType::Added),
+                calendar_date(service_id, "20261212", ExceptionType::Added),
+                // A removal in the middle must not move the boundaries.
+                calendar_date(service_id, "20260701", ExceptionType::Removed),
+            ],
+            ..Default::default()
+        });
+
+        let (start, end) = compute_service_window(&feed);
+        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 12));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 12, 12));
+    }
+
+    // A removed day for one service must not shrink the global window when another
+    // service still operates on that day. The previous logic compared every removed
+    // date against the global min/max and trimmed it unconditionally.
+    #[test]
+    fn service_window_removal_is_scoped_per_service() {
+        let mut feed = GtfsFeed::default();
+        let service_a = feed.pool.intern("SA");
+        let service_b = feed.pool.intern("SB");
+
+        feed.trips = CsvTable {
+            rows: vec![
+                gtfs_guru_model::Trip {
+                    trip_id: feed.pool.intern("TA"),
+                    service_id: service_a,
+                    ..Default::default()
+                },
+                gtfs_guru_model::Trip {
+                    trip_id: feed.pool.intern("TB"),
+                    service_id: service_b,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        feed.calendar = Some(CsvTable {
+            rows: vec![
+                calendar_all_week(service_a, "20260601", "20260607"),
+                calendar_all_week(service_b, "20260601", "20260603"),
+            ],
+            ..Default::default()
+        });
+        // Service A drops 2026-06-01, but service B still runs that day.
+        feed.calendar_dates = Some(CsvTable {
+            rows: vec![calendar_date(service_a, "20260601", ExceptionType::Removed)],
+            ..Default::default()
+        });
+
+        let (start, end) = compute_service_window(&feed);
+        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 6, 1));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 6, 7));
     }
 }
