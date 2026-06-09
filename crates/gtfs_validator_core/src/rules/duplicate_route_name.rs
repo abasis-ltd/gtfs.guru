@@ -1,7 +1,9 @@
 use compact_str::CompactString;
 use std::collections::HashMap;
 
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    google_rules_enabled, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
+};
 use gtfs_guru_model::RouteType;
 use gtfs_guru_model::StringId;
 
@@ -105,6 +107,17 @@ impl RouteKey {
     }
 }
 
+/// Integer used for `route_type` in the duplicate-name grouping key.
+///
+/// The canonical MobilityData validator keys on `GtfsRouteType.getNumber()`, whose
+/// enum only knows the basic GTFS types (0-7, 11, 12); every extended (HVT) type
+/// collapses to `UNRECOGNIZED` (-1). We mirror that by default, so a feed using
+/// extended route types (e.g. VBB: 100/109/700/900) produces the same
+/// `duplicate_route_name` notices as the canonical validator (issue #4).
+///
+/// Google Maps, by contrast, *does* distinguish extended route types, so under the
+/// Google-rules flag we keep the real value and treat differing extended types as
+/// distinct routes (the previous behaviour).
 fn route_type_value(route_type: RouteType) -> i32 {
     match route_type {
         RouteType::Tram => 0,
@@ -117,15 +130,42 @@ fn route_type_value(route_type: RouteType) -> i32 {
         RouteType::Funicular => 7,
         RouteType::Trolleybus => 11,
         RouteType::Monorail => 12,
-        RouteType::Extended(value) => value as i32,
-        RouteType::Unknown => -1,
+        RouteType::Extended(value) if google_rules_enabled() => value as i32,
+        RouteType::Extended(_) | RouteType::Unknown => -1,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CsvTable;
+    use crate::{set_google_rules_enabled, CsvTable};
+
+    /// Two routes that share short name, long name and agency but differ only in
+    /// their (extended) `route_type`.
+    fn feed_with_two_extended_routes() -> GtfsFeed {
+        let mut feed = GtfsFeed::default();
+        feed.routes = CsvTable {
+            headers: vec![],
+            rows: vec![
+                gtfs_guru_model::Route {
+                    route_id: feed.pool.intern("R1"),
+                    route_short_name: Some("S1".into()),
+                    route_long_name: None,
+                    route_type: RouteType::Extended(100), // Railway
+                    ..Default::default()
+                },
+                gtfs_guru_model::Route {
+                    route_id: feed.pool.intern("R2"),
+                    route_short_name: Some("S1".into()),
+                    route_long_name: None,
+                    route_type: RouteType::Extended(700), // Bus
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![1, 2],
+        };
+        feed
+    }
 
     #[test]
     fn test_duplicate_route_name() {
@@ -156,5 +196,38 @@ mod tests {
 
         assert_eq!(notices.len(), 1);
         assert_eq!(notices.iter().next().unwrap().code, "duplicate_route_name");
+    }
+
+    #[test]
+    fn extended_types_collapse_to_canonical_by_default() {
+        // Default (canonical / MobilityData) behaviour: differing extended route
+        // types both collapse to -1, so the routes are flagged as duplicates and
+        // the notice reports routeTypeValue == -1 (matches the official validator).
+        let _guard = set_google_rules_enabled(false);
+        let feed = feed_with_two_extended_routes();
+
+        let mut notices = NoticeContainer::new();
+        DuplicateRouteNameValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, "duplicate_route_name");
+        assert_eq!(
+            notice.context.get("routeTypeValue"),
+            Some(&serde_json::json!(-1))
+        );
+    }
+
+    #[test]
+    fn extended_types_distinguished_under_google_rules() {
+        // Google-rules mode: extended route types are kept distinct (as Google Maps
+        // treats them), so two routes with different extended types are not duplicates.
+        let _guard = set_google_rules_enabled(true);
+        let feed = feed_with_two_extended_routes();
+
+        let mut notices = NoticeContainer::new();
+        DuplicateRouteNameValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 0);
     }
 }
