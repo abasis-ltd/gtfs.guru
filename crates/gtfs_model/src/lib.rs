@@ -30,6 +30,20 @@ thread_local! {
     static RESOLVER_HOOK: RefCell<Option<ResolverHook>> = RefCell::new(None);
 }
 
+/// Restores the previous thread-local interner when dropped.
+#[must_use = "the scoped interner is restored when the guard is dropped"]
+pub struct ThreadLocalInternerGuard {
+    previous: Option<InternerHook>,
+}
+
+impl Drop for ThreadLocalInternerGuard {
+    fn drop(&mut self) {
+        INTERNER_HOOK.with(|hook| {
+            *hook.borrow_mut() = self.previous.take();
+        });
+    }
+}
+
 pub fn set_thread_local_interner<F>(f: F)
 where
     F: Fn(&str) -> StringId + 'static,
@@ -37,6 +51,15 @@ where
     INTERNER_HOOK.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(f));
     });
+}
+
+pub fn set_thread_local_interner_scoped<F>(f: F) -> ThreadLocalInternerGuard
+where
+    F: Fn(&str) -> StringId + 'static,
+{
+    let previous = INTERNER_HOOK.with(|hook| hook.borrow_mut().take());
+    set_thread_local_interner(f);
+    ThreadLocalInternerGuard { previous }
 }
 
 pub fn set_thread_local_resolver<F>(f: F)
@@ -1182,6 +1205,30 @@ pub struct Translation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn intern_with_current_hook(value: &str) -> StringId {
+        INTERNER_HOOK.with(|hook| {
+            hook.borrow()
+                .as_ref()
+                .map(|intern| intern(value))
+                .unwrap_or_default()
+        })
+    }
+
+    #[test]
+    fn scoped_interner_restores_previous_hook() {
+        clear_thread_local_hooks();
+        set_thread_local_interner(|_| StringId(1));
+        assert_eq!(intern_with_current_hook("outer"), StringId(1));
+
+        {
+            let _guard = set_thread_local_interner_scoped(|_| StringId(2));
+            assert_eq!(intern_with_current_hook("inner"), StringId(2));
+        }
+
+        assert_eq!(intern_with_current_hook("outer"), StringId(1));
+        clear_thread_local_hooks();
+    }
 
     #[test]
     fn parses_gtfs_date() {
