@@ -5,7 +5,7 @@
 [![Crates.io](https://img.shields.io/crates/v/gtfs-guru.svg)](https://crates.io/crates/gtfs-guru)
 [![PyPI](https://img.shields.io/pypi/v/gtfs-guru.svg)](https://pypi.org/project/gtfs-guru/)
 
-**The world's fastest and most versatile GTFS validator.**
+**A fast, native, multi-platform GTFS validator.**
 
 GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors. It ensures your schedules, routes, and stops are correct before they go live on Google Maps, Apple Maps, or other journey planners.
 
@@ -15,7 +15,7 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 
 ## 🌟 Why GTFS Guru?
 
-1. **Unmatched Speed**: Validates large feeds in milliseconds, not minutes. Typically **50x-100x faster** than the reference Java validator.
+1. **Fast native engine**: Parallel CSV loading and validation keep large feeds in the seconds range, with no JVM startup cost.
 2. **Privacy First**: Runs locally on your machine. No need to upload sensitive or pre-release schedules to the cloud.
 3. **Cross-Platform**: Available as a desktop app, command-line tool, Python library, Web API, and WebAssembly module.
 4. **CI & Integrations**: JSON/HTML/SARIF reports, notice schema export, URL validation, and timing breakdowns.
@@ -23,7 +23,7 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 
 | Feature | Java Validator | **GTFS Guru (Rust)** |
 | :--- | :---: | :---: |
-| **Speed** | 🐢 ~1.5s / feed | 🚀 **~0.01s / feed** |
+| **Speed** | JVM startup + Java pipeline | Native binary; see benchmarks below |
 | **Memory** | 🐘 Heavy (JVM) | 🪶 **Light (Native)** |
 | **Platform** | Java Runtime Required | **Standalone Binary** |
 | **Python** | ❌ Wrapper only | ✅ **Native (`pip install`)** |
@@ -179,7 +179,9 @@ Optional outputs:
 * `-i, --input <FILE>`: Path to GTFS zip file or directory.
 * `-u, --url <URL>`: Validate a remote GTFS zip.
 * `-s, --storage_directory <DIR>`: Save downloaded feeds when using `--url`.
-* `-o, --output <DIR>`: Directory to save reports.
+* `-o, --output_base <DIR>`: Directory to save reports.
+* `--skip_validator_update`: Skip the online validator update check.
+* `--threads <N>`: Thread count recorded in the generated report.
 * `--google-rules`: Enable Google-specific rules.
 * `--thorough`: Enable recommended-field checks.
 * `--sarif <FILE>`: Write SARIF report for CI.
@@ -188,6 +190,48 @@ Optional outputs:
 Auto-fix flags (`--fix-dry-run`, `--fix`, `--fix-unsafe`) currently print planned edits; file rewriting is not implemented yet.
 
 See the [LLM Guide](docs/llm.md) for a compact, copy/paste reference.
+
+## ⚡ Performance
+
+Benchmarks below were run on an Apple M3 Pro with warm page cache. Each tool validates the feed end-to-end and writes its normal report files; stdout/stderr were redirected to `/dev/null` so terminal progress logging does not dominate the measurement.
+
+Setup:
+
+* `gtfs.guru` was built with `cargo build --release -p gtfs-guru` and run with `RAYON_NUM_THREADS=8`, `--threads 8`, and `--skip_validator_update`.
+* `mecatran/gtfsvtor` was v1.0.3, run on OpenJDK 21 with `--numThreads 8` and `GTFSVTOR_OPTS=-Xmx6G`.
+* The canonical `MobilityData/gtfs-validator` was v8.0.1, run on OpenJDK 21 with `--threads 8`, `--skip_validator_update`, and `-Xmx6G`.
+
+| Feed | Size | `gtfs.guru` | `gtfsvtor` 1.0.3 | canonical `gtfs-validator` 8.0.1 |
+| :--- | ---: | ---: | ---: | ---: |
+| MBTA Boston | 38 MB zip, 295 MB uncompressed, 5.4M `stop_times.txt` rows | **2.32 s** (n=5) | 6.13 s (n=3) | 10.60 s (n=3) |
+| OVapi NL 2026-06-09 | 198 MB zip, 1.27 GB uncompressed, 16.0M `stop_times.txt` rows | **9.75 s** (n=5) | 21.66 s (n=3) | 65.18 s (n=3) |
+
+On these feeds `gtfs.guru` is about 2.2-2.6x faster than `gtfsvtor`, and about 4.6-6.7x faster than the canonical Java validator. The comparison is wall-clock time for each tool doing its own full validation pipeline; rule sets and report formats differ, so this is not a per-rule apples-to-apples benchmark.
+
+Reproduce:
+
+```bash
+curl -sL -o /tmp/mbta.zip https://cdn.mbta.com/MBTA_GTFS.zip
+curl -L -o /tmp/NL-20260609.gtfs.zip https://gtfs.ovapi.nl/nl/NL-20260609.gtfs.zip
+
+RAYON_NUM_THREADS=8 gtfs-guru \
+  -i /tmp/NL-20260609.gtfs.zip \
+  -o /tmp/gtfs-guru-nl \
+  --skip_validator_update \
+  --threads 8
+
+java -Xmx6G -jar gtfs-validator-8.0.1-cli.jar \
+  -i /tmp/NL-20260609.gtfs.zip \
+  -o /tmp/gtfs-validator-nl \
+  --skip_validator_update \
+  --threads 8
+
+GTFSVTOR_OPTS=-Xmx6G gtfsvtor \
+  --numThreads 8 \
+  --htmlOutput /tmp/gtfsvtor-nl.html \
+  --jsonOutput /tmp/gtfsvtor-nl.json \
+  /tmp/NL-20260609.gtfs.zip
+```
 
 ---
 
