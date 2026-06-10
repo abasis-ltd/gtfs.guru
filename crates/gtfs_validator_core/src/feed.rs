@@ -11,6 +11,13 @@ use std::collections::HashMap;
 #[cfg(feature = "parallel")]
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// Files at least this many bytes (uncompressed) use the streaming parallel
+/// reader, which overlaps unzip + boundary scan with the parallel parse. Below
+/// this size the producer-thread/channel overhead isn't worth it, so the
+/// in-memory parallel reader is used instead.
+#[cfg(feature = "parallel")]
+const STREAMING_THRESHOLD_BYTES: u64 = 32 * 1024 * 1024;
+
 use crate::geojson::{GeoJsonFeatureCollection, LocationsGeoJson};
 use crate::input::GtfsBytesReader;
 use crate::progress::ProgressHandler;
@@ -232,7 +239,7 @@ impl GtfsFeed {
                     p.on_start_file_load($file);
                 }
                 let mut local_notices = NoticeContainer::new();
-                let res = reader.read_optional_csv_with_notices($file, &mut local_notices);
+                let res = reader.read_optional_csv_with_notices($file, &mut local_notices, &pool);
                 record_table_status(&mut table_statuses, $file, &res, &local_notices);
                 notices.merge(local_notices);
                 if let Some(p) = progress {
@@ -422,9 +429,28 @@ impl GtfsFeed {
 
                 let start = std::time::Instant::now();
                 let mut local_notices = NoticeContainer::new();
-                let result = self
-                    .reader
-                    .read_optional_csv_with_notices(filename, &mut local_notices);
+                // Route very large files through the streaming reader (overlaps
+                // unzip + boundary scan with the parallel parse). The dominant
+                // file (stop_times) is the first arm of the top-level rayon::join,
+                // so it runs on the calling thread and never blocks a worker on
+                // the producer channel.
+                let is_large = self
+                    .file_sizes
+                    .get(filename)
+                    .is_some_and(|&size| size >= STREAMING_THRESHOLD_BYTES);
+                let result = if is_large {
+                    self.reader.read_optional_csv_streaming(
+                        filename,
+                        &mut local_notices,
+                        &self.pool,
+                    )
+                } else {
+                    self.reader.read_optional_csv_with_notices(
+                        filename,
+                        &mut local_notices,
+                        &self.pool,
+                    )
+                };
 
                 // Output per-file timing if GTFS_PERF_DEBUG is set
                 if std::env::var("GTFS_PERF_DEBUG").is_ok() {
@@ -1031,7 +1057,7 @@ impl GtfsFeed {
                     p.on_start_file_load($file);
                 }
                 let mut local_notices = NoticeContainer::new();
-                let res = reader.read_optional_csv_with_notices($file, &mut local_notices);
+                let res = reader.read_optional_csv_with_notices($file, &mut local_notices, &pool);
                 record_table_status(&mut table_statuses, $file, &res, &local_notices);
                 notices.merge(local_notices);
                 if let Some(p) = progress {
