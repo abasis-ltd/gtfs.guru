@@ -560,8 +560,8 @@ impl GtfsInputReader {
 
                 let mut batch: Vec<(u64, csv::ByteRecord)> = Vec::with_capacity(BATCH_ROWS);
                 let mut record_index = 0usize;
-                let mut records = csv_reader.into_byte_records();
-                while let Some(result) = records.next() {
+                let records = csv_reader.into_byte_records();
+                for result in records {
                     match result {
                         Ok(record) => {
                             let line_number = record
@@ -742,16 +742,8 @@ impl GtfsInputReader {
         })?;
 
         match archive.by_name(file_name) {
-            Ok(mut zipped) => {
-                let mut buffer = Vec::new();
-                zipped
-                    .read_to_end(&mut buffer)
-                    .map_err(|err| GtfsInputError::ZipFileIo {
-                        path: self.path.clone(),
-                        file: file_name.to_string(),
-                        source: err,
-                    })?;
-                return Ok(buffer);
+            Ok(zipped) => {
+                return read_zip_member_capped(zipped, &self.path, file_name);
             }
             Err(zip::result::ZipError::FileNotFound) => {}
             Err(err) => {
@@ -819,21 +811,13 @@ impl GtfsInputReader {
         let Some(index) = matched_index else {
             return Err(GtfsInputError::MissingFile(file_name.to_string()));
         };
-        let mut zipped = archive
+        let zipped = archive
             .by_index(index)
             .map_err(|err| GtfsInputError::ZipFile {
                 file: file_name.to_string(),
                 source: err,
             })?;
-        let mut buffer = Vec::new();
-        zipped
-            .read_to_end(&mut buffer)
-            .map_err(|err| GtfsInputError::ZipFileIo {
-                path: self.path.clone(),
-                file: file_name.to_string(),
-                source: err,
-            })?;
-        Ok(buffer)
+        read_zip_member_capped(zipped, &self.path, file_name)
     }
 
     pub fn list_files(&self) -> Result<Vec<String>, GtfsInputError> {
@@ -881,6 +865,63 @@ fn strip_utf8_bom(data: &[u8]) -> &[u8] {
     } else {
         data
     }
+}
+
+/// Upper bound on the uncompressed size of a single zip member, to defend
+/// against zip bombs when reading an untrusted archive into memory. The default
+/// is generous so that legitimately large feeds (e.g. a multi-hundred-MB
+/// `stop_times.txt`) still load; a deployment handling untrusted uploads should
+/// lower it via `GTFS_VALIDATOR_MAX_MEMBER_BYTES`.
+fn max_member_bytes() -> u64 {
+    const DEFAULT_MAX_MEMBER_BYTES: u64 = 4 * 1024 * 1024 * 1024; // 4 GiB
+    std::env::var("GTFS_VALIDATOR_MAX_MEMBER_BYTES")
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_MEMBER_BYTES)
+}
+
+/// Read a whole zip member into memory, refusing to allocate more than
+/// [`max_member_bytes`]. Both the declared uncompressed size and the actual
+/// number of decompressed bytes are checked, so a lying zip header cannot slip
+/// past the cap.
+fn read_zip_member_capped(
+    mut zipped: zip::read::ZipFile<'_>,
+    path: &Path,
+    file_name: &str,
+) -> Result<Vec<u8>, GtfsInputError> {
+    let cap = max_member_bytes();
+    let too_large = |observed: u64| GtfsInputError::ZipFileIo {
+        path: path.to_path_buf(),
+        file: file_name.to_string(),
+        source: std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "zip member '{}' is {} bytes uncompressed, exceeding the {}-byte limit",
+                file_name, observed, cap
+            ),
+        ),
+    };
+
+    if zipped.size() > cap {
+        return Err(too_large(zipped.size()));
+    }
+
+    let mut buffer = Vec::new();
+    // Read at most cap + 1 bytes so an under-reported header is still caught.
+    zipped
+        .by_ref()
+        .take(cap + 1)
+        .read_to_end(&mut buffer)
+        .map_err(|err| GtfsInputError::ZipFileIo {
+            path: path.to_path_buf(),
+            file: file_name.to_string(),
+            source: err,
+        })?;
+    if buffer.len() as u64 > cap {
+        return Err(too_large(buffer.len() as u64));
+    }
+    Ok(buffer)
 }
 
 /// Locate the best-matching root-level zip member for `file_name`, returning its

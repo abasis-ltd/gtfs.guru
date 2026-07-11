@@ -47,6 +47,19 @@ impl Validator for ContinuousPickupDropOffValidator {
                 .push((row_number, stop_time));
         }
 
+        // Index trips by route once (preserving row order within each route) so
+        // the route loop below is O(trips) instead of re-scanning every trip per
+        // route.
+        let mut trips_by_route: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Trip>> =
+            HashMap::new();
+        for trip in &feed.trips.rows {
+            let route_id = trip.route_id;
+            if route_id.0 == 0 {
+                continue;
+            }
+            trips_by_route.entry(route_id).or_default().push(trip);
+        }
+
         for (route_index, route) in feed.routes.rows.iter().enumerate() {
             let route_row_number = feed.routes.row_number(route_index);
             let route_id = route.route_id;
@@ -58,12 +71,10 @@ impl Validator for ContinuousPickupDropOffValidator {
             {
                 continue;
             }
-            for trip in feed
-                .trips
-                .rows
-                .iter()
-                .filter(|trip| trip.route_id == route_id)
-            {
+            let Some(trips) = trips_by_route.get(&route_id) else {
+                continue;
+            };
+            for trip in trips {
                 let trip_id = trip.trip_id;
                 if trip_id.0 == 0 {
                     continue;

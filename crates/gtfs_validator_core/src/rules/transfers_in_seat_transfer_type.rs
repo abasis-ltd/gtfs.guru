@@ -33,24 +33,6 @@ impl Validator for TransfersInSeatTransferTypeValidator {
             stops_by_id.insert(stop_id, stop);
         }
 
-        let mut stop_times_by_trip: HashMap<
-            gtfs_guru_model::StringId,
-            Vec<&gtfs_guru_model::StopTime>,
-        > = HashMap::new();
-        for stop_time in &feed.stop_times.rows {
-            let trip_id = stop_time.trip_id;
-            if trip_id.0 == 0 {
-                continue;
-            }
-            stop_times_by_trip
-                .entry(trip_id)
-                .or_default()
-                .push(stop_time);
-        }
-        for stop_times in stop_times_by_trip.values_mut() {
-            stop_times.sort_by_key(|stop_time| stop_time.stop_sequence);
-        }
-
         for (index, transfer) in transfers.rows.iter().enumerate() {
             let row_number = transfers.row_number(index);
             if !is_in_seat_transfer(transfer.transfer_type) {
@@ -69,7 +51,6 @@ impl Validator for TransfersInSeatTransferTypeValidator {
                     side,
                     trip_id,
                     &stops_by_id,
-                    &stop_times_by_trip,
                     row_number,
                     notices,
                     feed,
@@ -120,7 +101,6 @@ fn validate_stop(
     side: TransferSide,
     trip_id: Option<gtfs_guru_model::StringId>,
     stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
-    stop_times_by_trip: &HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::StopTime>>,
     row_number: u64,
     notices: &mut NoticeContainer,
     feed: &GtfsFeed,
@@ -160,20 +140,22 @@ fn validate_stop(
     let Some(trip_id) = trip_id else {
         return;
     };
-    let stop_times = match stop_times_by_trip.get(&trip_id) {
-        Some(stop_times) => stop_times,
+    // Reuse the feed's prebuilt, stop_sequence-sorted index instead of
+    // regrouping and re-sorting every trip's stop times per rule run.
+    let stop_times = match feed.stop_times_by_trip.get(&trip_id) {
+        Some(indices) => indices,
         None => return,
     };
     if stop_times.is_empty()
         || !stop_times
             .iter()
-            .any(|stop_time| stop_time.stop_id == stop_id)
+            .any(|&i| feed.stop_times.rows[i].stop_id == stop_id)
     {
         return;
     }
     let expected_stop_time = match side {
-        TransferSide::From => stop_times[stop_times.len() - 1],
-        TransferSide::To => stop_times[0],
+        TransferSide::From => &feed.stop_times.rows[stop_times[stop_times.len() - 1]],
+        TransferSide::To => &feed.stop_times.rows[stop_times[0]],
     };
     if expected_stop_time.stop_id != stop_id {
         let stop_id_value = feed.pool.resolve(stop_id);
@@ -281,6 +263,7 @@ mod tests {
             row_numbers: vec![2],
         });
 
+        feed.rebuild_stop_times_index();
         let mut notices = NoticeContainer::new();
         TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
 
@@ -330,6 +313,7 @@ mod tests {
             row_numbers: vec![2],
         });
 
+        feed.rebuild_stop_times_index();
         let mut notices = NoticeContainer::new();
         TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
 
@@ -396,6 +380,7 @@ mod tests {
             row_numbers: vec![2],
         });
 
+        feed.rebuild_stop_times_index();
         let mut notices = NoticeContainer::new();
         TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
 
@@ -474,6 +459,7 @@ mod tests {
             row_numbers: vec![2],
         });
 
+        feed.rebuild_stop_times_index();
         let mut notices = NoticeContainer::new();
         TransfersInSeatTransferTypeValidator.validate(&feed, &mut notices);
 

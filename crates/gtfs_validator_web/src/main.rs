@@ -1,13 +1,13 @@
 use std::collections::HashMap;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use axum::{
     body::Body,
-    extract::{Path as AxumPath, State},
+    extract::{DefaultBodyLimit, Path as AxumPath, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -19,6 +19,7 @@ use chrono::Utc;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
+use tokio::sync::Semaphore;
 
 use include_dir::{include_dir, Dir};
 use mime_guess::MimeGuess;
@@ -28,8 +29,16 @@ use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
 
-static JOB_COUNTER: AtomicU64 = AtomicU64::new(1);
 static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/website");
+
+/// Default cap on an uploaded/downloaded GTFS archive (bytes). Overridable via
+/// `GTFS_VALIDATOR_WEB_MAX_UPLOAD_BYTES`. Large public feeds run 200+ MB.
+const DEFAULT_MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024;
+
+/// Default number of validations that may run concurrently. Overridable via
+/// `GTFS_VALIDATOR_WEB_MAX_CONCURRENT_JOBS`. Validation is CPU- and
+/// memory-heavy, so this bounds load from public traffic.
+const DEFAULT_MAX_CONCURRENT_JOBS: usize = 4;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -41,13 +50,17 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::new(base_dir, public_base_url);
     spawn_job_cleanup(state.clone());
 
+    let max_upload_bytes = state.max_upload_bytes;
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/version", get(version))
         .route("/create-job", post(create_job))
         .route("/run-validator", post(run_validator))
         .route("/error", post(error))
-        .route("/upload/:job_id", put(upload_job))
+        .route(
+            "/upload/:job_id",
+            put(upload_job).layer(DefaultBodyLimit::max(max_upload_bytes)),
+        )
         .route("/jobs/:job_id/status", get(job_status))
         .route("/jobs/:job_id/report.json", get(job_report_json))
         .route("/jobs/:job_id/report.html", get(job_report_html))
@@ -134,6 +147,8 @@ struct AppState {
     jobs: Arc<RwLock<HashMap<String, Job>>>,
     base_dir: PathBuf,
     public_base_url: String,
+    max_upload_bytes: usize,
+    job_semaphore: Arc<Semaphore>,
 }
 
 impl AppState {
@@ -143,8 +158,26 @@ impl AppState {
             jobs: Arc::new(RwLock::new(jobs)),
             base_dir,
             public_base_url,
+            max_upload_bytes: load_max_upload_bytes(),
+            job_semaphore: Arc::new(Semaphore::new(load_max_concurrent_jobs())),
         }
     }
+}
+
+fn load_max_upload_bytes() -> usize {
+    std::env::var("GTFS_VALIDATOR_WEB_MAX_UPLOAD_BYTES")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_UPLOAD_BYTES)
+}
+
+fn load_max_concurrent_jobs() -> usize {
+    std::env::var("GTFS_VALIDATOR_WEB_MAX_CONCURRENT_JOBS")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_CONCURRENT_JOBS)
 }
 
 #[derive(Debug, Serialize)]
@@ -319,11 +352,16 @@ async fn run_validator(
     let Some(job_id) = data.and_then(|name| extract_job_id(&name)) else {
         return StatusCode::BAD_REQUEST;
     };
-    if !job_exists(&state, &job_id) {
-        return StatusCode::NOT_FOUND;
+    match try_begin_processing(&state, &job_id) {
+        BeginOutcome::NotFound => StatusCode::NOT_FOUND,
+        // Already claimed by another handler / a redelivered event. Ack so
+        // Pub/Sub stops retrying instead of piling on duplicate work.
+        BeginOutcome::AlreadyActive => StatusCode::OK,
+        BeginOutcome::Started => {
+            spawn_job_processing(state.clone(), job_id, String::new());
+            StatusCode::OK
+        }
     }
-    spawn_job_processing(state.clone(), job_id, String::new());
-    StatusCode::OK
 }
 
 async fn error() -> StatusCode {
@@ -335,15 +373,31 @@ async fn upload_job(
     AxumPath(job_id): AxumPath<String>,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    if !job_exists(&state, &job_id) {
-        return StatusCode::NOT_FOUND;
+    // Claim the job before touching input.zip so a redelivered upload or a
+    // concurrent run cannot overwrite the input of an already-running job.
+    match try_begin_processing(&state, &job_id) {
+        BeginOutcome::NotFound => return StatusCode::NOT_FOUND,
+        BeginOutcome::AlreadyActive => return StatusCode::CONFLICT,
+        BeginOutcome::Started => {}
     }
     let job_dir = state.base_dir.join(&job_id);
     if tokio::fs::create_dir_all(&job_dir).await.is_err() {
+        update_job_status(
+            &state,
+            &job_id,
+            JobStatus::Error,
+            Some("failed to create job directory".to_string()),
+        );
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
     let input_path = job_dir.join("input.zip");
     if tokio::fs::write(&input_path, body).await.is_err() {
+        update_job_status(
+            &state,
+            &job_id,
+            JobStatus::Error,
+            Some("failed to persist upload".to_string()),
+        );
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
     update_job_input(&state, &job_id, input_path);
@@ -414,9 +468,9 @@ async fn job_report_html(
 }
 
 fn next_job_id() -> String {
-    let counter = JOB_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let millis = current_millis();
-    format!("job-{}-{}-{}", std::process::id(), counter, millis)
+    // Unguessable id: it is the only capability protecting a job's report and
+    // its (unauthenticated) upload slot from other clients.
+    format!("job-{}", uuid::Uuid::new_v4().simple())
 }
 
 fn load_base_dir() -> PathBuf {
@@ -439,14 +493,6 @@ fn insert_job(state: &AppState, job: Job) {
         jobs.insert(job_id.clone(), job);
     }
     persist_job_metadata(state, job_id.as_str());
-}
-
-fn job_exists(state: &AppState, job_id: &str) -> bool {
-    state
-        .jobs
-        .read()
-        .map(|jobs| jobs.contains_key(job_id))
-        .unwrap_or(false)
 }
 
 fn get_job(state: &AppState, job_id: &str) -> Option<Job> {
@@ -494,6 +540,13 @@ async fn read_file_response(
 
 fn spawn_job_processing(state: AppState, job_id: String, url: String) {
     tokio::spawn(async move {
+        // Bound concurrent validations so public traffic cannot exhaust the
+        // blocking thread pool / CPU / memory. The permit is held for the whole
+        // download + validation and released when the blocking task returns.
+        let permit = match state.job_semaphore.clone().acquire_owned().await {
+            Ok(permit) => permit,
+            Err(_) => return, // semaphore closed => shutting down
+        };
         let state_for_block = state.clone();
         let job_id_for_block = job_id.clone();
         let url_for_block = url.clone();
@@ -501,6 +554,7 @@ fn spawn_job_processing(state: AppState, job_id: String, url: String) {
             process_job(&state_for_block, &job_id_for_block, &url_for_block)
         })
         .await;
+        drop(permit);
 
         if let Err(err) = result {
             update_job_status(
@@ -513,8 +567,47 @@ fn spawn_job_processing(state: AppState, job_id: String, url: String) {
     });
 }
 
+/// Result of trying to move a job into the `Processing` state.
+enum BeginOutcome {
+    /// The job existed and was atomically claimed for processing.
+    Started,
+    /// The job is already `Processing` or finished `Success`; caller must not
+    /// start a second worker for it.
+    AlreadyActive,
+    /// No such job.
+    NotFound,
+}
+
+/// Atomically transition a job into `Processing`. Only jobs waiting for input
+/// or in a prior `Error` state may (re)start; this is the single point that
+/// prevents two workers writing the same job's output concurrently.
+fn try_begin_processing(state: &AppState, job_id: &str) -> BeginOutcome {
+    let started = {
+        let Ok(mut jobs) = state.jobs.write() else {
+            return BeginOutcome::NotFound;
+        };
+        match jobs.get_mut(job_id) {
+            None => return BeginOutcome::NotFound,
+            Some(job) => match job.status {
+                JobStatus::Processing | JobStatus::Success => false,
+                JobStatus::AwaitingUpload | JobStatus::Error => {
+                    job.status = JobStatus::Processing;
+                    job.error = None;
+                    true
+                }
+            },
+        }
+    };
+    if started {
+        persist_job_metadata(state, job_id);
+        BeginOutcome::Started
+    } else {
+        BeginOutcome::AlreadyActive
+    }
+}
+
 fn process_job(state: &AppState, job_id: &str, url: &str) {
-    update_job_status(state, job_id, JobStatus::Processing, None);
+    // Status is already `Processing` (claimed by the caller before spawning).
     let job = match get_job(state, job_id) {
         Some(job) => job,
         None => return,
@@ -522,7 +615,7 @@ fn process_job(state: &AppState, job_id: &str, url: &str) {
     let job_dir = state.base_dir.join(job_id);
     let input_path = if !url.is_empty() {
         let path = job_dir.join("input.zip");
-        if let Err(err) = download_url_to_path(url, &path) {
+        if let Err(err) = download_url_to_path(url, &path, state.max_upload_bytes) {
             write_execution_result(&job_dir, Err(err.to_string()));
             update_job_status(state, job_id, JobStatus::Error, Some(err.to_string()));
             return;
@@ -641,15 +734,33 @@ fn write_execution_result(job_dir: &Path, result: Result<(), String>) {
     }
 }
 
-fn download_url_to_path(url: &str, path: &Path) -> anyhow::Result<()> {
+fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Result<()> {
+    // Authoritative SSRF check on the initial URL. Redirect targets are checked
+    // again inside the redirect policy below.
+    guard_public_url(url)?;
+
     let client = Client::builder()
         .user_agent(format!(
             "gtfs-validator-rust-web/{}",
             env!("CARGO_PKG_VERSION")
         ))
+        .connect_timeout(Duration::from_secs(10))
+        // Overall cap; large public feeds can take a while to stream.
+        .timeout(Duration::from_secs(600))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 10 {
+                return attempt.error(std::io::Error::other("too many redirects"));
+            }
+            match guard_public_url(attempt.url().as_str()) {
+                Ok(()) => attempt.follow(),
+                Err(_) => attempt.error(std::io::Error::other(
+                    "redirect to non-public address blocked",
+                )),
+            }
+        }))
         .build()
         .context("build http client")?;
-    let mut response = client
+    let response = client
         .get(url)
         .send()
         .with_context(|| format!("download gtfs from {}", url))?
@@ -657,8 +768,86 @@ fn download_url_to_path(url: &str, path: &Path) -> anyhow::Result<()> {
         .with_context(|| format!("download gtfs from {}", url))?;
     let mut file =
         std::fs::File::create(path).with_context(|| format!("create {}", path.display()))?;
-    std::io::copy(&mut response, &mut file).with_context(|| format!("write {}", path.display()))?;
+    // Read at most max_bytes (+1 to detect overflow) so a huge or endless
+    // response cannot fill the disk.
+    let limit = max_bytes as u64;
+    let mut limited = std::io::Read::take(response, limit + 1);
+    let copied = std::io::copy(&mut limited, &mut file)
+        .with_context(|| format!("write {}", path.display()))?;
+    if copied > limit {
+        drop(file);
+        let _ = std::fs::remove_file(path);
+        bail!("remote gtfs exceeds {}-byte limit", max_bytes);
+    }
     Ok(())
+}
+
+/// Reject URLs that would let a client make the server fetch internal
+/// resources (SSRF): non-HTTP(S) schemes and any host that resolves to a
+/// loopback/private/link-local/reserved address (e.g. cloud metadata).
+fn guard_public_url(raw: &str) -> anyhow::Result<()> {
+    let parsed = url::Url::parse(raw).with_context(|| format!("parse url {}", raw))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        other => bail!("unsupported url scheme: {}", other),
+    }
+    let host = parsed.host_str().context("url has no host")?;
+    let port = parsed.port_or_known_default().unwrap_or(80);
+
+    let mut resolved_any = false;
+    for addr in (host, port)
+        .to_socket_addrs()
+        .with_context(|| format!("resolve host {}", host))?
+    {
+        resolved_any = true;
+        if !is_global_ip(addr.ip()) {
+            bail!("refusing to fetch from non-public address {}", addr.ip());
+        }
+    }
+    if !resolved_any {
+        bail!("host {} did not resolve to any address", host);
+    }
+    Ok(())
+}
+
+/// True only for addresses that are safe to fetch from a public server:
+/// excludes loopback, private (RFC1918), CGNAT, link-local, documentation and
+/// otherwise reserved ranges for both IPv4 and IPv6.
+fn is_global_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            !(v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                || v4.is_unspecified()
+                || o[0] == 0
+                // 100.64.0.0/10 carrier-grade NAT
+                || (o[0] == 100 && (o[1] & 0xC0) == 64)
+                // 192.0.0.0/24 IETF protocol assignments
+                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+                // 198.18.0.0/15 benchmarking
+                || (o[0] == 198 && (o[1] & 0xFE) == 18)
+                // 240.0.0.0/4 reserved (incl. 255.255.255.255)
+                || o[0] >= 240)
+        }
+        IpAddr::V6(v6) => {
+            if v6.is_loopback() || v6.is_unspecified() {
+                return false;
+            }
+            if let Some(mapped) = v6.to_ipv4_mapped() {
+                return is_global_ip(IpAddr::V4(mapped));
+            }
+            let seg0 = v6.segments()[0];
+            // fc00::/7 unique-local, fe80::/10 link-local
+            if (seg0 & 0xfe00) == 0xfc00 || (seg0 & 0xffc0) == 0xfe80 {
+                return false;
+            }
+            true
+        }
+    }
 }
 
 fn decode_pubsub_data(data: String) -> Option<String> {
@@ -709,33 +898,71 @@ fn spawn_job_cleanup(state: AppState) {
 fn cleanup_jobs(state: &AppState, ttl_ms: u128) {
     let now = current_millis();
     let mut expired = Vec::new();
+    let mut known_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Ok(jobs) = state.jobs.read() {
         for (job_id, job) in jobs.iter() {
+            known_ids.insert(job_id.clone());
             if matches!(job.status, JobStatus::Processing) {
                 continue;
             }
-            let meta_path = state.base_dir.join(job_id).join("job.json");
-            let updated_at = read_metadata_timestamp(&meta_path).unwrap_or(now);
+            let job_dir = state.base_dir.join(job_id);
+            // Prefer metadata timestamp; fall back to the directory mtime, then
+            // to 0 (== expired) so a job whose metadata is unreadable is still
+            // reclaimed instead of living forever.
+            let updated_at = read_metadata_timestamp(&job_dir.join("job.json"))
+                .or_else(|| dir_mtime_millis(&job_dir))
+                .unwrap_or(0);
             if now.saturating_sub(updated_at) >= ttl_ms {
                 expired.push((job_id.clone(), job.output_dir.clone()));
             }
         }
     }
 
-    if expired.is_empty() {
-        return;
-    }
-
-    if let Ok(mut jobs) = state.jobs.write() {
-        for (job_id, output_dir) in &expired {
-            jobs.remove(job_id);
-            let job_dir = state.base_dir.join(job_id);
-            let _ = std::fs::remove_dir_all(&job_dir);
-            if let Some(output_dir) = output_dir.as_ref() {
-                let _ = std::fs::remove_dir_all(output_dir);
+    if !expired.is_empty() {
+        if let Ok(mut jobs) = state.jobs.write() {
+            for (job_id, output_dir) in &expired {
+                jobs.remove(job_id);
+                let job_dir = state.base_dir.join(job_id);
+                let _ = std::fs::remove_dir_all(&job_dir);
+                if let Some(output_dir) = output_dir.as_ref() {
+                    let _ = std::fs::remove_dir_all(output_dir);
+                }
             }
         }
     }
+
+    // Reclaim orphan directories that never made it into the in-memory map
+    // (e.g. a job.json that failed to parse on load): the loop above can never
+    // see them, so they would otherwise leak disk indefinitely.
+    if let Ok(entries) = std::fs::read_dir(&state.base_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(name) => name.to_string(),
+                None => continue,
+            };
+            if known_ids.contains(&name) {
+                continue;
+            }
+            let updated_at = dir_mtime_millis(&path).unwrap_or(0);
+            if now.saturating_sub(updated_at) >= ttl_ms {
+                let _ = std::fs::remove_dir_all(&path);
+            }
+        }
+    }
+}
+
+fn dir_mtime_millis(path: &Path) -> Option<u128> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    Some(
+        modified
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+    )
 }
 
 fn read_metadata_timestamp(path: &Path) -> Option<u128> {
@@ -868,5 +1095,70 @@ fn resolve_job_path(job_dir: &Path, path: &str) -> PathBuf {
         path.to_path_buf()
     } else {
         job_dir.join(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv6Addr;
+
+    #[test]
+    fn is_global_ip_rejects_internal_ipv4() {
+        for ip in [
+            "127.0.0.1",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254", // cloud metadata
+            "100.64.0.1",      // CGNAT
+            "0.0.0.0",
+            "255.255.255.255",
+        ] {
+            assert!(
+                !is_global_ip(ip.parse().unwrap()),
+                "{ip} must be non-global"
+            );
+        }
+    }
+
+    #[test]
+    fn is_global_ip_rejects_internal_ipv6() {
+        assert!(!is_global_ip(IpAddr::V6(Ipv6Addr::LOCALHOST)));
+        assert!(!is_global_ip("fd00::1".parse().unwrap())); // unique-local
+        assert!(!is_global_ip("fe80::1".parse().unwrap())); // link-local
+        assert!(!is_global_ip("::ffff:127.0.0.1".parse().unwrap())); // mapped loopback
+    }
+
+    #[test]
+    fn is_global_ip_accepts_public() {
+        for ip in ["8.8.8.8", "1.1.1.1", "93.184.216.34"] {
+            assert!(is_global_ip(ip.parse().unwrap()), "{ip} must be global");
+        }
+        assert!(is_global_ip("2606:4700:4700::1111".parse().unwrap()));
+    }
+
+    #[test]
+    fn guard_public_url_rejects_bad_scheme() {
+        assert!(guard_public_url("javascript:alert(1)").is_err());
+        assert!(guard_public_url("file:///etc/passwd").is_err());
+        assert!(guard_public_url("ftp://example.com/x").is_err());
+    }
+
+    #[test]
+    fn guard_public_url_rejects_internal_hosts() {
+        assert!(guard_public_url("http://127.0.0.1/feed.zip").is_err());
+        assert!(guard_public_url("http://localhost/feed.zip").is_err());
+        assert!(guard_public_url("http://169.254.169.254/latest/meta-data/").is_err());
+        assert!(guard_public_url("http://[::1]/feed.zip").is_err());
+    }
+
+    #[test]
+    fn extract_job_id_finds_uuid_segment() {
+        let id = format!("job-{}", uuid::Uuid::new_v4().simple());
+        assert_eq!(
+            extract_job_id(&format!("{id}/input.zip")).as_deref(),
+            Some(id.as_str())
+        );
     }
 }

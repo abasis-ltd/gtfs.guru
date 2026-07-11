@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::LocationType;
@@ -19,6 +19,19 @@ impl Validator for PathwayDanglingGenericNodeValidator {
             return;
         };
 
+        // Build stop adjacency once (O(pathways)) rather than re-scanning every
+        // pathway for each generic node (O(generic_nodes × pathways)).
+        let mut neighbors: HashMap<StringId, HashSet<StringId>> = HashMap::new();
+        for pathway in &pathways.rows {
+            let from_id = pathway.from_stop_id;
+            let to_id = pathway.to_stop_id;
+            if from_id.0 == 0 || to_id.0 == 0 {
+                continue;
+            }
+            neighbors.entry(from_id).or_default().insert(to_id);
+            neighbors.entry(to_id).or_default().insert(from_id);
+        }
+
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
             if stop.location_type != Some(LocationType::GenericNode) {
@@ -29,23 +42,8 @@ impl Validator for PathwayDanglingGenericNodeValidator {
                 continue;
             }
 
-            let mut incident_ids: HashSet<StringId> = HashSet::new();
-            for pathway in &pathways.rows {
-                if pathway.from_stop_id == stop_id {
-                    let to_id = pathway.to_stop_id;
-                    if to_id.0 != 0 {
-                        incident_ids.insert(to_id);
-                    }
-                }
-                if pathway.to_stop_id == stop_id {
-                    let from_id = pathway.from_stop_id;
-                    if from_id.0 != 0 {
-                        incident_ids.insert(from_id);
-                    }
-                }
-            }
-
-            if incident_ids.len() == 1 {
+            let incident_count = neighbors.get(&stop_id).map_or(0, |set| set.len());
+            if incident_count == 1 {
                 let mut notice = ValidationNotice::new(
                     CODE_PATHWAY_DANGLING_GENERIC_NODE,
                     NoticeSeverity::Warning,
