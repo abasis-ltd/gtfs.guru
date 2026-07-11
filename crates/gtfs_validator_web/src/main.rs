@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -17,6 +17,7 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use chrono::Utc;
 use reqwest::blocking::Client;
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio::sync::Semaphore;
@@ -39,6 +40,11 @@ const DEFAULT_MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024;
 /// `GTFS_VALIDATOR_WEB_MAX_CONCURRENT_JOBS`. Validation is CPU- and
 /// memory-heavy, so this bounds load from public traffic.
 const DEFAULT_MAX_CONCURRENT_JOBS: usize = 4;
+
+/// Default cap on how many jobs may be queued or running at once (admission
+/// control). Overridable via `GTFS_VALIDATOR_WEB_MAX_QUEUED_JOBS`. Without this,
+/// a flood of requests would spawn unbounded tasks all waiting for a run permit.
+const DEFAULT_MAX_QUEUED_JOBS: usize = 64;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -149,6 +155,7 @@ struct AppState {
     public_base_url: String,
     max_upload_bytes: usize,
     job_semaphore: Arc<Semaphore>,
+    admission_semaphore: Arc<Semaphore>,
 }
 
 impl AppState {
@@ -160,6 +167,7 @@ impl AppState {
             public_base_url,
             max_upload_bytes: load_max_upload_bytes(),
             job_semaphore: Arc::new(Semaphore::new(load_max_concurrent_jobs())),
+            admission_semaphore: Arc::new(Semaphore::new(load_max_queued_jobs())),
         }
     }
 }
@@ -178,6 +186,14 @@ fn load_max_concurrent_jobs() -> usize {
         .and_then(|value| value.trim().parse::<usize>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(DEFAULT_MAX_CONCURRENT_JOBS)
+}
+
+fn load_max_queued_jobs() -> usize {
+    std::env::var("GTFS_VALIDATOR_WEB_MAX_QUEUED_JOBS")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_QUEUED_JOBS)
 }
 
 #[derive(Debug, Serialize)]
@@ -539,7 +555,28 @@ async fn read_file_response(
 }
 
 fn spawn_job_processing(state: AppState, job_id: String, url: String) {
+    // Admission control: cap the number of jobs queued or running at once.
+    // Without this, every request spawns a task that then waits on the run
+    // semaphore, so a flood of requests piles up unbounded waiting tasks (each
+    // holding memory and, for URL jobs, a pending download). Acquire the permit
+    // synchronously here, before spawning, so we can shed load instead of
+    // queueing without limit.
+    let admission = match state.admission_semaphore.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            update_job_status(
+                &state,
+                &job_id,
+                JobStatus::Error,
+                Some("server is at capacity; please retry later".to_string()),
+            );
+            return;
+        }
+    };
     tokio::spawn(async move {
+        // Held for the whole lifetime of the job so the admission count only
+        // drops once this job is fully done.
+        let _admission = admission;
         // Bound concurrent validations so public traffic cannot exhaust the
         // blocking thread pool / CPU / memory. The permit is held for the whole
         // download + validation and released when the blocking task returns.
@@ -735,8 +772,12 @@ fn write_execution_result(job_dir: &Path, result: Result<(), String>) {
 }
 
 fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Result<()> {
-    // Authoritative SSRF check on the initial URL. Redirect targets are checked
-    // again inside the redirect policy below.
+    // Scheme/host pre-check for a clear early error. This alone is not
+    // sufficient: it resolves the host independently of the connection, so DNS
+    // could return a public IP here and a private one at connect time (DNS
+    // rebinding). The authoritative guard is the custom DNS resolver below,
+    // which filters every connection (initial and each redirect hop) down to
+    // public addresses only.
     guard_public_url(url)?;
 
     let client = Client::builder()
@@ -744,6 +785,7 @@ fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Res
             "gtfs-validator-rust-web/{}",
             env!("CARGO_PKG_VERSION")
         ))
+        .dns_resolver(Arc::new(PublicOnlyResolver))
         .connect_timeout(Duration::from_secs(10))
         // Overall cap; large public feeds can take a while to stream.
         .timeout(Duration::from_secs(600))
@@ -751,6 +793,8 @@ fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Res
             if attempt.previous().len() >= 10 {
                 return attempt.error(std::io::Error::other("too many redirects"));
             }
+            // Scheme re-check on redirects; the resolver still enforces the
+            // address filter for the actual connection.
             match guard_public_url(attempt.url().as_str()) {
                 Ok(()) => attempt.follow(),
                 Err(_) => attempt.error(std::io::Error::other(
@@ -847,6 +891,45 @@ fn is_global_ip(ip: IpAddr) -> bool {
             }
             true
         }
+    }
+}
+
+/// Resolve `host` and keep only addresses that are safe to connect to from a
+/// public server. Errors if the host does not resolve to any public address.
+fn resolve_public_addrs(host: &str) -> std::io::Result<Vec<SocketAddr>> {
+    // Port 0 is a placeholder; reqwest substitutes the real port. We only need
+    // the IP addresses to make the public/private decision.
+    let addrs: Vec<SocketAddr> = (host, 0u16)
+        .to_socket_addrs()?
+        .filter(|addr| is_global_ip(addr.ip()))
+        .collect();
+    if addrs.is_empty() {
+        return Err(std::io::Error::other(format!(
+            "host {host} did not resolve to a public address"
+        )));
+    }
+    Ok(addrs)
+}
+
+/// A reqwest DNS resolver that never yields a private/loopback/reserved address.
+/// Because reqwest resolves through this for every connection — the initial
+/// request and each redirect hop — a host that resolves to an internal address
+/// at connect time simply has no usable address, closing the DNS-rebinding /
+/// TOCTOU gap that a one-shot pre-flight check leaves open.
+struct PublicOnlyResolver;
+
+impl Resolve for PublicOnlyResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            match resolve_public_addrs(&host) {
+                Ok(addrs) => {
+                    let addrs: Addrs = Box::new(addrs.into_iter());
+                    Ok(addrs)
+                }
+                Err(err) => Err(Box::new(err) as Box<dyn std::error::Error + Send + Sync>),
+            }
+        })
     }
 }
 
@@ -1160,5 +1243,28 @@ mod tests {
             extract_job_id(&format!("{id}/input.zip")).as_deref(),
             Some(id.as_str())
         );
+    }
+
+    #[test]
+    fn resolve_public_addrs_rejects_loopback_host() {
+        // `localhost` resolves to loopback (127.0.0.1 / ::1) via the hosts file,
+        // so the resolver must refuse it — this is the connect-time guard that
+        // defeats DNS rebinding.
+        assert!(resolve_public_addrs("localhost").is_err());
+    }
+
+    #[test]
+    fn resolve_public_addrs_accepts_public_literal() {
+        // A public IP literal parses without touching DNS, keeping this test
+        // hermetic while still exercising the public/private filter.
+        let addrs = resolve_public_addrs("8.8.8.8").expect("public literal must resolve");
+        assert!(!addrs.is_empty());
+        assert!(addrs.iter().all(|addr| is_global_ip(addr.ip())));
+    }
+
+    #[test]
+    fn resolve_public_addrs_rejects_private_literal() {
+        assert!(resolve_public_addrs("169.254.169.254").is_err());
+        assert!(resolve_public_addrs("127.0.0.1").is_err());
     }
 }
