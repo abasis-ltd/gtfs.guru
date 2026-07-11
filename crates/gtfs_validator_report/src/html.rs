@@ -89,6 +89,7 @@ fn render_html(
     <title>GTFS Schedule Validation Report</title>
     <meta name="robots" content="noindex, nofollow">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8; width=device-width, initial-scale=1"/>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
@@ -620,11 +621,11 @@ fn render_agencies(out: &mut String, summary: &ReportSummary) {
         for agency in agencies {
             out.push_str("                    <li>");
             push_escaped(out, &agency.name);
-            out.push_str("\n                        <ul>\n                            <li><b>website: </b><a href=\"");
-            push_escaped(out, &agency.url);
-            out.push_str("\">");
-            push_escaped(out, &agency.url);
-            out.push_str("</a></li>\n                            <li><b>phone number: </b>");
+            out.push_str(
+                "\n                        <ul>\n                            <li><b>website: </b>",
+            );
+            push_safe_link(out, &agency.url, false);
+            out.push_str("</li>\n                            <li><b>phone number: </b>");
             push_escaped(out, &agency.phone);
             out.push_str("</li>\n                            <li><b>email: </b>");
             if agency.email.trim().is_empty() {
@@ -646,11 +647,9 @@ fn render_feed_info(out: &mut String, summary: &ReportSummary) {
             push_escaped(out, &format!("{key}:"));
             out.push_str("</dt>\n                    <dd>\n");
             if key.contains("URL") && !value.trim().is_empty() {
-                out.push_str("                        <a href=\"");
-                push_escaped(out, &value);
-                out.push_str("\" target=\"_blank\">");
-                push_escaped(out, &value);
-                out.push_str("</a>\n");
+                out.push_str("                        ");
+                push_safe_link(out, &value, true);
+                out.push('\n');
             } else if value.trim().is_empty() {
                 out.push_str("                        N/A\n");
             } else {
@@ -1163,6 +1162,30 @@ fn is_different_date(date_for_validation: &str) -> bool {
 
 fn push_escaped(out: &mut String, value: &str) {
     out.push_str(&escape_html(value));
+}
+
+/// Emit an `<a href>` only for `http`/`https` URLs. Any other value (notably
+/// `javascript:` / `data:` from an untrusted feed) is rendered as escaped text
+/// so it cannot become a clickable, script-executing link in the report.
+fn push_safe_link(out: &mut String, url: &str, target_blank: bool) {
+    if is_http_url(url) {
+        out.push_str("<a href=\"");
+        push_escaped(out, url);
+        if target_blank {
+            out.push_str("\" target=\"_blank\" rel=\"noopener noreferrer\">");
+        } else {
+            out.push_str("\">");
+        }
+        push_escaped(out, url);
+        out.push_str("</a>");
+    } else {
+        push_escaped(out, url);
+    }
+}
+
+fn is_http_url(url: &str) -> bool {
+    let lower = url.trim_start().to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
 }
 
 fn escape_html(value: &str) -> String {

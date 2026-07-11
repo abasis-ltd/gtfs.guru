@@ -34,12 +34,12 @@ impl Validator for BlockTripsWithOverlappingStopTimesValidator {
                 Some(indices) => indices,
                 None => continue,
             };
-            let mut stop_times: Vec<&gtfs_guru_model::StopTime> = stop_time_indices
+            // feed.stop_times_by_trip is already sorted by stop_sequence, so no
+            // re-sort is needed here.
+            let stop_times: Vec<&gtfs_guru_model::StopTime> = stop_time_indices
                 .iter()
                 .map(|&index| &feed.stop_times.rows[index])
                 .collect();
-            stop_times.sort_by_key(|s| s.stop_sequence);
-
             let stop_times = stop_times.as_slice();
             let service_id = trip.service_id;
             if service_id.0 == 0 {
