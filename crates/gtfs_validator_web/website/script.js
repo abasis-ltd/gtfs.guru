@@ -31,6 +31,9 @@ function getValidatorWorker() {
                 error_count: payload.errorCount,
                 warning_count: payload.warningCount,
                 info_count: payload.infoCount,
+                validation_time_ms: payload.validationTimeMs,
+                timings: payload.timings,
+                runtime: payload.runtime,
             });
         } else {
             p.reject(new Error(typeof payload === 'string' ? payload : 'Validation failed'));
@@ -323,6 +326,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lastFileName = file.name.replace('.zip', '');
 
+        // Start compiling WASM and creating the Rayon pool while the browser
+        // reads the selected archive from disk.
+        getValidatorWorker();
+
         // Show processing
         const errorContainer = document.getElementById('error-container');
         if (errorContainer) errorContainer.classList.add('hidden');
@@ -343,6 +350,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleUrl(url) {
+        // Overlap WASM initialization with the network request.
+        getValidatorWorker();
+
         // Show processing
         const errorContainer = document.getElementById('error-container');
         if (errorContainer) errorContainer.classList.add('hidden');
@@ -510,13 +520,13 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         } else {
             // Render each group
             if (groups.error.length > 0) {
-                html += renderNoticeGroup('Errors', 'error', groups.error);
+                html += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
             }
             if (groups.warning.length > 0) {
-                html += renderNoticeGroup('Warnings', 'warning', groups.warning);
+                html += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count);
             }
             if (groups.info.length > 0) {
-                html += renderNoticeGroup('Info', 'info', groups.info);
+                html += renderNoticeGroup('Info', 'info', groups.info, result.info_count);
             }
         }
 
@@ -552,7 +562,7 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         }
     }
 
-    function renderNoticeGroup(title, severity, notices) {
+    function renderNoticeGroup(title, severity, notices, totalCount) {
         // First, group notices by CODE
         const noticesByCode = {};
         notices.forEach(notice => {
@@ -570,8 +580,8 @@ Please ensure the Nginx container is configured with the proxy settings.`);
 
         sortedCodes.forEach(code => {
             const codeNotices = noticesByCode[code];
-            const count = codeNotices.length;
             const sample = codeNotices[0];
+            const count = sample.totalNotices || codeNotices.length;
 
             // Prepare flattened data for display
             // We'll process only the first 50 displayed
@@ -670,7 +680,7 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         return `
             <div style="margin-bottom: 2rem;">
                 <h3 style="margin-bottom: 1rem; color: var(--${severity}); display: flex; align-items: center; gap: 0.5rem;">
-                    ${title} <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.6rem; border-radius: 20px; font-size: 0.8rem;">${notices.length}</span>
+                    ${title} <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.6rem; border-radius: 20px; font-size: 0.8rem;">${totalCount}</span>
                 </h3>
                 ${sectionsHtml}
             </div>
@@ -760,13 +770,13 @@ Please ensure the Nginx container is configured with the proxy settings.`);
             `;
         } else {
             if (groups.error.length > 0) {
-                reportContent += renderNoticeGroup('Errors', 'error', groups.error);
+                reportContent += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
             }
             if (groups.warning.length > 0) {
-                reportContent += renderNoticeGroup('Warnings', 'warning', groups.warning);
+                reportContent += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count);
             }
             if (groups.info.length > 0) {
-                reportContent += renderNoticeGroup('Info', 'info', groups.info);
+                reportContent += renderNoticeGroup('Info', 'info', groups.info, result.info_count);
             }
         }
 
@@ -829,4 +839,3 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         win.document.close();
     }
 });
-

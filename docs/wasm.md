@@ -133,6 +133,8 @@ Validates a GTFS ZIP file.
 - `warning_count: number` - Number of warnings
 - `info_count: number` - Number of info notices
 - `is_valid: boolean` - True if no errors
+- `timings_json: string` - Aggregate loading, per-table parsing, indexing, and
+  per-validator timings as JSON
 
 ### `validate_gtfs_json(bytes, countryCode?): string`
 
@@ -216,11 +218,29 @@ import type { ValidationResult, ValidationNotice, NoticeSeverity } from 'gtfs.gu
 
 WASM runs in a limited memory environment. For large GTFS feeds:
 
-1. **File Size Limit**: Browsers typically allow ~2GB memory. Large feeds (>100MB) may approach limits.
+1. **File Size Limits**: Browser validation accepts up to 100 MB compressed and
+   512 MB total uncompressed data. Both limits are checked before parsing.
 
 2. **Web Worker**: Always use the Web Worker for files over 10MB to avoid UI freezing.
 
 3. **Server-Side**: For very large feeds (>200MB), consider server-side validation with the CLI or REST API.
+
+The uncompressed limit is essential because ZIP size alone is misleading. For
+example, the 75 MB `ch.zip` benchmark expands to 701 MB and exhausted the WASM
+heap before the central-directory guard was added.
+
+CSV members are streamed from the ZIP directly into the sequential parser, so
+the browser does not retain a second full uncompressed copy of large tables.
+Validation notices are bounded to 1,000 retained samples per code and severity;
+`totalNotices` and the summary severity counts remain exact.
+
+## Threads benchmark
+
+On Apple M3 Pro / Chrome 150, three runs of `paris.zip` (10 MB compressed,
+89 MB uncompressed) averaged 2.242 s single-threaded and 1.818 s with parallel
+validators, a 1.23x speedup. Reports matched exactly by SHA-256. Parallel CSV
+deserialization was disabled for WASM after it exceeded a five-minute timeout
+on the same feed due to shared interner contention; native builds retain it.
 
 ## Browser Compatibility
 
@@ -258,12 +278,24 @@ curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 # Build for web
 wasm-pack build crates/gtfs_validator_wasm --target web --release
 
+# Build for browsers with WebAssembly threads (nightly + rust-src required)
+RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+simd128 -C link-arg=--shared-memory -C link-arg=--max-memory=4294967296 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base' \
+  rustup run nightly-2025-11-15 wasm-pack build crates/gtfs_validator_wasm --target web \
+  --release --out-dir pkg-mt -- \
+  --features threads -Z build-std=panic_abort,std
+
 # Build for Node.js
 wasm-pack build crates/gtfs_validator_wasm --target nodejs --release --out-dir pkg-node
 
 # Or use the build script
 ./scripts/build-wasm.sh
 ```
+
+The threaded package is selected automatically when the page is cross-origin
+isolated (`COOP: same-origin` and `COEP: require-corp`) and
+`SharedArrayBuffer` is available. Otherwise the worker uses the portable
+single-threaded package. GitHub Pages therefore remains on the fallback; use the
+included Caddy, Nginx, or Cloudflare Pages headers to enable threads.
 
 ## Demo
 

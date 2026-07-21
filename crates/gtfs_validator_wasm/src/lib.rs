@@ -1,12 +1,17 @@
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use gtfs_guru_core::{
     default_runner, set_thorough_mode_enabled, set_validation_country_code, set_validation_date,
-    validate_bytes, NoticeContainer, NoticeSeverity,
+    validate_bytes_reader_with_timing, GtfsBytesReader, NoticeContainer, NoticeSeverity,
+    TimingCollector,
 };
 use gtfs_guru_report::{
     generate_html_report_string, HtmlReportContext, ReportSummary, ReportSummaryContext,
 };
+
+#[cfg(feature = "threads")]
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 #[cfg(feature = "console_error_panic_hook")]
 pub use console_error_panic_hook::set_once as set_panic_hook;
@@ -29,6 +34,7 @@ pub fn version() -> String {
 pub struct ValidationResult {
     json: String,
     html: String,
+    timings_json: String,
     error_count: u32,
     warning_count: u32,
     info_count: u32,
@@ -46,6 +52,27 @@ impl ValidationResult {
     #[wasm_bindgen(getter)]
     pub fn html(&self) -> String {
         self.html.clone()
+    }
+
+    /// Get the loading and per-validator timing breakdown as JSON.
+    #[wasm_bindgen(getter)]
+    pub fn timings_json(&self) -> String {
+        self.timings_json.clone()
+    }
+
+    /// Move the JSON report into JavaScript without cloning it in Rust.
+    pub fn take_json(&mut self) -> String {
+        std::mem::take(&mut self.json)
+    }
+
+    /// Move the HTML report into JavaScript without cloning it in Rust.
+    pub fn take_html(&mut self) -> String {
+        std::mem::take(&mut self.html)
+    }
+
+    /// Move the timing report into JavaScript without cloning it in Rust.
+    pub fn take_timings_json(&mut self) -> String {
+        std::mem::take(&mut self.timings_json)
     }
 
     /// Get the number of errors
@@ -75,13 +102,14 @@ impl ValidationResult {
 
 /// Maximum ZIP size accepted for in-browser (wasm32) validation.
 ///
-/// The real ceiling is the wasm32 linear-memory limit (~4 GB), not the ZIP
-/// size. Measured peak memory is ~20-30x the ZIP size, so a 100 MB archive
-/// peaks around 2-2.5 GB — comfortably within reach on 64-bit desktop
-/// browsers. Beyond this we bail out with a clear message pointing at the
-/// desktop app / CLI (and, later, a wasm64 build) rather than risk an OOM
-/// that takes down the tab.
+/// Compressed size alone is not a reliable memory predictor, so validation also
+/// checks the total declared uncompressed size below.
 const MAX_FILE_SIZE_BYTES: usize = 100 * 1024 * 1024;
+
+/// Maximum total size of root-level files declared in the ZIP central
+/// directory. A 735 MB feed was observed to exhaust the wasm32 heap despite a
+/// compressed size of only 75 MB, so reject earlier with a recoverable error.
+const MAX_UNCOMPRESSED_SIZE_BYTES: u64 = 512 * 1024 * 1024;
 
 /// Validate a GTFS ZIP file from bytes
 ///
@@ -94,7 +122,8 @@ const MAX_FILE_SIZE_BYTES: usize = 100 * 1024 * 1024;
 /// A ValidationResult containing the JSON report and summary counts
 ///
 /// # Errors
-/// Throws a JavaScript error if the file exceeds 100 MB
+/// Throws a JavaScript error if the ZIP exceeds 100 MB compressed or 512 MB
+/// uncompressed
 #[wasm_bindgen]
 pub fn validate_gtfs(
     zip_bytes: &[u8],
@@ -111,6 +140,21 @@ pub fn validate_gtfs(
         )));
     }
 
+    // Keep this reader for validation after inspecting the central directory,
+    // avoiding a second copy of the input in the WASM heap.
+    let reader = GtfsBytesReader::from_slice(zip_bytes);
+    if let Ok(files) = reader.get_files_with_sizes() {
+        let uncompressed_bytes = files.values().copied().fold(0u64, u64::saturating_add);
+        if uncompressed_bytes > MAX_UNCOMPRESSED_SIZE_BYTES {
+            let size_mb = uncompressed_bytes as f64 / (1024.0 * 1024.0);
+            return Err(JsValue::from_str(&format!(
+                "Feed expands to {:.1} MB. Maximum uncompressed size for browser validation is 512 MB. \
+                 Please download the desktop application or CLI for larger feeds.",
+                size_mb
+            )));
+        }
+    }
+
     // Set validation context
     // We clone these for the report context later
     let report_country_code = country_code.clone();
@@ -123,15 +167,24 @@ pub fn validate_gtfs(
 
     // Create runner with all validators
     let runner = default_runner();
+    let timing = TimingCollector::new();
 
     // Run validation (no progress handler in WASM - it runs synchronously)
-    let outcome = validate_bytes(zip_bytes, &runner);
+    let outcome = validate_bytes_reader_with_timing(&reader, &runner, &timing);
+    let timings_json = timing.summary().to_json().to_string();
 
     // Count notices by severity
     let (error_count, warning_count, info_count) = count_notices(&outcome.notices);
 
     // Encode notices to JSON
-    let notices_vec: Vec<_> = outcome.notices.iter().collect();
+    let notices_vec: Vec<_> = outcome
+        .notices
+        .iter()
+        .map(|notice| WasmNotice {
+            notice,
+            total_notices: outcome.notices.count_for(&notice.code, notice.severity),
+        })
+        .collect();
     let json = serde_json::to_string(&notices_vec).unwrap_or_else(|_| "[]".to_string());
 
     // Generate HTML Report
@@ -155,6 +208,7 @@ pub fn validate_gtfs(
     Ok(ValidationResult {
         json,
         html,
+        timings_json,
         error_count,
         warning_count,
         info_count,
@@ -168,24 +222,25 @@ pub fn validate_gtfs_json(
     country_code: Option<String>,
     date: Option<String>,
 ) -> Result<String, JsValue> {
-    let result = validate_gtfs(zip_bytes, country_code, date)?;
-    Ok(result.json)
+    let mut result = validate_gtfs(zip_bytes, country_code, date)?;
+    Ok(result.take_json())
 }
 
 fn count_notices(notices: &NoticeContainer) -> (u32, u32, u32) {
-    let mut errors = 0u32;
-    let mut warnings = 0u32;
-    let mut infos = 0u32;
+    let count = |severity| u32::try_from(notices.count_by_severity(severity)).unwrap_or(u32::MAX);
+    (
+        count(NoticeSeverity::Error),
+        count(NoticeSeverity::Warning),
+        count(NoticeSeverity::Info),
+    )
+}
 
-    for notice in notices.iter() {
-        match notice.severity {
-            NoticeSeverity::Error => errors += 1,
-            NoticeSeverity::Warning => warnings += 1,
-            NoticeSeverity::Info => infos += 1,
-        }
-    }
-
-    (errors, warnings, infos)
+#[derive(Serialize)]
+struct WasmNotice<'a> {
+    #[serde(flatten)]
+    notice: &'a gtfs_guru_core::ValidationNotice,
+    #[serde(rename = "totalNotices")]
+    total_notices: usize,
 }
 
 #[cfg(test)]

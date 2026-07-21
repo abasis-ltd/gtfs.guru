@@ -1,6 +1,7 @@
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use web_time::Instant;
 
 use crate::progress::ProgressHandler;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
@@ -125,7 +126,7 @@ impl ValidatorRunner {
                     p.on_start_validation(validator.name());
                 }
 
-                let start = std::time::Instant::now();
+                let start = Instant::now();
                 let res = self.run_single_validator(validator.as_ref(), feed);
                 let elapsed = start.elapsed();
 
@@ -174,13 +175,9 @@ impl ValidatorRunner {
                     p.on_start_validation(validator.name());
                 }
 
-                #[cfg(not(target_arch = "wasm32"))]
-                let start = std::time::Instant::now();
+                let start = Instant::now();
                 let res = self.run_single_validator(validator.as_ref(), feed);
-                #[cfg(not(target_arch = "wasm32"))]
                 let elapsed = start.elapsed();
-                #[cfg(target_arch = "wasm32")]
-                let elapsed = std::time::Duration::from_secs(0);
 
                 if let Some(t) = timing {
                     t.record(
@@ -204,8 +201,7 @@ impl ValidatorRunner {
 
     fn run_single_validator(&self, validator: &dyn Validator, feed: &GtfsFeed) -> NoticeContainer {
         let mut local_notices = NoticeContainer::new();
-        #[cfg(not(target_arch = "wasm32"))]
-        let start = std::time::Instant::now();
+        let start = Instant::now();
 
         // Set resolver hook for StringId serialization
         let pool = feed.pool.clone();
@@ -218,10 +214,7 @@ impl ValidatorRunner {
         // Clear hooks after validation
         gtfs_guru_model::clear_thread_local_hooks();
 
-        #[cfg(not(target_arch = "wasm32"))]
         let elapsed = start.elapsed();
-        #[cfg(target_arch = "wasm32")]
-        let elapsed = std::time::Duration::from_secs(0);
 
         if elapsed.as_millis() > 500 && crate::performance_logs_enabled() {
             eprintln!("[PERF] Validator {} took: {:?}", validator.name(), elapsed);

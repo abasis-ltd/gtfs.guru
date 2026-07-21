@@ -439,7 +439,7 @@ fn build_notice_reports(container: &NoticeContainer) -> Vec<NoticeReport> {
         reports.push(NoticeReport {
             code: first.code.clone(),
             severity: first.severity.into(),
-            total_notices: notices.len(),
+            total_notices: container.count_for(&first.code, first.severity),
             sample_notices,
         });
     }

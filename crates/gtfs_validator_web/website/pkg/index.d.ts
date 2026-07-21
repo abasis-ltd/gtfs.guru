@@ -33,6 +33,10 @@ export interface ValidationNotice {
 export interface ValidationResult {
   /** Full validation report as JSON string */
   readonly json: string;
+  /** Full validation report as HTML string */
+  readonly html: string;
+  /** Loading and per-validator timing breakdown as JSON string */
+  readonly timings_json: string;
   /** Number of errors found */
   readonly error_count: number;
   /** Number of warnings found */
@@ -41,18 +45,44 @@ export interface ValidationResult {
   readonly info_count: number;
   /** True if no errors were found (warnings/info don't affect validity) */
   readonly is_valid: boolean;
+  /** Move the JSON report out of WASM without a Rust-side clone. */
+  take_json(): string;
+  /** Move the HTML report out of WASM without a Rust-side clone. */
+  take_html(): string;
+  /** Move the timing breakdown out of WASM without a Rust-side clone. */
+  take_timings_json(): string;
 }
+
+export interface TimingItem {
+  name: string;
+  duration_ms: number;
+  duration_s: number;
+}
+
+export interface TimingCategory {
+  total_ms: number;
+  total_s: number;
+  items: TimingItem[];
+}
+
+export type TimingBreakdown = Partial<Record<
+  'loading' | 'parsing' | 'indexing' | 'validation',
+  TimingCategory
+>>;
 
 /**
  * Parsed validation result with typed notices
  */
 export interface ParsedValidationResult {
-  notices: ValidationNotice[];
+  json: string;
+  html: string;
   errorCount: number;
   warningCount: number;
   infoCount: number;
   isValid: boolean;
-  validationTimeMs?: number;
+  validationTimeMs: number;
+  timings: TimingBreakdown;
+  runtime: 'single-threaded' | 'multi-threaded';
 }
 
 /**

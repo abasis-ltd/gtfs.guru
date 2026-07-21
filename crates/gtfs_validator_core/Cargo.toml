@@ -25,6 +25,7 @@ rstar = "0.12.2"
 compact_str = { version = "0.9.0", features = ["serde"] }
 dashmap = "6.1.0"
 rustc-hash = "2.1"
+web-time = "1.1"
 
 [dependencies.gtfs-guru-model]
 path = "../gtfs_model"
@@ -42,4 +43,3 @@ harness = false
 [[bench]]
 name = "benchmark_loading"
 harness = false
-

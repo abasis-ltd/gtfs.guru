@@ -427,6 +427,7 @@ impl GtfsFeed {
                     p.on_start_file_load(filename);
                 }
 
+                #[cfg(not(target_arch = "wasm32"))]
                 let start = std::time::Instant::now();
                 let mut local_notices = NoticeContainer::new();
                 // Route very large files through the streaming reader (overlaps
@@ -453,6 +454,7 @@ impl GtfsFeed {
                 };
 
                 // Output per-file timing if GTFS_PERF_DEBUG is set
+                #[cfg(not(target_arch = "wasm32"))]
                 if std::env::var("GTFS_PERF_DEBUG").is_ok() && crate::performance_logs_enabled() {
                     let elapsed = start.elapsed();
                     let row_count = result
@@ -1038,6 +1040,20 @@ impl GtfsFeed {
         notices: &mut NoticeContainer,
         progress: Option<&dyn ProgressHandler>,
     ) -> Result<Self, GtfsInputError> {
+        Self::from_bytes_reader_with_notices_and_progress_and_timing(
+            reader, notices, progress, None,
+        )
+    }
+
+    /// Load a feed from in-memory bytes and optionally record per-table parsing
+    /// plus index-building timings. The aggregate feed-loading timer remains in
+    /// the engine so these records provide a non-overlapping breakdown.
+    pub fn from_bytes_reader_with_notices_and_progress_and_timing(
+        reader: &GtfsBytesReader,
+        notices: &mut NoticeContainer,
+        progress: Option<&dyn ProgressHandler>,
+        timing: Option<&crate::TimingCollector>,
+    ) -> Result<Self, GtfsInputError> {
         if let Some(p) = progress {
             p.set_total_files(GTFS_FILE_NAMES.len());
         }
@@ -1056,8 +1072,16 @@ impl GtfsFeed {
                 if let Some(p) = progress {
                     p.on_start_file_load($file);
                 }
+                let table_started = web_time::Instant::now();
                 let mut local_notices = NoticeContainer::new();
                 let res = reader.read_optional_csv_with_notices($file, &mut local_notices, &pool);
+                if let Some(timing) = timing {
+                    timing.record(
+                        $file,
+                        table_started.elapsed(),
+                        crate::TimingCategory::Parsing,
+                    );
+                }
                 record_table_status(&mut table_statuses, $file, &res, &local_notices);
                 notices.merge(local_notices);
                 if let Some(p) = progress {
@@ -1106,6 +1130,7 @@ impl GtfsFeed {
         let transfers = load_file!(TRANSFERS_FILE)?;
         let location_groups = load_file!(LOCATION_GROUPS_FILE)?;
         let location_group_stops = load_file!(LOCATION_GROUP_STOPS_FILE)?;
+        let locations_started = web_time::Instant::now();
         let locations =
             match reader.read_optional_json::<GeoJsonFeatureCollection>(LOCATIONS_GEOJSON_FILE) {
                 Ok(data) => data.map(|c| LocationsGeoJson::new(c, &pool)),
@@ -1114,6 +1139,13 @@ impl GtfsFeed {
                 }
                 Err(err) => return Err(err),
             };
+        if let Some(timing) = timing {
+            timing.record(
+                LOCATIONS_GEOJSON_FILE,
+                locations_started.elapsed(),
+                crate::TimingCategory::Parsing,
+            );
+        }
         let locations_status = match &locations {
             Some(locations) => {
                 if locations.has_fatal_errors() {
@@ -1134,7 +1166,15 @@ impl GtfsFeed {
         let pathways = load_file!(PATHWAYS_FILE)?;
         let translations = load_file!(TRANSLATIONS_FILE)?;
 
+        let index_started = web_time::Instant::now();
         let stop_times_by_trip = Self::build_stop_times_index(&stop_times);
+        if let Some(timing) = timing {
+            timing.record(
+                "stop_times_by_trip",
+                index_started.elapsed(),
+                crate::TimingCategory::Indexing,
+            );
+        }
 
         Ok(Self {
             agency,

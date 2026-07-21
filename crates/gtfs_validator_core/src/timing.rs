@@ -4,7 +4,8 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use web_time::Instant;
 
 /// Records timing information for a named operation
 #[derive(Debug, Clone)]

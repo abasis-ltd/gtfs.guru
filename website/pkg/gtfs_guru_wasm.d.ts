@@ -6,6 +6,18 @@ export class ValidationResult {
   free(): void;
   [Symbol.dispose](): void;
   /**
+   * Move the timing report into JavaScript without cloning it in Rust.
+   */
+  take_timings_json(): string;
+  /**
+   * Move the HTML report into JavaScript without cloning it in Rust.
+   */
+  take_html(): string;
+  /**
+   * Move the JSON report into JavaScript without cloning it in Rust.
+   */
+  take_json(): string;
+  /**
    * Get the number of info notices
    */
   readonly info_count: number;
@@ -13,6 +25,10 @@ export class ValidationResult {
    * Get the number of errors
    */
   readonly error_count: number;
+  /**
+   * Get the loading and per-validator timing breakdown as JSON.
+   */
+  readonly timings_json: string;
   /**
    * Get the number of warnings
    */
@@ -48,7 +64,8 @@ export function init(): void;
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the file exceeds 100 MB
+ * Throws a JavaScript error if the ZIP exceeds 100 MB compressed or 512 MB
+ * uncompressed
  */
 export function validate_gtfs(zip_bytes: Uint8Array, country_code?: string | null, date?: string | null): ValidationResult;
 
@@ -74,13 +91,19 @@ export interface InitOutput {
   readonly validationresult_info_count: (a: number) => number;
   readonly validationresult_is_valid: (a: number) => number;
   readonly validationresult_json: (a: number) => [number, number];
+  readonly validationresult_take_html: (a: number) => [number, number];
+  readonly validationresult_take_json: (a: number) => [number, number];
+  readonly validationresult_take_timings_json: (a: number) => [number, number];
+  readonly validationresult_timings_json: (a: number) => [number, number];
   readonly validationresult_warning_count: (a: number) => number;
   readonly version: () => [number, number];
   readonly init: () => void;
+  readonly __wbindgen_exn_store: (a: number) => void;
+  readonly __externref_table_alloc: () => number;
+  readonly __wbindgen_externrefs: WebAssembly.Table;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-  readonly __wbindgen_externrefs: WebAssembly.Table;
   readonly __externref_table_dealloc: (a: number) => void;
   readonly __wbindgen_start: () => void;
 }

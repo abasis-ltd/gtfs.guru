@@ -9,19 +9,57 @@
  *   worker.onmessage = (e) => console.log(e.data);
  */
 
-import init, { validate_gtfs, version } from './gtfs_guru_wasm.js';
+let wasm;
+let runtime = 'single-threaded';
+let initializationPromise;
 
-let initialized = false;
+function canUseThreads() {
+  // Diagnostic override for golden comparisons and benchmarks. It never
+  // enables threads when the browser or hosting environment cannot support
+  // them; it only forces the portable fallback.
+  if (new URL(self.location.href).searchParams.get('threads') === 'off') {
+    return false;
+  }
+
+  // iOS has a much tighter WASM memory budget and nested-worker support varies
+  // across versions, so keep the conservative single-threaded path there.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  return !isIOS
+    && self.crossOriginIsolated === true
+    && typeof SharedArrayBuffer !== 'undefined'
+    && typeof WebAssembly.Memory === 'function';
+}
 
 /**
  * Initialize the WASM module
  * @returns {Promise<void>}
  */
 async function ensureInitialized() {
-  if (!initialized) {
-    await init();
-    initialized = true;
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      if (canUseThreads()) {
+        try {
+          const threaded = await import('../pkg-mt/gtfs_guru_wasm.js');
+          await threaded.default();
+          const hardwareThreads = navigator.hardwareConcurrency || 2;
+          await threaded.initThreadPool(Math.min(Math.max(hardwareThreads, 1), 8));
+          wasm = threaded;
+          runtime = 'multi-threaded';
+        } catch (error) {
+          console.warn('Multi-threaded WASM initialization failed; using fallback.', error);
+        }
+      }
+
+      if (!wasm) {
+        const singleThreaded = await import('./gtfs_guru_wasm.js');
+        await singleThreaded.default();
+        wasm = singleThreaded;
+      }
+    })();
   }
+  return initializationPromise;
 }
 
 /**
@@ -35,30 +73,40 @@ self.onmessage = async (event) => {
 
     switch (type) {
       case 'validate': {
-        const { zipBytes, countryCode, date } = payload;
+        const { zipBytes, countryCode, date, includeHtml = true } = payload;
         const startTime = performance.now();
 
-        const result = validate_gtfs(
+        const result = wasm.validate_gtfs(
           new Uint8Array(zipBytes),
           countryCode || null,
           date || null,
         );
 
         const elapsed = performance.now() - startTime;
-
-        self.postMessage({
-          id,
-          type: 'result',
-          payload: {
-            json: result.json,
-            html: result.html,
-            errorCount: result.error_count,
-            warningCount: result.warning_count,
-            infoCount: result.info_count,
-            isValid: result.is_valid,
-            validationTimeMs: elapsed,
-          },
-        });
+        try {
+          const json = result.take_json();
+          const html = includeHtml ? result.take_html() : '';
+          const timingsJson = result.take_timings_json();
+          self.postMessage({
+            id,
+            type: 'result',
+            payload: {
+              json,
+              html,
+              errorCount: result.error_count,
+              warningCount: result.warning_count,
+              infoCount: result.info_count,
+              isValid: result.is_valid,
+              validationTimeMs: elapsed,
+              timings: JSON.parse(timingsJson),
+              runtime,
+            },
+          });
+        } finally {
+          // Release Rust-owned strings immediately instead of waiting for JS
+          // finalization, which is important after large-feed validation.
+          result.free();
+        }
         break;
       }
 
@@ -66,7 +114,7 @@ self.onmessage = async (event) => {
         self.postMessage({
           id,
           type: 'version',
-          payload: version(),
+          payload: wasm.version(),
         });
         break;
       }
@@ -87,5 +135,11 @@ self.onmessage = async (event) => {
   }
 };
 
-// Signal that the worker is ready
-self.postMessage({ type: 'ready' });
+// Initialize eagerly. Consumers only receive "ready" after the WASM module and
+// (when available) its Rayon worker pool are ready for validation.
+ensureInitialized()
+  .then(() => self.postMessage({ type: 'ready', payload: { runtime } }))
+  .catch((error) => self.postMessage({
+    type: 'error',
+    payload: error instanceof Error ? error.message : String(error),
+  }));

@@ -44,12 +44,15 @@ export class GtfsValidator {
     this.nextId = 0;
     this.ready = false;
 
-    this.readyPromise = new Promise((resolve) => {
+    this.readyPromise = new Promise((resolve, reject) => {
       const handler = (event) => {
         if (event.data.type === 'ready') {
           this.ready = true;
           this.worker.removeEventListener('message', handler);
           resolve();
+        } else if (event.data.type === 'error' && event.data.id == null) {
+          this.worker.removeEventListener('message', handler);
+          reject(new Error(event.data.payload));
         }
       };
       this.worker.addEventListener('message', handler);

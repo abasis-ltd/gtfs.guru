@@ -1,5 +1,11 @@
 let wasm;
 
+function addToExternrefTable0(obj) {
+    const idx = wasm.__externref_table_alloc();
+    wasm.__wbindgen_externrefs.set(idx, obj);
+    return idx;
+}
+
 let cachedDataViewMemory0 = null;
 function getDataViewMemory0() {
     if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
@@ -19,6 +25,15 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function handleError(f, args) {
+    try {
+        return f.apply(this, args);
+    } catch (e) {
+        const idx = addToExternrefTable0(e);
+        wasm.__wbindgen_exn_store(idx);
+    }
 }
 
 function isLikeNone(x) {
@@ -146,12 +161,44 @@ export class ValidationResult {
         return ret >>> 0;
     }
     /**
+     * Get the loading and per-validator timing breakdown as JSON.
+     * @returns {string}
+     */
+    get timings_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.validationresult_timings_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Get the number of warnings
      * @returns {number}
      */
     get warning_count() {
         const ret = wasm.validationresult_warning_count(this.__wbg_ptr);
         return ret >>> 0;
+    }
+    /**
+     * Move the timing report into JavaScript without cloning it in Rust.
+     * @returns {string}
+     */
+    take_timings_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.validationresult_take_timings_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
     /**
      * Get the full validation report as HTML
@@ -193,6 +240,38 @@ export class ValidationResult {
         const ret = wasm.validationresult_is_valid(this.__wbg_ptr);
         return ret !== 0;
     }
+    /**
+     * Move the HTML report into JavaScript without cloning it in Rust.
+     * @returns {string}
+     */
+    take_html() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.validationresult_take_html(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Move the JSON report into JavaScript without cloning it in Rust.
+     * @returns {string}
+     */
+    take_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.validationresult_take_json(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
 }
 if (Symbol.dispose) ValidationResult.prototype[Symbol.dispose] = ValidationResult.prototype.free;
 
@@ -215,7 +294,8 @@ export function init() {
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the file exceeds 100 MB
+ * Throws a JavaScript error if the ZIP exceeds 100 MB compressed or 512 MB
+ * uncompressed
  * @param {Uint8Array} zip_bytes
  * @param {string | null} [country_code]
  * @param {string | null} [date]
@@ -319,9 +399,17 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
+    imports.wbg.__wbg___wbindgen_is_undefined_f6b95eab589e0269 = function(arg0) {
+        const ret = arg0 === undefined;
+        return ret;
+    };
     imports.wbg.__wbg___wbindgen_throw_dd24417ed36fc46e = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));
     };
+    imports.wbg.__wbg_call_abb4ff46ce38be40 = function() { return handleError(function (arg0, arg1) {
+        const ret = arg0.call(arg1);
+        return ret;
+    }, arguments) };
     imports.wbg.__wbg_error_7534b8e9a36f1ab4 = function(arg0, arg1) {
         let deferred0_0;
         let deferred0_1;
@@ -353,12 +441,40 @@ function __wbg_get_imports() {
         const ret = new Date(arg0);
         return ret;
     };
+    imports.wbg.__wbg_new_no_args_cb138f77cf6151ee = function(arg0, arg1) {
+        const ret = new Function(getStringFromWasm0(arg0, arg1));
+        return ret;
+    };
+    imports.wbg.__wbg_now_2c95c9de01293173 = function(arg0) {
+        const ret = arg0.now();
+        return ret;
+    };
+    imports.wbg.__wbg_performance_7a3ffd0b17f663ad = function(arg0) {
+        const ret = arg0.performance;
+        return ret;
+    };
     imports.wbg.__wbg_stack_0ed75d68575b0f3c = function(arg0, arg1) {
         const ret = arg1.stack;
         const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
         getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
         getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+    };
+    imports.wbg.__wbg_static_accessor_GLOBAL_769e6b65d6557335 = function() {
+        const ret = typeof global === 'undefined' ? null : global;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_static_accessor_GLOBAL_THIS_60cf02db4de8e1c1 = function() {
+        const ret = typeof globalThis === 'undefined' ? null : globalThis;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_static_accessor_SELF_08f5a74c69739274 = function() {
+        const ret = typeof self === 'undefined' ? null : self;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_static_accessor_WINDOW_a8924b26aa92d024 = function() {
+        const ret = typeof window === 'undefined' ? null : window;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
     };
     imports.wbg.__wbindgen_cast_2241b6af4c4b2941 = function(arg0, arg1) {
         // Cast intrinsic for `Ref(String) -> Externref`.

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -9,15 +9,12 @@ use std::sync::Arc;
 use serde::de::DeserializeOwned;
 use zip::ZipArchive;
 
-#[cfg(feature = "parallel")]
+#[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
 use crate::csv_reader::read_csv_from_reader_parallel;
-#[cfg(not(feature = "parallel"))]
-use crate::csv_reader::read_csv_from_reader_with_errors;
+#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
+use crate::csv_reader::read_csv_from_reader_with_validation;
 use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
 use crate::csv_validation::is_value_validated_field;
-#[cfg(not(feature = "parallel"))]
-use crate::csv_validation::validate_csv_data;
-#[cfg(feature = "parallel")]
 use crate::csv_validation::{validate_headers, RowValidator};
 
 use crate::feed::GTFS_FILE_NAMES;
@@ -257,7 +254,7 @@ impl GtfsInputReader {
         read_csv_from_reader(data_str.as_bytes(), file_name).map_err(GtfsInputError::Csv)
     }
 
-    #[cfg(feature = "parallel")]
+    #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
     pub fn read_csv_with_notices<T: DeserializeOwned + Send>(
         &self,
         file_name: &str,
@@ -313,7 +310,7 @@ impl GtfsInputReader {
         Ok(table)
     }
 
-    #[cfg(not(feature = "parallel"))]
+    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
     pub fn read_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,
@@ -322,17 +319,7 @@ impl GtfsInputReader {
     ) -> Result<CsvTable<T>, GtfsInputError> {
         let data = self.read_file(file_name)?;
         let data_str = decode_utf8_lossy(&data);
-        let data_bytes = data_str.as_bytes();
-        validate_csv_data(file_name, data_bytes, notices);
-        let (table, errors) =
-            read_csv_from_reader_with_errors(data_bytes, file_name).map_err(GtfsInputError::Csv)?;
-        for error in errors {
-            if skip_csv_parse_error(&table, &error) {
-                continue;
-            }
-            notices.push_csv_error(&error);
-        }
-        Ok(table)
+        read_csv_bytes_with_notices(data_str.as_bytes(), file_name, notices)
     }
 
     pub fn read_optional_csv<T: DeserializeOwned>(
@@ -351,7 +338,7 @@ impl GtfsInputReader {
         }
     }
 
-    #[cfg(feature = "parallel")]
+    #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
     pub fn read_optional_csv_with_notices<T: DeserializeOwned + Send>(
         &self,
         file_name: &str,
@@ -429,7 +416,7 @@ impl GtfsInputReader {
         }
     }
 
-    #[cfg(not(feature = "parallel"))]
+    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
     pub fn read_optional_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,
@@ -439,17 +426,7 @@ impl GtfsInputReader {
         match self.read_file(file_name) {
             Ok(data) => {
                 let data_str = decode_utf8_lossy(&data);
-                let data_bytes = data_str.as_bytes();
-                validate_csv_data(file_name, data_bytes, notices);
-                let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
-                    .map_err(GtfsInputError::Csv)?;
-                for error in errors {
-                    if skip_csv_parse_error(&table, &error) {
-                        continue;
-                    }
-                    notices.push_csv_error(&error);
-                }
-                Ok(Some(table))
+                read_csv_bytes_with_notices(data_str.as_bytes(), file_name, notices).map(Some)
             }
             Err(GtfsInputError::MissingFile(_)) => Ok(None),
             Err(err) => Err(err),
@@ -883,6 +860,61 @@ fn skip_csv_parse_error<T>(table: &CsvTable<T>, error: &CsvParseError) -> bool {
         || message.contains("invalid float")
 }
 
+#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
+fn read_csv_bytes_with_notices<T: DeserializeOwned>(
+    data: &[u8],
+    file_name: &str,
+    notices: &mut NoticeContainer,
+) -> Result<CsvTable<T>, GtfsInputError> {
+    if strip_utf8_bom(data).is_empty() {
+        notices.push_empty_table(file_name);
+        return Ok(CsvTable::default());
+    }
+
+    // Read only the header up front so row validation can be configured. The
+    // data rows themselves are scanned exactly once below.
+    let mut header_reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .trim(csv::Trim::Headers)
+        .from_reader(data);
+    let headers_record = header_reader
+        .headers()
+        .map_err(|err| GtfsInputError::Csv(crate::csv_reader::map_csv_error(file_name, None, err)))?
+        .clone();
+    let headers: Vec<String> = headers_record.iter().map(str::to_string).collect();
+
+    let mut header_notices = NoticeContainer::new();
+    validate_headers(file_name, &headers, &mut header_notices);
+    let has_header_errors = header_notices
+        .iter()
+        .any(|notice| notice.severity == NoticeSeverity::Error);
+    notices.merge(header_notices);
+    let validator = RowValidator::new(file_name, headers);
+
+    let (table, errors, row_notices) =
+        read_csv_from_reader_with_validation(data, file_name, |record, line| {
+            if has_header_errors {
+                Vec::new()
+            } else {
+                validator.validate_row(record, line)
+            }
+        })
+        .map_err(GtfsInputError::Csv)?;
+
+    if !has_header_errors {
+        for notice in row_notices {
+            notices.push(notice);
+        }
+    }
+    for error in errors {
+        if !skip_csv_parse_error(&table, &error) {
+            notices.push_csv_error(&error);
+        }
+    }
+    Ok(table)
+}
+
 fn strip_utf8_bom(data: &[u8]) -> &[u8] {
     if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
         &data[3..]
@@ -1084,9 +1116,8 @@ impl<R: Read> Read for CappedReader<'_, R> {
 /// index. Mirrors the matching used by [`GtfsInputReader::read_from_zip`]: an
 /// exact name match wins, otherwise a case-insensitive match (preferring the
 /// lexicographically smallest name). Nested members are ignored.
-#[cfg(feature = "parallel")]
-fn locate_zip_member(
-    archive: &mut ZipArchive<File>,
+fn locate_zip_member<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
     file_name: &str,
 ) -> Result<Option<usize>, GtfsInputError> {
     let target = file_name.to_ascii_lowercase();
@@ -1409,6 +1440,90 @@ impl GtfsBytesReader {
         Ok(buffer)
     }
 
+    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
+    fn read_optional_csv_streaming_with_notices<T: DeserializeOwned>(
+        &self,
+        file_name: &str,
+        notices: &mut NoticeContainer,
+    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
+        // Read just the header first to configure validation. Reopening the ZIP
+        // member below costs one tiny inflate but avoids materializing the full
+        // uncompressed CSV in WASM memory.
+        let cursor = Cursor::new(&self.data);
+        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
+            path: PathBuf::from("<memory>"),
+            source: err,
+        })?;
+        let Some(index) = locate_zip_member(&mut archive, file_name)? else {
+            return Ok(None);
+        };
+        let zipped = archive
+            .by_index(index)
+            .map_err(|err| GtfsInputError::ZipFile {
+                file: file_name.to_string(),
+                source: err,
+            })?;
+        if zipped.size() == 0 {
+            notices.push_empty_table(file_name);
+            return Ok(Some(CsvTable::default()));
+        }
+        let mut header_reader = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .flexible(true)
+            .trim(csv::Trim::Headers)
+            .from_reader(zipped);
+        let headers_record = header_reader
+            .headers()
+            .map_err(|err| {
+                GtfsInputError::Csv(crate::csv_reader::map_csv_error(file_name, None, err))
+            })?
+            .clone();
+        let headers: Vec<String> = headers_record.iter().map(str::to_string).collect();
+
+        let mut header_notices = NoticeContainer::new();
+        validate_headers(file_name, &headers, &mut header_notices);
+        let has_header_errors = header_notices
+            .iter()
+            .any(|notice| notice.severity == NoticeSeverity::Error);
+        notices.merge(header_notices);
+        let validator = RowValidator::new(file_name, headers);
+        drop(header_reader);
+        drop(archive);
+
+        let cursor = Cursor::new(&self.data);
+        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
+            path: PathBuf::from("<memory>"),
+            source: err,
+        })?;
+        let zipped = archive
+            .by_index(index)
+            .map_err(|err| GtfsInputError::ZipFile {
+                file: file_name.to_string(),
+                source: err,
+            })?;
+        let (table, errors, row_notices) =
+            read_csv_from_reader_with_validation(zipped, file_name, |record, line| {
+                if has_header_errors {
+                    Vec::new()
+                } else {
+                    validator.validate_row(record, line)
+                }
+            })
+            .map_err(GtfsInputError::Csv)?;
+
+        if !has_header_errors {
+            for notice in row_notices {
+                notices.push(notice);
+            }
+        }
+        for error in errors {
+            if !skip_csv_parse_error(&table, &error) {
+                notices.push_csv_error(&error);
+            }
+        }
+        Ok(Some(table))
+    }
+
     pub fn read_csv<T: DeserializeOwned>(
         &self,
         file_name: &str,
@@ -1418,7 +1533,7 @@ impl GtfsBytesReader {
         read_csv_from_reader(data_str.as_bytes(), file_name).map_err(GtfsInputError::Csv)
     }
 
-    #[cfg(feature = "parallel")]
+    #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
     pub fn read_csv_with_notices<T: DeserializeOwned + Send>(
         &self,
         file_name: &str,
@@ -1470,26 +1585,15 @@ impl GtfsBytesReader {
         Ok(table)
     }
 
-    #[cfg(not(feature = "parallel"))]
+    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
     pub fn read_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,
         notices: &mut NoticeContainer,
         _pool: &crate::StringPool,
     ) -> Result<CsvTable<T>, GtfsInputError> {
-        let data = self.read_file(file_name)?;
-        let data_str = decode_utf8_lossy(&data);
-        let data_bytes = data_str.as_bytes();
-        validate_csv_data(file_name, data_bytes, notices);
-        let (table, errors) =
-            read_csv_from_reader_with_errors(data_bytes, file_name).map_err(GtfsInputError::Csv)?;
-        for error in errors {
-            if skip_csv_parse_error(&table, &error) {
-                continue;
-            }
-            notices.push_csv_error(&error);
-        }
-        Ok(table)
+        self.read_optional_csv_streaming_with_notices(file_name, notices)?
+            .ok_or_else(|| GtfsInputError::MissingFile(file_name.to_string()))
     }
 
     pub fn read_optional_csv<T: DeserializeOwned>(
@@ -1508,7 +1612,7 @@ impl GtfsBytesReader {
         }
     }
 
-    #[cfg(feature = "parallel")]
+    #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
     pub fn read_optional_csv_with_notices<T: DeserializeOwned + Send>(
         &self,
         file_name: &str,
@@ -1569,31 +1673,14 @@ impl GtfsBytesReader {
         }
     }
 
-    #[cfg(not(feature = "parallel"))]
+    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
     pub fn read_optional_csv_with_notices<T: DeserializeOwned>(
         &self,
         file_name: &str,
         notices: &mut NoticeContainer,
         _pool: &crate::StringPool,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        match self.read_file(file_name) {
-            Ok(data) => {
-                let data_str = decode_utf8_lossy(&data);
-                let data_bytes = data_str.as_bytes();
-                validate_csv_data(file_name, data_bytes, notices);
-                let (table, errors) = read_csv_from_reader_with_errors(data_bytes, file_name)
-                    .map_err(GtfsInputError::Csv)?;
-                for error in errors {
-                    if skip_csv_parse_error(&table, &error) {
-                        continue;
-                    }
-                    notices.push_csv_error(&error);
-                }
-                Ok(Some(table))
-            }
-            Err(GtfsInputError::MissingFile(_)) => Ok(None),
-            Err(err) => Err(err),
-        }
+        self.read_optional_csv_streaming_with_notices(file_name, notices)
     }
 
     pub fn read_json<T: DeserializeOwned>(&self, file_name: &str) -> Result<T, GtfsInputError> {

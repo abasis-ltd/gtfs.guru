@@ -6,6 +6,11 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use std::sync::Arc;
 
+#[cfg(target_arch = "wasm32")]
+type StringPoolHasher = rustc_hash::FxBuildHasher;
+#[cfg(not(target_arch = "wasm32"))]
+type StringPoolHasher = std::collections::hash_map::RandomState;
+
 #[derive(Debug, Clone)]
 pub struct StringPool {
     inner: Arc<StringPoolInner>,
@@ -13,8 +18,8 @@ pub struct StringPool {
 
 #[derive(Debug)]
 struct StringPoolInner {
-    map: DashMap<CompactString, StringId>,
-    resolver: DashMap<u32, CompactString>,
+    map: DashMap<CompactString, StringId, StringPoolHasher>,
+    resolver: DashMap<u32, CompactString, StringPoolHasher>,
     next_id: AtomicU32,
 }
 
@@ -28,8 +33,11 @@ impl StringPool {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(StringPoolInner {
-                map: DashMap::new(),
-                resolver: DashMap::new(),
+                // Browser validation runs entirely on the user's device, so a
+                // fast deterministic hasher is appropriate there. Native web
+                // services retain RandomState's hash-flood resistance.
+                map: DashMap::with_hasher(StringPoolHasher::default()),
+                resolver: DashMap::with_hasher(StringPoolHasher::default()),
                 next_id: AtomicU32::new(1),
             }),
         }
@@ -40,15 +48,15 @@ impl StringPool {
         if trimmed.is_empty() {
             return StringId(0);
         }
-        let s_compact = CompactString::new(trimmed);
-
-        // Fast path: check if already interned
-        if let Some(id) = self.inner.map.get(&s_compact) {
+        // CompactString supports lookup by borrowed str. Avoid constructing and
+        // hashing an owned key for the overwhelmingly common cache-hit path.
+        if let Some(id) = self.inner.map.get(trimmed) {
             return *id;
         }
 
         // Slow path: need to insert
         // Use entry API but handle the case where another thread inserted first
+        let s_compact = CompactString::new(trimmed);
         match self.inner.map.entry(s_compact.clone()) {
             Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
@@ -78,6 +86,7 @@ impl StringPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "parallel")]
     use rayon::prelude::*;
 
     #[test]
@@ -95,6 +104,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "parallel")]
     fn test_string_pool_parallel() {
         let pool = StringPool::new();
         (0..1000).into_par_iter().for_each(|i| {

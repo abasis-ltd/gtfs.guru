@@ -830,21 +830,12 @@ struct NoticeCounts {
 
 impl NoticeCounts {
     fn from_container(container: &NoticeContainer) -> Self {
-        let mut counts = Self {
-            total: 0,
-            errors: 0,
-            warnings: 0,
-            infos: 0,
-        };
-        for notice in container.iter() {
-            counts.total += 1;
-            match notice.severity {
-                NoticeSeverity::Error => counts.errors += 1,
-                NoticeSeverity::Warning => counts.warnings += 1,
-                NoticeSeverity::Info => counts.infos += 1,
-            }
+        Self {
+            total: container.len(),
+            errors: container.count_by_severity(NoticeSeverity::Error),
+            warnings: container.count_by_severity(NoticeSeverity::Warning),
+            infos: container.count_by_severity(NoticeSeverity::Info),
         }
-        counts
     }
 }
 
@@ -879,10 +870,18 @@ impl HtmlSeverity {
             HtmlSeverity::Info => "info",
         }
     }
+
+    fn notice_severity(self) -> NoticeSeverity {
+        match self {
+            HtmlSeverity::Error => NoticeSeverity::Error,
+            HtmlSeverity::Warning => NoticeSeverity::Warning,
+            HtmlSeverity::Info => NoticeSeverity::Info,
+        }
+    }
 }
 
-fn render_notice_groups(out: &mut String, notices: &NoticeContainer) {
-    let grouped = group_notices(notices);
+fn render_notice_groups(out: &mut String, notices_container: &NoticeContainer) {
+    let grouped = group_notices(notices_container);
     for severity in [
         HtmlSeverity::Error,
         HtmlSeverity::Warning,
@@ -890,7 +889,8 @@ fn render_notice_groups(out: &mut String, notices: &NoticeContainer) {
     ] {
         if let Some(code_map) = grouped.get(&severity) {
             for (code, notices) in code_map {
-                render_notice_group(out, severity, code, notices);
+                let total = notices_container.count_for(code, severity.notice_severity());
+                render_notice_group(out, severity, code, notices, total);
             }
         }
     }
@@ -917,6 +917,7 @@ fn render_notice_group(
     severity: HtmlSeverity,
     code: &str,
     notices: &[&ValidationNotice],
+    total: usize,
 ) {
     let fields = notice_fields(notices);
     let description = notices
@@ -936,7 +937,7 @@ fn render_notice_group(
     out.push_str("-badge\">");
     out.push_str(severity.label());
     out.push_str("</span></td>\n                <td style='font-weight: 700;'>");
-    write!(out, "{}", notices.len()).ok();
+    write!(out, "{}", total).ok();
     out.push_str("</td>\n            </tr>\n            <tr class=\"description\">\n                <td colspan=\"3\">\n                    <div class=\"desc-content\">\n                        <h3>");
     push_escaped(out, code);
     out.push_str("</h3>\n                        <p style='font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;'>");
@@ -946,9 +947,9 @@ fn render_notice_group(
     out.push_str("-rule\" target='_blank'>");
     push_escaped(out, code);
     out.push_str("</a>.\n                        </p>\n");
-    if notices.len() > NOTICE_ROW_LIMIT {
+    if total > NOTICE_ROW_LIMIT {
         out.push_str("                         <p>Only the first 50 of ");
-        write!(out, "{}", notices.len()).ok();
+        write!(out, "{}", total).ok();
         out.push_str(" affected records are displayed below.</p>\n");
     }
 
