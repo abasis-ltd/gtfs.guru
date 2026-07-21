@@ -2089,10 +2089,188 @@ const IANA_TIMEZONES: &[&str] = &[
     "Etc/Zulu",
 ];
 
+/// tzdb backward-compatibility link names (e.g. Europe/Nicosia, US/Eastern).
+/// Java's ZoneId accepts these, so the canonical validator does too.
+const IANA_TIMEZONE_LINKS: &[&str] = &[
+    "Africa/Asmera",
+    "Africa/Timbuktu",
+    "America/Argentina/ComodRivadavia",
+    "America/Atka",
+    "America/Buenos_Aires",
+    "America/Catamarca",
+    "America/Coral_Harbour",
+    "America/Cordoba",
+    "America/Coyhaique",
+    "America/Ensenada",
+    "America/Fort_Wayne",
+    "America/Godthab",
+    "America/Indianapolis",
+    "America/Jujuy",
+    "America/Knox_IN",
+    "America/Louisville",
+    "America/Mendoza",
+    "America/Montreal",
+    "America/Pangnirtung",
+    "America/Porto_Acre",
+    "America/Rainy_River",
+    "America/Rosario",
+    "America/Santa_Isabel",
+    "America/Shiprock",
+    "America/Thunder_Bay",
+    "America/Virgin",
+    "Antarctica/South_Pole",
+    "Asia/Ashkhabad",
+    "Asia/Calcutta",
+    "Asia/Chongqing",
+    "Asia/Chungking",
+    "Asia/Dacca",
+    "Asia/Harbin",
+    "Asia/Istanbul",
+    "Asia/Kashgar",
+    "Asia/Katmandu",
+    "Asia/Macao",
+    "Asia/Rangoon",
+    "Asia/Saigon",
+    "Asia/Tel_Aviv",
+    "Asia/Thimbu",
+    "Asia/Ujung_Pandang",
+    "Asia/Ulan_Bator",
+    "Atlantic/Faeroe",
+    "Atlantic/Jan_Mayen",
+    "Australia/ACT",
+    "Australia/Canberra",
+    "Australia/Currie",
+    "Australia/LHI",
+    "Australia/NSW",
+    "Australia/North",
+    "Australia/Queensland",
+    "Australia/South",
+    "Australia/Tasmania",
+    "Australia/Victoria",
+    "Australia/West",
+    "Australia/Yancowinna",
+    "Brazil/Acre",
+    "Brazil/DeNoronha",
+    "Brazil/East",
+    "Brazil/West",
+    "CET",
+    "CST6CDT",
+    "Canada/Atlantic",
+    "Canada/Central",
+    "Canada/Eastern",
+    "Canada/Mountain",
+    "Canada/Newfoundland",
+    "Canada/Pacific",
+    "Canada/Saskatchewan",
+    "Canada/Yukon",
+    "Chile/Continental",
+    "Chile/EasterIsland",
+    "Cuba",
+    "EET",
+    "EST",
+    "EST5EDT",
+    "Egypt",
+    "Eire",
+    "Etc/GMT+1",
+    "Etc/GMT+10",
+    "Etc/GMT+11",
+    "Etc/GMT+12",
+    "Etc/GMT+2",
+    "Etc/GMT+3",
+    "Etc/GMT+4",
+    "Etc/GMT+5",
+    "Etc/GMT+6",
+    "Etc/GMT+7",
+    "Etc/GMT+8",
+    "Etc/GMT+9",
+    "Etc/GMT-1",
+    "Etc/GMT-10",
+    "Etc/GMT-11",
+    "Etc/GMT-12",
+    "Etc/GMT-13",
+    "Etc/GMT-14",
+    "Etc/GMT-2",
+    "Etc/GMT-3",
+    "Etc/GMT-4",
+    "Etc/GMT-5",
+    "Etc/GMT-6",
+    "Etc/GMT-7",
+    "Etc/GMT-8",
+    "Etc/GMT-9",
+    "Etc/Greenwich",
+    "Etc/UCT",
+    "Europe/Belfast",
+    "Europe/Kiev",
+    "Europe/Nicosia",
+    "Europe/Tiraspol",
+    "Europe/Uzhgorod",
+    "Europe/Zaporozhye",
+    "GB",
+    "GB-Eire",
+    "GMT",
+    "GMT+0",
+    "GMT-0",
+    "GMT0",
+    "Greenwich",
+    "HST",
+    "Hongkong",
+    "Iceland",
+    "Iran",
+    "Israel",
+    "Jamaica",
+    "Japan",
+    "Kwajalein",
+    "Libya",
+    "MET",
+    "MST",
+    "MST7MDT",
+    "Mexico/BajaNorte",
+    "Mexico/BajaSur",
+    "Mexico/General",
+    "NZ",
+    "NZ-CHAT",
+    "Navajo",
+    "PRC",
+    "PST8PDT",
+    "Pacific/Enderbury",
+    "Pacific/Johnston",
+    "Pacific/Ponape",
+    "Pacific/Samoa",
+    "Pacific/Truk",
+    "Pacific/Yap",
+    "Poland",
+    "Portugal",
+    "ROC",
+    "ROK",
+    "Singapore",
+    "Turkey",
+    "UCT",
+    "US/Alaska",
+    "US/Aleutian",
+    "US/Arizona",
+    "US/Central",
+    "US/East-Indiana",
+    "US/Eastern",
+    "US/Hawaii",
+    "US/Indiana-Starke",
+    "US/Michigan",
+    "US/Mountain",
+    "US/Pacific",
+    "US/Samoa",
+    "Universal",
+    "W-SU",
+    "WET",
+    "Zulu",
+];
+
 fn valid_timezones() -> &'static HashSet<String> {
     static TIMEZONES: OnceLock<HashSet<String>> = OnceLock::new();
     TIMEZONES.get_or_init(|| {
-        let mut zones: HashSet<String> = IANA_TIMEZONES.iter().map(|s| s.to_string()).collect();
+        let mut zones: HashSet<String> = IANA_TIMEZONES
+            .iter()
+            .chain(IANA_TIMEZONE_LINKS)
+            .map(|s| s.to_string())
+            .collect();
         // Also try to read from filesystem for any additional timezones
         for path in [
             "/usr/share/zoneinfo/zone1970.tab",
@@ -2185,6 +2363,36 @@ fn missing_required_field_notice(
     notice.field = Some(field_name.to_string());
     notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
     notice
+}
+
+#[cfg(test)]
+mod tests_timezones {
+    use super::*;
+
+    #[test]
+    fn accepts_tzdb_link_names() {
+        for zone in [
+            "Europe/Nicosia",
+            "US/Eastern",
+            "Europe/Kiev",
+            "Asia/Calcutta",
+            "America/Buenos_Aires",
+        ] {
+            assert!(is_valid_timezone(zone), "{zone} should be valid");
+        }
+    }
+
+    #[test]
+    fn accepts_canonical_names() {
+        assert!(is_valid_timezone("Asia/Nicosia"));
+        assert!(is_valid_timezone("Europe/Berlin"));
+    }
+
+    #[test]
+    fn rejects_unknown_names() {
+        assert!(!is_valid_timezone("Europe/Atlantis"));
+        assert!(!is_valid_timezone(""));
+    }
 }
 
 #[cfg(test)]
