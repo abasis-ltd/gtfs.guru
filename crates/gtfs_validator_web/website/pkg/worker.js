@@ -9,7 +9,7 @@
  *   worker.onmessage = (e) => console.log(e.data);
  */
 
-import init, { validate_gtfs, version } from './gtfs_validator_wasm.js';
+import init, { validate_gtfs, version } from './gtfs_guru_wasm.js';
 
 let initialized = false;
 
@@ -35,10 +35,14 @@ self.onmessage = async (event) => {
 
     switch (type) {
       case 'validate': {
-        const { zipBytes, countryCode } = payload;
+        const { zipBytes, countryCode, date } = payload;
         const startTime = performance.now();
 
-        const result = validate_gtfs(new Uint8Array(zipBytes), countryCode || null);
+        const result = validate_gtfs(
+          new Uint8Array(zipBytes),
+          countryCode || null,
+          date || null,
+        );
 
         const elapsed = performance.now() - startTime;
 
@@ -47,6 +51,7 @@ self.onmessage = async (event) => {
           type: 'result',
           payload: {
             json: result.json,
+            html: result.html,
             errorCount: result.error_count,
             warningCount: result.warning_count,
             infoCount: result.info_count,

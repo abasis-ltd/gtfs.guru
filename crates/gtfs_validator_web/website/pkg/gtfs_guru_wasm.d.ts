@@ -48,7 +48,7 @@ export function init(): void;
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the file exceeds 50 MB
+ * Throws a JavaScript error if the file exceeds 100 MB
  */
 export function validate_gtfs(zip_bytes: Uint8Array, country_code?: string | null, date?: string | null): ValidationResult;
 

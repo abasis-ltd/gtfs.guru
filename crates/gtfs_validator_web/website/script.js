@@ -1,7 +1,69 @@
-import init, { validate_gtfs } from './pkg/gtfs_guru_wasm.js';
+// Validation runs in a Web Worker (see pkg/worker.js) so the WASM heap lives
+// off the main thread: large feeds no longer freeze the UI, and a hard
+// out-of-memory failure kills only the worker instead of the whole tab.
 
-// Initialize WASM
-init().catch(console.error);
+// Keep this in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
+const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
+let validatorWorker = null;
+let pendingValidation = null; // { id, resolve, reject }
+let nextMsgId = 1;
+
+function getValidatorWorker() {
+    if (validatorWorker) return validatorWorker;
+
+    validatorWorker = new Worker(new URL('./pkg/worker.js', import.meta.url), { type: 'module' });
+
+    validatorWorker.onmessage = (e) => {
+        const { type, id, payload } = e.data || {};
+        if (type === 'ready') return;
+        if (!pendingValidation || id !== pendingValidation.id) return;
+
+        const p = pendingValidation;
+        pendingValidation = null;
+
+        if (type === 'result') {
+            // Shape the payload like the direct-call ValidationResult so the
+            // rest of the UI (report modal, downloads) keeps working unchanged.
+            p.resolve({
+                json: payload.json,
+                html: payload.html,
+                error_count: payload.errorCount,
+                warning_count: payload.warningCount,
+                info_count: payload.infoCount,
+            });
+        } else {
+            p.reject(new Error(typeof payload === 'string' ? payload : 'Validation failed'));
+        }
+    };
+
+    validatorWorker.onerror = (e) => {
+        // A worker-level error usually means the WASM ran out of memory on a
+        // very large feed and the worker died. Reject the in-flight run and
+        // drop the worker so the next attempt starts a fresh one.
+        const p = pendingValidation;
+        pendingValidation = null;
+        try { validatorWorker.terminate(); } catch (_) { /* ignore */ }
+        validatorWorker = null;
+        if (p) p.reject(new Error('__OOM__'));
+        if (e && e.preventDefault) e.preventDefault();
+    };
+
+    return validatorWorker;
+}
+
+function validateInWorker(arrayBuffer, dateStr) {
+    return new Promise((resolve, reject) => {
+        const worker = getValidatorWorker();
+        const id = nextMsgId++;
+        pendingValidation = { id, resolve, reject };
+        // Transfer (not copy) the ArrayBuffer — feeds can be up to 100 MB.
+        worker.postMessage(
+            { type: 'validate', id, payload: { zipBytes: arrayBuffer, date: dateStr } },
+            [arrayBuffer],
+        );
+    });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // Enable fade-up animations by removing the no-js class
@@ -254,6 +316,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            showTooLarge(file.size);
+            return;
+        }
+
         lastFileName = file.name.replace('.zip', '');
 
         // Show processing
@@ -266,8 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const arrayBuffer = await file.arrayBuffer();
-            const bytes = new Uint8Array(arrayBuffer);
-            await runValidation(bytes);
+            await runValidation(arrayBuffer);
         } catch (err) {
             console.error("File reading error:", err);
             processingState.classList.add('hidden');
@@ -306,7 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 arrayBuffer = await tryFetch(proxyUrl);
             }
 
-            const bytes = new Uint8Array(arrayBuffer);
+            if (arrayBuffer.byteLength > MAX_FILE_SIZE_BYTES) {
+                showTooLarge(arrayBuffer.byteLength);
+                return;
+            }
 
             // Try to extract filename from URL
             try {
@@ -322,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastFileName = 'remote_feed';
             }
 
-            await runValidation(bytes);
+            await runValidation(arrayBuffer);
 
         } catch (err) {
             console.error("URL fetch error:", err);
@@ -335,44 +404,53 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         }
     }
 
-    async function runValidation(bytes) {
-        // Run WASM validation (give UI a moment to update)
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                try {
-                    const dateStr = new Date().toISOString().split('T')[0];
-                    const result = validate_gtfs(bytes, null, dateStr);
-                    lastValidationResult = result;
-                    showResults(result);
-                    resolve();
-                } catch (err) {
-                    console.error("Validation error:", err);
-                    let msg = "Error processing file. See console for details.";
-                    if (typeof err === 'string') {
-                        msg = err;
-                    } else if (err && err.message) {
-                        msg = err.message;
-                    }
+    // Show a message in the inline error banner and return to the upload state.
+    function showValidationError(msg) {
+        const errorContainer = document.getElementById('error-container');
+        const errorMessage = document.getElementById('error-message');
+        if (errorContainer && errorMessage) {
+            errorMessage.textContent = msg;
+            errorContainer.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            alert(msg);
+        }
+        processingState.classList.add('hidden');
+        uploadState.classList.remove('hidden');
+        urlInputContainer.classList.remove('hidden');
+    }
 
-                    // Show error in UI
-                    const errorContainer = document.getElementById('error-container');
-                    const errorMessage = document.getElementById('error-message');
+    function showTooLarge(sizeBytes) {
+        const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
+        showValidationError(
+            `This feed is ${sizeMb} MB. In-browser validation is capped at 100 MB. ` +
+            `For larger feeds use the free desktop app or CLI (see the Download section) — they handle any size.`
+        );
+    }
 
-                    if (errorContainer && errorMessage) {
-                        errorMessage.textContent = msg;
-                        errorContainer.classList.remove('hidden');
-                        if (typeof lucide !== 'undefined') lucide.createIcons();
-                    } else {
-                        alert(msg);
-                    }
-
-                    processingState.classList.add('hidden');
-                    uploadState.classList.remove('hidden');
-                    urlInputContainer.classList.remove('hidden');
-                    resolve();
-                }
-            }, 100);
-        });
+    async function runValidation(arrayBuffer) {
+        const dateStr = new Date().toISOString().split('T')[0];
+        try {
+            const result = await validateInWorker(arrayBuffer, dateStr);
+            lastValidationResult = result;
+            showResults(result);
+        } catch (err) {
+            console.error("Validation error:", err);
+            if (err && err.message === '__OOM__') {
+                showValidationError(
+                    "This feed was too large to validate in the browser on this device. " +
+                    "Try a Chrome/Firefox-based desktop browser, or use the free desktop app or CLI for large feeds."
+                );
+                return;
+            }
+            let msg = "Error processing file. See console for details.";
+            if (typeof err === 'string') {
+                msg = err;
+            } else if (err && err.message) {
+                msg = err.message;
+            }
+            showValidationError(msg);
+        }
     }
 
     // Close error button
