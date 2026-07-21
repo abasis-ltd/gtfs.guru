@@ -529,7 +529,7 @@
       <h2>File Too Large for Browser</h2>
       <p>
         Your GTFS file is <span class="file-size" id="modalFileSize">0</span> MB,
-        which exceeds the <strong>50 MB limit</strong> for browser-based validation.
+        which exceeds the <strong>100 MB limit</strong> for browser-based validation.
       </p>
       <p>
         WebAssembly (WASM) has memory constraints that limit the size of files
@@ -551,10 +551,10 @@
     // Import WASM module - adjust path as needed
     import init, { validate_gtfs, version } from '../pkg/gtfs_guru_wasm.js';
 
-    // Maximum file size for WASM validation (50 MB)
-    // Larger files may cause memory issues in the browser.
+    // Maximum file size for WASM validation (100 MB)
+    // Larger files may exceed the wasm32 memory ceiling in the browser.
     // Desktop app has no such limitations.
-    const MAX_FILE_SIZE_MB = 50;
+    const MAX_FILE_SIZE_MB = 100;
     const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
     let wasmReady = false;

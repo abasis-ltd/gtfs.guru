@@ -168,7 +168,7 @@
                         <div class="processing-state hidden" id="processing-state">
                             <div class="spinner"></div>
                             <p>Validating locally (WASM)...</p>
-                            <p class="sub-text">Larger feeds may take a moment</p>
+                            <p class="sub-text">Large feeds (50&nbsp;MB+) can take a minute or two</p>
                         </div>
 
                         <div class="result-state hidden" id="result-state">
@@ -412,9 +412,9 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                         <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is there a file size limit?
                         </h3>
                         <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
-                            The browser validator handles most feeds, but very large files (over 50MB) can hit browser
-                            memory limits. For those feeds, we recommend our desktop app or CLI tools—they can handle
-                            any size without breaking a sweat.
+                            The browser validator handles feeds up to 100&nbsp;MB (zipped) directly in your browser.
+                            Larger files can hit browser memory limits, so for those we recommend our desktop app or
+                            CLI tools—they handle any size without breaking a sweat.
                         </p>
                     </div>
                 </div>

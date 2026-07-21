@@ -73,9 +73,15 @@ impl ValidationResult {
     }
 }
 
-/// Maximum file size for WASM validation (50 MB)
-/// Larger files may cause memory issues in the browser.
-const MAX_FILE_SIZE_BYTES: usize = 50 * 1024 * 1024;
+/// Maximum ZIP size accepted for in-browser (wasm32) validation.
+///
+/// The real ceiling is the wasm32 linear-memory limit (~4 GB), not the ZIP
+/// size. Measured peak memory is ~20-30x the ZIP size, so a 100 MB archive
+/// peaks around 2-2.5 GB — comfortably within reach on 64-bit desktop
+/// browsers. Beyond this we bail out with a clear message pointing at the
+/// desktop app / CLI (and, later, a wasm64 build) rather than risk an OOM
+/// that takes down the tab.
+const MAX_FILE_SIZE_BYTES: usize = 100 * 1024 * 1024;
 
 /// Validate a GTFS ZIP file from bytes
 ///
@@ -88,7 +94,7 @@ const MAX_FILE_SIZE_BYTES: usize = 50 * 1024 * 1024;
 /// A ValidationResult containing the JSON report and summary counts
 ///
 /// # Errors
-/// Throws a JavaScript error if the file exceeds 50 MB
+/// Throws a JavaScript error if the file exceeds 100 MB
 #[wasm_bindgen]
 pub fn validate_gtfs(
     zip_bytes: &[u8],
@@ -99,8 +105,8 @@ pub fn validate_gtfs(
     if zip_bytes.len() > MAX_FILE_SIZE_BYTES {
         let size_mb = zip_bytes.len() as f64 / (1024.0 * 1024.0);
         return Err(JsValue::from_str(&format!(
-            "File too large ({:.1} MB). Maximum size for browser validation is 50 MB. \
-             Please download the desktop application for larger feeds.",
+            "File too large ({:.1} MB). Maximum size for browser validation is 100 MB. \
+             Please download the desktop application or CLI for larger feeds.",
             size_mb
         )));
     }

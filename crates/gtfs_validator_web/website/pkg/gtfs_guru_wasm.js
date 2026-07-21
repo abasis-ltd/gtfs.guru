@@ -215,7 +215,7 @@ export function init() {
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the file exceeds 50 MB
+ * Throws a JavaScript error if the file exceeds 100 MB
  * @param {Uint8Array} zip_bytes
  * @param {string | null} [country_code]
  * @param {string | null} [date]
