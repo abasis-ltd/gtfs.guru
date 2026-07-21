@@ -168,6 +168,7 @@ mod tests {
                 agency_phone: None,
                 agency_fare_url: None,
                 agency_email: None,
+                cemv_support: None,
             }],
             row_numbers: Vec::new(),
         };

@@ -109,8 +109,11 @@ fn generate_complex_feed(
                 shape_id: Some(shape_id),
                 wheelchair_accessible: None,
                 bikes_allowed: None,
+                cars_allowed: None,
                 continuous_pickup: None,
                 continuous_drop_off: None,
+                safe_duration_factor: None,
+                safe_duration_offset: None,
             });
 
             // Add stop times for stops on this shape

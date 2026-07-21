@@ -53,9 +53,10 @@ pub use string_pool::StringPool;
 pub use table_status::TableStatus;
 pub use timing::{TimingCategory, TimingCollector, TimingRecord, TimingSummary};
 pub use validation_context::{
-    google_rules_enabled, set_google_rules_enabled, set_thorough_mode_enabled,
-    set_validation_country_code, set_validation_date, thorough_mode_enabled,
-    validation_country_code, validation_date, ThoroughModeGuard, ValidationContextState,
-    ValidationCountryCodeGuard, ValidationDateGuard, ValidationGoogleRulesGuard,
+    google_rules_enabled, performance_logs_enabled, set_google_rules_enabled,
+    set_performance_logs_enabled, set_thorough_mode_enabled, set_validation_country_code,
+    set_validation_date, thorough_mode_enabled, validation_country_code, validation_date,
+    ThoroughModeGuard, ValidationContextState, ValidationCountryCodeGuard, ValidationDateGuard,
+    ValidationGoogleRulesGuard,
 };
 pub use validator::{Validator, ValidatorRunner};

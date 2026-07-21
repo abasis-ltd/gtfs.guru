@@ -223,7 +223,7 @@ impl ValidatorRunner {
         #[cfg(target_arch = "wasm32")]
         let elapsed = std::time::Duration::from_secs(0);
 
-        if elapsed.as_millis() > 500 {
+        if elapsed.as_millis() > 500 && crate::performance_logs_enabled() {
             eprintln!("[PERF] Validator {} took: {:?}", validator.name(), elapsed);
         }
 

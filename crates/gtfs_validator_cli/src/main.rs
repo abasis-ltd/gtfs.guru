@@ -34,8 +34,18 @@ struct Args {
     #[arg(short = 's', long = "storage_directory", alias = "storage-directory")]
     storage_directory: Option<PathBuf>,
 
-    #[arg(short = 'o', long = "output_base", alias = "output")]
-    output: PathBuf,
+    #[arg(
+        short = 'o',
+        long = "output_base",
+        alias = "output",
+        required_unless_present = "stdout",
+        conflicts_with = "stdout"
+    )]
+    output: Option<PathBuf>,
+
+    /// Output the JSON validation report to stdout instead of writing report files.
+    #[arg(long = "stdout")]
+    stdout: bool,
 
     #[arg(short = 'c', long = "country_code", alias = "country-code")]
     country_code: Option<String>,
@@ -113,8 +123,18 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_target(false).init();
     let args = Args::parse();
+    if args.stdout {
+        gtfs_guru_core::set_performance_logs_enabled(false);
+    }
+    if args.stdout {
+        tracing_subscriber::fmt()
+            .with_target(false)
+            .with_max_level(tracing::Level::ERROR)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_target(false).init();
+    }
 
     if args.export_notices_schema {
         export_notice_schema(&args)?;
@@ -169,6 +189,7 @@ fn main() -> anyhow::Result<()> {
         } else {
             None
         },
+        args.stdout,
     );
     record_memory_usage(
         &mut memory_usage_records,
@@ -182,16 +203,21 @@ fn main() -> anyhow::Result<()> {
         (outcome.notices, NoticeContainer::new())
     };
 
-    std::fs::create_dir_all(&args.output)
-        .with_context(|| format!("create output dir {}", args.output.display()))?;
+    let output = args.output.as_deref();
+    if let Some(output) = output {
+        std::fs::create_dir_all(output)
+            .with_context(|| format!("create output dir {}", output.display()))?;
+    }
 
     let mut summary_context = ReportSummaryContext::new()
         .with_gtfs_input(input.path())
-        .with_output_directory(&args.output)
         .with_validation_time_seconds(elapsed.as_secs_f64())
         .with_validator_version(env!("CARGO_PKG_VERSION"))
         .with_memory_usage_records(memory_usage_records)
         .with_threads(args.threads);
+    if let Some(output) = output {
+        summary_context = summary_context.with_output_directory(output);
+    }
     if let Some(gtfs_input_uri) = resolved.gtfs_input_uri.as_deref() {
         summary_context = summary_context.with_gtfs_input_uri(gtfs_input_uri);
     }
@@ -229,21 +255,39 @@ fn main() -> anyhow::Result<()> {
         .system_errors_report_name
         .clone()
         .unwrap_or_else(|| "system_errors.json".to_string());
+    let stdout_report_container = if outcome.feed.is_some() {
+        &validation_notices
+    } else {
+        &system_errors
+    };
+    if args.stdout {
+        let report =
+            ValidationReport::from_container_with_summary(stdout_report_container, summary);
+        let json = if args.pretty {
+            serde_json::to_string_pretty(&report)
+        } else {
+            serde_json::to_string(&report)
+        }
+        .context("serialize report")?;
+        println!("{json}");
+        return Ok(());
+    }
+    let output = output.expect("clap requires --output_base unless --stdout is used");
     let html_context = HtmlReportContext::from_summary(&summary, resolved.gtfs_source_label);
     write_html_report(
-        args.output.join(&html_report_name),
+        output.join(&html_report_name),
         &validation_notices,
         &summary,
         html_context,
     )?;
     let report = ValidationReport::from_container_with_summary(&validation_notices, summary);
-    report.write_json_with_format(args.output.join(&validation_report_name), args.pretty)?;
+    report.write_json_with_format(output.join(&validation_report_name), args.pretty)?;
     ValidationReport::from_container(&system_errors)
-        .write_json_with_format(args.output.join(&system_errors_report_name), args.pretty)?;
+        .write_json_with_format(output.join(&system_errors_report_name), args.pretty)?;
 
     // Generate SARIF report if requested
     if let Some(sarif_name) = &args.sarif {
-        let sarif_path = args.output.join(sarif_name);
+        let sarif_path = output.join(sarif_name);
         let sarif_report = SarifReport::from_notices(&validation_notices);
         sarif_report.write(&sarif_path)?;
         info!("SARIF report written to {}", sarif_path.display());
@@ -407,8 +451,12 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> any
 }
 
 fn export_notice_schema(args: &Args) -> anyhow::Result<()> {
-    std::fs::create_dir_all(&args.output)
-        .with_context(|| format!("create output dir {}", args.output.display()))?;
+    let output = args
+        .output
+        .as_deref()
+        .context("--export_notices_schema requires --output_base")?;
+    std::fs::create_dir_all(output)
+        .with_context(|| format!("create output dir {}", output.display()))?;
     let schema = build_notice_schema_map();
     let json = if args.pretty {
         serde_json::to_string_pretty(&schema)
@@ -416,7 +464,7 @@ fn export_notice_schema(args: &Args) -> anyhow::Result<()> {
         serde_json::to_string(&schema)
     }
     .context("serialize notice schema")?;
-    let path = args.output.join("notice_schema.json");
+    let path = output.join("notice_schema.json");
     std::fs::write(&path, format!("{}\n", json))
         .with_context(|| format!("write {}", path.display()))?;
     Ok(())
@@ -542,10 +590,14 @@ struct IndicatifHandler {
 }
 
 impl IndicatifHandler {
-    fn new() -> Self {
+    fn new(hidden: bool) -> Self {
         let multi = MultiProgress::new();
 
-        let loading_pb = multi.add(ProgressBar::new(0));
+        let loading_pb = if hidden {
+            ProgressBar::hidden()
+        } else {
+            multi.add(ProgressBar::new(0))
+        };
         loading_pb.set_style(
             ProgressStyle::with_template(
                 "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {percent}% {msg}",
@@ -555,7 +607,11 @@ impl IndicatifHandler {
         );
         loading_pb.set_message("Waiting to load files...");
 
-        let validation_pb = multi.add(ProgressBar::new(0));
+        let validation_pb = if hidden {
+            ProgressBar::hidden()
+        } else {
+            multi.add(ProgressBar::new(0))
+        };
         validation_pb.set_style(
             ProgressStyle::with_template(
                 "{spinner:.green} [{elapsed_precise}] {bar:40.magenta/magenta} {percent}% {msg}",
@@ -612,6 +668,7 @@ fn validate_with_metrics(
     memory_usage_records: &mut Vec<MemoryUsageRecord>,
     last_used_bytes: &mut Option<u64>,
     timing: Option<&gtfs_guru_core::TimingCollector>,
+    quiet: bool,
 ) -> gtfs_guru_core::ValidationOutcome {
     let mut notices = NoticeContainer::new();
 
@@ -621,7 +678,7 @@ fn validate_with_metrics(
         }
     }
 
-    let progress_handler = Arc::new(IndicatifHandler::new());
+    let progress_handler = Arc::new(IndicatifHandler::new(quiet));
 
     let load_start = std::time::Instant::now();
     let handler_clone = progress_handler.clone();
@@ -637,7 +694,9 @@ fn validate_with_metrics(
         .loading_pb
         .finish_with_message("Loading complete");
     let load_elapsed = load_start.elapsed();
-    eprintln!("[PERF] Feed loading took: {:?}", load_elapsed);
+    if !quiet {
+        eprintln!("[PERF] Feed loading took: {:?}", load_elapsed);
+    }
 
     // Record loading time in timing collector
     if let Some(t) = timing {
@@ -667,7 +726,9 @@ fn validate_with_metrics(
             progress_handler
                 .validation_pb
                 .finish_with_message("Validation complete");
-            eprintln!("[PERF] Validation took: {:?}", validate_start.elapsed());
+            if !quiet {
+                eprintln!("[PERF] Validation took: {:?}", validate_start.elapsed());
+            }
             record_memory_usage(
                 memory_usage_records,
                 last_used_bytes,

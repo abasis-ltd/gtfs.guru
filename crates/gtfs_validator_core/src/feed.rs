@@ -453,7 +453,7 @@ impl GtfsFeed {
                 };
 
                 // Output per-file timing if GTFS_PERF_DEBUG is set
-                if std::env::var("GTFS_PERF_DEBUG").is_ok() {
+                if std::env::var("GTFS_PERF_DEBUG").is_ok() && crate::performance_logs_enabled() {
                     let elapsed = start.elapsed();
                     let row_count = result
                         .as_ref()

@@ -862,6 +862,38 @@ fn build_gtfs_features(feed: &GtfsFeed) -> Vec<String> {
         &mut ordered,
         &mut index,
     );
+    add(
+        "Contactless EMV Support",
+        feed.agency.rows.iter().any(|agency| {
+            agency
+                .cemv_support
+                .is_some_and(|value| value != gtfs_guru_model::ContactlessEmvSupport::Other)
+        }) || feed.routes.rows.iter().any(|route| {
+            route
+                .cemv_support
+                .is_some_and(|value| value != gtfs_guru_model::ContactlessEmvSupport::Other)
+        }),
+        &mut ordered,
+        &mut index,
+    );
+    add(
+        "Cars Allowed",
+        feed.trips.rows.iter().any(|trip| {
+            trip.cars_allowed
+                .is_some_and(|value| value != gtfs_guru_model::CarsAllowed::Other)
+        }),
+        &mut ordered,
+        &mut index,
+    );
+    add(
+        "Stop Access",
+        feed.stops.rows.iter().any(|stop| {
+            stop.stop_access
+                .is_some_and(|value| value != gtfs_guru_model::StopAccess::Other)
+        }),
+        &mut ordered,
+        &mut index,
+    );
 
     add(
         "Route Colors",
@@ -1594,5 +1626,27 @@ mod tests {
         let (start, end) = compute_service_window(&feed);
         assert_eq!(start, NaiveDate::from_ymd_opt(2026, 6, 1));
         assert_eq!(end, NaiveDate::from_ymd_opt(2026, 6, 7));
+    }
+
+    #[test]
+    fn reports_v8_gtfs_features() {
+        let mut feed = GtfsFeed::default();
+        feed.agency.rows.push(gtfs_guru_model::Agency {
+            cemv_support: Some(gtfs_guru_model::ContactlessEmvSupport::Supported),
+            ..Default::default()
+        });
+        feed.trips.rows.push(gtfs_guru_model::Trip {
+            cars_allowed: Some(gtfs_guru_model::CarsAllowed::Allowed),
+            ..Default::default()
+        });
+        feed.stops.rows.push(gtfs_guru_model::Stop {
+            stop_access: Some(gtfs_guru_model::StopAccess::AccessibleViaPathways),
+            ..Default::default()
+        });
+
+        let features = build_gtfs_features(&feed);
+        assert!(features.contains(&"Contactless EMV Support".to_string()));
+        assert!(features.contains(&"Cars Allowed".to_string()));
+        assert!(features.contains(&"Stop Access".to_string()));
     }
 }

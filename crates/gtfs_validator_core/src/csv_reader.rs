@@ -515,6 +515,43 @@ mod tests {
         assert_eq!(table.rows.len(), 1);
         assert_eq!(table.rows[0].a, 9);
     }
+
+    #[test]
+    fn deserializes_v8_fields() {
+        let agencies = read_csv_from_reader::<gtfs_guru_model::Agency, _>(
+            b"agency_name,agency_url,agency_timezone,cemv_support\nA,https://example.com,UTC,1\n"
+                .as_slice(),
+            "agency.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            agencies.rows[0].cemv_support,
+            Some(gtfs_guru_model::ContactlessEmvSupport::Supported)
+        );
+
+        let trips = read_csv_from_reader::<gtfs_guru_model::Trip, _>(
+            b"route_id,service_id,trip_id,cars_allowed,safe_duration_factor,safe_duration_offset\nR,S,T,2,1.5,30\n"
+                .as_slice(),
+            "trips.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            trips.rows[0].cars_allowed,
+            Some(gtfs_guru_model::CarsAllowed::NotAllowed)
+        );
+        assert_eq!(trips.rows[0].safe_duration_factor, Some(1.5));
+        assert_eq!(trips.rows[0].safe_duration_offset, Some(30.0));
+
+        let stops = read_csv_from_reader::<gtfs_guru_model::Stop, _>(
+            b"stop_id,stop_access\nS,0\n".as_slice(),
+            "stops.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            stops.rows[0].stop_access,
+            Some(gtfs_guru_model::StopAccess::AccessibleViaPathways)
+        );
+    }
     #[test]
     #[cfg(feature = "parallel")]
     fn reads_headers_and_rows_parallel() {

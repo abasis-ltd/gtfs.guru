@@ -2,7 +2,7 @@ use crate::feed::AGENCY_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::StringId;
 
-const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
+const CODE_MISSING_REQUIRED_AGENCY_ID: &str = "missing_required_agency_id";
 const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
 const CODE_INCONSISTENT_AGENCY_TIMEZONE: &str = "inconsistent_agency_timezone";
 const CODE_INCONSISTENT_AGENCY_LANG: &str = "inconsistent_agency_lang";
@@ -42,15 +42,18 @@ impl Validator for AgencyConsistencyValidator {
         for (index, agency) in feed.agency.rows.iter().enumerate() {
             if !has_value(agency.agency_id) {
                 let mut notice = ValidationNotice::new(
-                    CODE_MISSING_REQUIRED_FIELD,
+                    CODE_MISSING_REQUIRED_AGENCY_ID,
                     NoticeSeverity::Error,
                     "agency_id is required when multiple agencies exist",
                 );
                 notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
-                notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", AGENCY_FILE);
-                notice.field_order =
-                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
+                notice.insert_context_field("agencyName", agency.agency_name.as_str());
+                notice.field_order = vec![
+                    "filename".into(),
+                    "csvRowNumber".into(),
+                    "agencyName".into(),
+                ];
                 notices.push(notice);
             }
         }
@@ -143,6 +146,7 @@ mod tests {
             agency_phone: None,
             agency_fare_url: None,
             agency_email: None,
+            cemv_support: None,
         });
         feed.agency.rows[0].agency_id = None;
 
@@ -152,7 +156,7 @@ mod tests {
         assert_eq!(notices.len(), 2);
         assert!(notices
             .iter()
-            .all(|notice| notice.code == CODE_MISSING_REQUIRED_FIELD));
+            .all(|notice| notice.code == CODE_MISSING_REQUIRED_AGENCY_ID));
     }
 
     #[test]
@@ -167,6 +171,7 @@ mod tests {
             agency_phone: None,
             agency_fare_url: None,
             agency_email: None,
+            cemv_support: None,
         });
 
         let mut notices = NoticeContainer::new();
@@ -190,6 +195,7 @@ mod tests {
             agency_phone: None,
             agency_fare_url: None,
             agency_email: None,
+            cemv_support: None,
         });
 
         let mut notices = NoticeContainer::new();
@@ -213,6 +219,7 @@ mod tests {
                 agency_phone: None,
                 agency_fare_url: None,
                 agency_email: None,
+                cemv_support: None,
             }],
             row_numbers: Vec::new(),
         };

@@ -180,6 +180,7 @@ Optional outputs:
 * `-u, --url <URL>`: Validate a remote GTFS zip.
 * `-s, --storage_directory <DIR>`: Save downloaded feeds when using `--url`.
 * `-o, --output_base <DIR>`: Directory to save reports.
+* `--stdout`: Write only the JSON validation report to stdout instead of report files.
 * `--skip_validator_update`: Skip the online validator update check.
 * `--threads <N>`: Thread count recorded in the generated report.
 * `--google-rules`: Enable Google-specific rules.

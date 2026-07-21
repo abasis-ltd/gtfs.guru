@@ -19,7 +19,8 @@ gtfs-guru --url https://example.com/gtfs.zip --output_base ./report
 |--------|-------|-------------|
 | `--input <PATH>` | `-i` | Path to GTFS zip file or directory |
 | `--url <URL>` | `-u` | URL to download GTFS feed |
-| `--output_base <DIR>` | `-o` | Output directory for reports (required) |
+| `--output_base <DIR>` | `-o` | Output directory for reports (required unless `--stdout`) |
+| `--stdout` | | Write only the JSON validation report to stdout |
 | `--country_code <CODE>` | `-c` | ISO country code (e.g., US, RU, DE) |
 | `--date <DATE>` | `-d` | Validation date (YYYY-MM-DD) |
 | `--pretty` | `-p` | Format JSON output |

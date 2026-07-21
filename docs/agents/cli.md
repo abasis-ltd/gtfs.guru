@@ -12,7 +12,8 @@
 
 ## Outputs
 
-- `--output /path/to/output` is required.
+- `--output_base /path/to/output` is required unless `--stdout` is used.
+- `--stdout` writes only the JSON validation report to standard output.
 - Default outputs include `report.json`, `report.html`, and `system_errors.json`.
 - `--sarif report.sarif.json` adds SARIF output for CI tooling.
 - `--export-notices-schema` writes `notice_schema.json` into the output directory.
@@ -33,6 +34,9 @@
 ```bash
 # Local file
 ./target/release/gtfs-guru -i feeds/nl.zip -o out
+
+# Machine-readable JSON without creating report files
+./target/release/gtfs-guru -i feeds/nl.zip --stdout | jq '.summary'
 
 # URL input with cached download
 ./target/release/gtfs-guru -u https://example.com/gtfs.zip -s /tmp/gtfs -o out

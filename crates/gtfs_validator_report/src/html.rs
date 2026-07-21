@@ -806,6 +806,7 @@ fn feature_group(name: &str) -> Option<&'static str> {
         "Fare Transfers" => Some("Fares"),
         "Time-Based Fares" => Some("Fares"),
         "Rider Categories" => Some("Fares"),
+        "Contactless EMV Support" => Some("Fares"),
         "Booking Rules" => Some("Flexible Services"),
         "Fixed-Stops Demand Responsive Transit" => Some("Flexible Services"),
         "Route-Based Fares" => Some("Fares"),
