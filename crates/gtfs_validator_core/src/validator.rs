@@ -125,9 +125,15 @@ impl ValidatorRunner {
                     p.on_start_validation(validator.name());
                 }
 
+                // `Instant::now()` panics on wasm32 (no monotonic clock), and this
+                // path now runs under the `parallel` feature in the browser too.
+                #[cfg(not(target_arch = "wasm32"))]
                 let start = std::time::Instant::now();
                 let res = self.run_single_validator(validator.as_ref(), feed);
+                #[cfg(not(target_arch = "wasm32"))]
                 let elapsed = start.elapsed();
+                #[cfg(target_arch = "wasm32")]
+                let elapsed = std::time::Duration::from_secs(0);
 
                 if let Some(t) = timing {
                     t.record(

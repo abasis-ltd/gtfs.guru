@@ -1,22 +1,58 @@
-// Validation runs in a Web Worker (see pkg/worker.js) so the WASM heap lives
-// off the main thread: large feeds no longer freeze the UI, and a hard
-// out-of-memory failure kills only the worker instead of the whole tab.
+// Validation runs in a Web Worker so the WASM heap lives off the main thread:
+// large feeds no longer freeze the UI, and a hard out-of-memory failure kills
+// only the worker instead of the whole tab.
 //
-// If the worker script can't be loaded at all (e.g. it is blocked/404/403 by
-// the host), we fall back to validating on the main thread so the tool keeps
-// working — just without the off-thread benefits. OOM mid-validation is a
-// distinct case and is surfaced to the user rather than retried.
+// On cross-origin-isolated pages (COOP: same-origin + COEP: require-corp →
+// SharedArrayBuffer available) we prefer the multithreaded worker
+// (pkg-mt/worker-mt.js), which runs a wasm-bindgen-rayon thread pool to
+// parallelize CSV parsing and the validator run. Otherwise, or if that worker
+// can't be loaded, we fall back to the single-threaded worker (pkg/worker.js),
+// and finally to validating on the main thread so the tool always works — just
+// without the off-thread/parallel benefits. OOM mid-validation is a distinct
+// case and is surfaced to the user rather than retried.
 
 // Keep this in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 
+// Multithreaded (wasm threads) validation: ~5x faster on large feeds. Only
+// engages on cross-origin-isolated pages (COOP/COEP headers set server-side);
+// everything else falls back to the single-threaded worker automatically.
+const MT_ENABLED = true;
+
+// URL override for testing/rollout: ?mt=1 forces the multithreaded tier on,
+// ?mt=0 forces it off, regardless of MT_ENABLED.
+const MT_REQUESTED = (() => {
+    try {
+        const param = new URLSearchParams(location.search).get('mt');
+        if (param === '1') return true;
+        if (param === '0') return false;
+    } catch (_) { /* non-browser context */ }
+    return MT_ENABLED;
+})();
+
+// Ordered worker tiers to try, best first. The multithreaded tier is only
+// offered when enabled AND the page is cross-origin-isolated with
+// SharedArrayBuffer available.
+const WORKER_TIERS = (() => {
+    const tiers = [];
+    if (MT_REQUESTED &&
+        typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated &&
+        typeof SharedArrayBuffer !== 'undefined') {
+        tiers.push({ name: 'mt', url: './pkg-mt/worker-mt.js' });
+    }
+    tiers.push({ name: 'st', url: './pkg/worker.js' });
+    return tiers;
+})();
+let workerTierIndex = 0;        // which tier we're currently using
+
 let validatorWorker = null;
 let workerReadyPromise = null; // resolves once the worker signals 'ready'
-let workerUsable = true;       // set false once we know the worker can't load
+let workerUsable = true;       // set false once all worker tiers are exhausted
 let pendingValidation = null;  // { id, resolve, reject }
 let nextMsgId = 1;
 
-// Lazily import + init the WASM module on the main thread (fallback path only).
+// Lazily import + init the WASM module on the main thread (fallback path only,
+// always the single-threaded module — the main thread has no rayon pool).
 let mainThreadValidatePromise = null;
 function getMainThreadValidate() {
     if (!mainThreadValidatePromise) {
@@ -35,7 +71,8 @@ function getValidatorWorker() {
     workerReadyPromise = new Promise((res, rej) => { resolveReady = res; rejectReady = rej; });
     let becameReady = false;
 
-    const worker = new Worker(new URL('./pkg/worker.js', import.meta.url), { type: 'module' });
+    const tier = WORKER_TIERS[workerTierIndex];
+    const worker = new Worker(new URL(tier.url, import.meta.url), { type: 'module' });
 
     worker.onmessage = (e) => {
         const { type, id, payload } = e.data || {};
@@ -68,9 +105,14 @@ function getValidatorWorker() {
         if (validatorWorker === worker) validatorWorker = null;
 
         if (!becameReady) {
-            // The worker never loaded (blocked script, 403/404, syntax error).
-            // Mark it unusable so future runs skip straight to the main thread.
-            workerUsable = false;
+            // This tier's worker never loaded (blocked script, 403/404, syntax
+            // error, or a missing pkg-mt build). Advance to the next tier; only
+            // when every tier is exhausted do we give up on workers entirely.
+            if (workerTierIndex < WORKER_TIERS.length - 1) {
+                workerTierIndex++;
+            } else {
+                workerUsable = false;
+            }
             rejectReady(new Error('__WORKER_UNAVAILABLE__'));
             if (p) p.reject(new Error('__WORKER_UNAVAILABLE__'));
         } else {
