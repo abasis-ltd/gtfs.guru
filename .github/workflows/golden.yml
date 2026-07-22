@@ -8,6 +8,7 @@ on:
         required: false
         default: "scripts/golden_manifest.ci.tsv"
   push:
+    branches: ["main"]
     paths:
       - "scripts/**"
       - "crates/gtfs_model/**"
