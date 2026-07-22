@@ -2,6 +2,11 @@
 
 Deploy the GTFS Validator web service to Hetzner Cloud in minutes.
 
+> Production `gtfs.guru` is served from this Hetzner stack. A `v*` tag deploys
+> the rebuilt single- and multi-threaded website only after the GitHub Release,
+> crates.io, PyPI, and npm jobs succeed. See `docs/MAINTENANCE.md` for required
+> secrets and the release gate.
+
 ## Prerequisites
 
 - Hetzner Cloud account

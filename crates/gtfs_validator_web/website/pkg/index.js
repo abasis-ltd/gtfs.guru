@@ -4,7 +4,7 @@
  * Provides a Promise-based API for validating GTFS feeds using a Web Worker.
  *
  * Usage:
- *   import { GtfsValidator } from 'gtfs.guru';
+ *   import { GtfsValidator } from '@abasisltd/gtfs-guru-wasm/index.js';
  *
  *   const validator = new GtfsValidator();
  *   const result = await validator.validate(file, { countryCode: 'US' });
@@ -154,4 +154,4 @@ export class GtfsValidator {
 }
 
 // Re-export direct WASM functions for synchronous usage
-export { default as init, validate_gtfs, validate_gtfs_json, version } from './gtfs_validator_wasm.js';
+export { default as init, validate_gtfs, validate_gtfs_json, version } from './gtfs_guru_wasm.js';

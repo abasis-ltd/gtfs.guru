@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-wasm"
-version = "0.9.4"
+version = "1.0.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "GTFS validator compiled to WebAssembly for browser-based validation"
@@ -18,6 +18,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 threads = [
     "dep:wasm-bindgen-rayon",
+    "dep:parking_lot_core",
     "wasm-bindgen-rayon/no-bundler",
     "gtfs-guru-core/parallel",
 ]
@@ -32,15 +33,18 @@ chrono = { workspace = true }
 # Optional: better panic messages in browser console
 console_error_panic_hook = { version = "0.1", optional = true }
 wasm-bindgen-rayon = { version = "1.3", optional = true }
+# DashMap/parking_lot contention inside parallel validators must use the wasm
+# atomic parker. Its fallback parker can panic and strand a Rayon join.
+parking_lot_core = { version = "0.9", features = ["nightly"], optional = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "0.9.4"
+version = "1.0.0"
 default-features = false  # Disable rayon for WASM
 
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
-version = "0.9.4"
+version = "1.0.0"
 default-features = false
 
 [dev-dependencies]

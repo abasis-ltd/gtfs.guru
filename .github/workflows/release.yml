@@ -7,17 +7,31 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v1.0.0)'
-        required: false
+        description: 'Version to validate and build (does not publish without a tag)'
+        required: true
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tag and package versions
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+        run: python3 scripts/check-release-version.py --tag "$RELEASE_VERSION"
+
   build-and-release:
+    needs: validate-release
     strategy:
       fail-fast: false
       matrix:
@@ -226,6 +240,8 @@ jobs:
     needs: build-and-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     
     steps:
       - name: Download all artifacts
@@ -354,7 +370,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-crates:
-    needs: build-and-release
+    needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -380,17 +396,26 @@ jobs:
 
             if [ "$status" -eq 0 ]; then
               echo "$output"
-              sleep 30
-              return 0
-            fi
-
-            if echo "$output" | grep -q "already exists"; then
+            elif echo "$output" | grep -q "already exists"; then
               echo "Skip ${name} ${VERSION} (already published)"
-              return 0
+            else
+              echo "$output"
+              return "$status"
             fi
 
-            echo "$output"
-            return "$status"
+            # Dependent packages cannot be prepared until the exact version is
+            # visible in the crates.io index. Propagation time is variable, so
+            # poll with a bounded timeout instead of sleeping a fixed 30s.
+            for attempt in $(seq 1 20); do
+              if cargo info "${name}@${VERSION}" >/dev/null 2>&1; then
+                echo "${name} ${VERSION} is visible in crates.io"
+                return 0
+              fi
+              echo "Waiting for crates.io index (${attempt}/20)..."
+              sleep 15
+            done
+            echo "Timed out waiting for ${name} ${VERSION} in crates.io" >&2
+            return 1
           }
 
           publish_or_skip gtfs-guru-model
@@ -400,7 +425,7 @@ jobs:
           publish_or_skip gtfs-guru-web
 
   publish-pypi:
-    needs: build-and-release
+    needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -415,7 +440,7 @@ jobs:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
 
   publish-npm:
-    needs: build-and-release
+    needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -427,13 +452,20 @@ jobs:
       - uses: jetli/wasm-pack-action@v0.4.0
       - name: Build Wasm
         run: |
+          set -euo pipefail
           cd crates/gtfs_validator_wasm
-          wasm-pack build --target web --scope abasisltd
+          wasm-pack build --target web --release --out-dir pkg
+          cp js/worker.js js/index.js pkg/
+          cp types/*.d.ts pkg/
+          cp package.json.template pkg/package.json
       - name: Publish to NPM
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           cd crates/gtfs_validator_wasm/pkg
+          test "$(node -p 'require("./package.json").name')" = "@abasisltd/gtfs-guru-wasm"
+          test "$(node -p 'require("./package.json").version')" = "$VERSION"
+          npm pack --dry-run
           if npm view "@abasisltd/gtfs-guru-wasm@${VERSION}" version >/dev/null 2>&1; then
             echo "Skip @abasisltd/gtfs-guru-wasm ${VERSION} (already published)"
           else
@@ -441,3 +473,72 @@ jobs:
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  deploy-website:
+    needs: [publish-crates, publish-pypi, publish-npm]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify deployment configuration
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          for name in HETZNER_HOST HETZNER_KNOWN_HOSTS HETZNER_SSH_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required release secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Install binaryen
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+
+      - name: Build production website assets
+        run: ./scripts/build-wasm.sh
+
+      - name: Synchronize website to Hetzner
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+          HETZNER_PATH: ${{ secrets.HETZNER_PATH }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$HETZNER_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          install -m 600 /dev/null "$RUNNER_TEMP/hetzner_deploy_key"
+          printf '%s\n' "$HETZNER_SSH_KEY" > "$RUNNER_TEMP/hetzner_deploy_key"
+          trap 'rm -f "$RUNNER_TEMP/hetzner_deploy_key"' EXIT
+
+          DEPLOY_USER="${HETZNER_USER:-botuser}"
+          DEPLOY_PATH="${HETZNER_PATH:-gtfs-guru-web/}"
+          rsync -az --delete-delay \
+            -e "ssh -i $RUNNER_TEMP/hetzner_deploy_key -o IdentitiesOnly=yes" \
+            website/ "$DEPLOY_USER@$HETZNER_HOST:$DEPLOY_PATH"
+
+      - name: Verify deployed website version
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          EXPECTED_VERSION="${EXPECTED_VERSION#v}"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            https://gtfs.guru/pkg/package.json > "$RUNNER_TEMP/package.json"
+          DEPLOYED_VERSION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$RUNNER_TEMP/package.json")
+          test "$DEPLOYED_VERSION" = "$EXPECTED_VERSION" || {
+            echo "Website reports $DEPLOYED_VERSION, expected $EXPECTED_VERSION" >&2
+            exit 1
+          }

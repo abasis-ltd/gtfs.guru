@@ -73,17 +73,27 @@ You are safe! Click **"Squash and merge"**.
 
 ## Releasing a New Version
 
-When you want to publish a new version (e.g., to PyPI or Crates.io):
+A release is intentionally gated by a `v*` tag. Merging to `main` or running the
+workflow manually only builds artifacts; it does not publish or deploy anything.
 
-1. Update version numbers in `Cargo.toml`.
-2. Commit and merge to `main`.
-3. Create a GitHub Release:
-    * Go to "Releases" -> "Draft a new release".
-    * Create a tag (e.g., `v0.2.0`).
-    * Click "Publish release".
+1. Update every package version and the Tauri version.
+2. Run `python3 scripts/check-release-version.py --tag vX.Y.Z`.
+3. Run the normal Rust, golden, WASM, and browser checks and merge to `main`.
+4. Only after explicit release approval, push the matching `vX.Y.Z` tag.
 
-The CI/CD pipeline (`.github/workflows/release.yml`) will automatically:
+The tag workflow verifies version consistency before it does any build. It then:
 
-* Build binaries for all platforms.
-* Publish to PyPI.
-* Upload assets to the release page.
+* builds desktop installers and CLI archives for macOS, Linux, and Windows;
+* creates the GitHub Release and updater manifest;
+* publishes the Rust crates, Python wheel, and npm package;
+* rebuilds both WASM tiers and synchronizes the static website to Hetzner;
+* verifies that `https://gtfs.guru/pkg/package.json` reports the tag version.
+
+Required release secrets are `CARGO_REGISTRY_TOKEN`, `PYPI_API_TOKEN`,
+`NPM_TOKEN`, the Tauri/Apple signing secrets, `HETZNER_HOST`,
+`HETZNER_SSH_KEY`, and `HETZNER_KNOWN_HOSTS`. `HETZNER_USER` defaults to
+`botuser`; `HETZNER_PATH` defaults to `gtfs-guru-web/` in that user's home.
+
+The known-hosts value must be provisioned out of band (for example from a
+trusted existing SSH connection). The workflow deliberately does not use
+`ssh-keyscan` at release time.

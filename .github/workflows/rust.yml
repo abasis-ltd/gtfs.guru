@@ -58,44 +58,28 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - uses: jetli/wasm-pack-action@v0.4.0
 
-      - name: Install nightly Rust for WASM threads
-        run: rustup toolchain install nightly-2025-11-15 --profile minimal --target wasm32-unknown-unknown --component rust-src
+      - name: Install binaryen (wasm-opt)
+        run: sudo apt-get update && sudo apt-get install -y binaryen
 
-      - name: Build WASM (web target)
-        run: wasm-pack build crates/gtfs_validator_wasm --target web --release
-
-      - name: Build WASM (multi-threaded web target)
-        env:
-          RUSTFLAGS: -C target-feature=+atomics,+bulk-memory,+simd128 -C link-arg=--shared-memory -C link-arg=--max-memory=4294967296 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base
-        run: |
-          rustup run nightly-2025-11-15 wasm-pack build crates/gtfs_validator_wasm --target web --release --out-dir pkg-mt -- --features threads -Z build-std=panic_abort,std
-          find crates/gtfs_validator_wasm/pkg-mt -name 'workerHelpers.no-bundler.js' -exec perl -pi -e 's/pkg\.default\(data\.module, data\.memory\)/pkg.default({ module_or_path: data.module, memory: data.memory })/' {} \;
-
-      - name: Build WASM (nodejs target)
-        run: wasm-pack build crates/gtfs_validator_wasm --target nodejs --release --out-dir pkg-node
+      - name: Build all WASM packages through the production script
+        run: ./scripts/build-wasm.sh
 
       - name: Run WASM tests
         run: wasm-pack test --node crates/gtfs_validator_wasm
 
-      - name: Install binaryen (wasm-opt)
-        run: |
-          wget https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
-          tar -xzf binaryen-version_117-x86_64-linux.tar.gz
-          echo "$(pwd)/binaryen-version_117/bin" >> $GITHUB_PATH
-          ./binaryen-version_117/bin/wasm-opt --version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Optimize WASM binary
+      - name: Install Chromium for the WASM browser smoke test
         run: |
-          ./binaryen-version_117/bin/wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int -o crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm
-          mv crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm
-          ./binaryen-version_117/bin/wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int --enable-threads --enable-simd -o crates/gtfs_validator_wasm/pkg-mt/gtfs_guru_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg-mt/gtfs_guru_wasm_bg.wasm
-          mv crates/gtfs_validator_wasm/pkg-mt/gtfs_guru_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg-mt/gtfs_guru_wasm_bg.wasm
-          echo "WASM size after optimization:"
-          du -h crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm
-          du -h crates/gtfs_validator_wasm/pkg-mt/gtfs_guru_wasm_bg.wasm
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Test threaded and fallback WASM runtimes in Chromium
+        run: npm run test:wasm-browser
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4

@@ -24,8 +24,8 @@
 wasm-pack build crates/gtfs_validator_wasm --target web --release --out-dir pkg
 
 # Multi-threaded web target (requires nightly + rust-src)
-RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+simd128 -C link-arg=--shared-memory -C link-arg=--max-memory=4294967296 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base' \
-  rustup run nightly-2025-11-15 wasm-pack build crates/gtfs_validator_wasm --target web \
+RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals,+simd128 -C link-arg=--shared-memory -C link-arg=--max-memory=4294901760 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base' \
+  rustup run nightly-2026-03-01 wasm-pack build crates/gtfs_validator_wasm --target web \
   --release --out-dir pkg-mt -- \
   --features threads -Z build-std=panic_abort,std
 
@@ -56,9 +56,8 @@ Cross-Origin-Embedder-Policy: require-corp
 The worker selects `pkg-mt` at runtime only when isolation and shared memory are
 available, caps the Rayon pool at eight threads, and otherwise falls back to
 `pkg`. iOS always uses the single-threaded build because of its tighter WASM
-memory limits. GitHub Pages does not support custom response headers, so it also
-uses the fallback; Caddy, Nginx, and Cloudflare Pages configurations are included
-in the repository.
+memory limits. Hosts without the required response headers use the fallback;
+Caddy, Nginx, and Cloudflare Pages configurations are included in the repository.
 
 For golden comparisons or benchmarks on an isolated host, load
 `pkg/worker.js?threads=off` to force the single-threaded fallback. This override
@@ -81,3 +80,8 @@ keeping exact totals. JSON samples expose `totalNotices`, and HTML/summary count
 use the exact totals. `ValidationResult.timings_json` reports aggregate feed
 loading, parsing time for each GTFS table, index construction, and all
 per-validator timings; workers return the parsed breakdown as `timings`.
+
+CI builds through `scripts/build-wasm.sh` and runs
+`scripts/test-wasm-browser.mjs` in Chromium. It requires the isolated host to
+select the threaded runtime, compares its notices with the forced single-threaded
+runtime, and verifies automatic fallback without COOP/COEP.

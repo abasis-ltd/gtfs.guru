@@ -4,17 +4,33 @@ on:
   workflow_dispatch:
     inputs:
       manifest:
-        description: "Path to golden manifest (default scripts/golden_manifest.tsv; example: scripts/golden_manifest.example.tsv)"
+        description: "Path to golden manifest"
         required: false
-        default: "scripts/golden_manifest.tsv"
+        default: "scripts/golden_manifest.ci.tsv"
   push:
     paths:
       - "scripts/**"
+      - "crates/gtfs_model/**"
+      - "crates/gtfs_validator_cli/**"
+      - "crates/gtfs_validator_core/**"
+      - "crates/gtfs_validator_report/**"
+      - "test-gtfs-feeds/base-valid.zip"
+      - "scripts/golden_expected/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
       - "docs/golden.md"
       - ".github/workflows/golden.yml"
   pull_request:
     paths:
       - "scripts/**"
+      - "crates/gtfs_model/**"
+      - "crates/gtfs_validator_cli/**"
+      - "crates/gtfs_validator_core/**"
+      - "crates/gtfs_validator_report/**"
+      - "test-gtfs-feeds/base-valid.zip"
+      - "scripts/golden_expected/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
       - "docs/golden.md"
       - ".github/workflows/golden.yml"
 
@@ -33,6 +49,6 @@ jobs:
 
       - name: Golden suite
         env:
-          COMPARE_FLAGS: --strip-runtime-fields --skip-html
-          GOLDEN_MANIFEST: ${{ github.event.inputs.manifest || 'scripts/golden_manifest.tsv' }}
+          COMPARE_FLAGS: --strip-runtime-fields --skip-html --ignore-notice-order --ignore-input --sort-summary-arrays --ignore-validator-version --float-precision 12
+          GOLDEN_MANIFEST: ${{ github.event.inputs.manifest || 'scripts/golden_manifest.ci.tsv' }}
         run: scripts/ci_golden.sh

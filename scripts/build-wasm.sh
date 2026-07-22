@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 WASM_CRATE="$PROJECT_ROOT/crates/gtfs_validator_wasm"
-WASM_THREADS_TOOLCHAIN="${WASM_THREADS_TOOLCHAIN:-nightly-2025-11-15}"
+WASM_THREADS_TOOLCHAIN="${WASM_THREADS_TOOLCHAIN:-nightly-2026-03-01}"
 WASM_OPT_LEVEL="${WASM_OPT_LEVEL:--Oz}"
 WASM_MT_OPT_LEVEL="${WASM_MT_OPT_LEVEL:-$WASM_OPT_LEVEL}"
 WASM_MT_SIMD="${WASM_MT_SIMD:-1}"
@@ -27,13 +27,16 @@ wasm-pack build "$WASM_CRATE" --target web --release --out-dir pkg
 echo "Building multi-threaded web target..."
 rustup toolchain install "$WASM_THREADS_TOOLCHAIN" --profile minimal \
     --target wasm32-unknown-unknown --component rust-src
-MT_TARGET_FEATURES="+atomics,+bulk-memory"
+MT_TARGET_FEATURES="+atomics,+bulk-memory,+mutable-globals"
 MT_WASM_OPT_FEATURES="--enable-threads"
 if [ "$WASM_MT_SIMD" = "1" ]; then
     MT_TARGET_FEATURES="$MT_TARGET_FEATURES,+simd128"
     MT_WASM_OPT_FEATURES="$MT_WASM_OPT_FEATURES --enable-simd"
 fi
-RUSTFLAGS="-C target-feature=$MT_TARGET_FEATURES -C link-arg=--shared-memory -C link-arg=--max-memory=4294967296 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base" \
+# Keep the maximum one wasm page below 4 GiB. An exact 2^32 maximum wraps in
+# some linker/toolchain combinations and can silently produce an unusable
+# shared-memory declaration.
+RUSTFLAGS="-C target-feature=$MT_TARGET_FEATURES -C link-arg=--shared-memory -C link-arg=--max-memory=4294901760 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base" \
     rustup run "$WASM_THREADS_TOOLCHAIN" wasm-pack build "$WASM_CRATE" \
     --target web --release --out-dir pkg-mt \
     -- --features threads -Z build-std=panic_abort,std

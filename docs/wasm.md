@@ -7,18 +7,18 @@ The GTFS Validator can run entirely in the browser using WebAssembly. No server 
 ### npm / yarn / pnpm
 
 ```bash
-npm install gtfs.guru
+npm install @abasisltd/gtfs-guru-wasm
 # or
-yarn add gtfs.guru
+yarn add @abasisltd/gtfs-guru-wasm
 # or
-pnpm add gtfs.guru
+pnpm add @abasisltd/gtfs-guru-wasm
 ```
 
 ### CDN
 
 ```html
 <script type="module">
-  import init, { validate_gtfs } from 'https://unpkg.com/gtfs.guru/gtfs_validator_wasm.js';
+  import init, { validate_gtfs } from 'https://unpkg.com/@abasisltd/gtfs-guru-wasm/gtfs_guru_wasm.js';
 </script>
 ```
 
@@ -26,7 +26,7 @@ Or use jsDelivr:
 
 ```html
 <script type="module">
-  import init, { validate_gtfs } from 'https://cdn.jsdelivr.net/npm/gtfs.guru/gtfs_validator_wasm.js';
+  import init, { validate_gtfs } from 'https://cdn.jsdelivr.net/npm/@abasisltd/gtfs-guru-wasm/gtfs_guru_wasm.js';
 </script>
 ```
 
@@ -35,7 +35,7 @@ Or use jsDelivr:
 ### Browser (ES Modules)
 
 ```javascript
-import init, { validate_gtfs, version } from 'gtfs.guru';
+import init, { validate_gtfs, version } from '@abasisltd/gtfs-guru-wasm';
 
 async function main() {
   // Initialize WASM module (required once)
@@ -68,13 +68,18 @@ main();
 ### Node.js
 
 ```javascript
-const fs = require('fs');
-const { init, validate_gtfs } = require('gtfs.guru');
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import init, { validate_gtfs } from '@abasisltd/gtfs-guru-wasm';
 
 async function main() {
-  await init();
+  const require = createRequire(import.meta.url);
+  const wasmPath = require.resolve(
+    '@abasisltd/gtfs-guru-wasm/gtfs_guru_wasm_bg.wasm'
+  );
+  await init({ module_or_path: await readFile(wasmPath) });
 
-  const bytes = fs.readFileSync('gtfs.zip');
+  const bytes = await readFile('gtfs.zip');
   const result = validate_gtfs(new Uint8Array(bytes));
 
   console.log('Valid:', result.is_valid);
@@ -89,7 +94,7 @@ main();
 For better user experience, use the Web Worker to avoid blocking the main thread:
 
 ```javascript
-import { GtfsValidator } from 'gtfs.guru';
+import { GtfsValidator } from '@abasisltd/gtfs-guru-wasm/index.js';
 
 const validator = new GtfsValidator();
 
@@ -175,7 +180,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ['gtfs.guru']
+    exclude: ['@abasisltd/gtfs-guru-wasm']
   }
 });
 ```
@@ -211,7 +216,7 @@ export default {
 TypeScript definitions are included. Import types like this:
 
 ```typescript
-import type { ValidationResult, ValidationNotice, NoticeSeverity } from 'gtfs.guru';
+import type { ValidationResult } from '@abasisltd/gtfs-guru-wasm';
 ```
 
 ## Memory Considerations
@@ -279,8 +284,8 @@ curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 wasm-pack build crates/gtfs_validator_wasm --target web --release
 
 # Build for browsers with WebAssembly threads (nightly + rust-src required)
-RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+simd128 -C link-arg=--shared-memory -C link-arg=--max-memory=4294967296 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base' \
-  rustup run nightly-2025-11-15 wasm-pack build crates/gtfs_validator_wasm --target web \
+RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals,+simd128 -C link-arg=--shared-memory -C link-arg=--max-memory=4294901760 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base' \
+  rustup run nightly-2026-03-01 wasm-pack build crates/gtfs_validator_wasm --target web \
   --release --out-dir pkg-mt -- \
   --features threads -Z build-std=panic_abort,std
 
@@ -294,8 +299,8 @@ wasm-pack build crates/gtfs_validator_wasm --target nodejs --release --out-dir p
 The threaded package is selected automatically when the page is cross-origin
 isolated (`COOP: same-origin` and `COEP: require-corp`) and
 `SharedArrayBuffer` is available. Otherwise the worker uses the portable
-single-threaded package. GitHub Pages therefore remains on the fallback; use the
-included Caddy, Nginx, or Cloudflare Pages headers to enable threads.
+single-threaded package. Use the included Caddy, Nginx, or Cloudflare Pages
+headers to enable threads.
 
 ## Demo
 

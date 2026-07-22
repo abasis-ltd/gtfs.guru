@@ -3,6 +3,7 @@
 .DS_Store
 /golden_actual/
 /scripts/golden_manifest.tsv
+/node_modules/
 google-transitfeed/
 
 # Python

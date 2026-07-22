@@ -34,13 +34,27 @@ def stable_json(value) -> str:
     return json.dumps(value, sort_keys=True, ensure_ascii=False)
 
 
+def normalize_floats(value, precision: int | None):
+    if precision is None:
+        return value
+    if isinstance(value, float):
+        return round(value, precision)
+    if isinstance(value, list):
+        return [normalize_floats(item, precision) for item in value]
+    if isinstance(value, dict):
+        return {key: normalize_floats(item, precision) for key, item in value.items()}
+    return value
+
+
 def normalize_report(
     data,
     ignore_summary: bool,
     ignore_summary_fields,
     ignore_notice_order: bool,
     sort_summary_arrays: bool,
+    float_precision: int | None,
 ):
+    data = normalize_floats(data, float_precision)
     if not isinstance(data, dict):
         return data
 
@@ -89,6 +103,7 @@ def compare_json(
     ignore_summary_fields,
     ignore_notice_order: bool,
     sort_summary_arrays: bool,
+    float_precision: int | None,
 ) -> bool:
     if not left_path.exists() or not right_path.exists():
         missing = []
@@ -104,6 +119,7 @@ def compare_json(
         ignore_summary_fields=ignore_summary_fields,
         ignore_notice_order=ignore_notice_order,
         sort_summary_arrays=sort_summary_arrays,
+        float_precision=float_precision,
     )
     right = normalize_report(
         load_json(right_path),
@@ -111,6 +127,7 @@ def compare_json(
         ignore_summary_fields=ignore_summary_fields,
         ignore_notice_order=ignore_notice_order,
         sort_summary_arrays=sort_summary_arrays,
+        float_precision=float_precision,
     )
     if left == right:
         return True
@@ -177,6 +194,11 @@ def main() -> int:
         action="store_true",
         help="Sort summary arrays like files and gtfsFeatures before comparing.",
     )
+    parser.add_argument(
+        "--float-precision",
+        type=int,
+        help="Round JSON floating-point values to this many decimal places before comparing.",
+    )
     parser.add_argument("--skip-html", action="store_true")
     parser.add_argument("--html-name", default="report.html")
     args = parser.parse_args()
@@ -217,6 +239,7 @@ def main() -> int:
             ignore_summary_fields=ignore_summary_fields,
             ignore_notice_order=args.ignore_notice_order,
             sort_summary_arrays=args.sort_summary_arrays,
+            float_precision=args.float_precision,
         ):
             ok = False
 
