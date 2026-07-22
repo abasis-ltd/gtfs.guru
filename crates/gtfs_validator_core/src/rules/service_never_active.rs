@@ -68,11 +68,7 @@ impl Validator for ServiceNeverActiveValidator {
             notice.insert_context_field("csvRowNumber", row_number);
             notice.insert_context_field("filename", CALENDAR_FILE);
             notice.insert_context_field("serviceId", service_id_value.as_str());
-            notice.field_order = vec![
-                "csvRowNumber".into(),
-                "filename".into(),
-                "serviceId".into(),
-            ];
+            notice.field_order = vec!["csvRowNumber".into(), "filename".into(), "serviceId".into()];
             notices.push(notice);
         }
     }
