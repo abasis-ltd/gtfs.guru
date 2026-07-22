@@ -52,8 +52,17 @@ fi
 echo "Building for Node.js target..."
 wasm-pack build "$WASM_CRATE" --target nodejs --release --out-dir pkg-node
 
-# Optimize with wasm-opt if available
+# Binaryen 108 (shipped by Ubuntu 24.04) can emit a multi-threaded module whose
+# function table cannot grow during wasm-bindgen-rayon initialization. Refuse
+# to run an optimizer version older than the one used by CI and releases.
+BINARYEN_MIN_VERSION=131
+BINARYEN_VERSION=""
 if command -v wasm-opt &> /dev/null; then
+    BINARYEN_VERSION="$(wasm-opt --version | grep -Eo '[0-9]+' | tail -n 1)"
+fi
+
+# Optimize with a known-good wasm-opt if available.
+if [ -n "$BINARYEN_VERSION" ] && [ "$BINARYEN_VERSION" -ge "$BINARYEN_MIN_VERSION" ]; then
     echo "Optimizing WASM binary with wasm-opt..."
     WASM_OPT_FLAGS="$WASM_OPT_LEVEL --enable-bulk-memory --enable-nontrapping-float-to-int"
     WASM_MT_OPT_FLAGS="$WASM_MT_OPT_LEVEL --enable-bulk-memory --enable-nontrapping-float-to-int $MT_WASM_OPT_FEATURES"
@@ -80,8 +89,12 @@ if command -v wasm-opt &> /dev/null; then
     NODE_SIZE=$(du -h "$NODE_WASM" | cut -f1)
     echo "Optimized sizes: web=$WEB_SIZE, web-mt=$MT_SIZE, node=$NODE_SIZE"
 else
-    echo "wasm-opt not found. Skipping optimization."
-    echo "Install binaryen to enable: brew install binaryen (macOS) or apt install binaryen (Linux)"
+    if [ -n "$BINARYEN_VERSION" ]; then
+        echo "wasm-opt $BINARYEN_VERSION is older than the required $BINARYEN_MIN_VERSION; skipping optimization."
+    else
+        echo "wasm-opt not found. Skipping optimization."
+    fi
+    echo "Install Binaryen $BINARYEN_MIN_VERSION or newer to enable optimization."
 fi
 
 # Copy additional files to pkg
