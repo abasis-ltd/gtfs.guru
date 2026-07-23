@@ -125,6 +125,120 @@ function getValidatorWorker() {
     return worker;
 }
 
+// ---- Stops index for the error map ----
+// Built from stops.txt before the zip buffer is transferred to the worker
+// (the transfer detaches the buffer on the main thread). Small: id -> coords.
+let stopsIndex = null;
+
+async function buildStopsIndex(arrayBuffer) {
+    const entry = findZipEntry(new DataView(arrayBuffer), 'stops.txt');
+    if (!entry) return null;
+    const bytes = await readZipEntry(arrayBuffer, entry);
+    if (!bytes) return null;
+    return parseStopsCsv(new TextDecoder('utf-8').decode(bytes));
+}
+
+// Minimal zip central-directory reader. Feeds are capped at 100 MB, so no
+// zip64 handling is needed; anything unusual just means "no map", never an error.
+function findZipEntry(view, wantedName) {
+    const len = view.byteLength;
+    const minPos = Math.max(0, len - 65558); // EOCD + max comment length
+    let eocd = -1;
+    for (let i = len - 22; i >= minPos; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    const count = view.getUint16(eocd + 10, true);
+    const cdOffset = view.getUint32(eocd + 16, true);
+    if (cdOffset === 0xFFFFFFFF) return null; // zip64
+    let p = cdOffset;
+    let best = null;
+    const nameDecoder = new TextDecoder('utf-8');
+    for (let i = 0; i < count && p + 46 <= len; i++) {
+        if (view.getUint32(p, true) !== 0x02014b50) break;
+        const method = view.getUint16(p + 10, true);
+        const compSize = view.getUint32(p + 20, true);
+        const nameLen = view.getUint16(p + 28, true);
+        const extraLen = view.getUint16(p + 30, true);
+        const commentLen = view.getUint16(p + 32, true);
+        const localOffset = view.getUint32(p + 42, true);
+        const name = nameDecoder.decode(new Uint8Array(view.buffer, p + 46, nameLen));
+        // Prefer the shallowest match: feeds are sometimes zipped inside a folder.
+        if (name.split('/').pop() === wantedName && (!best || name.length < best.name.length)) {
+            best = { name, method, compSize, localOffset };
+        }
+        p += 46 + nameLen + extraLen + commentLen;
+    }
+    return best;
+}
+
+async function readZipEntry(arrayBuffer, entry) {
+    const view = new DataView(arrayBuffer);
+    const p = entry.localOffset;
+    if (view.getUint32(p, true) !== 0x04034b50) return null;
+    const nameLen = view.getUint16(p + 26, true);
+    const extraLen = view.getUint16(p + 28, true);
+    const start = p + 30 + nameLen + extraLen;
+    const comp = new Uint8Array(arrayBuffer.slice(start, start + entry.compSize));
+    if (entry.method === 0) return comp; // stored
+    if (entry.method !== 8) return null;
+    const stream = new Blob([comp]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+            if (c === '"') {
+                if (text[i + 1] === '"') { field += '"'; i++; }
+                else inQuotes = false;
+            } else {
+                field += c;
+            }
+        } else if (c === '"') {
+            inQuotes = true;
+        } else if (c === ',') {
+            row.push(field); field = '';
+        } else if (c === '\n' || c === '\r') {
+            if (c === '\r' && text[i + 1] === '\n') i++;
+            row.push(field); field = '';
+            if (row.length > 1 || row[0] !== '') rows.push(row);
+            row = [];
+        } else {
+            field += c;
+        }
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows;
+}
+
+function parseStopsCsv(text) {
+    const rows = parseCsv(text);
+    if (!rows.length) return null;
+    const header = rows[0].map(h => h.replace(/^\uFEFF/, '').trim());
+    const idI = header.indexOf('stop_id');
+    const latI = header.indexOf('stop_lat');
+    const lonI = header.indexOf('stop_lon');
+    const nameI = header.indexOf('stop_name');
+    if (idI < 0 || latI < 0 || lonI < 0) return null;
+    const index = new Map();
+    for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const id = r[idI];
+        const lat = parseFloat(r[latI]);
+        const lon = parseFloat(r[lonI]);
+        if (id && Number.isFinite(lat) && Number.isFinite(lon)) {
+            index.set(id, { lat, lon, name: nameI >= 0 ? (r[nameI] || '').trim() : '' });
+        }
+    }
+    return index.size ? index : null;
+}
+
 async function validateInWorker(arrayBuffer, dateStr) {
     getValidatorWorker();
     // Wait until the worker is confirmed loaded BEFORE transferring the buffer.
@@ -413,9 +527,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Close modal on Escape
+        // Close modal on Escape (map modal first, then the report modal)
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && reportModal && !reportModal.classList.contains('hidden')) {
+            if (e.key !== 'Escape') return;
+            const mapModal = document.getElementById('map-modal');
+            if (mapModal && !mapModal.classList.contains('hidden')) {
+                mapModal.classList.add('hidden');
+                return;
+            }
+            if (reportModal && !reportModal.classList.contains('hidden')) {
                 closeReportModal();
             }
         });
@@ -541,6 +661,14 @@ Please ensure the Nginx container is configured with the proxy settings.`);
 
     async function runValidation(arrayBuffer) {
         const dateStr = new Date().toISOString().split('T')[0];
+        // Build the stop_id -> coordinates index before the buffer is
+        // transferred to the worker (transfer detaches it on this thread).
+        stopsIndex = null;
+        try {
+            stopsIndex = await buildStopsIndex(arrayBuffer);
+        } catch (e) {
+            console.warn('Stops index unavailable (map disabled):', e);
+        }
         try {
             const result = await validateFeed(arrayBuffer, dateStr);
             lastValidationResult = result;
@@ -657,10 +785,99 @@ Please ensure the Nginx container is configured with the proxy settings.`);
             });
         });
 
+        // Map pins: open the stop location map
+        reportModalBody.querySelectorAll('.map-pin-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openStopMap(btn.getAttribute('data-stop-id'), btn.getAttribute('data-code'));
+            });
+        });
+
         // Initialize lucide icons in modal
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
+    }
+
+    /* --- Stop location map (Leaflet, lazy-loaded) --- */
+    let leafletLoading = null;
+    let stopMap = null;
+    let stopMapMarkers = null;
+
+    function ensureLeaflet() {
+        if (window.L) return Promise.resolve();
+        if (leafletLoading) return leafletLoading;
+        leafletLoading = new Promise((resolve, reject) => {
+            const css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(css);
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.onload = resolve;
+            script.onerror = () => { leafletLoading = null; reject(new Error('Failed to load the map library')); };
+            document.head.appendChild(script);
+        });
+        return leafletLoading;
+    }
+
+    async function openStopMap(stopId, code) {
+        const info = stopsIndex && stopsIndex.get(stopId);
+        if (!info) return;
+        try {
+            await ensureLeaflet();
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+
+        const mapModal = document.getElementById('map-modal');
+        const mapTitle = document.getElementById('map-modal-title');
+        if (!mapModal) return;
+
+        if (mapTitle) {
+            mapTitle.textContent = info.name ? `${info.name} (${stopId})` : stopId;
+        }
+        mapModal.classList.remove('hidden');
+
+        if (!stopMap) {
+            stopMap = L.map('stop-map');
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(stopMap);
+            stopMapMarkers = L.layerGroup().addTo(stopMap);
+        }
+
+        stopMapMarkers.clearLayers();
+        const marker = L.marker([info.lat, info.lon]).addTo(stopMapMarkers);
+        const popupHtml =
+            `<b>${escapeHtml(info.name || stopId)}</b><br>` +
+            `<code>${escapeHtml(stopId)}</code>` +
+            (code ? `<br><code>${escapeHtml(code)}</code>` : '');
+        marker.bindPopup(popupHtml);
+
+        stopMap.setView([info.lat, info.lon], 16);
+        // The map container was hidden when Leaflet measured it.
+        setTimeout(() => {
+            stopMap.invalidateSize();
+            stopMap.setView([info.lat, info.lon], 16);
+            marker.openPopup();
+        }, 50);
+    }
+
+    function closeStopMap() {
+        const mapModal = document.getElementById('map-modal');
+        if (mapModal) mapModal.classList.add('hidden');
+    }
+
+    const closeMapBtn = document.getElementById('close-map-btn');
+    if (closeMapBtn) closeMapBtn.addEventListener('click', closeStopMap);
+    const mapModalEl = document.getElementById('map-modal');
+    if (mapModalEl) {
+        mapModalEl.addEventListener('click', (e) => {
+            if (e.target === mapModalEl) closeStopMap();
+        });
     }
 
     function renderNoticeGroup(title, severity, notices) {
@@ -722,6 +939,7 @@ Please ensure the Nginx container is configured with the proxy settings.`);
             const thHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
 
             // Generate table rows
+            const stopKeyRe = /^(stopId\d*|childStopId|parentStopId|parentStation|locationId)$/;
             const rowsHtml = displayNotices.map(notice => {
                 const tdHtml = headers.map(h => {
                     let val = notice[h];
@@ -733,6 +951,10 @@ Please ensure the Nginx container is configured with the proxy settings.`);
                         valStr = JSON.stringify(val);
                     } else {
                         valStr = String(val);
+                    }
+                    // Stop references become clickable pins that open the map.
+                    if (stopsIndex && stopKeyRe.test(h) && stopsIndex.has(valStr)) {
+                        return `<td><code>${escapeHtml(valStr)}</code><button class="map-pin-btn" data-stop-id="${escapeAttr(valStr)}" data-code="${escapeAttr(code)}" title="Show on map"><i data-lucide="map-pin"></i></button></td>`;
                     }
                     return `<td><code>${escapeHtml(valStr)}</code></td>`;
                 }).join('');
@@ -793,6 +1015,14 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function escapeAttr(text) {
+        return String(text ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
 
     function closeReportModal() {
