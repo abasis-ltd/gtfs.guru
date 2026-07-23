@@ -11,6 +11,12 @@ use gtfs_guru_report::{
 #[cfg(feature = "console_error_panic_hook")]
 pub use console_error_panic_hook::set_once as set_panic_hook;
 
+// Multithreaded build only: exposes `initThreadPool(numThreads)` to JS. The
+// worker must await it once (after `init()`) before calling `validate_gtfs`,
+// otherwise the first rayon parallel iterator has no pool and panics.
+#[cfg(feature = "threads")]
+pub use wasm_bindgen_rayon::init_thread_pool;
+
 /// Initialize the WASM module (call once on page load)
 #[wasm_bindgen]
 pub fn init() {

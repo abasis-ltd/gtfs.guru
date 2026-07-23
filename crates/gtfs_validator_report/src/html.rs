@@ -735,6 +735,9 @@ fn build_feed_info_entries(info: &ReportFeedInfo) -> Vec<(String, String)> {
     if let Some(value) = info.feed_end_date.as_ref() {
         entries.push(("Feed End Date".to_string(), value.clone()));
     }
+    if let Some(value) = info.feed_version.as_ref() {
+        entries.push(("Feed Version".to_string(), value.clone()));
+    }
     if info.feed_service_window_start.is_some() || info.feed_service_window_end.is_some() {
         entries.push(("Service Window".to_string(), service_window_display(info)));
     }

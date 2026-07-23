@@ -285,6 +285,9 @@ pub struct ReportFeedInfo {
     pub feed_service_window_start: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_service_window_end: Option<String>,
+    // gtfs.guru extension: not part of the canonical validator's report schema.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feed_version: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -547,6 +550,9 @@ fn build_feed_info(feed: &GtfsFeed) -> ReportFeedInfo {
     let has_end_date = info_table
         .map(|table| has_header(table, "feed_end_date"))
         .unwrap_or(false);
+    let has_feed_version = info_table
+        .map(|table| has_header(table, "feed_version"))
+        .unwrap_or(false);
     let has_service_window = feed.calendar.is_some() || feed.calendar_dates.is_some();
     let (service_start, service_end) = compute_service_window(feed);
     let (service_start_str, service_end_str) = format_service_window(service_start, service_end);
@@ -589,6 +595,11 @@ fn build_feed_info(feed: &GtfsFeed) -> ReportFeedInfo {
         }),
         feed_service_window_start: has_service_window.then(|| service_start_str),
         feed_service_window_end: has_service_window.then(|| service_end_str),
+        feed_version: has_feed_version.then(|| {
+            info_row
+                .and_then(|row| row.feed_version.as_ref().map(|s| s.to_string()))
+                .unwrap_or_default()
+        }),
     }
 }
 
