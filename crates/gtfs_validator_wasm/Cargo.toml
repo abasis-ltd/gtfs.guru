@@ -16,6 +16,15 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["console_error_panic_hook"]
+# Multithreaded build: turns on rayon in the core (parallel CSV parse + parallel
+# validator run) and pulls in wasm-bindgen-rayon, which sets up a Web Worker
+# backed rayon thread pool. Requires a nightly + build-std build with
+# +atomics,+bulk-memory,+mutable-globals and a cross-origin-isolated page.
+# See scripts/build-wasm.sh (pkg-mt output).
+# dep:parking_lot_core turns on its "nightly" feature so parking_lot's thread
+# parker uses real wasm atomics: without it, DashMap contention parks via a
+# fallback that panics on wasm32 (traps a rayon worker and hangs the join).
+threads = ["dep:wasm-bindgen-rayon", "dep:parking_lot_core", "gtfs-guru-core/parallel"]
 
 [dependencies]
 wasm-bindgen = "0.2"
@@ -26,6 +35,10 @@ chrono = { workspace = true }
 
 # Optional: better panic messages in browser console
 console_error_panic_hook = { version = "0.1", optional = true }
+
+# Optional: Web Worker backed rayon thread pool for the multithreaded build.
+wasm-bindgen-rayon = { version = "1.2", optional = true }
+parking_lot_core = { version = "0.9", features = ["nightly"], optional = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"

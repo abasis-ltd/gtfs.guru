@@ -71,6 +71,34 @@ You are safe! Click **"Squash and merge"**.
 
 ---
 
+## Deploying the Website (gtfs.guru)
+
+The live site **does not run on GitHub Pages**. The `pages.yml` workflow still publishes to GitHub Pages on every merge to `main`, but the `gtfs.guru` domain is not wired to it — **merging to `main` does NOT update the live site.**
+
+**Actual hosting:** a VPS at Hetzner Cloud (`157.90.246.102`), where Caddy terminates TLS and proxies to nginx serving static files.
+
+**Deploy path:**
+
+```bash
+# 1. Rebuild the WASM validator (needs wasm-pack + binaryen)
+./scripts/build-wasm.sh
+
+# 2. Copy the fresh pkg/ into BOTH website copies
+#    - website/pkg/                          (what nginx actually serves)
+#    - crates/gtfs_validator_web/website/    (embedded in the axum Docker binary)
+
+# 3. Push static files to the server (needs SSH access)
+./scripts/deploy-website.sh <server-ip-or-hostname>
+```
+
+Notes:
+
+* There are **two copies** of the website in the repo. The repo-root `website/` is what's live; keep `crates/gtfs_validator_web/website/` in sync.
+* `deploy/update.sh` rebuilds the Docker (axum) stack — that is **not** what serves the live domain.
+* Server-level config (headers, TLS, caching) lives in `Caddyfile` and `website/nginx.conf` — since we control the server, custom headers (e.g. COOP/COEP for multithreaded WASM) can be set there.
+
+---
+
 ## Releasing a New Version
 
 When you want to publish a new version (e.g., to PyPI or Crates.io):

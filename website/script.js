@@ -1,22 +1,82 @@
-// Validation runs in a Web Worker (see pkg/worker.js) so the WASM heap lives
-// off the main thread: large feeds no longer freeze the UI, and a hard
-// out-of-memory failure kills only the worker instead of the whole tab.
+// Validation runs in a Web Worker so the WASM heap lives off the main thread:
+// large feeds no longer freeze the UI, and a hard out-of-memory failure kills
+// only the worker instead of the whole tab.
+//
+// On cross-origin-isolated pages (COOP: same-origin + COEP: require-corp →
+// SharedArrayBuffer available) we prefer the multithreaded worker
+// (pkg-mt/worker-mt.js), which runs a wasm-bindgen-rayon thread pool to
+// parallelize CSV parsing and the validator run. Otherwise, or if that worker
+// can't be loaded, we fall back to the single-threaded worker (pkg/worker.js),
+// and finally to validating on the main thread so the tool always works — just
+// without the off-thread/parallel benefits. OOM mid-validation is a distinct
+// case and is surfaced to the user rather than retried.
 
 // Keep this in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 
+// Multithreaded (wasm threads) validation: ~5x faster on large feeds. Only
+// engages on cross-origin-isolated pages (COOP/COEP headers set server-side);
+// everything else falls back to the single-threaded worker automatically.
+const MT_ENABLED = true;
+
+// URL override for testing/rollout: ?mt=1 forces the multithreaded tier on,
+// ?mt=0 forces it off, regardless of MT_ENABLED.
+const MT_REQUESTED = (() => {
+    try {
+        const param = new URLSearchParams(location.search).get('mt');
+        if (param === '1') return true;
+        if (param === '0') return false;
+    } catch (_) { /* non-browser context */ }
+    return MT_ENABLED;
+})();
+
+// Ordered worker tiers to try, best first. The multithreaded tier is only
+// offered when enabled AND the page is cross-origin-isolated with
+// SharedArrayBuffer available.
+const WORKER_TIERS = (() => {
+    const tiers = [];
+    if (MT_REQUESTED &&
+        typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated &&
+        typeof SharedArrayBuffer !== 'undefined') {
+        tiers.push({ name: 'mt', url: './pkg-mt/worker-mt.js' });
+    }
+    tiers.push({ name: 'st', url: './pkg/worker.js' });
+    return tiers;
+})();
+let workerTierIndex = 0;        // which tier we're currently using
+
 let validatorWorker = null;
-let pendingValidation = null; // { id, resolve, reject }
+let workerReadyPromise = null; // resolves once the worker signals 'ready'
+let workerUsable = true;       // set false once all worker tiers are exhausted
+let pendingValidation = null;  // { id, resolve, reject }
 let nextMsgId = 1;
+
+// Lazily import + init the WASM module on the main thread (fallback path only,
+// always the single-threaded module — the main thread has no rayon pool).
+let mainThreadValidatePromise = null;
+function getMainThreadValidate() {
+    if (!mainThreadValidatePromise) {
+        mainThreadValidatePromise = import('./pkg/gtfs_guru_wasm.js').then(async (mod) => {
+            await mod.default(); // init()
+            return mod.validate_gtfs;
+        });
+    }
+    return mainThreadValidatePromise;
+}
 
 function getValidatorWorker() {
     if (validatorWorker) return validatorWorker;
 
-    validatorWorker = new Worker(new URL('./pkg/worker.js', import.meta.url), { type: 'module' });
+    let resolveReady, rejectReady;
+    workerReadyPromise = new Promise((res, rej) => { resolveReady = res; rejectReady = rej; });
+    let becameReady = false;
 
-    validatorWorker.onmessage = (e) => {
+    const tier = WORKER_TIERS[workerTierIndex];
+    const worker = new Worker(new URL(tier.url, import.meta.url), { type: 'module' });
+
+    worker.onmessage = (e) => {
         const { type, id, payload } = e.data || {};
-        if (type === 'ready') return;
+        if (type === 'ready') { becameReady = true; resolveReady(); return; }
         if (!pendingValidation || id !== pendingValidation.id) return;
 
         const p = pendingValidation;
@@ -37,32 +97,83 @@ function getValidatorWorker() {
         }
     };
 
-    validatorWorker.onerror = (e) => {
-        // A worker-level error usually means the WASM ran out of memory on a
-        // very large feed and the worker died. Reject the in-flight run and
-        // drop the worker so the next attempt starts a fresh one.
+    worker.onerror = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
         const p = pendingValidation;
         pendingValidation = null;
-        try { validatorWorker.terminate(); } catch (_) { /* ignore */ }
-        validatorWorker = null;
-        if (p) p.reject(new Error('__OOM__'));
-        if (e && e.preventDefault) e.preventDefault();
+        try { worker.terminate(); } catch (_) { /* ignore */ }
+        if (validatorWorker === worker) validatorWorker = null;
+
+        if (!becameReady) {
+            // This tier's worker never loaded (blocked script, 403/404, syntax
+            // error, or a missing pkg-mt build). Advance to the next tier; only
+            // when every tier is exhausted do we give up on workers entirely.
+            if (workerTierIndex < WORKER_TIERS.length - 1) {
+                workerTierIndex++;
+            } else {
+                workerUsable = false;
+            }
+            rejectReady(new Error('__WORKER_UNAVAILABLE__'));
+            if (p) p.reject(new Error('__WORKER_UNAVAILABLE__'));
+        } else {
+            // It was running and died — almost always a hard OOM on a big feed.
+            if (p) p.reject(new Error('__OOM__'));
+        }
     };
 
-    return validatorWorker;
+    validatorWorker = worker;
+    return worker;
 }
 
-function validateInWorker(arrayBuffer, dateStr) {
+async function validateInWorker(arrayBuffer, dateStr) {
+    getValidatorWorker();
+    // Wait until the worker is confirmed loaded BEFORE transferring the buffer.
+    // If it never loads, the buffer is untouched and the caller can fall back.
+    await Promise.race([
+        workerReadyPromise,
+        new Promise((_, rej) => setTimeout(() => rej(new Error('__WORKER_UNAVAILABLE__')), 10000)),
+    ]);
     return new Promise((resolve, reject) => {
-        const worker = getValidatorWorker();
         const id = nextMsgId++;
         pendingValidation = { id, resolve, reject };
         // Transfer (not copy) the ArrayBuffer — feeds can be up to 100 MB.
-        worker.postMessage(
+        validatorWorker.postMessage(
             { type: 'validate', id, payload: { zipBytes: arrayBuffer, date: dateStr } },
             [arrayBuffer],
         );
     });
+}
+
+async function validateOnMainThread(arrayBuffer, dateStr) {
+    const validate_gtfs = await getMainThreadValidate();
+    // Yield once so the processing spinner paints before the synchronous,
+    // UI-blocking WASM call.
+    await new Promise((r) => setTimeout(r, 30));
+    const res = validate_gtfs(new Uint8Array(arrayBuffer), null, dateStr);
+    return {
+        json: res.json,
+        html: res.html,
+        error_count: res.error_count,
+        warning_count: res.warning_count,
+        info_count: res.info_count,
+    };
+}
+
+// Validate via the worker, transparently falling back to the main thread if the
+// worker can't be loaded. A mid-validation OOM ('__OOM__') is NOT retried.
+async function validateFeed(arrayBuffer, dateStr) {
+    if (workerUsable) {
+        try {
+            return await validateInWorker(arrayBuffer, dateStr);
+        } catch (err) {
+            if (err && err.message === '__WORKER_UNAVAILABLE__') {
+                // fall through to main-thread validation with the intact buffer
+            } else {
+                throw err;
+            }
+        }
+    }
+    return validateOnMainThread(arrayBuffer, dateStr);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -431,7 +542,7 @@ Please ensure the Nginx container is configured with the proxy settings.`);
     async function runValidation(arrayBuffer) {
         const dateStr = new Date().toISOString().split('T')[0];
         try {
-            const result = await validateInWorker(arrayBuffer, dateStr);
+            const result = await validateFeed(arrayBuffer, dateStr);
             lastValidationResult = result;
             showResults(result);
         } catch (err) {
