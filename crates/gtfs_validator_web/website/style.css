@@ -1533,3 +1533,70 @@ font-weight: bold;
         transform: translateY(0);
     }
 }
+/* --- Stop Location Map Modal --- */
+.map-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.map-modal.hidden {
+    display: none;
+}
+
+.map-modal-content {
+    width: min(900px, 100%);
+    height: min(600px, 90vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.map-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+    flex-shrink: 0;
+}
+
+.map-modal-header h3 {
+    font-size: 1.05rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#stop-map {
+    flex: 1;
+    min-height: 0;
+    /* Leaflet panes stay below the modal chrome */
+    isolation: isolate;
+}
+
+.map-pin-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent-primary);
+    padding: 0 0 0 6px;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.map-pin-btn svg,
+.map-pin-btn i {
+    width: 14px;
+    height: 14px;
+}
+
+.map-pin-btn:hover {
+    color: var(--accent-secondary);
+}
