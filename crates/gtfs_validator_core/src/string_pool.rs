@@ -78,7 +78,6 @@ impl StringPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rayon::prelude::*;
 
     #[test]
     fn test_string_pool_basic() {
@@ -94,8 +93,10 @@ mod tests {
         assert_eq!(pool.resolve(StringId(0)), "");
     }
 
+    #[cfg(feature = "parallel")]
     #[test]
     fn test_string_pool_parallel() {
+        use rayon::prelude::*;
         let pool = StringPool::new();
         (0..1000).into_par_iter().for_each(|i| {
             let s = format!("string_{}", i % 10);

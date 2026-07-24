@@ -21,10 +21,18 @@ tracing-subscriber = { workspace = true }
 mimalloc = { version = "0.1", default-features = false }
 indicatif = "0.18.3"
 
+[features]
+# Build with --no-default-features to reproduce the single-threaded
+# (wasm fallback) validation path natively, e.g. for profiling.
+default = ["parallel"]
+parallel = ["gtfs-guru-core/parallel", "gtfs-guru-report/parallel"]
+
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
 version = "0.9.4"
+default-features = false
 
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
 version = "0.9.4"
+default-features = false
