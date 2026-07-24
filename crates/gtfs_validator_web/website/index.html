@@ -55,7 +55,13 @@
         rel="stylesheet">
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        // Set synchronously, before first paint: the scroll-reveal styles are
+        // scoped to .js so content is never hidden when JS is absent or slow.
+        document.documentElement.classList.remove('no-js');
+        document.documentElement.classList.add('js');
+    </script>
+    <script src="https://unpkg.com/lucide@latest" defer></script>
     <script>
         // Check for file protocol and show warning
         window.addEventListener('DOMContentLoaded', () => {
@@ -83,7 +89,7 @@
             </a>
 
 
-            <div class="nav-links">
+            <div class="nav-links" id="nav-links">
                 <a href="index.html#validator">Web Validator</a>
 
                 <a href="index.html#faq">FAQ</a>
@@ -91,8 +97,15 @@
                 <a href="contact.html">Contact</a>
                 <a href="index.html#developers">Developers</a>
                 <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+                <a href="#download" class="nav-mobile-cta">Get the App</a>
             </div>
-            <a href="#download" class="btn btn-primary">Get the App</a>
+            <div class="nav-actions">
+                <a href="#download" class="btn btn-primary">Get the App</a>
+                <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu"
+                    aria-expanded="false" aria-controls="nav-links">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -103,10 +116,10 @@
                     <div class="badge">Open Source</div>
                     <div class="badge ml-2"><i data-lucide="shield"></i> 100% Local & Secure</div>
                 </div>
-                <h1>Ensure your transit data is<br><span class="gradient-text">Production Ready</span></h1>
+                <h1>Ensure your transit data is <span class="gradient-text">Production Ready</span></h1>
                 <p class="hero-sub">
                     The world’s fastest GTFS validator. Catch errors instantly before they reach Google Maps.
-                    Runs entirely on your device-your data never leaves your computer.
+                    Runs entirely on your device — your data never leaves your computer.
                 </p>
 
                 <div class="hero-actions">
@@ -120,11 +133,11 @@
 
                 <div class="stats-row">
                     <div class="stat-item">
-                        <span class="stat-number" data-target="100">0</span><span class="stat-suffix">x</span>
+                        <span class="stat-number" data-target="100">100</span><span class="stat-suffix">x</span>
                         <span class="stat-label">Faster than Java</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-number" data-target="88">0</span>
+                        <span class="stat-number" data-target="88">88</span>
                         <span class="stat-label">Validation Rules</span>
                     </div>
                     <div class="stat-item">
@@ -270,7 +283,7 @@
                 <div class="comparison-row">
                     <div class="col-feature">Python Support</div>
                     <div class="col-old">Wrapper only</div>
-                    <div class="col-new highlight">Native (`pip install`)</div>
+                    <div class="col-new highlight">Native (<code>pip install</code>)</div>
                 </div>
             </div>
         </div>
@@ -423,7 +436,7 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                         <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is there a file size limit?
                         </h3>
                         <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
-                            The browser validator handles feeds up to 100&nbsp;MB (zipped) directly in your browser.
+                            The browser validator handles feeds up to 150&nbsp;MB zipped (700&nbsp;MB unpacked) directly in your browser.
                             Larger files can hit browser memory limits, so for those we recommend our desktop app or
                             CLI tools—they handle any size without breaking a sweat.
                         </p>
@@ -447,7 +460,7 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
             <div class="footer-brand">
                 <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
                 <span class="logo-text">GTFS Guru</span>
-                <p>Made with ❤️ by <a href="https://abasis.ai">Abasis.AI</a></p>
+                <p>Made by <a href="https://abasis.ai">Abasis.AI</a></p>
             </div>
             <div class="footer-links">
                 <a href="index.html#faq">FAQ</a>
@@ -463,7 +476,8 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
         </div>
     </footer>
 
-    <script src="script.js" type="module"></script>
+    <!-- ?v= busts the HTTP cache on deploy: a stale script.js against a fresh pkg/ (or vice versa) breaks size limits and worker payloads. Bump together with the wasm version. -->
+    <script src="script.js?v=0.9.5" type="module"></script>
     <script>
         // Fallback for Lucide icons
         window.addEventListener('load', function () {
