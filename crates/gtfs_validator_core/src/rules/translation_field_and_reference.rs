@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::feed::TRANSLATIONS_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::{GtfsDate, GtfsTime, StringId};
@@ -32,9 +34,15 @@ impl Validator for TranslationFieldAndReferenceValidator {
             return;
         }
 
+        // Lazy hash indexes over the referenced tables. Without them every
+        // translation row linearly scanned its target table (O(rows × table)
+        // with a String allocation per comparison) — a bilingual feed like
+        // STM Montréal (213k translations × 203k trips) effectively hung.
+        let mut existence = ExistenceIndex::new(feed);
+
         for (index, translation) in translations.rows.iter().enumerate() {
             let row_number = translations.row_number(index);
-            validate_translation(translation, feed, row_number, notices);
+            validate_translation(translation, feed, &mut existence, row_number, notices);
         }
     }
 }
@@ -65,6 +73,7 @@ fn validate_standard_required_fields(
 fn validate_translation(
     translation: &gtfs_guru_model::Translation,
     feed: &GtfsFeed,
+    existence: &mut ExistenceIndex,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -136,7 +145,7 @@ fn validate_translation(
                 ));
                 return;
             }
-            if !exists(feed, record_id) {
+            if !exists(existence, record_id) {
                 notices.push(translation_foreign_key_violation_notice(
                     table_name, record_id, None, row_number,
                 ));
@@ -151,7 +160,7 @@ fn validate_translation(
                 notices.push(missing_required_field_notice("record_sub_id", row_number));
                 return;
             };
-            if !exists(feed, record_id, record_sub_id) {
+            if !exists(existence, record_id, record_sub_id) {
                 notices.push(translation_foreign_key_violation_notice(
                     table_name,
                     record_id,
@@ -248,11 +257,282 @@ fn translation_foreign_key_violation_notice(
 enum TableSpec {
     None,
     One {
-        exists: fn(&GtfsFeed, &str) -> bool,
+        exists: fn(&mut ExistenceIndex, &str) -> bool,
     },
     Two {
-        exists: fn(&GtfsFeed, &str, &str) -> bool,
+        exists: fn(&mut ExistenceIndex, &str, &str) -> bool,
     },
+}
+
+/// Lazy hash indexes for translation foreign-key lookups.
+///
+/// Each referenced table is indexed at most once (first lookup builds the
+/// set, later lookups are O(1)); tables never referenced by translations.txt
+/// are never indexed, so feeds without translations pay nothing.
+struct ExistenceIndex<'a> {
+    feed: &'a GtfsFeed,
+    /// table name -> set of trimmed record ids
+    one_key: HashMap<&'static str, HashSet<String>>,
+    /// table name -> record id -> set of numeric sub-ids (stop_times, shapes)
+    two_key_u32: HashMap<&'static str, HashMap<String, HashSet<u32>>>,
+    calendar_dates: Option<HashMap<String, HashSet<GtfsDate>>>,
+    frequencies: Option<HashMap<String, HashSet<GtfsTime>>>,
+    transfers: Option<HashSet<(String, String)>>,
+}
+
+impl<'a> ExistenceIndex<'a> {
+    fn new(feed: &'a GtfsFeed) -> Self {
+        Self {
+            feed,
+            one_key: HashMap::new(),
+            two_key_u32: HashMap::new(),
+            calendar_dates: None,
+            frequencies: None,
+            transfers: None,
+        }
+    }
+
+    fn resolved(&self, id: StringId) -> String {
+        self.feed.pool.resolve(id).trim().to_string()
+    }
+
+    fn one_key(&mut self, table: &'static str) -> &HashSet<String> {
+        if !self.one_key.contains_key(table) {
+            let set = self.build_one_key(table);
+            self.one_key.insert(table, set);
+        }
+        &self.one_key[table]
+    }
+
+    fn build_one_key(&self, table: &'static str) -> HashSet<String> {
+        let feed = self.feed;
+        match table {
+            "agency" => feed
+                .agency
+                .rows
+                .iter()
+                .filter_map(|agency| agency.agency_id)
+                .map(|id| self.resolved(id))
+                .collect(),
+            "stops" => feed
+                .stops
+                .rows
+                .iter()
+                .map(|stop| self.resolved(stop.stop_id))
+                .collect(),
+            "routes" => feed
+                .routes
+                .rows
+                .iter()
+                .map(|route| self.resolved(route.route_id))
+                .collect(),
+            "trips" => feed
+                .trips
+                .rows
+                .iter()
+                .map(|trip| self.resolved(trip.trip_id))
+                .collect(),
+            "calendar" => feed
+                .calendar
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|calendar| self.resolved(calendar.service_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "fare_attributes" => feed
+                .fare_attributes
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|fare| self.resolved(fare.fare_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "levels" => feed
+                .levels
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|level| self.resolved(level.level_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "pathways" => feed
+                .pathways
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|pathway| self.resolved(pathway.pathway_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "attributions" => feed
+                .attributions
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .filter_map(|attribution| attribution.attribution_id)
+                        .filter(|id| id.0 != 0)
+                        .map(|id| self.resolved(id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "areas" => feed
+                .areas
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|area| self.resolved(area.area_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "fare_media" => feed
+                .fare_media
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|media| self.resolved(media.fare_media_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "rider_categories" => feed
+                .rider_categories
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|category| self.resolved(category.rider_category_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "location_groups" => feed
+                .location_groups
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|group| self.resolved(group.location_group_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "networks" => feed
+                .networks
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|network| self.resolved(network.network_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            "route_networks" => feed
+                .route_networks
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|route_network| self.resolved(route_network.route_id))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            _ => HashSet::new(),
+        }
+    }
+
+    fn two_key_u32(&mut self, table: &'static str) -> &HashMap<String, HashSet<u32>> {
+        if !self.two_key_u32.contains_key(table) {
+            let feed = self.feed;
+            let mut map: HashMap<String, HashSet<u32>> = HashMap::new();
+            match table {
+                "stop_times" => {
+                    for stop_time in &feed.stop_times.rows {
+                        map.entry(self.resolved(stop_time.trip_id))
+                            .or_default()
+                            .insert(stop_time.stop_sequence);
+                    }
+                }
+                "shapes" => {
+                    if let Some(shapes) = feed.shapes.as_ref() {
+                        for shape in &shapes.rows {
+                            map.entry(self.resolved(shape.shape_id))
+                                .or_default()
+                                .insert(shape.shape_pt_sequence);
+                        }
+                    }
+                }
+                _ => {}
+            }
+            self.two_key_u32.insert(table, map);
+        }
+        &self.two_key_u32[table]
+    }
+
+    fn calendar_dates(&mut self) -> &HashMap<String, HashSet<GtfsDate>> {
+        if self.calendar_dates.is_none() {
+            let mut map: HashMap<String, HashSet<GtfsDate>> = HashMap::new();
+            if let Some(table) = self.feed.calendar_dates.as_ref() {
+                for calendar_date in &table.rows {
+                    map.entry(self.resolved(calendar_date.service_id))
+                        .or_default()
+                        .insert(calendar_date.date);
+                }
+            }
+            self.calendar_dates = Some(map);
+        }
+        self.calendar_dates.as_ref().expect("built above")
+    }
+
+    fn frequencies(&mut self) -> &HashMap<String, HashSet<GtfsTime>> {
+        if self.frequencies.is_none() {
+            let mut map: HashMap<String, HashSet<GtfsTime>> = HashMap::new();
+            if let Some(table) = self.feed.frequencies.as_ref() {
+                for frequency in &table.rows {
+                    map.entry(self.resolved(frequency.trip_id))
+                        .or_default()
+                        .insert(frequency.start_time);
+                }
+            }
+            self.frequencies = Some(map);
+        }
+        self.frequencies.as_ref().expect("built above")
+    }
+
+    fn transfers(&mut self) -> &HashSet<(String, String)> {
+        if self.transfers.is_none() {
+            let mut set = HashSet::new();
+            if let Some(table) = self.feed.transfers.as_ref() {
+                for transfer in &table.rows {
+                    let from = transfer.from_stop_id.filter(|id| id.0 != 0);
+                    let to = transfer.to_stop_id.filter(|id| id.0 != 0);
+                    if let (Some(from), Some(to)) = (from, to) {
+                        set.insert((self.resolved(from), self.resolved(to)));
+                    }
+                }
+            }
+            self.transfers = Some(set);
+        }
+        self.transfers.as_ref().expect("built above")
+    }
 }
 
 fn table_spec(table_name: &str, feed: &GtfsFeed) -> Option<TableSpec> {
@@ -322,247 +602,110 @@ fn table_spec(table_name: &str, feed: &GtfsFeed) -> Option<TableSpec> {
     }
 }
 
-fn agency_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.agency
-        .rows
-        .iter()
-        .filter_map(|agency| agency.agency_id)
-        .any(|value| feed.pool.resolve(value).trim() == record_id)
+fn agency_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("agency").contains(record_id)
 }
 
-fn stop_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.stops
-        .rows
-        .iter()
-        .any(|stop| feed.pool.resolve(stop.stop_id).trim() == record_id)
+fn stop_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("stops").contains(record_id)
 }
 
-fn route_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.routes
-        .rows
-        .iter()
-        .any(|route| feed.pool.resolve(route.route_id).trim() == record_id)
+fn route_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("routes").contains(record_id)
 }
 
-fn trip_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.trips
-        .rows
-        .iter()
-        .any(|trip| feed.pool.resolve(trip.trip_id).trim() == record_id)
+fn trip_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("trips").contains(record_id)
 }
 
-fn stop_time_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+fn stop_time_exists(index: &mut ExistenceIndex, record_id: &str, record_sub_id: &str) -> bool {
     let Ok(sequence) = record_sub_id.parse::<u32>() else {
         return false;
     };
-    feed.stop_times.rows.iter().any(|stop_time| {
-        feed.pool.resolve(stop_time.trip_id).trim() == record_id
-            && stop_time.stop_sequence == sequence
-    })
+    index
+        .two_key_u32("stop_times")
+        .get(record_id)
+        .is_some_and(|sequences| sequences.contains(&sequence))
 }
 
-fn calendar_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.calendar
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|calendar| feed.pool.resolve(calendar.service_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn calendar_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("calendar").contains(record_id)
 }
 
-fn calendar_date_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+fn calendar_date_exists(index: &mut ExistenceIndex, record_id: &str, record_sub_id: &str) -> bool {
     let Ok(date) = GtfsDate::parse(record_sub_id) else {
         return false;
     };
-    feed.calendar_dates
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|calendar_date| {
-                feed.pool.resolve(calendar_date.service_id).trim() == record_id
-                    && calendar_date.date == date
-            })
-        })
-        .unwrap_or(false)
+    index
+        .calendar_dates()
+        .get(record_id)
+        .is_some_and(|dates| dates.contains(&date))
 }
 
-fn shape_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+fn shape_exists(index: &mut ExistenceIndex, record_id: &str, record_sub_id: &str) -> bool {
     let Ok(sequence) = record_sub_id.parse::<u32>() else {
         return false;
     };
-    feed.shapes
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|shape| {
-                feed.pool.resolve(shape.shape_id).trim() == record_id
-                    && shape.shape_pt_sequence == sequence
-            })
-        })
-        .unwrap_or(false)
+    index
+        .two_key_u32("shapes")
+        .get(record_id)
+        .is_some_and(|sequences| sequences.contains(&sequence))
 }
 
-fn frequency_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
+fn frequency_exists(index: &mut ExistenceIndex, record_id: &str, record_sub_id: &str) -> bool {
     let Ok(start_time) = GtfsTime::parse(record_sub_id) else {
         return false;
     };
-    feed.frequencies
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|frequency| {
-                feed.pool.resolve(frequency.trip_id).trim() == record_id
-                    && frequency.start_time == start_time
-            })
-        })
-        .unwrap_or(false)
+    index
+        .frequencies()
+        .get(record_id)
+        .is_some_and(|times| times.contains(&start_time))
 }
 
-fn transfer_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
-    feed.transfers
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|transfer| {
-                let from_matches = transfer
-                    .from_stop_id
-                    .filter(|id| id.0 != 0)
-                    .map(|id| feed.pool.resolve(id))
-                    .map(|value| value.trim() == record_id)
-                    .unwrap_or(false);
-                let to_matches = transfer
-                    .to_stop_id
-                    .filter(|id| id.0 != 0)
-                    .map(|id| feed.pool.resolve(id))
-                    .map(|value| value.trim() == record_sub_id)
-                    .unwrap_or(false);
-                from_matches && to_matches
-            })
-        })
-        .unwrap_or(false)
+fn transfer_exists(index: &mut ExistenceIndex, record_id: &str, record_sub_id: &str) -> bool {
+    index
+        .transfers()
+        .contains(&(record_id.to_string(), record_sub_id.to_string()))
 }
 
-fn fare_attribute_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.fare_attributes
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|fare_attribute| feed.pool.resolve(fare_attribute.fare_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn fare_attribute_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("fare_attributes").contains(record_id)
 }
 
-fn level_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.levels
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|level| feed.pool.resolve(level.level_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn level_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("levels").contains(record_id)
 }
 
-fn pathway_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.pathways
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|pathway| feed.pool.resolve(pathway.pathway_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn pathway_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("pathways").contains(record_id)
 }
 
-fn attribution_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.attributions
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|attribution| {
-                attribution
-                    .attribution_id
-                    .filter(|id| id.0 != 0)
-                    .map(|id| feed.pool.resolve(id))
-                    .map(|value| value.trim() == record_id)
-                    .unwrap_or(false)
-            })
-        })
-        .unwrap_or(false)
+fn attribution_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("attributions").contains(record_id)
 }
 
-fn area_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.areas
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|area| feed.pool.resolve(area.area_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn area_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("areas").contains(record_id)
 }
 
-fn fare_media_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.fare_media
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|media| feed.pool.resolve(media.fare_media_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn fare_media_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("fare_media").contains(record_id)
 }
 
-fn rider_category_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.rider_categories
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|category| feed.pool.resolve(category.rider_category_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn rider_category_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("rider_categories").contains(record_id)
 }
 
-fn location_group_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.location_groups
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|group| feed.pool.resolve(group.location_group_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn location_group_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("location_groups").contains(record_id)
 }
 
-fn network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.networks
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|network| feed.pool.resolve(network.network_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn network_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("networks").contains(record_id)
 }
 
-fn route_network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.route_networks
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|route_network| feed.pool.resolve(route_network.route_id).trim() == record_id)
-        })
-        .unwrap_or(false)
+fn route_network_exists(index: &mut ExistenceIndex, record_id: &str) -> bool {
+    index.one_key("route_networks").contains(record_id)
 }
 
 #[cfg(test)]
