@@ -876,6 +876,39 @@ footer {
     align-items: flex-end;
 }
 
+.footer-brand {
+    display: grid;
+    grid-template-columns: 2.25rem auto;
+    align-items: center;
+    column-gap: 0.65rem;
+    row-gap: 0.4rem;
+}
+
+.footer-logo {
+    display: block;
+    width: 2.25rem;
+    height: 2.25rem;
+}
+
+.footer-brand .logo-text {
+    font-size: 1.35rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.footer-brand p {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.footer-brand p a {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
 .footer-links {
     display: flex;
     gap: 2rem;
@@ -1050,6 +1083,21 @@ font-weight: bold;
 
     .footer-container {
         gap: 2rem;
+        align-items: center;
+    }
+
+    .footer-brand {
+        justify-content: center;
+    }
+
+    .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        row-gap: 0.75rem;
+    }
+
+    .footer-copy {
+        text-align: center;
     }
 }
 
