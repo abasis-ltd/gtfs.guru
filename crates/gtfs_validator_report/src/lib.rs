@@ -442,7 +442,10 @@ fn build_notice_reports(container: &NoticeContainer) -> Vec<NoticeReport> {
         reports.push(NoticeReport {
             code: first.code.clone(),
             severity: first.severity.into(),
-            total_notices: notices.len(),
+            // Exact total, even when the container capped stored notices.
+            total_notices: container
+                .group_total(&first.code, first.severity)
+                .max(notices.len()),
             sample_notices,
         });
     }
