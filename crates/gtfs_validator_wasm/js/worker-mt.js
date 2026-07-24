@@ -59,6 +59,7 @@ self.onmessage = async (event) => {
             warningCount: result.warning_count,
             infoCount: result.info_count,
             isValid: result.is_valid,
+            truncated: result.truncated,
             validationTimeMs: elapsed,
           },
         });

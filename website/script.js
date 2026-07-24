@@ -11,8 +11,13 @@
 // without the off-thread/parallel benefits. OOM mid-validation is a distinct
 // case and is surfaced to the user rather than retried.
 
-// Keep this in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+// Keep these in sync with MAX_FILE_SIZE_BYTES / MAX_UNCOMPRESSED_BYTES in
+// crates/gtfs_validator_wasm/src/lib.rs. The real memory gate is the
+// UNCOMPRESSED size (wasm peak ≈ 4-5× raw); the zip cap is just a coarse
+// sanity check — measured on real feeds, a sparse 129 MB zip fits fine while
+// a dense 107 MB zip (1 GB raw) would OOM.
+const MAX_FILE_SIZE_BYTES = 150 * 1024 * 1024;
+const MAX_UNCOMPRESSED_BYTES = 700 * 1024 * 1024;
 
 // Multithreaded (wasm threads) validation: ~5x faster on large feeds. Only
 // engages on cross-origin-isolated pages (COOP/COEP headers set server-side);
@@ -91,6 +96,7 @@ function getValidatorWorker() {
                 error_count: payload.errorCount,
                 warning_count: payload.warningCount,
                 info_count: payload.infoCount,
+                truncated: payload.truncated === true,
             });
         } else {
             p.reject(new Error(typeof payload === 'string' ? payload : 'Validation failed'));
@@ -138,8 +144,39 @@ async function buildStopsIndex(arrayBuffer) {
     return parseStopsCsv(new TextDecoder('utf-8').decode(bytes));
 }
 
-// Minimal zip central-directory reader. Feeds are capped at 100 MB, so no
-// zip64 handling is needed; anything unusual just means "no map", never an error.
+// Sum of uncompressed entry sizes from the zip central directory (no
+// decompression). Returns null when the archive can't be parsed (the wasm
+// side will produce a proper error) and Infinity for zip64-sized entries —
+// those are far beyond the browser limit anyway.
+function sumUncompressedBytes(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    const len = view.byteLength;
+    const minPos = Math.max(0, len - 65558); // EOCD + max comment length
+    let eocd = -1;
+    for (let i = len - 22; i >= minPos; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    const count = view.getUint16(eocd + 10, true);
+    const cdOffset = view.getUint32(eocd + 16, true);
+    if (cdOffset === 0xFFFFFFFF) return Infinity; // zip64 archive
+    let p = cdOffset;
+    let total = 0;
+    for (let i = 0; i < count && p + 46 <= len; i++) {
+        if (view.getUint32(p, true) !== 0x02014b50) break;
+        const uncompSize = view.getUint32(p + 24, true);
+        if (uncompSize === 0xFFFFFFFF) return Infinity; // zip64 entry
+        total += uncompSize;
+        const nameLen = view.getUint16(p + 28, true);
+        const extraLen = view.getUint16(p + 30, true);
+        const commentLen = view.getUint16(p + 32, true);
+        p += 46 + nameLen + extraLen + commentLen;
+    }
+    return total;
+}
+
+// Minimal zip central-directory reader. Feeds are capped at 150 MB zipped, so
+// no zip64 handling is needed; anything unusual just means "no map", never an error.
 function findZipEntry(view, wantedName) {
     const len = view.byteLength;
     const minPos = Math.max(0, len - 65558); // EOCD + max comment length
@@ -250,7 +287,7 @@ async function validateInWorker(arrayBuffer, dateStr) {
     return new Promise((resolve, reject) => {
         const id = nextMsgId++;
         pendingValidation = { id, resolve, reject };
-        // Transfer (not copy) the ArrayBuffer — feeds can be up to 100 MB.
+        // Transfer (not copy) the ArrayBuffer — feeds can be up to 150 MB.
         validatorWorker.postMessage(
             { type: 'validate', id, payload: { zipBytes: arrayBuffer, date: dateStr } },
             [arrayBuffer],
@@ -270,6 +307,7 @@ async function validateOnMainThread(arrayBuffer, dateStr) {
         error_count: res.error_count,
         warning_count: res.warning_count,
         info_count: res.info_count,
+        truncated: res.truncated === true,
     };
 }
 
@@ -291,8 +329,15 @@ async function validateFeed(arrayBuffer, dateStr) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Enable fade-up animations by removing the no-js class
-    document.documentElement.classList.remove('no-js');
+    // The .js class is set synchronously in <head>; the scroll-reveal styles
+    // are scoped to it, so markup stays visible if this script never runs.
+    const prefersReducedMotion =
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const revealEl = (el) => {
+        el.classList.add('visible');
+        if (el.querySelector('.stat-number')) startCounters(el);
+    };
 
     /* --- Intersection Observer for Fade-Up Animations --- */
     const observerOptions = {
@@ -303,40 +348,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-
-                // Trigger counters if this is the hero stats section
-                if (entry.target.querySelector('.stat-number')) {
-                    startCounters(entry.target);
-                }
-
+                revealEl(entry.target);
                 observer.unobserve(entry.target);
             }
         });
     }, observerOptions);
 
-    document.querySelectorAll('.fade-up').forEach(el => {
-        observer.observe(el);
-    });
+    const fadeEls = document.querySelectorAll('.fade-up');
+    fadeEls.forEach(el => observer.observe(el));
+
+    // Failsafe: never let content stay invisible. If the observer hasn't
+    // revealed an element (deep link landing exactly on a section edge, an
+    // early script error, an unsupported environment), show it anyway.
+    setTimeout(() => {
+        fadeEls.forEach(el => {
+            if (!el.classList.contains('visible')) revealEl(el);
+        });
+    }, 1500);
 
     /* --- Number Counters --- */
+    // Time-based rather than fixed-increment-per-frame: a throttled or
+    // background tab drops frames instead of stalling the count partway
+    // (the old version could sit on "17x" indefinitely).
     function startCounters(container) {
         container.querySelectorAll('.stat-number').forEach(counter => {
-            const target = +counter.getAttribute('data-target');
-            const duration = 2000; // ms
-            const increment = target / (duration / 16); // 60fps
+            if (counter.dataset.counted) return;
+            counter.dataset.counted = '1';
 
-            let current = 0;
-            const updateCounter = () => {
-                current += increment;
-                if (current < target) {
-                    counter.innerText = Math.ceil(current);
-                    requestAnimationFrame(updateCounter);
-                } else {
-                    counter.innerText = target;
-                }
+            const target = +counter.getAttribute('data-target');
+            if (prefersReducedMotion || !target) {
+                counter.textContent = String(target);
+                return;
+            }
+
+            const duration = 1200; // ms
+            const startedAt = performance.now();
+            const step = (now) => {
+                const p = Math.min(1, (now - startedAt) / duration);
+                const eased = 1 - Math.pow(1 - p, 3);
+                counter.textContent = String(Math.round(target * eased));
+                if (p < 1) requestAnimationFrame(step);
+                else counter.textContent = String(target);
             };
-            updateCounter();
+            requestAnimationFrame(step);
+        });
+    }
+
+    /* --- Mobile nav toggle --- */
+    const navToggle = document.getElementById('nav-toggle');
+    const navLinks = document.getElementById('nav-links');
+    if (navToggle && navLinks) {
+        const setNav = (open) => {
+            navLinks.classList.toggle('open', open);
+            navToggle.setAttribute('aria-expanded', String(open));
+            navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+            navToggle.innerHTML = `<i data-lucide="${open ? 'x' : 'menu'}"></i>`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        };
+
+        navToggle.addEventListener('click', () => {
+            setNav(!navLinks.classList.contains('open'));
+        });
+
+        // Close after choosing a destination, and on Escape.
+        navLinks.addEventListener('click', (e) => {
+            if (e.target.closest('a')) setNav(false);
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && navLinks.classList.contains('open')) setNav(false);
         });
     }
 
@@ -564,6 +643,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const arrayBuffer = await file.arrayBuffer();
+            const rawBytes = sumUncompressedBytes(arrayBuffer);
+            if (rawBytes !== null && rawBytes > MAX_UNCOMPRESSED_BYTES) {
+                showTooDense(rawBytes);
+                return;
+            }
             await runValidation(arrayBuffer);
         } catch (err) {
             console.error("File reading error:", err);
@@ -605,6 +689,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (arrayBuffer.byteLength > MAX_FILE_SIZE_BYTES) {
                 showTooLarge(arrayBuffer.byteLength);
+                return;
+            }
+            const rawBytes = sumUncompressedBytes(arrayBuffer);
+            if (rawBytes !== null && rawBytes > MAX_UNCOMPRESSED_BYTES) {
+                showTooDense(rawBytes);
                 return;
             }
 
@@ -654,8 +743,17 @@ Please ensure the Nginx container is configured with the proxy settings.`);
     function showTooLarge(sizeBytes) {
         const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
         showValidationError(
-            `This feed is ${sizeMb} MB. In-browser validation is capped at 100 MB. ` +
+            `This feed is ${sizeMb} MB. In-browser validation is capped at 150 MB (zipped). ` +
             `For larger feeds use the free desktop app or CLI (see the Download section) — they handle any size.`
+        );
+    }
+
+    function showTooDense(rawBytes) {
+        const rawMb = Number.isFinite(rawBytes) ? Math.round(rawBytes / (1024 * 1024)) + ' MB' : 'over 4 GB';
+        showValidationError(
+            `This feed unpacks to ${rawMb} of data — more than a browser tab can hold in memory ` +
+            `(limit: ${MAX_UNCOMPRESSED_BYTES / (1024 * 1024)} MB uncompressed). ` +
+            `Use the free desktop app or CLI (see the Download section) — they handle any size.`
         );
     }
 
@@ -747,15 +845,16 @@ Please ensure the Nginx container is configured with the proxy settings.`);
                 </div>
             `;
         } else {
+            html += renderTruncationNote(result, notices.length);
             // Render each group
             if (groups.error.length > 0) {
-                html += renderNoticeGroup('Errors', 'error', groups.error);
+                html += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
             }
             if (groups.warning.length > 0) {
-                html += renderNoticeGroup('Warnings', 'warning', groups.warning);
+                html += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count);
             }
             if (groups.info.length > 0) {
-                html += renderNoticeGroup('Info', 'info', groups.info);
+                html += renderNoticeGroup('Info', 'info', groups.info, result.info_count);
             }
         }
 
@@ -880,7 +979,22 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         });
     }
 
-    function renderNoticeGroup(title, severity, notices) {
+    // Very large reports are capped in the validator: it stores the first
+    // 10,000 notices per issue type and keeps exact counters for the rest,
+    // so the tab doesn't run out of memory. Tell the user when that happened.
+    function renderTruncationNote(result, shownCount) {
+        const totalCount = (result.error_count || 0) + (result.warning_count || 0) + (result.info_count || 0);
+        const isTruncated = result.truncated === true || shownCount < totalCount;
+        if (!isTruncated) return '';
+        return `
+            <div style="margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--border, #d0d7de); border-radius: 8px; font-size: 0.9rem; opacity: 0.9;">
+                Showing the first ${shownCount.toLocaleString()} of ${totalCount.toLocaleString()} notices.
+                Long issue lists are capped per issue type to keep the browser responsive — the summary counts are exact.
+            </div>
+        `;
+    }
+
+    function renderNoticeGroup(title, severity, notices, totalOverride) {
         // First, group notices by CODE
         const noticesByCode = {};
         notices.forEach(notice => {
@@ -1003,7 +1117,7 @@ Please ensure the Nginx container is configured with the proxy settings.`);
         return `
             <div style="margin-bottom: 2rem;">
                 <h3 style="margin-bottom: 1rem; color: var(--${severity}); display: flex; align-items: center; gap: 0.5rem;">
-                    ${title} <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.6rem; border-radius: 20px; font-size: 0.8rem;">${notices.length}</span>
+                    ${title} <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.6rem; border-radius: 20px; font-size: 0.8rem;">${typeof totalOverride === 'number' ? totalOverride : notices.length}</span>
                 </h3>
                 ${sectionsHtml}
             </div>
@@ -1084,10 +1198,15 @@ Please ensure the Nginx container is configured with the proxy settings.`);
 
         let reportContent = '';
 
+        // Prefer the validator's exact counters: the notice list itself may be
+        // capped per issue type for very large reports.
         let headerTotals = [];
-        if (groups.error.length > 0) headerTotals.push(`${groups.error.length} Errors`);
-        if (groups.warning.length > 0) headerTotals.push(`${groups.warning.length} Warnings`);
-        if (groups.info.length > 0) headerTotals.push(`${groups.info.length} Info`);
+        const errorTotal = typeof result.error_count === 'number' ? result.error_count : groups.error.length;
+        const warningTotal = typeof result.warning_count === 'number' ? result.warning_count : groups.warning.length;
+        const infoTotal = typeof result.info_count === 'number' ? result.info_count : groups.info.length;
+        if (errorTotal > 0) headerTotals.push(`${errorTotal} Errors`);
+        if (warningTotal > 0) headerTotals.push(`${warningTotal} Warnings`);
+        if (infoTotal > 0) headerTotals.push(`${infoTotal} Info`);
 
         const summaryText = headerTotals.join(', ') || 'No issues found';
 
@@ -1100,14 +1219,15 @@ Please ensure the Nginx container is configured with the proxy settings.`);
                 </div>
             `;
         } else {
+            reportContent += renderTruncationNote(result, notices.length);
             if (groups.error.length > 0) {
-                reportContent += renderNoticeGroup('Errors', 'error', groups.error);
+                reportContent += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
             }
             if (groups.warning.length > 0) {
-                reportContent += renderNoticeGroup('Warnings', 'warning', groups.warning);
+                reportContent += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count);
             }
             if (groups.info.length > 0) {
-                reportContent += renderNoticeGroup('Info', 'info', groups.info);
+                reportContent += renderNoticeGroup('Info', 'info', groups.info, result.info_count);
             }
         }
 
