@@ -79,6 +79,15 @@ export class ValidationResult {
         }
     }
     /**
+     * True when the notice list in `json` was capped per issue type to keep
+     * memory bounded. Counts (`error_count` etc.) are always exact.
+     * @returns {boolean}
+     */
+    get truncated() {
+        const ret = wasm.validationresult_truncated(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * Get the number of warnings
      * @returns {number}
      */
@@ -117,7 +126,8 @@ export function initThreadPool(num_threads) {
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the file exceeds 100 MB
+ * Throws a JavaScript error if the feed exceeds the browser size limits
+ * (150 MB zipped / 700 MB uncompressed)
  * @param {Uint8Array} zip_bytes
  * @param {string | null} [country_code]
  * @param {string | null} [date]

@@ -8,6 +8,7 @@ export const validationresult_html: (a: number) => [number, number];
 export const validationresult_info_count: (a: number) => number;
 export const validationresult_is_valid: (a: number) => number;
 export const validationresult_json: (a: number) => [number, number];
+export const validationresult_truncated: (a: number) => number;
 export const validationresult_warning_count: (a: number) => number;
 export const version: () => [number, number];
 export const init: () => void;

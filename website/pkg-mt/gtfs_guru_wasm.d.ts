@@ -29,6 +29,11 @@ export class ValidationResult {
      */
     readonly json: string;
     /**
+     * True when the notice list in `json` was capped per issue type to keep
+     * memory bounded. Counts (`error_count` etc.) are always exact.
+     */
+    readonly truncated: boolean;
+    /**
      * Get the number of warnings
      */
     readonly warning_count: number;
@@ -53,7 +58,8 @@ export function initThreadPool(num_threads: number): Promise<any>;
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the file exceeds 100 MB
+ * Throws a JavaScript error if the feed exceeds the browser size limits
+ * (150 MB zipped / 700 MB uncompressed)
  */
 export function validate_gtfs(zip_bytes: Uint8Array, country_code?: string | null, date?: string | null): ValidationResult;
 
@@ -89,6 +95,7 @@ export interface InitOutput {
     readonly validationresult_info_count: (a: number) => number;
     readonly validationresult_is_valid: (a: number) => number;
     readonly validationresult_json: (a: number) => [number, number];
+    readonly validationresult_truncated: (a: number) => number;
     readonly validationresult_warning_count: (a: number) => number;
     readonly version: () => [number, number];
     readonly init: () => void;
