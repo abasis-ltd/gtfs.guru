@@ -387,7 +387,13 @@ fn stop_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -
 fn route_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
     indexes
         .routes
-        .get_or_insert_with(|| feed.routes.rows.iter().map(|route| route.route_id).collect())
+        .get_or_insert_with(|| {
+            feed.routes
+                .rows
+                .iter()
+                .map(|route| route.route_id)
+                .collect()
+        })
         .contains(&record_id)
 }
 
@@ -583,7 +589,13 @@ fn pathway_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId
         .get_or_insert_with(|| {
             feed.pathways
                 .as_ref()
-                .map(|table| table.rows.iter().map(|pathway| pathway.pathway_id).collect())
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|pathway| pathway.pathway_id)
+                        .collect()
+                })
                 .unwrap_or_default()
         })
         .contains(&record_id)
@@ -599,9 +611,7 @@ fn attribution_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: Stri
                     table
                         .rows
                         .iter()
-                        .filter_map(|attribution| {
-                            attribution.attribution_id.filter(|id| id.0 != 0)
-                        })
+                        .filter_map(|attribution| attribution.attribution_id.filter(|id| id.0 != 0))
                         .collect()
                 })
                 .unwrap_or_default()
@@ -675,7 +685,13 @@ fn network_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId
         .get_or_insert_with(|| {
             feed.networks
                 .as_ref()
-                .map(|table| table.rows.iter().map(|network| network.network_id).collect())
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|network| network.network_id)
+                        .collect()
+                })
                 .unwrap_or_default()
         })
         .contains(&record_id)
