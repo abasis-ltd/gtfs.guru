@@ -1,6 +1,7 @@
 use crate::feed::TRANSLATIONS_FILE;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::{GtfsDate, GtfsTime, StringId};
+use rustc_hash::FxHashSet;
 
 const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
 const CODE_TRANSLATION_UNEXPECTED_VALUE: &str = "translation_unexpected_value";
@@ -32,11 +33,42 @@ impl Validator for TranslationFieldAndReferenceValidator {
             return;
         }
 
+        let mut indexes = RefIndexes::default();
         for (index, translation) in translations.rows.iter().enumerate() {
             let row_number = translations.row_number(index);
-            validate_translation(translation, feed, row_number, notices);
+            validate_translation(translation, feed, &mut indexes, row_number, notices);
         }
     }
+}
+
+/// Lazily-built lookup sets for foreign-key checks.
+///
+/// The string pool interns trimmed strings, so two ids resolve to the same
+/// trimmed string if and only if the ids are equal. That lets every
+/// `resolve(id).trim() == record_id` scan be replaced by a `StringId` set
+/// lookup without changing which notices are produced.
+#[derive(Default)]
+struct RefIndexes {
+    agency: Option<FxHashSet<StringId>>,
+    stops: Option<FxHashSet<StringId>>,
+    routes: Option<FxHashSet<StringId>>,
+    trips: Option<FxHashSet<StringId>>,
+    stop_times: Option<FxHashSet<(StringId, u32)>>,
+    calendar: Option<FxHashSet<StringId>>,
+    calendar_dates: Option<FxHashSet<(StringId, GtfsDate)>>,
+    shapes: Option<FxHashSet<(StringId, u32)>>,
+    frequencies: Option<FxHashSet<(StringId, GtfsTime)>>,
+    transfers: Option<FxHashSet<(StringId, StringId)>>,
+    fare_attributes: Option<FxHashSet<StringId>>,
+    levels: Option<FxHashSet<StringId>>,
+    pathways: Option<FxHashSet<StringId>>,
+    attributions: Option<FxHashSet<StringId>>,
+    areas: Option<FxHashSet<StringId>>,
+    fare_media: Option<FxHashSet<StringId>>,
+    rider_categories: Option<FxHashSet<StringId>>,
+    location_groups: Option<FxHashSet<StringId>>,
+    networks: Option<FxHashSet<StringId>>,
+    route_networks: Option<FxHashSet<StringId>>,
 }
 
 fn validate_standard_required_fields(
@@ -65,6 +97,7 @@ fn validate_standard_required_fields(
 fn validate_translation(
     translation: &gtfs_guru_model::Translation,
     feed: &GtfsFeed,
+    indexes: &mut RefIndexes,
     row_number: u64,
     notices: &mut NoticeContainer,
 ) {
@@ -73,9 +106,10 @@ fn validate_translation(
         .map(|id| feed.pool.resolve(id))
         .unwrap_or_default();
     let table_name = table_name_value.as_str();
-    let record_id = normalized_optional_id(translation.record_id).map(|id| feed.pool.resolve(id));
-    let record_sub_id =
-        normalized_optional_id(translation.record_sub_id).map(|id| feed.pool.resolve(id));
+    let record_id_id = normalized_optional_id(translation.record_id);
+    let record_sub_id_id = normalized_optional_id(translation.record_sub_id);
+    let record_id = record_id_id.map(|id| feed.pool.resolve(id));
+    let record_sub_id = record_sub_id_id.map(|id| feed.pool.resolve(id));
     let field_value = normalized_optional_str(translation.field_value.as_deref());
     let record_id_value = record_id.as_deref();
     let record_sub_id_value = record_sub_id.as_deref();
@@ -124,7 +158,7 @@ fn validate_translation(
             }
         }
         TableSpec::One { exists } => {
-            let Some(record_id) = record_id_value else {
+            let (Some(record_id), Some(record_id_str)) = (record_id_id, record_id_value) else {
                 notices.push(missing_required_field_notice("record_id", row_number));
                 return;
             };
@@ -136,26 +170,31 @@ fn validate_translation(
                 ));
                 return;
             }
-            if !exists(feed, record_id) {
+            if !exists(feed, indexes, record_id) {
                 notices.push(translation_foreign_key_violation_notice(
-                    table_name, record_id, None, row_number,
+                    table_name,
+                    record_id_str,
+                    None,
+                    row_number,
                 ));
             }
         }
         TableSpec::Two { exists } => {
-            let Some(record_id) = record_id_value else {
+            let (Some(record_id), Some(record_id_str)) = (record_id_id, record_id_value) else {
                 notices.push(missing_required_field_notice("record_id", row_number));
                 return;
             };
-            let Some(record_sub_id) = record_sub_id_value else {
+            let (Some(record_sub_id), Some(record_sub_id_str)) =
+                (record_sub_id_id, record_sub_id_value)
+            else {
                 notices.push(missing_required_field_notice("record_sub_id", row_number));
                 return;
             };
-            if !exists(feed, record_id, record_sub_id) {
+            if !exists(feed, indexes, record_id, record_sub_id, record_sub_id_str) {
                 notices.push(translation_foreign_key_violation_notice(
                     table_name,
-                    record_id,
-                    Some(record_sub_id),
+                    record_id_str,
+                    Some(record_sub_id_str),
                     row_number,
                 ));
             }
@@ -248,10 +287,13 @@ fn translation_foreign_key_violation_notice(
 enum TableSpec {
     None,
     One {
-        exists: fn(&GtfsFeed, &str) -> bool,
+        exists: fn(&GtfsFeed, &mut RefIndexes, StringId) -> bool,
     },
     Two {
-        exists: fn(&GtfsFeed, &str, &str) -> bool,
+        // Args: record_id, record_sub_id, resolved record_sub_id string
+        // (the string form is needed where the sub id is parsed, e.g. a
+        // stop_sequence number, a date or a time).
+        exists: fn(&GtfsFeed, &mut RefIndexes, StringId, StringId, &str) -> bool,
     },
 }
 
@@ -322,247 +364,339 @@ fn table_spec(table_name: &str, feed: &GtfsFeed) -> Option<TableSpec> {
     }
 }
 
-fn agency_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.agency
-        .rows
-        .iter()
-        .filter_map(|agency| agency.agency_id)
-        .any(|value| feed.pool.resolve(value).trim() == record_id)
+fn agency_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .agency
+        .get_or_insert_with(|| {
+            feed.agency
+                .rows
+                .iter()
+                .filter_map(|agency| agency.agency_id)
+                .collect()
+        })
+        .contains(&record_id)
 }
 
-fn stop_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.stops
-        .rows
-        .iter()
-        .any(|stop| feed.pool.resolve(stop.stop_id).trim() == record_id)
+fn stop_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .stops
+        .get_or_insert_with(|| feed.stops.rows.iter().map(|stop| stop.stop_id).collect())
+        .contains(&record_id)
 }
 
-fn route_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.routes
-        .rows
-        .iter()
-        .any(|route| feed.pool.resolve(route.route_id).trim() == record_id)
+fn route_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .routes
+        .get_or_insert_with(|| feed.routes.rows.iter().map(|route| route.route_id).collect())
+        .contains(&record_id)
 }
 
-fn trip_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.trips
-        .rows
-        .iter()
-        .any(|trip| feed.pool.resolve(trip.trip_id).trim() == record_id)
+fn trip_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .trips
+        .get_or_insert_with(|| feed.trips.rows.iter().map(|trip| trip.trip_id).collect())
+        .contains(&record_id)
 }
 
-fn stop_time_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
-    let Ok(sequence) = record_sub_id.parse::<u32>() else {
+fn stop_time_exists(
+    feed: &GtfsFeed,
+    indexes: &mut RefIndexes,
+    record_id: StringId,
+    _record_sub_id: StringId,
+    record_sub_id_str: &str,
+) -> bool {
+    let Ok(sequence) = record_sub_id_str.parse::<u32>() else {
         return false;
     };
-    feed.stop_times.rows.iter().any(|stop_time| {
-        feed.pool.resolve(stop_time.trip_id).trim() == record_id
-            && stop_time.stop_sequence == sequence
-    })
-}
-
-fn calendar_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.calendar
-        .as_ref()
-        .map(|table| {
-            table
+    indexes
+        .stop_times
+        .get_or_insert_with(|| {
+            feed.stop_times
                 .rows
                 .iter()
-                .any(|calendar| feed.pool.resolve(calendar.service_id).trim() == record_id)
+                .map(|stop_time| (stop_time.trip_id, stop_time.stop_sequence))
+                .collect()
         })
-        .unwrap_or(false)
+        .contains(&(record_id, sequence))
 }
 
-fn calendar_date_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
-    let Ok(date) = GtfsDate::parse(record_sub_id) else {
+fn calendar_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .calendar
+        .get_or_insert_with(|| {
+            feed.calendar
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|calendar| calendar.service_id)
+                        .collect()
+                })
+                .unwrap_or_default()
+        })
+        .contains(&record_id)
+}
+
+fn calendar_date_exists(
+    feed: &GtfsFeed,
+    indexes: &mut RefIndexes,
+    record_id: StringId,
+    _record_sub_id: StringId,
+    record_sub_id_str: &str,
+) -> bool {
+    let Ok(date) = GtfsDate::parse(record_sub_id_str) else {
         return false;
     };
-    feed.calendar_dates
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|calendar_date| {
-                feed.pool.resolve(calendar_date.service_id).trim() == record_id
-                    && calendar_date.date == date
-            })
+    indexes
+        .calendar_dates
+        .get_or_insert_with(|| {
+            feed.calendar_dates
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|calendar_date| (calendar_date.service_id, calendar_date.date))
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&(record_id, date))
 }
 
-fn shape_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
-    let Ok(sequence) = record_sub_id.parse::<u32>() else {
+fn shape_exists(
+    feed: &GtfsFeed,
+    indexes: &mut RefIndexes,
+    record_id: StringId,
+    _record_sub_id: StringId,
+    record_sub_id_str: &str,
+) -> bool {
+    let Ok(sequence) = record_sub_id_str.parse::<u32>() else {
         return false;
     };
-    feed.shapes
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|shape| {
-                feed.pool.resolve(shape.shape_id).trim() == record_id
-                    && shape.shape_pt_sequence == sequence
-            })
+    indexes
+        .shapes
+        .get_or_insert_with(|| {
+            feed.shapes
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|shape| (shape.shape_id, shape.shape_pt_sequence))
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&(record_id, sequence))
 }
 
-fn frequency_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
-    let Ok(start_time) = GtfsTime::parse(record_sub_id) else {
+fn frequency_exists(
+    feed: &GtfsFeed,
+    indexes: &mut RefIndexes,
+    record_id: StringId,
+    _record_sub_id: StringId,
+    record_sub_id_str: &str,
+) -> bool {
+    let Ok(start_time) = GtfsTime::parse(record_sub_id_str) else {
         return false;
     };
-    feed.frequencies
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|frequency| {
-                feed.pool.resolve(frequency.trip_id).trim() == record_id
-                    && frequency.start_time == start_time
-            })
+    indexes
+        .frequencies
+        .get_or_insert_with(|| {
+            feed.frequencies
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|frequency| (frequency.trip_id, frequency.start_time))
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&(record_id, start_time))
 }
 
-fn transfer_exists(feed: &GtfsFeed, record_id: &str, record_sub_id: &str) -> bool {
-    feed.transfers
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|transfer| {
-                let from_matches = transfer
-                    .from_stop_id
-                    .filter(|id| id.0 != 0)
-                    .map(|id| feed.pool.resolve(id))
-                    .map(|value| value.trim() == record_id)
-                    .unwrap_or(false);
-                let to_matches = transfer
-                    .to_stop_id
-                    .filter(|id| id.0 != 0)
-                    .map(|id| feed.pool.resolve(id))
-                    .map(|value| value.trim() == record_sub_id)
-                    .unwrap_or(false);
-                from_matches && to_matches
-            })
+fn transfer_exists(
+    feed: &GtfsFeed,
+    indexes: &mut RefIndexes,
+    record_id: StringId,
+    record_sub_id: StringId,
+    _record_sub_id_str: &str,
+) -> bool {
+    indexes
+        .transfers
+        .get_or_insert_with(|| {
+            feed.transfers
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .filter_map(|transfer| {
+                            let from = transfer.from_stop_id.filter(|id| id.0 != 0)?;
+                            let to = transfer.to_stop_id.filter(|id| id.0 != 0)?;
+                            Some((from, to))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&(record_id, record_sub_id))
 }
 
-fn fare_attribute_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.fare_attributes
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|fare_attribute| feed.pool.resolve(fare_attribute.fare_id).trim() == record_id)
+fn fare_attribute_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .fare_attributes
+        .get_or_insert_with(|| {
+            feed.fare_attributes
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|fare_attribute| fare_attribute.fare_id)
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn level_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.levels
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|level| feed.pool.resolve(level.level_id).trim() == record_id)
+fn level_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .levels
+        .get_or_insert_with(|| {
+            feed.levels
+                .as_ref()
+                .map(|table| table.rows.iter().map(|level| level.level_id).collect())
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn pathway_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.pathways
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|pathway| feed.pool.resolve(pathway.pathway_id).trim() == record_id)
+fn pathway_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .pathways
+        .get_or_insert_with(|| {
+            feed.pathways
+                .as_ref()
+                .map(|table| table.rows.iter().map(|pathway| pathway.pathway_id).collect())
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn attribution_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.attributions
-        .as_ref()
-        .map(|table| {
-            table.rows.iter().any(|attribution| {
-                attribution
-                    .attribution_id
-                    .filter(|id| id.0 != 0)
-                    .map(|id| feed.pool.resolve(id))
-                    .map(|value| value.trim() == record_id)
-                    .unwrap_or(false)
-            })
+fn attribution_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .attributions
+        .get_or_insert_with(|| {
+            feed.attributions
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .filter_map(|attribution| {
+                            attribution.attribution_id.filter(|id| id.0 != 0)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn area_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.areas
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|area| feed.pool.resolve(area.area_id).trim() == record_id)
+fn area_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .areas
+        .get_or_insert_with(|| {
+            feed.areas
+                .as_ref()
+                .map(|table| table.rows.iter().map(|area| area.area_id).collect())
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn fare_media_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.fare_media
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|media| feed.pool.resolve(media.fare_media_id).trim() == record_id)
+fn fare_media_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .fare_media
+        .get_or_insert_with(|| {
+            feed.fare_media
+                .as_ref()
+                .map(|table| table.rows.iter().map(|media| media.fare_media_id).collect())
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn rider_category_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.rider_categories
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|category| feed.pool.resolve(category.rider_category_id).trim() == record_id)
+fn rider_category_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .rider_categories
+        .get_or_insert_with(|| {
+            feed.rider_categories
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|category| category.rider_category_id)
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn location_group_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.location_groups
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|group| feed.pool.resolve(group.location_group_id).trim() == record_id)
+fn location_group_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .location_groups
+        .get_or_insert_with(|| {
+            feed.location_groups
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|group| group.location_group_id)
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.networks
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|network| feed.pool.resolve(network.network_id).trim() == record_id)
+fn network_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .networks
+        .get_or_insert_with(|| {
+            feed.networks
+                .as_ref()
+                .map(|table| table.rows.iter().map(|network| network.network_id).collect())
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
-fn route_network_exists(feed: &GtfsFeed, record_id: &str) -> bool {
-    feed.route_networks
-        .as_ref()
-        .map(|table| {
-            table
-                .rows
-                .iter()
-                .any(|route_network| feed.pool.resolve(route_network.route_id).trim() == record_id)
+fn route_network_exists(feed: &GtfsFeed, indexes: &mut RefIndexes, record_id: StringId) -> bool {
+    indexes
+        .route_networks
+        .get_or_insert_with(|| {
+            feed.route_networks
+                .as_ref()
+                .map(|table| {
+                    table
+                        .rows
+                        .iter()
+                        .map(|route_network| route_network.route_id)
+                        .collect()
+                })
+                .unwrap_or_default()
         })
-        .unwrap_or(false)
+        .contains(&record_id)
 }
 
 #[cfg(test)]
