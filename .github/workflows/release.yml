@@ -424,20 +424,129 @@ jobs:
           publish_or_skip gtfs-guru
           publish_or_skip gtfs-guru-web
 
-  publish-pypi:
+  build-wheels:
     needs: create-release
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64
+            manylinux: auto
+          - runner: ubuntu-latest
+            target: aarch64
+            manylinux: '2_28'
+          - runner: macos-latest
+            target: x86_64
+          - runner: macos-latest
+            target: aarch64
+          - runner: windows-latest
+            target: x64
+    runs-on: ${{ matrix.runner }}
+    name: Wheel (${{ matrix.runner }} ${{ matrix.target }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist -m crates/gtfs_validator_python/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.runner }}-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  build-sdist:
+    needs: create-release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist -m crates/gtfs_validator_python/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  test-python-wheel:
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.8'
+      - uses: actions/download-artifact@v8
+        with:
+          name: wheels-ubuntu-latest-x86_64
+          path: dist
+      - name: Install the built wheel
+        run: "python -m pip install --only-binary=:all: dist/*.whl"
+      - name: Exercise the Python API
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: python scripts/test-python-wheel.py
+
+  publish-pypi:
+    needs: [build-wheels, build-sdist, test-python-wheel]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Check artifacts before upload
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          ls -la dist/
+          wheels=$(find dist -name '*.whl' | wc -l)
+          sdists=$(find dist -name '*.tar.gz' | wc -l)
+          echo "wheels=$wheels sdists=$sdists"
+          if [ "$wheels" -lt 5 ] || [ "$sdists" -lt 1 ]; then
+            echo "::error::expected >=5 wheels and >=1 sdist, got $wheels/$sdists"
+            exit 1
+          fi
+          if [ -z "${PYPI_TOKEN}" ]; then
+            echo "::error::PYPI_API_TOKEN is not set"
+            exit 1
+          fi
+
       - uses: PyO3/maturin-action@v1
         with:
-          command: publish
-          args: --non-interactive --skip-existing -m crates/gtfs_validator_python/Cargo.toml
+          command: upload
+          args: --non-interactive --skip-existing dist/*
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Verify the version is live on PyPI
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -sf "https://pypi.org/pypi/gtfs-guru/${VERSION}/json" >/dev/null; then
+              echo "gtfs-guru ${VERSION} is live on PyPI."
+              exit 0
+            fi
+            echo "Not visible yet (attempt ${attempt}/6); waiting 20s..."
+            sleep 20
+          done
+          echo "::error::gtfs-guru ${VERSION} never appeared on PyPI after upload"
+          exit 1
 
   publish-npm:
     needs: create-release
@@ -533,7 +642,9 @@ jobs:
 
           DEPLOY_USER="${HETZNER_USER:-botuser}"
           DEPLOY_PATH="${HETZNER_PATH:-gtfs-guru-web/}"
-          rsync -az --delete-delay \
+          rsync -az --delete-delay --delete-excluded \
+            --exclude Dockerfile \
+            --exclude nginx.conf \
             -e "ssh -i $RUNNER_TEMP/hetzner_deploy_key -o IdentitiesOnly=yes" \
             website/ "$DEPLOY_USER@$HETZNER_HOST:$DEPLOY_PATH"
 

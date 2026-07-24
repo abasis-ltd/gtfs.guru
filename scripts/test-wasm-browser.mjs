@@ -122,6 +122,52 @@ async function validate(page, forceSingleThreaded = false) {
   }, { forceSingleThreaded });
 }
 
+async function validateOversizedArchive(page, forceSingleThreaded = false) {
+  return page.evaluate(async ({ forceSingleThreaded }) => {
+    const zipBytes = new ArrayBuffer(70 * 1024 * 1024 + 1);
+    const workerUrl = `/pkg/worker.js${forceSingleThreaded ? '?threads=off' : ''}`;
+
+    return new Promise((resolveResult, reject) => {
+      const worker = new Worker(workerUrl, { type: 'module' });
+      const timeout = setTimeout(() => {
+        worker.terminate();
+        reject(new Error(`Timed out waiting for ${workerUrl}`));
+      }, 120_000);
+
+      const finish = (callback, value) => {
+        clearTimeout(timeout);
+        worker.terminate();
+        callback(value);
+      };
+
+      worker.onerror = (event) => {
+        finish(reject, new Error(event.message || `Worker failed: ${workerUrl}`));
+      };
+      worker.onmessage = ({ data }) => {
+        if (data.type === 'ready') {
+          worker.postMessage({
+            id: 1,
+            type: 'validate',
+            payload: {
+              zipBytes,
+              date: '2026-07-22',
+              includeHtml: false,
+            },
+          }, [zipBytes]);
+          return;
+        }
+        if (data.type === 'error') {
+          finish(resolveResult, data.payload);
+          return;
+        }
+        if (data.type === 'result') {
+          finish(reject, new Error(`${workerUrl} unexpectedly accepted an oversized archive`));
+        }
+      };
+    });
+  }, { forceSingleThreaded });
+}
+
 const isolated = await startServer({ isolated: true });
 const portable = await startServer({ isolated: false });
 const browser = await chromium.launch({ headless: true });
@@ -139,6 +185,14 @@ try {
   assert.deepEqual(
     [threaded.errorCount, threaded.warningCount, threaded.infoCount],
     [forcedSingle.errorCount, forcedSingle.warningCount, forcedSingle.infoCount],
+  );
+  assert.match(
+    await validateOversizedArchive(page),
+    /Maximum size for browser validation is 70 MB/,
+  );
+  assert.match(
+    await validateOversizedArchive(page, true),
+    /Maximum size for browser validation is 70 MB/,
   );
 
   await page.goto(portable.url);

@@ -223,16 +223,18 @@ import type { ValidationResult } from '@abasisltd/gtfs-guru-wasm';
 
 WASM runs in a limited memory environment. For large GTFS feeds:
 
-1. **File Size Limits**: Browser validation accepts up to 100 MB compressed and
+1. **File Size Limits**: Browser validation accepts up to 70 MB compressed and
    512 MB total uncompressed data. Both limits are checked before parsing.
 
 2. **Web Worker**: Always use the Web Worker for files over 10MB to avoid UI freezing.
 
 3. **Server-Side**: For very large feeds (>200MB), consider server-side validation with the CLI or REST API.
 
-The uncompressed limit is essential because ZIP size alone is misleading. For
-example, the 75 MB `ch.zip` benchmark expands to 701 MB and exhausted the WASM
-heap before the central-directory guard was added.
+The uncompressed limit remains essential because ZIP size alone is misleading.
+For example, the 75 MB `ch.zip` benchmark expands to 701 MB and previously
+exhausted the WASM heap. The 70 MB compressed-size cap now rejects that feed
+even earlier, while the central-directory guard protects smaller but highly
+compressed archives.
 
 CSV members are streamed from the ZIP directly into the sequential parser, so
 the browser does not retain a second full uncompressed copy of large tables.

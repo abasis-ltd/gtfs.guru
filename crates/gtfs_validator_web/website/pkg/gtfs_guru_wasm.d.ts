@@ -64,7 +64,7 @@ export function init(): void;
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the ZIP exceeds 100 MB compressed or 512 MB
+ * Throws a JavaScript error if the ZIP exceeds 70 MB compressed or 512 MB
  * uncompressed
  */
 export function validate_gtfs(zip_bytes: Uint8Array, country_code?: string | null, date?: string | null): ValidationResult;

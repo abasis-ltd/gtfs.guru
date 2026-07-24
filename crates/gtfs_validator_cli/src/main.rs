@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use anyhow::{bail, Context};
 use chrono::NaiveDate;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use reqwest::blocking::Client;
 use tracing::info;
 
@@ -21,19 +21,35 @@ use gtfs_guru_report::{
     SarifReport, ValidationReport,
 };
 
+/// Severity threshold at which a completed validation exits non-zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum FailOn {
+    /// Always exit 0 when validation completes.
+    None,
+    /// Exit 2 when at least one error is present.
+    Error,
+    /// Exit 2 when at least one error or warning is present.
+    Warning,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "gtfs-guru")]
 #[command(about = "GTFS Guru validator (Rust rewrite)")]
+#[command(version)]
 struct Args {
+    /// Path to a GTFS zip file or unpacked feed directory.
     #[arg(short = 'i', long = "input")]
     input: Option<PathBuf>,
 
+    /// URL of a remote GTFS zip file to download and validate.
     #[arg(short = 'u', long = "url")]
     url: Option<String>,
 
+    /// Directory in which to keep a feed downloaded with --url.
     #[arg(short = 's', long = "storage_directory", alias = "storage-directory")]
     storage_directory: Option<PathBuf>,
 
+    /// Directory for generated reports; required unless --stdout is used.
     #[arg(
         short = 'o',
         long = "output_base",
@@ -47,12 +63,15 @@ struct Args {
     #[arg(long = "stdout")]
     stdout: bool,
 
+    /// ISO country code used by region-specific rules (for example US or CY).
     #[arg(short = 'c', long = "country_code", alias = "country-code")]
     country_code: Option<String>,
 
+    /// Date against which to validate the feed, in YYYY-MM-DD format.
     #[arg(short = 'd', long = "date", alias = "date-for-validation")]
     date_for_validation: Option<String>,
 
+    /// File name for the JSON validation report (default: report.json).
     #[arg(
         short = 'v',
         long = "validation_report_name",
@@ -60,9 +79,11 @@ struct Args {
     )]
     validation_report_name: Option<String>,
 
+    /// File name for the HTML report (default: report.html).
     #[arg(short = 'r', long = "html_report_name", alias = "html-report-name")]
     html_report_name: Option<String>,
 
+    /// File name for the system errors report (default: system_errors.json).
     #[arg(
         short = 'e',
         long = "system_errors_report_name",
@@ -70,9 +91,11 @@ struct Args {
     )]
     system_errors_report_name: Option<String>,
 
+    /// Pretty-print JSON output.
     #[arg(short = 'p', long = "pretty")]
     pretty: bool,
 
+    /// Write notice_schema.json describing every notice this build can emit.
     #[arg(
         short = 'n',
         long = "export_notices_schema",
@@ -80,15 +103,19 @@ struct Args {
     )]
     export_notices_schema: bool,
 
+    /// Skip the online check for a newer validator release.
     #[arg(long = "skip_validator_update", alias = "skip-validator-update")]
     skip_validator_update: bool,
 
+    /// Override the validated_at timestamp stored in report metadata.
     #[arg(long = "validated-at")]
     validated_at: Option<String>,
 
+    /// Thread count stored in report metadata; use RAYON_NUM_THREADS to control parallelism.
     #[arg(long = "threads", default_value_t = 1)]
     threads: u32,
 
+    /// Enable additional rules used by Google's GTFS ingestion.
     #[arg(long = "google_rules", alias = "google-rules")]
     google_rules: bool,
 
@@ -96,15 +123,23 @@ struct Args {
     #[arg(long = "sarif")]
     sarif: Option<String>,
 
+    /// Exit 2 when the completed report reaches this severity.
+    #[arg(long = "fail-on", value_enum, default_value_t = FailOn::None)]
+    fail_on: FailOn,
+
     /// Show what fixes would be applied without modifying files
-    #[arg(long = "fix-dry-run")]
+    #[arg(
+        long = "fix-dry-run",
+        alias = "fix-preview",
+        conflicts_with_all = ["fix", "fix_unsafe"]
+    )]
     fix_dry_run: bool,
 
-    /// Apply safe auto-fixes to the GTFS feed
+    /// Not implemented: prints planned safe fixes, then exits with an error.
     #[arg(long = "fix")]
     fix: bool,
 
-    /// Apply all fixes including potentially unsafe ones (implies --fix)
+    /// Not implemented: prints all planned fixes, then exits with an error.
     #[arg(long = "fix-unsafe")]
     pub fix_unsafe: bool,
 
@@ -270,6 +305,7 @@ fn main() -> anyhow::Result<()> {
         }
         .context("serialize report")?;
         println!("{json}");
+        exit_if_threshold_reached(args.fail_on, stdout_report_container);
         return Ok(());
     }
     let output = output.expect("clap requires --output_base unless --stdout is used");
@@ -312,7 +348,38 @@ fn main() -> anyhow::Result<()> {
         handle_fixes(&validation_notices, &args, input.path())?;
     }
 
+    // Reports are already written: status 2 describes feed quality, not a run failure.
+    exit_if_threshold_reached(args.fail_on, stdout_report_container);
+
     Ok(())
+}
+
+fn perf_logging_enabled() -> bool {
+    std::env::var_os("GTFS_PERF_DEBUG").is_some()
+}
+
+fn should_fail(fail_on: FailOn, errors: usize, warnings: usize) -> bool {
+    match fail_on {
+        FailOn::None => false,
+        FailOn::Error => errors > 0,
+        FailOn::Warning => errors > 0 || warnings > 0,
+    }
+}
+
+fn exit_if_threshold_reached(fail_on: FailOn, notices: &NoticeContainer) {
+    let errors = notices.count_by_severity(NoticeSeverity::Error);
+    let warnings = notices.count_by_severity(NoticeSeverity::Warning);
+    if !should_fail(fail_on, errors, warnings) {
+        return;
+    }
+
+    let threshold = match fail_on {
+        FailOn::Error => "error",
+        FailOn::Warning => "warning",
+        FailOn::None => unreachable!(),
+    };
+    eprintln!("Feed did not pass --fail-on {threshold}: {errors} error(s), {warnings} warning(s).");
+    std::process::exit(2);
 }
 
 fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> anyhow::Result<()> {
@@ -390,61 +457,58 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> any
                 println!();
             }
         }
-        println!("Run with --fix to apply safe fixes, or --fix-unsafe to apply all.");
+        println!("Applying fixes is not implemented; the input was not modified.");
         return Ok(());
     }
 
-    // Apply fixes
+    // File rewriting is not implemented. Print the exact plan and fail loudly
+    // so callers cannot mistake a successful process for a modified feed.
     if args.fix || args.fix_unsafe {
-        let mut applied = 0;
+        let mut planned = 0;
         let mut skipped = 0;
 
-        // Note: For MVP, we just log what would be done. Full CSV rewriting is complex.
-        // A complete implementation would:
-        // 1. Read the CSV file
-        // 2. Parse while preserving original formatting (quotes, delimiters)
-        // 3. Apply fixes by row/field
-        // 4. Write back
-
+        println!("\n=== Planned Fixes (NOT applied) ===\n");
         for (file, file_fixes) in &fixes_by_file {
-            for (_notice, fix) in file_fixes {
+            for (notice, fix) in file_fixes {
                 let should_apply = match fix.safety {
                     FixSafety::Safe => include_safe,
                     FixSafety::RequiresConfirmation => include_requires_confirmation,
                     FixSafety::Unsafe => include_unsafe,
                 };
 
-                if should_apply {
-                    // For MVP, just log. Full implementation would modify the file.
-                    let FixOperation::ReplaceField {
-                        row,
-                        field,
-                        original,
-                        replacement,
-                        ..
-                    } = &fix.operation;
-                    info!(
-                        "Would fix {}: row {}, {} '{}' -> '{}'",
-                        file, row, field, original, replacement
-                    );
-                    applied += 1;
-                } else {
+                if !should_apply {
                     skipped += 1;
+                    continue;
                 }
+
+                let FixOperation::ReplaceField {
+                    row,
+                    field,
+                    original,
+                    replacement,
+                    ..
+                } = &fix.operation;
+                let safety_label = match fix.safety {
+                    FixSafety::Safe => "[SAFE]",
+                    FixSafety::RequiresConfirmation => "[CONFIRM]",
+                    FixSafety::Unsafe => "[UNSAFE]",
+                };
+                println!("{} {} row {}, field '{}':", safety_label, file, row, field);
+                println!("  Error: {} ({})", notice.message, notice.code);
+                println!("  - {}", original);
+                println!("  + {}", replacement);
+                println!();
+                planned += 1;
             }
         }
 
-        info!(
-            "Fixes: {} would be applied, {} skipped (use --fix-unsafe to include)",
-            applied, skipped
+        bail!(
+            "--fix is not implemented: {} was NOT modified ({} edit(s) planned, {} skipped). \
+             Use --fix-dry-run to inspect safe edits without an error.",
+            gtfs_path.display(),
+            planned,
+            skipped
         );
-
-        if applied > 0 {
-            info!(
-                "Note: Actual file modification not yet implemented. Files at {} unchanged.",
-                gtfs_path.display()
-            );
-        }
     }
 
     Ok(())
@@ -694,7 +758,7 @@ fn validate_with_metrics(
         .loading_pb
         .finish_with_message("Loading complete");
     let load_elapsed = load_start.elapsed();
-    if !quiet {
+    if !quiet && perf_logging_enabled() {
         eprintln!("[PERF] Feed loading took: {:?}", load_elapsed);
     }
 
@@ -726,7 +790,7 @@ fn validate_with_metrics(
             progress_handler
                 .validation_pb
                 .finish_with_message("Validation complete");
-            if !quiet {
+            if !quiet && perf_logging_enabled() {
                 eprintln!("[PERF] Validation took: {:?}", validate_start.elapsed());
             }
             record_memory_usage(
@@ -889,5 +953,37 @@ fn current_rss_bytes() -> Option<u64> {
     #[cfg(not(unix))]
     {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn fail_on_none_never_fails() {
+        assert!(!should_fail(FailOn::None, 0, 0));
+        assert!(!should_fail(FailOn::None, 42, 7));
+    }
+
+    #[test]
+    fn fail_on_error_ignores_warnings() {
+        assert!(!should_fail(FailOn::Error, 0, 9));
+        assert!(should_fail(FailOn::Error, 1, 0));
+    }
+
+    #[test]
+    fn fail_on_warning_covers_errors_and_warnings() {
+        assert!(!should_fail(FailOn::Warning, 0, 0));
+        assert!(should_fail(FailOn::Warning, 0, 1));
+        assert!(should_fail(FailOn::Warning, 1, 0));
+    }
+
+    #[test]
+    fn cli_definition_is_valid_and_has_version() {
+        let command = Args::command();
+        command.clone().debug_assert();
+        assert_eq!(command.get_version(), Some(env!("CARGO_PKG_VERSION")));
     }
 }

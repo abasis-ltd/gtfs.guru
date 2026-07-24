@@ -58,7 +58,7 @@ services:
     environment:
       POSTGRES_DB: umami
       POSTGRES_USER: umami
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-umami}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - umami-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -73,8 +73,8 @@ services:
     container_name: umami
     restart: always
     environment:
-      DATABASE_URL: postgres://umami:${POSTGRES_PASSWORD:-umami}@postgres:5432/umami
-      APP_SECRET: ${UMAMI_SECRET:-replace-me-with-a-random-string}
+      DATABASE_URL: postgres://umami:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/umami
+      APP_SECRET: ${UMAMI_SECRET:?set UMAMI_SECRET in .env}
     depends_on:
       postgres:
         condition: service_healthy

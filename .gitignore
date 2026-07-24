@@ -1,6 +1,9 @@
 /target
 **/*.rs.bk
 .DS_Store
+
+# Local AI coding sessions may contain full worktrees and conversation data.
+.claude/
 /golden_actual/
 /scripts/golden_manifest.tsv
 /node_modules/

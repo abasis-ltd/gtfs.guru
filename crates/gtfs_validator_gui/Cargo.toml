@@ -33,7 +33,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Networking
-reqwest = { version = "0.11", features = ["blocking", "rustls-tls"] }
+reqwest = { workspace = true }
 uuid = { version = "1.0", features = ["v4"] }
 
 # Utils

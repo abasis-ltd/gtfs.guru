@@ -312,6 +312,14 @@ h1 {
     font-family: var(--font-heading);
 }
 
+.stat-prefix {
+    margin-right: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
 .stat-suffix {
     font-size: 1.5rem;
     color: var(--accent-primary);

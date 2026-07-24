@@ -19,7 +19,7 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 2. **Privacy First**: Runs locally on your machine. No need to upload sensitive or pre-release schedules to the cloud.
 3. **Cross-Platform**: Available as a desktop app, command-line tool, Python library, Web API, and WebAssembly module.
 4. **CI & Integrations**: JSON/HTML/SARIF reports, notice schema export, URL validation, and timing breakdowns.
-5. **Deep Coverage**: 100+ validators, Google-specific rules, and an optional `--thorough` mode.
+5. **Deep Coverage**: 109 validators, Google-specific rules, and an optional `--thorough` mode.
 
 | Feature | Java Validator | **GTFS Guru (Rust)** |
 | :--- | :---: | :---: |
@@ -34,7 +34,7 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 
 ## 📌 Versions
 
-* Current engine/CLI/report/model/python/wasm/web crate versions: **`v0.9.3`**
+* Current engine/CLI/report/model/python/wasm/web crate versions: **`v1.0.0`**
 * Desktop app releases are tagged on GitHub; download the latest for your OS.
 
 ---
@@ -101,7 +101,7 @@ iwr -useb https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/in
 Optional env vars:
 * `INSTALL_DIR=/custom/bin`
 * `GTFS_GURU_LINUX_FLAVOR=gnu|musl` (x86_64 Linux only)
-* `GTFS_GURU_VERSION=v0.9.3`
+* `GTFS_GURU_VERSION=v1.0.0`
 
 **CI examples (GitHub Actions):**
 
@@ -116,7 +116,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Run validation
-        run: gtfs-guru -i feed.zip -o out
+        run: gtfs-guru -i feed.zip -o out --fail-on error
 ```
 
 **CI examples (GitLab CI):**
@@ -129,7 +129,7 @@ validate:
     - curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash
     - export PATH="$HOME/.local/bin:$PATH"
   script:
-    - gtfs-guru -i feed.zip -o out
+    - gtfs-guru -i feed.zip -o out --fail-on error
 ```
 
 ### 🦀 For Rust Developers (CLI)
@@ -187,8 +187,11 @@ Optional outputs:
 * `--thorough`: Enable recommended-field checks.
 * `--sarif <FILE>`: Write SARIF report for CI.
 * `--timing` / `--timing-json`: Print timing breakdowns.
+* `--fail-on <none|error|warning>`: Exit with status 2 when the report reaches that severity. Reports are still written.
 
-Auto-fix flags (`--fix-dry-run`, `--fix`, `--fix-unsafe`) currently print planned edits; file rewriting is not implemented yet.
+`--fix-dry-run` lists suggested edits. File rewriting is not implemented, so `--fix` and `--fix-unsafe` print the plan and exit with an error instead of claiming the input was changed.
+
+Exit codes: `0` validation completed, `1` the run failed, `2` the feed did not meet `--fail-on`.
 
 See the [LLM Guide](docs/llm.md) for a compact, copy/paste reference.
 
@@ -241,7 +244,7 @@ GTFSVTOR_OPTS=-Xmx6G gtfsvtor \
 This monorepo houses the entire ecosystem:
 
 * **`crates/gtfs_model`**: Shared GTFS data model types.
-* **`crates/gtfs_validator_core`**: The validation engine (100+ validators).
+* **`crates/gtfs_validator_core`**: The validation engine (109 validators).
 * **`crates/gtfs_validator_report`**: Report generation (JSON/HTML/SARIF).
 * **`crates/gtfs_validator_cli`**: CLI tool implementation.
 * **`crates/gtfs_validator_web`**: Web API service.

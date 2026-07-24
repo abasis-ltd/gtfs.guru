@@ -310,7 +310,7 @@ export function initThreadPool(num_threads) {
  * A ValidationResult containing the JSON report and summary counts
  *
  * # Errors
- * Throws a JavaScript error if the ZIP exceeds 100 MB compressed or 512 MB
+ * Throws a JavaScript error if the ZIP exceeds 70 MB compressed or 512 MB
  * uncompressed
  * @param {Uint8Array} zip_bytes
  * @param {string | null} [country_code]

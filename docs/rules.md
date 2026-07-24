@@ -1,34 +1,209 @@
 # Validation Rules
 
-The validator implements **88 validation rules** covering:
+GTFS Guru registers **109 validators**, which currently emit the **189 notice
+codes** listed below.
 
-## File Structure
-- Required files (agency.txt, stops.txt, routes.txt, trips.txt, stop_times.txt)
-- Recommended files (feed_info.txt, shapes.txt)
-- File encoding (UTF-8)
-- CSV parsing
+This list is generated from the validator's notice schema. To export the full
+machine-readable schema, including context fields for every code:
 
-## Data Integrity
-- Primary key uniqueness
-- Foreign key references
-- Required fields
-- Data types and formats
+```bash
+gtfs-guru --export-notices-schema --output_base ./out
+```
 
-## Geographic Validation
-- Coordinate ranges (latitude/longitude)
-- Stop-to-shape distance
-- Travel speed between stops
-- Shape geometry
+## ERROR (111)
 
-## Schedule Validation
-- Stop time sequences
-- Arrival/departure times
-- Calendar validity
-- Service coverage
-- Overlapping frequencies
+- `bidirectional_exit_gate`
+- `block_trips_with_overlapping_stop_times`
+- `csv_parsing_failed`
+- `decreasing_or_equal_stop_time_distance`
+- `decreasing_shape_distance`
+- `duplicate_geo_json_key`
+- `duplicate_geography_id`
+- `duplicate_key`
+- `duplicated_column`
+- `empty_column_name`
+- `empty_file`
+- `equal_shape_distance_diff_coordinates`
+- `fare_product_with_multiple_default_rider_categories`
+- `fare_transfer_rule_duration_limit_type_without_duration_limit`
+- `fare_transfer_rule_duration_limit_without_type`
+- `fare_transfer_rule_invalid_transfer_count`
+- `fare_transfer_rule_with_forbidden_transfer_count`
+- `fare_transfer_rule_without_transfer_count`
+- `forbidden_arrival_or_departure_time`
+- `forbidden_continuous_pickup_drop_off`
+- `forbidden_drop_off_type`
+- `forbidden_geography_id`
+- `forbidden_pickup_type`
+- `forbidden_prior_day_booking_field_value`
+- `forbidden_prior_notice_start_day`
+- `forbidden_prior_notice_start_time`
+- `forbidden_real_time_booking_field_value`
+- `forbidden_same_day_booking_field_value`
+- `forbidden_shape_dist_traveled`
+- `foreign_key_violation`
+- `geo_json_duplicated_element`
+- `google_ic_price_check`
+- `i_o_error`
+- `inconsistent_agency_timezone`
+- `invalid_character`
+- `invalid_color`
+- `invalid_currency`
+- `invalid_currency_amount`
+- `invalid_date`
+- `invalid_email`
+- `invalid_float`
+- `invalid_geometry`
+- `invalid_input_files_in_subfolder`
+- `invalid_integer`
+- `invalid_language_code`
+- `invalid_phone_number`
+- `invalid_pickup_drop_off_window`
+- `invalid_prior_notice_duration_min`
+- `invalid_row_length`
+- `invalid_time`
+- `invalid_timezone`
+- `invalid_url`
+- `location_with_unexpected_stop_time`
+- `location_without_parent_station`
+- `malformed_json`
+- `missing_calendar_and_calendar_date_files`
+- `missing_level_id`
+- `missing_pickup_or_drop_off_window`
+- `missing_prior_day_booking_field_value`
+- `missing_prior_notice_duration_min`
+- `missing_prior_notice_last_day`
+- `missing_prior_notice_last_time`
+- `missing_prior_notice_start_time`
+- `missing_required_agency_id`
+- `missing_required_column`
+- `missing_required_element`
+- `missing_required_field`
+- `missing_required_file`
+- `missing_stop_name`
+- `missing_stop_times_record`
+- `missing_trip_edge`
+- `new_line_in_value`
+- `number_out_of_range`
+- `overlapping_frequency`
+- `overlapping_zone_and_pickup_drop_off_window`
+- `pathway_to_platform_with_boarding_areas`
+- `pathway_to_stop_with_access_outside_of_station_pathways`
+- `pathway_to_wrong_location_type`
+- `pathway_unreachable_location`
+- `point_near_origin`
+- `point_near_pole`
+- `prior_notice_last_day_after_start_day`
+- `route_both_short_and_long_name_missing`
+- `route_networks_specified_in_more_than_one_file`
+- `runtime_exception_in_loader_error`
+- `runtime_exception_in_validator_error`
+- `start_and_end_range_equal`
+- `start_and_end_range_out_of_order`
+- `station_with_parent_station`
+- `stop_access_specified_for_incorrect_location`
+- `stop_access_specified_for_stop_with_no_parent_station`
+- `stop_time_timepoint_without_times`
+- `stop_time_with_arrival_before_previous_departure_time`
+- `stop_time_with_only_arrival_or_departure_time`
+- `stop_without_location`
+- `thread_execution_error`
+- `timeframe_only_start_or_end_time_specified`
+- `timeframe_overlap`
+- `timeframe_start_or_end_time_greater_than_twenty_four_hours`
+- `too_many_rows`
+- `transfer_with_invalid_stop_location_type`
+- `transfer_with_invalid_trip_and_route`
+- `transfer_with_invalid_trip_and_stop`
+- `translation_foreign_key_violation`
+- `translation_unexpected_value`
+- `trip_distance_exceeds_shape_distance`
+- `u_r_i_syntax_error`
+- `unsupported_feature_type`
+- `unsupported_geo_json_type`
+- `unsupported_geometry_type`
+- `wrong_parent_location_type`
 
-## Accessibility & Quality
-- Route color contrast
-- Stop naming
-- Pathway connectivity
-- Fare system consistency
+## WARNING (61)
+
+- `agency_phone_invalid`
+- `attribution_without_role`
+- `duplicate_fare_media`
+- `duplicate_route_name`
+- `duplicate_trip`
+- `empty_row`
+- `equal_shape_distance_diff_coordinates_distance_below_threshold`
+- `equal_shape_distance_same_coordinates`
+- `expired_calendar`
+- `fast_travel_between_consecutive_stops`
+- `fast_travel_between_far_stops`
+- `feed_expiration_date30_days`
+- `feed_expiration_date7_days`
+- `feed_info_lang_and_agency_lang_mismatch`
+- `google_transfer_type_check`
+- `headway_too_large`
+- `inconsistent_agency_lang`
+- `inconsistent_route_type_for_block_id`
+- `inconsistent_route_type_for_in_seat_transfer`
+- `missing_bike_allowance`
+- `missing_feed_contact_email_and_url`
+- `missing_feed_info_date`
+- `missing_pickup_drop_off_booking_rule_id`
+- `missing_recommended_column`
+- `missing_recommended_field`
+- `missing_recommended_file`
+- `missing_timepoint_value`
+- `mixed_case_recommended_field`
+- `more_than_one_entity`
+- `non_ascii_or_non_printable_char`
+- `pathway_dangling_generic_node`
+- `pathway_loop`
+- `route_color_contrast`
+- `route_long_name_contains_short_name`
+- `route_short_name_too_long`
+- `same_name_and_description_for_route`
+- `same_name_and_description_for_stop`
+- `same_route_and_agency_url`
+- `same_stop_and_agency_url`
+- `same_stop_and_route_url`
+- `service_has_no_active_day_of_the_week`
+- `single_shape_point`
+- `stop_has_too_many_matches_for_shape`
+- `stop_headsign_invalid_char`
+- `stop_too_far_from_shape`
+- `stop_too_far_from_shape_using_user_distance`
+- `stop_without_stop_time`
+- `stops_match_shape_out_of_order`
+- `too_many_days_without_service`
+- `transfer_distance_too_large`
+- `transfer_with_suspicious_mid_trip_in_seat`
+- `translation_unknown_table_name`
+- `trip_coverage_not_active_for_next7_days`
+- `trip_distance_exceeds_shape_distance_below_threshold`
+- `unexpected_enum_value`
+- `unusable_trip`
+- `unused_agency`
+- `unused_route`
+- `unused_shape`
+- `unused_stop`
+- `unused_trip`
+
+## INFO (17)
+
+- `big_gap_in_service`
+- `feed_valid_beyond_total_service_window`
+- `future_calendar`
+- `future_feed`
+- `geo_json_unknown_element`
+- `platform_without_parent_station`
+- `service_extends_far_in_the_future`
+- `service_window_outside_feed_period`
+- `stop_without_zone_id`
+- `transfer_distance_above_2_km`
+- `trip_headsign_matches_intermediate_stop`
+- `trip_with_shape_dist_traveled_but_no_shape_distances`
+- `unknown_column`
+- `unknown_file`
+- `unsorted_stop_times`
+- `unused_parent_station`
+- `unused_station`

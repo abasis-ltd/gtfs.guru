@@ -104,11 +104,11 @@ impl ValidationResult {
 ///
 /// Compressed size alone is not a reliable memory predictor, so validation also
 /// checks the total declared uncompressed size below.
-const MAX_FILE_SIZE_BYTES: usize = 100 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES: usize = 70 * 1024 * 1024;
 
 /// Maximum total size of root-level files declared in the ZIP central
-/// directory. A 735 MB feed was observed to exhaust the wasm32 heap despite a
-/// compressed size of only 75 MB, so reject earlier with a recoverable error.
+/// directory. This remains a defense-in-depth check because compressed size
+/// alone does not reliably predict the memory needed while parsing.
 const MAX_UNCOMPRESSED_SIZE_BYTES: u64 = 512 * 1024 * 1024;
 
 /// Validate a GTFS ZIP file from bytes
@@ -122,7 +122,7 @@ const MAX_UNCOMPRESSED_SIZE_BYTES: u64 = 512 * 1024 * 1024;
 /// A ValidationResult containing the JSON report and summary counts
 ///
 /// # Errors
-/// Throws a JavaScript error if the ZIP exceeds 100 MB compressed or 512 MB
+/// Throws a JavaScript error if the ZIP exceeds 70 MB compressed or 512 MB
 /// uncompressed
 #[wasm_bindgen]
 pub fn validate_gtfs(
@@ -134,7 +134,7 @@ pub fn validate_gtfs(
     if zip_bytes.len() > MAX_FILE_SIZE_BYTES {
         let size_mb = zip_bytes.len() as f64 / (1024.0 * 1024.0);
         return Err(JsValue::from_str(&format!(
-            "File too large ({:.1} MB). Maximum size for browser validation is 100 MB. \
+            "File too large ({:.1} MB). Maximum size for browser validation is 70 MB. \
              Please download the desktop application or CLI for larger feeds.",
             size_mb
         )));

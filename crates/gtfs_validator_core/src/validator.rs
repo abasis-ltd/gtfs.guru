@@ -216,7 +216,10 @@ impl ValidatorRunner {
 
         let elapsed = start.elapsed();
 
-        if elapsed.as_millis() > 500 && crate::performance_logs_enabled() {
+        if elapsed.as_millis() > 500
+            && crate::performance_logs_enabled()
+            && std::env::var_os("GTFS_PERF_DEBUG").is_some()
+        {
             eprintln!("[PERF] Validator {} took: {:?}", validator.name(), elapsed);
         }
 

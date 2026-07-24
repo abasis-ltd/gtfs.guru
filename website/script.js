@@ -3,7 +3,7 @@
 // out-of-memory failure kills only the worker instead of the whole tab.
 
 // Keep this in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 70 * 1024 * 1024;
 
 let validatorWorker = null;
 let pendingValidation = null; // { id, resolve, reject }
@@ -60,7 +60,7 @@ function validateInWorker(arrayBuffer, dateStr) {
         const worker = getValidatorWorker();
         const id = nextMsgId++;
         pendingValidation = { id, resolve, reject };
-        // Transfer (not copy) the ArrayBuffer — feeds can be up to 100 MB.
+        // Transfer (not copy) the ArrayBuffer — feeds can be up to 70 MB.
         worker.postMessage(
             { type: 'validate', id, payload: { zipBytes: arrayBuffer, date: dateStr } },
             [arrayBuffer],
@@ -375,10 +375,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Try direct fetch first
                 arrayBuffer = await tryFetch(url);
             } catch (err) {
-                console.warn("Direct fetch failed, trying local CORS proxy...", err);
-                // Try via local proxy on the same server
-                // This requires Nginx to be configured with the /cors-proxy/ location
-                const proxyUrl = '/cors-proxy/' + url;
+                console.warn("Direct fetch failed, retrying through the validator service...", err);
+                // The same-origin Rust endpoint only connects to public
+                // addresses and enforces rate, concurrency, redirect and size limits.
+                const proxyUrl = '/cors-proxy?url=' + encodeURIComponent(url);
                 arrayBuffer = await tryFetch(proxyUrl);
             }
 
@@ -406,8 +406,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error("URL fetch error:", err);
             alert(`Error loading from URL: ${err.message}\n
-If the server blocks cross-origin requests (CORS), we tried to use a local proxy but that failed too.
-Please ensure the Nginx container is configured with the proxy settings.`);
+The feed host blocked the browser request, and fetching it through gtfs.guru also failed.
+Download the .zip and drop it here instead; validation still runs locally in your browser.`);
             processingState.classList.add('hidden');
             uploadState.classList.remove('hidden');
             urlInputContainer.classList.remove('hidden');
@@ -433,7 +433,7 @@ Please ensure the Nginx container is configured with the proxy settings.`);
     function showTooLarge(sizeBytes) {
         const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
         showValidationError(
-            `This feed is ${sizeMb} MB. In-browser validation is capped at 100 MB. ` +
+            `This feed is ${sizeMb} MB. In-browser validation is capped at 70 MB. ` +
             `For larger feeds use the free desktop app or CLI (see the Download section) — they handle any size.`
         );
     }

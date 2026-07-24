@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GTFS Guru | The World's Fastest GTFS Validator</title>
+    <title>GTFS Guru | Fast, Private GTFS Validation</title>
     <meta name="description"
-        content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
+        content="Validate GTFS feeds locally with GTFS Guru. Open source, private, up to 100x faster on small feeds, and 4.6–6.7x faster on published large-feed benchmarks.">
     <link rel="canonical" href="https://gtfs.guru/">
     <link rel="sitemap" type="application/xml" title="Sitemap" href="https://gtfs.guru/sitemap.xml">
     <meta name="robots" content="index, follow">
@@ -14,17 +14,17 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="GTFS Guru">
-    <meta property="og:title" content="GTFS Guru | The World's Fastest GTFS Validator">
+    <meta property="og:title" content="GTFS Guru | Fast, Private GTFS Validation">
     <meta property="og:description"
-        content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
+        content="Validate GTFS feeds locally with GTFS Guru. Open source, private, up to 100x faster on small feeds, and 4.6–6.7x faster on published large-feed benchmarks.">
     <meta property="og:image" content="https://gtfs.guru/og-image.png">
     <meta property="og:url" content="https://gtfs.guru/">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="GTFS Guru | The World's Fastest GTFS Validator">
+    <meta name="twitter:title" content="GTFS Guru | Fast, Private GTFS Validation">
     <meta name="twitter:description"
-        content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
+        content="Validate GTFS feeds locally with GTFS Guru. Open source, private, up to 100x faster on small feeds, and 4.6–6.7x faster on published large-feed benchmarks.">
     <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
     <meta name="theme-color" content="#0f172a">
 
@@ -120,11 +120,12 @@
 
                 <div class="stats-row">
                     <div class="stat-item">
+                        <span class="stat-prefix">Up to</span>
                         <span class="stat-number" data-target="100">0</span><span class="stat-suffix">x</span>
-                        <span class="stat-label">Faster than Java</span>
+                        <span class="stat-label">Faster on Small Feeds</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-number" data-target="88">0</span>
+                        <span class="stat-number" data-target="109">0</span>
                         <span class="stat-label">Validation Rules</span>
                     </div>
                     <div class="stat-item">
@@ -237,14 +238,14 @@
                 </div>
                 <!-- Rows -->
                 <div class="comparison-row">
-                    <div class="col-feature">Speed (Small Feed)</div>
-                    <div class="col-old">~1.5s</div>
-                    <div class="col-new highlight">~0.01s (100x Faster)</div>
+                    <div class="col-feature">MBTA benchmark</div>
+                    <div class="col-old">10.60s</div>
+                    <div class="col-new highlight">2.32s (4.6x faster)</div>
                 </div>
                 <div class="comparison-row">
-                    <div class="col-feature">Speed (Large Feed)</div>
-                    <div class="col-old">40s</div>
-                    <div class="col-new highlight">20s (2-5x Faster)</div>
+                    <div class="col-feature">OVapi NL benchmark</div>
+                    <div class="col-old">65.18s</div>
+                    <div class="col-new highlight">9.75s (6.7x faster)</div>
                 </div>
                 <div class="comparison-row">
                     <div class="col-feature">Memory Usage</div>
@@ -394,9 +395,10 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                     <div>
                         <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">How is this different?</h3>
                         <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
-                            GTFS Guru is built for speed. It's written in Rust, which means it can be up to 100x faster
-                            and use 10x less memory than the standard Java-based validator. It's also much easier to use
-                            in modern environments like web browsers or Python scripts.
+                            GTFS Guru is built for speed. It can be up to 100x faster on small feeds where JVM startup
+                            dominates, while published large-feed benchmarks measure it at 4.6–6.7x faster than the
+                            canonical Java validator. It is also available in modern environments such as web browsers
+                            and Python scripts.
                         </p>
                     </div>
                     <div>
