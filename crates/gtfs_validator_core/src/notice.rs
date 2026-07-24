@@ -330,10 +330,7 @@ impl NoticeContainer {
                 self.severity_totals[sev] += count;
             }
             for (code, tallies) in group_tallies {
-                let entry = self
-                    .group_tallies
-                    .entry(code)
-                    .or_insert_with(<[GroupTally; 3]>::default);
+                let entry = self.group_tallies.entry(code).or_default();
                 for (sev, tally) in tallies.iter().enumerate() {
                     entry[sev].total += tally.total;
                     entry[sev].stored += tally.stored;
@@ -354,10 +351,7 @@ impl NoticeContainer {
                 let dropped = tally.total - tally.stored;
                 if dropped > 0 {
                     self.severity_totals[sev] += dropped;
-                    self.group_tallies
-                        .entry(code.clone())
-                        .or_insert_with(<[GroupTally; 3]>::default)[sev]
-                        .total += dropped;
+                    self.group_tallies.entry(code.clone()).or_default()[sev].total += dropped;
                 }
             }
         }

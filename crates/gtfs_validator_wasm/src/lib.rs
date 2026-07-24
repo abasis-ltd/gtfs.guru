@@ -1,8 +1,8 @@
 use wasm_bindgen::prelude::*;
 
 use gtfs_guru_core::{
-    default_runner, set_notice_group_limit, set_thorough_mode_enabled,
-    set_validation_country_code, set_validation_date, validate_bytes,
+    default_runner, set_notice_group_limit, set_thorough_mode_enabled, set_validation_country_code,
+    set_validation_date, validate_bytes,
 };
 use gtfs_guru_report::{
     generate_html_report_string, HtmlReportContext, ReportSummary, ReportSummaryContext,
@@ -192,8 +192,7 @@ pub fn validate_gtfs(
 
     // Exact severity totals (they include notices dropped by the group cap)
     let (errors, warnings, infos) = outcome.notices.severity_counts();
-    let (error_count, warning_count, info_count) =
-        (errors as u32, warnings as u32, infos as u32);
+    let (error_count, warning_count, info_count) = (errors as u32, warnings as u32, infos as u32);
     let truncated = outcome.notices.is_truncated();
 
     // Encode notices to JSON
@@ -252,8 +251,8 @@ mod tests {
     fn zip_with_stored_entry(name: &str, payload: &[u8]) -> Vec<u8> {
         use std::io::Write;
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        let options = zip::write::FileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         writer.start_file(name, options).unwrap();
         writer.write_all(payload).unwrap();
         writer.finish().unwrap().into_inner()
