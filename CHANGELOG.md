@@ -15,6 +15,10 @@ semantic versioning.
 
 ### Added
 
+- `gtfs-guru diff old.zip new.zip` compares files, feed metadata, agencies,
+  routes, stops (including moves over 10 m), trip counts and frequency windows
+  by route, and exact validation notice counts. It can emit JSON or Markdown
+  and fail CI with `--fail-on-new-errors`.
 - `--fail-on <none|error|warning>` for CI quality gates. Reports are written
   before the process exits with status `2`.
 - `--badge` and `--badge-svg` write a feed status badge: a shields.io endpoint

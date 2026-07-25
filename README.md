@@ -188,6 +188,18 @@ Validate from a URL (with an optional download cache):
 gtfs-guru -u https://example.com/gtfs.zip -s /tmp/gtfs -o ./output_report
 ```
 
+Compare a feed update, including routes, stops, trip/frequency aggregates, and
+validation regressions:
+
+```bash
+gtfs-guru diff old.zip new.zip
+gtfs-guru diff old.zip new.zip --json diff.json --markdown diff.md --fail-on-new-errors
+```
+
+The diff command exits with status `2` under `--fail-on-new-errors` when the new
+feed adds error occurrences. Use `--no-validation` for a faster structural-only
+comparison.
+
 Default outputs in the report directory:
 * `report.json`
 * `report.html`
