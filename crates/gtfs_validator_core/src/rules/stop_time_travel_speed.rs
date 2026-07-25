@@ -600,7 +600,8 @@ fn max_speed_kph(route_type: RouteType) -> f64 {
 }
 
 fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    let radius_km = 6371.0;
+    // S2Earth's radius, which is what the canonical validator measures with.
+    let radius_km = 6371.01;
     let lat1_rad = lat1.to_radians();
     let lat2_rad = lat2.to_radians();
     let delta_lat = (lat2 - lat1).to_radians();

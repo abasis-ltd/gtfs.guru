@@ -397,28 +397,33 @@ impl Validator for DuplicateKeyValidator {
                         row.to_trip_id.unwrap_or(StringId(0)),
                     );
                     if let Some(prev_row) = seen.get(&key) {
+                        // The key is only as wide as the columns this row
+                        // actually fills, and the reported field names must
+                        // name exactly those columns.
+                        let mut name = String::from("from_stop_id,to_stop_id");
                         let mut val = format!(
                             "{},{}",
                             feed.pool.resolve(from_stop_id),
                             feed.pool.resolve(to_stop_id)
                         );
-                        if let Some(id) = row.from_route_id {
-                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
-                        }
-                        if let Some(id) = row.to_route_id {
-                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
-                        }
-                        if let Some(id) = row.from_trip_id {
-                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
-                        }
-                        if let Some(id) = row.to_trip_id {
-                            val.push_str(&format!(",{}", feed.pool.resolve(id)));
+                        for (column, id) in [
+                            ("from_route_id", row.from_route_id),
+                            ("to_route_id", row.to_route_id),
+                            ("from_trip_id", row.from_trip_id),
+                            ("to_trip_id", row.to_trip_id),
+                        ] {
+                            if let Some(id) = id {
+                                name.push(',');
+                                name.push_str(column);
+                                val.push(',');
+                                val.push_str(feed.pool.resolve(id).as_str());
+                            }
                         }
 
                         notices.push(duplicate_key_notice(
                             TRANSFERS_FILE,
                             row_number,
-                            "from_stop_id,to_stop_id,...",
+                            &name,
                             &val,
                             *prev_row,
                         ));

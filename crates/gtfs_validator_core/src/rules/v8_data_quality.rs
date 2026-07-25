@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::{ServiceAvailability, StringId};
 
@@ -149,6 +150,11 @@ impl Validator for TripHeadsignMatchesIntermediateStopValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        // The canonical validator (v8.0.1 TripHeadsignValidator) returns from
+        // the whole check on the first circular trip instead of skipping just
+        // that trip, so it stops reporting after one. Default runs reproduce
+        // that for output parity; `--thorough` checks every trip.
+        let scan_every_trip = thorough_mode_enabled();
         let stops: HashMap<_, _> = feed
             .stops
             .rows
@@ -172,7 +178,10 @@ impl Validator for TripHeadsignMatchesIntermediateStopValidator {
             let first = &feed.stop_times.rows[stop_time_indices[0]];
             let last = &feed.stop_times.rows[*stop_time_indices.last().unwrap()];
             if first.stop_id == last.stop_id {
-                continue;
+                if scan_every_trip {
+                    continue;
+                }
+                return;
             }
             for &stop_time_index in &stop_time_indices[..stop_time_indices.len() - 1] {
                 let stop_time = &feed.stop_times.rows[stop_time_index];

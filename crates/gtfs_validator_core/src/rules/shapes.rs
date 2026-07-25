@@ -178,7 +178,8 @@ fn shape_notice(
 }
 
 fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    let radius_meters = 6_371_000.0;
+    // S2Earth's radius, matching the canonical validator's measurements.
+    let radius_meters = 6_371_010.0;
     let lat1_rad = lat1.to_radians();
     let lat2_rad = lat2.to_radians();
     let delta_lat = (lat2 - lat1).to_radians();
