@@ -14,6 +14,7 @@ use crate::{ReportCounts, ReportFeedInfo, ReportSummary};
 const DEFAULT_COUNTRY_CODE: &str = "ZZ";
 const NOTICE_ROW_LIMIT: usize = 50;
 const GTFS_FEATURE_BASE_URL: &str = "https://gtfs.org/getting_started/features/";
+const NOTICE_DOC_BASE_URL: &str = "https://gtfs.guru/notices/";
 
 pub struct HtmlReportContext {
     pub gtfs_source: String,
@@ -950,9 +951,10 @@ fn render_notice_group(
     push_escaped(out, code);
     out.push_str("</h3>\n                        <p style='font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1rem;'>");
     push_escaped(out, description);
-    out.push_str("</p>\n                        <p> View documentation for <a\n                                href=\"https://gtfs-validator.mobilitydata.org/rules.html#");
+    out.push_str("</p>\n                        <p>View the GTFS Guru guide for <a\n                                href=\"");
+    out.push_str(NOTICE_DOC_BASE_URL);
     push_escaped(out, code);
-    out.push_str("-rule\" target='_blank'>");
+    out.push_str("/\" target=\"_blank\" rel=\"noopener noreferrer\">");
     push_escaped(out, code);
     out.push_str("</a>.\n                        </p>\n");
     if total > NOTICE_ROW_LIMIT {

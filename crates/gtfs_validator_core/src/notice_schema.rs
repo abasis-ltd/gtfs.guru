@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -90,7 +91,7 @@ pub struct FieldSchema {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ReferencesSchema {
     #[serde(rename = "fileReferences")]
     pub file_references: Vec<String>,
@@ -111,7 +112,7 @@ impl ReferencesSchema {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UrlReference {
     pub label: String,
     pub url: String,
@@ -161,19 +162,67 @@ impl NoticeSchema {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct NoticeMetadata {
+    #[serde(rename = "shortSummary")]
+    short_summary: Option<String>,
+    description: Option<String>,
+    references: Option<ReferencesSchema>,
+    #[serde(default)]
+    properties: BTreeMap<String, FieldMetadata>,
+    #[serde(default)]
+    deprecated: bool,
+    #[serde(rename = "deprecationReason")]
+    deprecation_reason: Option<String>,
+    #[serde(rename = "deprecationVersion")]
+    deprecation_version: Option<String>,
+    #[serde(rename = "replacementNoticeCodes")]
+    replacement_notice_codes: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FieldMetadata {
+    description: Option<String>,
+}
+
+fn notice_metadata() -> &'static BTreeMap<String, NoticeMetadata> {
+    static METADATA: OnceLock<BTreeMap<String, NoticeMetadata>> = OnceLock::new();
+    METADATA.get_or_init(|| {
+        serde_json::from_str(include_str!("../notice_metadata.json"))
+            .expect("bundled notice metadata must be valid JSON")
+    })
+}
+
 pub fn build_notice_schema_map() -> BTreeMap<String, NoticeSchema> {
     let mut map = BTreeMap::new();
+    let metadata = notice_metadata();
     for entry in NOTICE_SCHEMA_ENTRIES.iter() {
         let mut schema = NoticeSchema::new(entry.code, entry.severity);
         for field in entry.fields {
+            let description = metadata
+                .get(entry.code)
+                .and_then(|notice| notice.properties.get(field.name))
+                .and_then(|field| field.description.clone());
             schema.properties.insert(
                 field.name.to_string(),
                 FieldSchema {
                     field_type: FieldTypeSchema::from_type_name(field.field_type),
                     field_name: field.name.to_string(),
-                    description: None,
+                    description,
                 },
             );
+        }
+        if let Some(metadata) = metadata.get(entry.code) {
+            schema.short_summary = metadata.short_summary.clone();
+            schema.description = metadata.description.clone();
+            schema.references = metadata
+                .references
+                .clone()
+                .filter(|value| !value.is_empty());
+            schema.deprecated = metadata.deprecated;
+            schema.deprecation_reason = metadata.deprecation_reason.clone();
+            schema.deprecation_version = metadata.deprecation_version.clone();
+            schema.replacement_notice_codes = metadata.replacement_notice_codes.clone();
         }
         map.insert(entry.code.to_string(), schema);
     }
@@ -184,7 +233,7 @@ include!(concat!(env!("OUT_DIR"), "/notice_schema_data.rs"));
 
 #[cfg(test)]
 mod tests {
-    use super::FieldTypeSchema;
+    use super::{build_notice_schema_map, FieldTypeSchema};
 
     #[test]
     fn parses_array_type() {
@@ -196,5 +245,44 @@ mod tests {
 
         let contains = schema.contains.as_ref().expect("contains schema");
         assert_eq!(contains.field_type, "number");
+    }
+
+    #[test]
+    fn applies_bundled_notice_metadata() {
+        let schemas = build_notice_schema_map();
+        let schema = schemas
+            .get("missing_required_field")
+            .expect("missing_required_field schema");
+
+        assert_eq!(
+            schema.short_summary.as_deref(),
+            Some("A required field is missing.")
+        );
+        assert!(schema
+            .description
+            .as_deref()
+            .is_some_and(|value| value.contains("required")));
+        assert!(schema
+            .properties
+            .get("filename")
+            .and_then(|field| field.description.as_deref())
+            .is_some_and(|value| value.contains("file")));
+    }
+
+    #[test]
+    fn every_published_notice_has_a_summary_and_description() {
+        for (code, schema) in build_notice_schema_map() {
+            assert!(
+                schema
+                    .short_summary
+                    .as_deref()
+                    .is_some_and(|v| !v.is_empty()),
+                "{code} has no short summary"
+            );
+            assert!(
+                schema.description.as_deref().is_some_and(|v| !v.is_empty()),
+                "{code} has no description"
+            );
+        }
     }
 }
