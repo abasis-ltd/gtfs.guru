@@ -22,6 +22,8 @@ __pycache__/
 # Local test files
 /tmp/
 /benchmark-feeds/
+# Ignored so local scratch feeds stay out; the checked-in fixtures under it,
+# including real-world/, are tracked and were added with `git add -f`.
 /test-gtfs-feeds/
 /mobility-data-test-feeds/
 /expected-nl/
