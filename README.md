@@ -105,6 +105,28 @@ Optional env vars:
 
 **CI examples (GitHub Actions):**
 
+Use the action — it installs a checksum-verified binary, runs the validation,
+sends SARIF to the Security tab, and fails the job on a bad feed:
+
+```yaml
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: abasis-ltd/gtfs.guru/action@v1
+        with:
+          feed: feed.zip
+          fail-on: error
+```
+
+Full input/output reference: [`action/README.md`](action/README.md).
+
+Or drive the CLI yourself:
+
 ```yaml
 jobs:
   validate:
@@ -173,6 +195,7 @@ Default outputs in the report directory:
 
 Optional outputs:
 * `--sarif report.sarif.json`
+* `--badge badge.json` (a shields.io endpoint descriptor for a README badge)
 * `--export-notices-schema` (writes `notice_schema.json`)
 
 **Options (highlights):**
@@ -188,6 +211,7 @@ Optional outputs:
 * `--sarif <FILE>`: Write SARIF report for CI.
 * `--timing` / `--timing-json`: Print timing breakdowns.
 * `--fail-on <none|error|warning>`: Exit with status 2 when the report reaches that severity. Reports are still written.
+* `--badge <FILE>` / `--badge-svg <FILE>`: Write a status badge. See [Status badges](docs/usage.md#status-badges).
 
 `--fix-dry-run` lists suggested edits without touching anything. `--fix` applies the safe ones and `--fix-unsafe` applies all of them, writing a repaired copy to `--fix-output` (default: `<input>.fixed.<ext>` beside the input). The input is never modified, an existing output path is refused, and only the CSV rows that carry an edit are rewritten — every other byte is copied through. Most fix-carrying rules run only under `--thorough`.
 

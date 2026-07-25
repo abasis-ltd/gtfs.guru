@@ -1,0 +1,99 @@
+name: Website
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'website/**'
+      - 'crates/gtfs_validator_web/website/**'
+      - 'scripts/build_demo_feed.py'
+      - '.github/workflows/website.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'website/**'
+      - 'crates/gtfs_validator_web/website/**'
+      - 'scripts/build_demo_feed.py'
+      - '.github/workflows/website.yml'
+
+jobs:
+  check:
+    name: Website assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The site lives in the repo twice: website/ is what gets deployed, and
+      # crates/gtfs_validator_web/website/ is embedded into the axum binary.
+      # Editing one and forgetting the other ships a stale page to half the
+      # traffic, and nothing else catches it.
+      - name: The two website copies are identical
+        run: |
+          if ! diff -r --exclude='.DS_Store' website crates/gtfs_validator_web/website; then
+            echo "::error::website/ and crates/gtfs_validator_web/website/ have drifted apart."
+            echo "Copy the changed files across; see docs/MAINTENANCE.md."
+            exit 1
+          fi
+
+      - name: The demo feed matches its generator
+        run: python3 scripts/build_demo_feed.py --check
+
+      - name: Structured data parses
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, re, sys
+
+          failures = []
+          for page in sorted(pathlib.Path("website").glob("*.html")):
+              html = page.read_text(encoding="utf-8")
+              blocks = re.findall(
+                  r'<script type="application/ld\+json">(.*?)</script>', html, re.S
+              )
+              for index, block in enumerate(blocks):
+                  try:
+                      json.loads(block)
+                  except ValueError as error:
+                      failures.append(f"{page.name} block {index}: {error}")
+
+          for failure in failures:
+              print(f"::error::invalid JSON-LD in {failure}")
+          sys.exit(1 if failures else 0)
+          PY
+
+      # Structured data that contradicts the page is treated as deceptive and
+      # dropped, so the home page's FAQ markup has to stay anchored to the
+      # copy next to it.
+      - name: Home page FAQ markup matches the visible text
+        run: |
+          python3 - <<'PY'
+          import html as htmllib
+          import json, pathlib, re, sys
+
+          source = pathlib.Path("website/index.html").read_text(encoding="utf-8")
+          blocks = re.findall(
+              r'<script type="application/ld\+json">(.*?)</script>', source, re.S
+          )
+          graph = json.loads(blocks[0])["@graph"]
+          faq = next((n for n in graph if n["@type"] == "FAQPage"), None)
+          if faq is None:
+              print("::error::no FAQPage in the home page structured data")
+              sys.exit(1)
+
+          visible = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", source)))
+
+          missing = []
+          for entry in faq["mainEntity"]:
+              question = re.sub(r"\s+", " ", entry["name"])
+              answer = re.sub(r"\s+", " ", entry["acceptedAnswer"]["text"])
+              if question not in visible:
+                  missing.append(f"question not on the page: {question}")
+              # The opening clause is enough to catch an answer drifting away
+              # from its markup without demanding character-exact copies.
+              opening = answer.split(".")[0]
+              if opening not in visible:
+                  missing.append(f"answer not on the page: {opening}")
+
+          for problem in missing:
+              print(f"::error::{problem}")
+          sys.exit(1 if missing else 0)
+          PY

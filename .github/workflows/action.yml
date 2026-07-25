@@ -1,0 +1,113 @@
+name: Validate Action
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'action/**'
+      - '.github/workflows/action.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'action/**'
+      - '.github/workflows/action.yml'
+  # The smoke test installs a published release, so it is also runnable on
+  # demand right after a release goes out.
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint action scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Shellcheck
+        run: shellcheck action/install.sh action/validate.sh
+
+      - name: Action metadata is valid YAML with the expected shape
+        run: |
+          python3 - <<'PY'
+          import sys, yaml
+
+          with open("action/action.yml", encoding="utf-8") as handle:
+              action = yaml.safe_load(handle)
+
+          assert action["runs"]["using"] == "composite", "action must stay composite"
+
+          declared = set(action["inputs"])
+          # Every input has to reach a script; a silently ignored input is worse
+          # than a missing one because the workflow looks like it took effect.
+          consumed = set()
+          for step in action["runs"]["steps"]:
+              for value in (step.get("env") or {}).values():
+                  for name in declared:
+                      if f"inputs.{name} }}" in value:
+                          consumed.add(name)
+              if step.get("if"):
+                  for name in declared:
+                      if f"inputs.{name}" in step["if"]:
+                          consumed.add(name)
+              if isinstance(step.get("uses"), str) or step.get("with"):
+                  for value in (step.get("with") or {}).values():
+                      for name in declared:
+                          if f"inputs.{name}" in str(value):
+                              consumed.add(name)
+
+          unused = declared - consumed
+          assert not unused, f"inputs never read by any step: {sorted(unused)}"
+          print(f"{len(declared)} inputs, {len(action['outputs'])} outputs — all wired")
+          PY
+
+  smoke:
+    name: Smoke test (${{ matrix.os }})
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate a clean feed
+        id: clean
+        uses: ./action
+        with:
+          feed: test-gtfs-feeds/base-valid.zip
+          fail-on: error
+          badge: badge/gtfs.json
+          badge-svg: badge/gtfs.svg
+          upload-sarif: false
+
+      - name: Clean feed reports no errors
+        shell: bash
+        env:
+          ERRORS: ${{ steps.clean.outputs.errors }}
+          VALID: ${{ steps.clean.outputs.valid }}
+        run: |
+          test "$ERRORS" = "0"
+          test "$VALID" = "true"
+          test -s badge/gtfs.json
+          test -s badge/gtfs.svg
+          grep -q '"color": "yellow"' badge/gtfs.json
+
+      - name: A feed with errors is reported but does not fail the step
+        id: broken
+        uses: ./action
+        with:
+          feed: test-gtfs-feeds/errors/core-files/duplicate_key.zip
+          fail-on: none
+          output: broken-report
+          sarif: false
+          upload-sarif: false
+
+      - name: Broken feed reports errors
+        shell: bash
+        env:
+          ERRORS: ${{ steps.broken.outputs.errors }}
+          VALID: ${{ steps.broken.outputs.valid }}
+        run: |
+          test "$VALID" = "false"
+          test "$ERRORS" -gt 0
+          test -s broken-report/report.html

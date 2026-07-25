@@ -76,6 +76,30 @@ Written to `--output_base`:
 - `notice_schema.json` (when `--export_notices_schema` is used)
 - `report.sarif.json` (when `--sarif` is used)
 
+Badges are written to the path given, not into `--output_base`:
+
+- `--badge badge.json` — shields.io endpoint descriptor
+- `--badge-svg badge.svg` — self-contained SVG
+
+## CI
+
+```bash
+gtfs-guru -i feed.zip -o ./report --fail-on error   # exit 2 on any error
+```
+
+GitHub Actions:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: abasis-ltd/gtfs.guru/action@v1
+  with:
+    feed: feed.zip
+    fail-on: error
+```
+
+Exit codes: `0` completed, `1` the run failed, `2` the feed did not meet
+`--fail-on`.
+
 ## report.json (Structure)
 
 Minimal shape (example fields only):

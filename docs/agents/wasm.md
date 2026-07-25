@@ -67,7 +67,7 @@ Panics in a Rayon worker abort the shared WASM instance; Rust's `catch_unwind`
 cannot recover from `panic_abort` in this build. JavaScript must recreate the
 outer validation worker after a worker-level failure.
 
-Browser validation rejects archives above 70 MB compressed or 512 MB total
+Browser validation rejects archives above 150 MB compressed or 700 MB total
 uncompressed size. The central-directory check happens before parsing so highly
 compressed feeds fail recoverably instead of exhausting the wasm32 heap. CSV
 deserialization remains sequential on WASM: browser benchmarks showed severe

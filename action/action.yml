@@ -1,0 +1,153 @@
+name: 'Validate GTFS'
+description: 'Validate a GTFS feed with GTFS Guru: SARIF annotations, a README status badge, and a CI quality gate.'
+author: 'Abasis.AI'
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  feed:
+    description: 'Path to a GTFS zip or an unpacked feed directory. Mutually exclusive with `url`.'
+    required: false
+    default: ''
+  url:
+    description: 'URL of a remote GTFS zip to download and validate. Mutually exclusive with `feed`.'
+    required: false
+    default: ''
+  version:
+    description: 'Release of the validator to run: `latest` or a tag such as `v1.0.0`.'
+    required: false
+    default: 'latest'
+  fail-on:
+    description: 'Severity at which the step fails: `none`, `error`, or `warning`.'
+    required: false
+    default: 'error'
+  country-code:
+    description: 'ISO country code used by region-specific rules, for example US or DE.'
+    required: false
+    default: ''
+  date:
+    description: 'Date to validate against, YYYY-MM-DD. Defaults to the day the job runs.'
+    required: false
+    default: ''
+  thorough:
+    description: 'Also report missing recommended fields and columns.'
+    required: false
+    default: 'false'
+  google-rules:
+    description: "Enable the extra rules Google's GTFS ingestion applies."
+    required: false
+    default: 'false'
+  output:
+    description: 'Directory for the generated reports.'
+    required: false
+    default: 'gtfs-guru-report'
+  sarif:
+    description: 'Write a SARIF report next to the other reports.'
+    required: false
+    default: 'true'
+  upload-sarif:
+    description: 'Upload the SARIF report to GitHub code scanning. Needs `security-events: write`.'
+    required: false
+    default: 'true'
+  badge:
+    description: 'Path for a shields.io endpoint descriptor. Empty disables it.'
+    required: false
+    default: ''
+  badge-svg:
+    description: 'Path for a self-contained SVG badge. Empty disables it.'
+    required: false
+    default: ''
+  badge-label:
+    description: 'Left-hand text on the badge. Defaults to GTFS.'
+    required: false
+    default: ''
+  summary:
+    description: 'Write a result table to the GitHub Actions job summary.'
+    required: false
+    default: 'true'
+
+outputs:
+  errors:
+    description: 'Number of ERROR notices.'
+    value: ${{ steps.validate.outputs.errors }}
+  warnings:
+    description: 'Number of WARNING notices.'
+    value: ${{ steps.validate.outputs.warnings }}
+  infos:
+    description: 'Number of INFO notices.'
+    value: ${{ steps.validate.outputs.infos }}
+  valid:
+    description: '`true` when the feed produced no errors.'
+    value: ${{ steps.validate.outputs.valid }}
+  passed:
+    description: '`true` when the feed met the `fail-on` threshold.'
+    value: ${{ steps.validate.outputs.passed }}
+  report-json:
+    description: 'Path to the JSON report.'
+    value: ${{ steps.validate.outputs.report-json }}
+  report-html:
+    description: 'Path to the HTML report.'
+    value: ${{ steps.validate.outputs.report-html }}
+  sarif-file:
+    description: 'Path to the SARIF report, empty when `sarif` is off.'
+    value: ${{ steps.validate.outputs.sarif-file }}
+  badge-file:
+    description: 'Path to the badge endpoint descriptor, empty when `badge` is unset.'
+    value: ${{ steps.validate.outputs.badge-file }}
+  version:
+    description: 'Validator version that produced the report.'
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        RUNNER_TEMP_DIR: ${{ runner.temp }}
+      run: bash "${{ github.action_path }}/install.sh"
+
+    - id: validate
+      shell: bash
+      env:
+        INPUT_FEED: ${{ inputs.feed }}
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_COUNTRY_CODE: ${{ inputs.country-code }}
+        INPUT_DATE: ${{ inputs.date }}
+        INPUT_THOROUGH: ${{ inputs.thorough }}
+        INPUT_GOOGLE_RULES: ${{ inputs.google-rules }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_BADGE: ${{ inputs.badge }}
+        INPUT_BADGE_SVG: ${{ inputs.badge-svg }}
+        INPUT_BADGE_LABEL: ${{ inputs.badge-label }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
+      run: bash "${{ github.action_path }}/validate.sh"
+
+    # Uploading is best-effort: code scanning is unavailable on private repos
+    # without Advanced Security, and a missing upload must not mask the
+    # validation verdict, which the gate step below reports.
+    - name: Upload SARIF to code scanning
+      if: ${{ inputs.upload-sarif == 'true' && inputs.sarif == 'true' && steps.validate.outputs.sarif-file != '' }}
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.validate.outputs.sarif-file }}
+        category: gtfs-guru
+
+    # Kept separate from `validate` so reports, outputs and the SARIF upload
+    # all happen before a failing feed stops the job.
+    - name: Quality gate
+      if: ${{ steps.validate.outputs.passed != 'true' }}
+      shell: bash
+      env:
+        ERRORS: ${{ steps.validate.outputs.errors }}
+        WARNINGS: ${{ steps.validate.outputs.warnings }}
+        THRESHOLD: ${{ inputs.fail-on }}
+      run: |
+        echo "::error title=GTFS validation failed::$ERRORS error(s), $WARNINGS warning(s) — threshold: $THRESHOLD"
+        exit 1

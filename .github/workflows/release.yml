@@ -30,8 +30,14 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: python3 scripts/check-release-version.py --tag "$RELEASE_VERSION"
 
+  rust-gate:
+    uses: ./.github/workflows/rust.yml
+
+  golden-gate:
+    uses: ./.github/workflows/golden.yml
+
   build-and-release:
-    needs: validate-release
+    needs: [validate-release, rust-gate, golden-gate]
     strategy:
       fail-fast: false
       matrix:

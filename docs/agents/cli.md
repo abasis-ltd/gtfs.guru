@@ -17,6 +17,10 @@
 - Default outputs include `report.json`, `report.html`, and `system_errors.json`.
 - `--sarif report.sarif.json` adds SARIF output for CI tooling.
 - `--export-notices-schema` writes `notice_schema.json` into the output directory.
+- `--badge <PATH>` / `--badge-svg <PATH>` write a status badge. Unlike the reports,
+  these paths are used verbatim instead of being joined to `--output_base`, and they
+  are written under `--stdout` as well. `--badge-label` overrides the left-hand text.
+  Rendering lives in `crates/gtfs_validator_report/src/badge.rs`.
 
 ## Validation Options
 
@@ -30,6 +34,8 @@
 - `--fix` applies safe fixes; `--fix-unsafe` also applies confirm-level and unsafe ones.
 - `--fix-output` sets the destination (default `<input>.fixed.<ext>`). The input is never
   modified and an existing output path is refused.
+- Fix modes cannot be combined with `--stdout`; clap rejects the command instead
+  of silently skipping the requested repair or preview.
 - Planning and rewriting live in `crates/gtfs_validator_core/src/fix.rs`
   (`FixPlan`, `apply_fixes`); the CLI only formats the plan and reports conflicts.
 

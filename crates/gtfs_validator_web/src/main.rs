@@ -15,7 +15,6 @@ use axum::{
 };
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use chrono::Utc;
 use reqwest::blocking::Client;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use serde::{Deserialize, Serialize};
@@ -297,8 +296,14 @@ async fn index_html() -> Response {
     serve_static_path("index.html")
 }
 
+/// Sitemap of the embedded website.
+///
+/// No `<lastmod>`: the pages are baked into the binary with no edit history to
+/// read, and stamping every URL with the current date told crawlers the whole
+/// site changed on every fetch. A sitemap whose timestamps are always "now" is
+/// worse than one with none — search engines learn to distrust the field and
+/// throttle recrawls. Restore it only with a per-page date sourced from git.
 async fn sitemap_xml() -> Response {
-    let lastmod = Utc::now().format("%Y-%m-%d").to_string();
     let base_url = "https://gtfs.guru";
 
     let mut paths: Vec<String> = WEBSITE_DIR
@@ -321,12 +326,10 @@ async fn sitemap_xml() -> Response {
     xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
     xml.push_str("  <url>\n");
     xml.push_str(&format!("    <loc>{}/</loc>\n", base_url));
-    xml.push_str(&format!("    <lastmod>{}</lastmod>\n", lastmod));
     xml.push_str("  </url>\n");
     for path in paths {
         xml.push_str("  <url>\n");
         xml.push_str(&format!("    <loc>{}/{}</loc>\n", base_url, path));
-        xml.push_str(&format!("    <lastmod>{}</lastmod>\n", lastmod));
         xml.push_str("  </url>\n");
     }
     xml.push_str("</urlset>");

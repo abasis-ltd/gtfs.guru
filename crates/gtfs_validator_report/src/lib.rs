@@ -29,6 +29,9 @@ use gtfs_guru_core::feed::{
 use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
 use gtfs_guru_model::{ExceptionType, StringId};
 
+mod badge;
+pub use badge::{Badge, DEFAULT_BADGE_LABEL};
+
 mod html;
 pub use html::{generate_html_report_string, write_html_report, HtmlReportContext};
 
@@ -266,20 +269,29 @@ impl ReportSummary {
     }
 }
 
+/// The canonical validator always emits these four feed_info fields, using an
+/// empty string when the feed omits them; matching that keeps reports diffable.
+fn serialize_or_empty<S>(value: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(value.as_deref().unwrap_or(""))
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportFeedInfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub publisher_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub publisher_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub feed_language: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_start_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_end_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub feed_email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_service_window_start: Option<String>,

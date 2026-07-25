@@ -93,7 +93,8 @@ The live site **does not run on GitHub Pages**. The `pages.yml` workflow still p
 
 Notes:
 
-* There are **two copies** of the website in the repo. The repo-root `website/` is what's live; keep `crates/gtfs_validator_web/website/` in sync.
+* There are **two copies** of the website in the repo. The repo-root `website/` is what's live; keep `crates/gtfs_validator_web/website/` in sync. The `Website` workflow fails the build when they drift apart.
+* The example feed behind the "Try an example feed" button is generated, not hand-edited. Change `scripts/build_demo_feed.py` and re-run it (`python3 scripts/build_demo_feed.py`) to refresh both copies; `--check` is what CI runs.
 * `deploy/update.sh` rebuilds the Docker (axum) stack — that is **not** what serves the live domain.
 * Server-level config (headers, TLS, caching) lives in `Caddyfile` and `website/nginx.conf` — since we control the server, custom headers (e.g. COOP/COEP for multithreaded WASM) can be set there.
 
@@ -108,6 +109,15 @@ workflow manually only builds artifacts; it does not publish or deploy anything.
 2. Run `python3 scripts/check-release-version.py --tag vX.Y.Z`.
 3. Run the normal Rust, golden, WASM, and browser checks and merge to `main`.
 4. Only after explicit release approval, push the matching `vX.Y.Z` tag.
+5. Move the major-version tag the GitHub Action is published under, so that
+   `abasis-ltd/gtfs.guru/action@v1` keeps resolving to the newest release:
+
+   ```bash
+   git tag -f v1 vX.Y.Z && git push -f origin v1
+   ```
+
+   Without this step every workflow pinned to `@v1` keeps running the previous
+   release, and a brand-new major tag does not exist at all.
 
 The tag workflow verifies version consistency before it does any build. It then:
 

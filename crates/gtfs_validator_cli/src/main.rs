@@ -18,8 +18,8 @@ use gtfs_guru_core::{
     ValidationNotice, ValidatorRunner,
 };
 use gtfs_guru_report::{
-    write_html_report, HtmlReportContext, MemoryUsageRecord, ReportSummary, ReportSummaryContext,
-    SarifReport, ValidationReport,
+    write_html_report, Badge, HtmlReportContext, MemoryUsageRecord, ReportSummary,
+    ReportSummaryContext, SarifReport, ValidationReport,
 };
 
 /// Severity threshold at which a completed validation exits non-zero.
@@ -62,7 +62,10 @@ struct Args {
     output: Option<PathBuf>,
 
     /// Output the JSON validation report to stdout instead of writing report files.
-    #[arg(long = "stdout")]
+    #[arg(
+        long = "stdout",
+        conflicts_with_all = ["fix_dry_run", "fix", "fix_unsafe", "fix_output"]
+    )]
     stdout: bool,
 
     /// ISO country code used by region-specific rules (for example US or CY).
@@ -128,6 +131,19 @@ struct Args {
     /// Exit 2 when the completed report reaches this severity.
     #[arg(long = "fail-on", value_enum, default_value_t = FailOn::None)]
     fail_on: FailOn,
+
+    /// Write a shields.io endpoint descriptor for a README status badge.
+    /// The path is taken as given, independent of --output_base.
+    #[arg(long = "badge", value_name = "PATH")]
+    badge: Option<PathBuf>,
+
+    /// Write a self-contained SVG status badge (no shields.io request at render time).
+    #[arg(long = "badge-svg", alias = "badge_svg", value_name = "PATH")]
+    badge_svg: Option<PathBuf>,
+
+    /// Left-hand text on the badge (default: GTFS).
+    #[arg(long = "badge-label", alias = "badge_label", value_name = "TEXT")]
+    badge_label: Option<String>,
 
     /// Show what fixes would be applied without modifying files
     #[arg(
@@ -303,6 +319,10 @@ fn main() -> anyhow::Result<()> {
     } else {
         &system_errors
     };
+    // Badges describe feed quality, so they follow the same container as
+    // --fail-on: validation notices normally, system errors when the feed
+    // could not be loaded at all.
+    write_badges(&args, stdout_report_container)?;
     if args.stdout {
         let report =
             ValidationReport::from_container_with_summary(stdout_report_container, summary);
@@ -364,6 +384,31 @@ fn main() -> anyhow::Result<()> {
 
 fn perf_logging_enabled() -> bool {
     std::env::var_os("GTFS_PERF_DEBUG").is_some()
+}
+
+fn write_badges(args: &Args, notices: &NoticeContainer) -> anyhow::Result<()> {
+    if args.badge.is_none() && args.badge_svg.is_none() {
+        return Ok(());
+    }
+
+    let mut badge = Badge::from_notices(notices);
+    if let Some(label) = args.badge_label.as_deref() {
+        badge = badge.with_label(label);
+    }
+
+    if let Some(path) = args.badge.as_deref() {
+        badge
+            .write_endpoint_json(path)
+            .with_context(|| format!("write badge endpoint to {}", path.display()))?;
+        info!("Badge endpoint written to {}", path.display());
+    }
+    if let Some(path) = args.badge_svg.as_deref() {
+        badge
+            .write_svg(path)
+            .with_context(|| format!("write badge SVG to {}", path.display()))?;
+        info!("Badge SVG written to {}", path.display());
+    }
+    Ok(())
 }
 
 fn should_fail(fail_on: FailOn, errors: usize, warnings: usize) -> bool {
@@ -971,6 +1016,7 @@ fn current_rss_bytes() -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::error::ErrorKind;
     use clap::CommandFactory;
 
     #[test]
@@ -997,5 +1043,61 @@ mod tests {
         let command = Args::command();
         command.clone().debug_assert();
         assert_eq!(command.get_version(), Some(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn badge_flags_are_written_to_the_paths_given() {
+        let dir = std::env::temp_dir().join(format!("gtfs-guru-badge-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let json_path = dir.join("badge.json");
+        let svg_path = dir.join("nested").join("badge.svg");
+
+        let args = Args::parse_from([
+            "gtfs-guru",
+            "--stdout",
+            "--badge",
+            json_path.to_str().unwrap(),
+            "--badge-svg",
+            svg_path.to_str().unwrap(),
+            "--badge-label",
+            "MBTA feed",
+        ]);
+
+        let mut notices = NoticeContainer::new();
+        notices.push(ValidationNotice::new(
+            "duplicate_key",
+            NoticeSeverity::Error,
+            "duplicate",
+        ));
+        write_badges(&args, &notices).unwrap();
+
+        let json = std::fs::read_to_string(&json_path).unwrap();
+        assert!(json.contains("\"label\": \"MBTA feed\""), "{json}");
+        assert!(json.contains("\"message\": \"1 error\""), "{json}");
+        // A nested destination is created rather than failing the run.
+        assert!(std::fs::read_to_string(&svg_path).unwrap().contains("<svg"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn badges_are_skipped_when_neither_flag_is_given() {
+        let args = Args::parse_from(["gtfs-guru", "--stdout"]);
+        write_badges(&args, &NoticeContainer::new()).unwrap();
+    }
+
+    #[test]
+    fn stdout_rejects_every_fix_mode() {
+        for fix_args in [
+            vec!["--fix-dry-run"],
+            vec!["--fix"],
+            vec!["--fix-unsafe"],
+            vec!["--fix", "--fix-output", "fixed.zip"],
+        ] {
+            let mut argv = vec!["gtfs-guru", "--stdout"];
+            argv.extend(fix_args);
+            let error = Args::try_parse_from(argv).expect_err("fix mode must conflict with stdout");
+            assert_eq!(error.kind(), ErrorKind::ArgumentConflict);
+        }
     }
 }

@@ -276,6 +276,251 @@ function parseStopsCsv(text) {
     return index.size ? index : null;
 }
 
+// ---- Shareable report links ----
+// A shared link carries the report inside the URL fragment, which browsers
+// never send to a server. That keeps the promise the rest of the page makes:
+// the feed and its findings stay on the machine that ran the validation.
+const SHARE_FRAGMENT_KEY = 'report=';
+
+// Characters of encoded payload we are willing to put in a link. Browsers cope
+// with far more, but chat clients and issue trackers start mangling long URLs.
+const SHARE_URL_BUDGET = 30000;
+
+// How many example rows per issue type to keep, tried in order until the link
+// fits. The last step still keeps one row per issue type, so every rule that
+// fired stays visible with an exact count next to it.
+const SHARE_SAMPLE_LIMITS = [Infinity, 25, 5, 1];
+
+// Guards against a hostile link: a few hundred KB of gzip can expand to
+// gigabytes, and we would rather refuse than hang the tab.
+const SHARE_MAX_ENCODED_BYTES = 2 * 1024 * 1024;
+const SHARE_MAX_DECODED_BYTES = 24 * 1024 * 1024;
+const SHARE_MAX_NOTICES = 50_000;
+const SHARE_MAX_CODES = 4_096;
+const SHARE_MAX_COUNT = 0xffff_ffff;
+const SHARE_CODE_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,127}$/i;
+const SHARE_SEVERITIES = new Set(['ERROR', 'WARNING', 'INFO']);
+
+function bytesToBase64url(bytes) {
+    let binary = '';
+    const chunkSize = 0x8000; // apply() has an argument-count ceiling
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlToBytes(text) {
+    const binary = atob(text.replace(/-/g, '+').replace(/_/g, '/'));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
+async function gzipText(text) {
+    const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gunzipText(bytes, maxBytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    const chunks = [];
+    let decodedBytes = 0;
+
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            decodedBytes += value.byteLength;
+            if (decodedBytes > maxBytes) {
+                await reader.cancel('Shared report exceeds the decoded-size limit.');
+                throw new Error('This shared report is too large to open.');
+            }
+            chunks.push(decoder.decode(value, { stream: true }));
+        }
+        chunks.push(decoder.decode());
+        return chunks.join('');
+    } finally {
+        reader.releaseLock();
+    }
+}
+
+function sharedCount(value) {
+    if (!Number.isSafeInteger(value) || value < 0 || value > SHARE_MAX_COUNT) {
+        throw new Error('Unrecognised report link.');
+    }
+    return value;
+}
+
+function sharedString(value, maxLength, { optional = false } = {}) {
+    if (optional && (value === undefined || value === null)) return null;
+    if (typeof value !== 'string' || value.length > maxLength) {
+        throw new Error('Unrecognised report link.');
+    }
+    return value;
+}
+
+function normalizeSharedPayload(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.v !== 1) {
+        throw new Error('Unrecognised report link.');
+    }
+    if (!Array.isArray(payload.counts) || payload.counts.length !== 3) {
+        throw new Error('Unrecognised report link.');
+    }
+    if (!Array.isArray(payload.codes) || payload.codes.length > SHARE_MAX_CODES) {
+        throw new Error('Unrecognised report link.');
+    }
+    if (!Array.isArray(payload.notices) || payload.notices.length > SHARE_MAX_NOTICES) {
+        throw new Error('Unrecognised report link.');
+    }
+
+    const counts = payload.counts.map(sharedCount);
+    const codes = payload.codes.map((entry) => {
+        if (!Array.isArray(entry) || entry.length !== 3) {
+            throw new Error('Unrecognised report link.');
+        }
+        const code = sharedString(entry[0], 128);
+        const severity = sharedString(entry[1], 16);
+        if (!SHARE_CODE_PATTERN.test(code) || !SHARE_SEVERITIES.has(severity)) {
+            throw new Error('Unrecognised report link.');
+        }
+        return [code, severity, sharedCount(entry[2])];
+    });
+
+    const notices = payload.notices.map((notice) => {
+        if (!notice || typeof notice !== 'object' || Array.isArray(notice)) {
+            throw new Error('Unrecognised report link.');
+        }
+        const code = sharedString(notice.code, 128);
+        const severity = sharedString(notice.severity, 16);
+        sharedString(notice.message, 16_384);
+        if (!SHARE_CODE_PATTERN.test(code) || !SHARE_SEVERITIES.has(severity)) {
+            throw new Error('Unrecognised report link.');
+        }
+        return notice;
+    });
+
+    const name = sharedString(payload.name, 512, { optional: true });
+    const at = sharedString(payload.at, 32, { optional: true });
+    if (at !== null && !/^\d{4}-\d{2}-\d{2}$/.test(at)) {
+        throw new Error('Unrecognised report link.');
+    }
+    if (payload.sampleLimit !== undefined) sharedCount(payload.sampleLimit);
+    if (payload.truncated !== undefined && typeof payload.truncated !== 'boolean') {
+        throw new Error('Unrecognised report link.');
+    }
+
+    return {
+        v: 1,
+        name,
+        at,
+        counts,
+        codes,
+        notices,
+        truncated: payload.truncated === true,
+        sampleLimit: payload.sampleLimit,
+    };
+}
+
+// The leading marker records how the payload was encoded, so a browser without
+// CompressionStream can still produce links that everyone else can open.
+async function encodeSharePayload(payload) {
+    const json = JSON.stringify(payload);
+    if (typeof CompressionStream === 'function') {
+        return 'z' + bytesToBase64url(await gzipText(json));
+    }
+    return 'u' + bytesToBase64url(new TextEncoder().encode(json));
+}
+
+async function decodeSharePayload(encoded) {
+    const marker = encoded.charAt(0);
+    const bytes = base64urlToBytes(encoded.slice(1));
+    if (bytes.length > SHARE_MAX_ENCODED_BYTES) {
+        throw new Error('This shared report is too large to open.');
+    }
+    let json;
+    if (marker === 'z') {
+        if (typeof DecompressionStream !== 'function') {
+            throw new Error('This browser cannot open compressed report links.');
+        }
+        json = await gunzipText(bytes, SHARE_MAX_DECODED_BYTES);
+    } else if (marker === 'u') {
+        json = new TextDecoder().decode(bytes);
+    } else {
+        throw new Error('Unrecognised report link.');
+    }
+    if (new TextEncoder().encode(json).byteLength > SHARE_MAX_DECODED_BYTES) {
+        throw new Error('This shared report is too large to open.');
+    }
+    return normalizeSharedPayload(JSON.parse(json));
+}
+
+// Keep the first `limit` examples of each issue type, in the order the
+// validator produced them.
+function capNoticesPerCode(notices, limit) {
+    if (!Number.isFinite(limit)) return notices;
+    const seen = new Map();
+    const kept = [];
+    for (const notice of notices) {
+        const code = notice.code;
+        const used = seen.get(code) || 0;
+        if (used >= limit) continue;
+        seen.set(code, used + 1);
+        kept.push(notice);
+    }
+    return kept;
+}
+
+function tallyByCode(notices) {
+    const totals = new Map();
+    for (const notice of notices) {
+        const key = notice.code;
+        const entry = totals.get(key) || { code: key, severity: notice.severity, count: 0 };
+        entry.count += 1;
+        totals.set(key, entry);
+    }
+    return Array.from(totals.values());
+}
+
+// Build the smallest payload that still fits the budget. Per-issue-type totals
+// travel separately from the examples, so a trimmed link still reports exact
+// counts rather than the number of rows that survived trimming.
+async function buildShareFragment(result, fileName) {
+    let notices = [];
+    try {
+        notices = JSON.parse(result.json) || [];
+    } catch (err) {
+        console.warn('Share: could not parse the report', err);
+    }
+
+    const base = {
+        v: 1,
+        name: fileName,
+        at: new Date().toISOString().slice(0, 10),
+        counts: [
+            result.error_count || 0,
+            result.warning_count || 0,
+            result.info_count || 0,
+        ],
+        truncated: result.truncated === true,
+        codes: tallyByCode(notices).map((entry) => [entry.code, entry.severity, entry.count]),
+    };
+
+    let encoded = '';
+    let sampleLimit = Infinity;
+    for (const limit of SHARE_SAMPLE_LIMITS) {
+        sampleLimit = limit;
+        const payload = { ...base, notices: capNoticesPerCode(notices, limit) };
+        if (Number.isFinite(limit)) payload.sampleLimit = limit;
+        encoded = await encodeSharePayload(payload);
+        if (encoded.length <= SHARE_URL_BUDGET) break;
+    }
+
+    return { encoded, sampleLimit, trimmed: Number.isFinite(sampleLimit) };
+}
+
 async function validateInWorker(arrayBuffer, dateStr) {
     getValidatorWorker();
     // Wait until the worker is confirmed loaded BEFORE transferring the buffer.
@@ -478,6 +723,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlInput = document.getElementById('url-input');
     const urlAnalyzeBtn = document.getElementById('url-analyze-btn');
     const urlInputContainer = document.getElementById('url-input-container');
+    const demoRow = document.getElementById('demo-row');
+    const tryDemoBtn = document.getElementById('try-demo-btn');
+    const sharedBanner = document.getElementById('shared-banner');
+    const sharedBannerText = document.getElementById('shared-banner-text');
+    const sharedNewScanBtn = document.getElementById('shared-new-scan-btn');
+
+    // The three ways in are shown and hidden together: drop zone, URL box, and
+    // the example feed.
+    function setUploadUiVisible(visible) {
+        if (uploadState) uploadState.classList.toggle('hidden', !visible);
+        if (urlInputContainer) urlInputContainer.classList.toggle('hidden', !visible);
+        if (demoRow) demoRow.classList.toggle('hidden', !visible);
+    }
 
     // UI Elements for results
     const errorCountEl = document.getElementById('error-count');
@@ -547,16 +805,30 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Example feed
+        if (tryDemoBtn) {
+            tryDemoBtn.addEventListener('click', handleDemoFeed);
+        }
+
         // Reset
+        function resetValidator() {
+            resultState.classList.add('hidden');
+            setUploadUiVisible(true);
+            fileInput.value = '';
+            urlInput.value = '';
+            lastValidationResult = null;
+            setSharedBanner(null);
+            // A stale #report= would otherwise reopen the shared report on reload.
+            if (location.hash.startsWith('#' + SHARE_FRAGMENT_KEY)) {
+                history.replaceState(null, '', location.pathname + location.search);
+            }
+        }
+
         if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-                resultState.classList.add('hidden');
-                uploadState.classList.remove('hidden');
-                urlInputContainer.classList.remove('hidden');
-                fileInput.value = '';
-                urlInput.value = '';
-                lastValidationResult = null;
-            });
+            resetBtn.addEventListener('click', resetValidator);
+        }
+        if (sharedNewScanBtn) {
+            sharedNewScanBtn.addEventListener('click', resetValidator);
         }
 
         // View Report button
@@ -597,6 +869,11 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadHtmlModalBtn.addEventListener('click', downloadValidationHTML);
         }
 
+        // Share buttons
+        document.querySelectorAll('#share-btn, #share-modal-btn').forEach((btn) => {
+            btn.addEventListener('click', () => shareReport(btn));
+        });
+
         // Open in new window
         if (openWindowBtn) {
             openWindowBtn.addEventListener('click', () => {
@@ -618,6 +895,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeReportModal();
             }
         });
+
+        // A #report= link opens straight into the shared result.
+        restoreSharedReport();
     }
 
     async function handleFile(file) {
@@ -641,8 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const errorContainer = document.getElementById('error-container');
         if (errorContainer) errorContainer.classList.add('hidden');
 
-        uploadState.classList.add('hidden');
-        urlInputContainer.classList.add('hidden');
+        setUploadUiVisible(false);
         processingState.classList.remove('hidden');
 
         try {
@@ -656,8 +935,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error("File reading error:", err);
             processingState.classList.add('hidden');
-            uploadState.classList.remove('hidden');
-            urlInputContainer.classList.remove('hidden');
+            setUploadUiVisible(true);
         }
     }
 
@@ -669,8 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const errorContainer = document.getElementById('error-container');
         if (errorContainer) errorContainer.classList.add('hidden');
 
-        uploadState.classList.add('hidden');
-        urlInputContainer.classList.add('hidden');
+        setUploadUiVisible(false);
         processingState.classList.remove('hidden');
 
         const tryFetch = async (fetchUrl) => {
@@ -726,8 +1003,158 @@ document.addEventListener('DOMContentLoaded', () => {
 The feed host blocked the browser request, and fetching it through gtfs.guru also failed.
 Download the .zip and drop it here instead; validation still runs locally in your browser.`);
             processingState.classList.add('hidden');
-            uploadState.classList.remove('hidden');
-            urlInputContainer.classList.remove('hidden');
+            setUploadUiVisible(true);
+        }
+    }
+
+    // The example feed ships with the site: a two-route network carrying a
+    // handful of deliberate mistakes, so a first-time visitor with no gtfs.zip
+    // to hand still sees a real report.
+    async function handleDemoFeed() {
+        getValidatorWorker();
+
+        const errorContainer = document.getElementById('error-container');
+        if (errorContainer) errorContainer.classList.add('hidden');
+        setSharedBanner(null);
+
+        setUploadUiVisible(false);
+        processingState.classList.remove('hidden');
+
+        try {
+            const response = await fetch('demo/gtfs-guru-demo.zip');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            lastFileName = 'gtfs-guru-demo';
+            await runValidation(await response.arrayBuffer());
+        } catch (err) {
+            console.error('Demo feed error:', err);
+            showValidationError(
+                'Could not load the example feed. Drop your own gtfs.zip here instead — ' +
+                'validation runs the same way, locally in your browser.'
+            );
+        }
+    }
+
+    /* --- Sharing --- */
+
+    let toastTimer = null;
+
+    function showToast(message) {
+        let toast = document.getElementById('share-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'share-toast';
+            toast.className = 'toast';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        // Force a reflow so the transition runs when the toast is reused.
+        void toast.offsetWidth;
+        toast.classList.add('visible');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+
+    function setSharedBanner(text) {
+        if (!sharedBanner) return;
+        if (!text) {
+            sharedBanner.classList.add('hidden');
+            return;
+        }
+        if (sharedBannerText) sharedBannerText.textContent = text;
+        sharedBanner.classList.remove('hidden');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    async function shareReport(button) {
+        if (!lastValidationResult) return;
+
+        const originalLabel = button.innerHTML;
+        button.disabled = true;
+        try {
+            const { encoded, sampleLimit, trimmed } =
+                await buildShareFragment(lastValidationResult, lastFileName);
+            const url = `${location.origin}${location.pathname}#${SHARE_FRAGMENT_KEY}${encoded}`;
+
+            let copied = false;
+            try {
+                await navigator.clipboard.writeText(url);
+                copied = true;
+            } catch (err) {
+                console.warn('Clipboard unavailable, falling back to the address bar', err);
+                history.replaceState(null, '', url);
+            }
+
+            const trimNote = trimmed
+                ? ` Trimmed to ${sampleLimit} example${sampleLimit === 1 ? '' : 's'} per issue type; the counts stay exact.`
+                : '';
+            showToast(
+                (copied
+                    ? 'Link copied. The report travels inside the link — nothing was uploaded.'
+                    : 'Link is now in the address bar. The report travels inside it — nothing was uploaded.') +
+                trimNote
+            );
+        } catch (err) {
+            console.error('Share failed:', err);
+            showToast('Could not build a share link for this report.');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalLabel;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    // Rebuild the result view from a shared link. There is no feed here — only
+    // what the sender's browser found — so the HTML report and the stop map,
+    // which both need the archive, stay out of reach.
+    function applySharedReport(payload) {
+        const notices = payload.notices;
+        const totalsByCode = Object.create(null);
+        for (const entry of payload.codes) {
+            totalsByCode[entry[0]] = entry[2];
+        }
+
+        stopsIndex = null;
+        lastFileName = payload.name || 'shared_report';
+        lastValidationResult = {
+            json: JSON.stringify(notices),
+            html: null,
+            error_count: payload.counts[0],
+            warning_count: payload.counts[1],
+            info_count: payload.counts[2],
+            truncated: payload.truncated,
+            totalsByCode,
+            shared: true,
+        };
+
+        setUploadUiVisible(false);
+        processingState.classList.add('hidden');
+        showResults(lastValidationResult);
+
+        const validatedOn = payload.at;
+        setSharedBanner(
+            `Shared report for ${lastFileName}` +
+            (validatedOn ? `, validated on ${validatedOn}` : '') +
+            '. The feed itself was never uploaded.'
+        );
+        showReportModal(lastValidationResult);
+    }
+
+    async function restoreSharedReport() {
+        const hash = location.hash.startsWith('#') ? location.hash.slice(1) : '';
+        if (!hash.startsWith(SHARE_FRAGMENT_KEY)) return;
+
+        try {
+            applySharedReport(await decodeSharePayload(hash.slice(SHARE_FRAGMENT_KEY.length)));
+        } catch (err) {
+            console.error('Could not open the shared report:', err);
+            showValidationError(
+                'This report link could not be opened — it may have been truncated on the way here. ' +
+                'Ask the sender to resend it, or validate the feed yourself.'
+            );
         }
     }
 
@@ -743,8 +1170,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
             alert(msg);
         }
         processingState.classList.add('hidden');
-        uploadState.classList.remove('hidden');
-        urlInputContainer.classList.remove('hidden');
+        setUploadUiVisible(true);
     }
 
     function showTooLarge(sizeBytes) {
@@ -816,6 +1242,13 @@ Download the .zip and drop it here instead; validation still runs locally in you
         errorCountEl.innerText = errors;
         warningCountEl.innerText = warnings;
 
+        // A shared report has no feed behind it, so there is no HTML report to
+        // hand out — hide the button rather than let it fail on click.
+        const htmlAvailable = typeof result.html === 'string' && result.html.length > 0;
+        document.querySelectorAll('#download-html-btn, #download-html-modal-btn').forEach((btn) => {
+            btn.classList.toggle('hidden', !htmlAvailable);
+        });
+
         // Re-create icons for new buttons
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
@@ -855,13 +1288,13 @@ Download the .zip and drop it here instead; validation still runs locally in you
             html += renderTruncationNote(result, notices.length);
             // Render each group
             if (groups.error.length > 0) {
-                html += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
+                html += renderNoticeGroup('Errors', 'error', groups.error, result.error_count, result.totalsByCode);
             }
             if (groups.warning.length > 0) {
-                html += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count);
+                html += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count, result.totalsByCode);
             }
             if (groups.info.length > 0) {
-                html += renderNoticeGroup('Info', 'info', groups.info, result.info_count);
+                html += renderNoticeGroup('Info', 'info', groups.info, result.info_count, result.totalsByCode);
             }
         }
 
@@ -993,17 +1426,23 @@ Download the .zip and drop it here instead; validation still runs locally in you
         const totalCount = (result.error_count || 0) + (result.warning_count || 0) + (result.info_count || 0);
         const isTruncated = result.truncated === true || shownCount < totalCount;
         if (!isTruncated) return '';
+        const reason = result.shared
+            ? 'A shared link carries a sample of each issue type so it stays short enough to send'
+            : 'Long issue lists are capped per issue type to keep the browser responsive';
         return `
             <div style="margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--border, #d0d7de); border-radius: 8px; font-size: 0.9rem; opacity: 0.9;">
-                Showing the first ${shownCount.toLocaleString()} of ${totalCount.toLocaleString()} notices.
-                Long issue lists are capped per issue type to keep the browser responsive — the summary counts are exact.
+                Showing ${shownCount.toLocaleString()} of ${totalCount.toLocaleString()} notices.
+                ${reason} — the summary counts are exact.
             </div>
         `;
     }
 
-    function renderNoticeGroup(title, severity, notices, totalOverride) {
+    // `totalsByCode` carries the exact per-issue-type counts when the notice
+    // list itself has been sampled (a shared link), so the group headers keep
+    // showing what the feed really contains.
+    function renderNoticeGroup(title, severity, notices, totalOverride, totalsByCode) {
         // First, group notices by CODE
-        const noticesByCode = {};
+        const noticesByCode = Object.create(null);
         notices.forEach(notice => {
             if (!noticesByCode[notice.code]) {
                 noticesByCode[notice.code] = [];
@@ -1019,13 +1458,13 @@ Download the .zip and drop it here instead; validation still runs locally in you
 
         sortedCodes.forEach(code => {
             const codeNotices = noticesByCode[code];
-            const count = codeNotices.length;
+            const count = totalsByCode?.[code] ?? codeNotices.length;
             const sample = codeNotices[0];
 
             // Prepare flattened data for display
             // We'll process only the first 50 displayed
             const displayNotices = codeNotices.slice(0, 50).map(n => {
-                const flat = { ...n };
+                const flat = Object.assign(Object.create(null), n);
                 // Flatten context if present (and handle [object Object] issue)
                 if (flat.context && typeof flat.context === 'object') {
                     Object.assign(flat, flat.context);
@@ -1082,10 +1521,10 @@ Download the .zip and drop it here instead; validation still runs locally in you
                 return `<tr>${tdHtml}</tr>`;
             }).join('');
 
-            const moreCount = count > 50 ? count - 50 : 0;
+            const moreCount = Math.max(0, count - displayNotices.length);
             const moreNote = moreCount > 0 ?
                 `<div style="text-align: center; padding: 0.5rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border);">
-                    + ${moreCount} more records (download full report to see all)
+                    + ${escapeHtml(moreCount)} more records (download full report to see all)
                  </div>` : '';
 
             sectionsHtml += `
@@ -1095,7 +1534,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
                             <i data-lucide="chevron-right" class="toggle-icon"></i>
                             <span style="font-family: 'Fira Code', monospace; font-size: 0.95rem;">${escapeHtml(code)}</span>
                         </div>
-                        <span class="notice-group-count">${count}</span>
+                        <span class="notice-group-count">${escapeHtml(count)}</span>
                     </div>
                     <div class="notice-group-details" style="padding: 0;">
                         <div style="padding: 1rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);">
@@ -1153,7 +1592,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
     }
 
     function downloadValidationHTML() {
-        if (!lastValidationResult) return;
+        if (!lastValidationResult || !lastValidationResult.html) return;
 
         const blob = new Blob([lastValidationResult.html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
@@ -1228,13 +1667,13 @@ Download the .zip and drop it here instead; validation still runs locally in you
         } else {
             reportContent += renderTruncationNote(result, notices.length);
             if (groups.error.length > 0) {
-                reportContent += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
+                reportContent += renderNoticeGroup('Errors', 'error', groups.error, result.error_count, result.totalsByCode);
             }
             if (groups.warning.length > 0) {
-                reportContent += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count);
+                reportContent += renderNoticeGroup('Warnings', 'warning', groups.warning, result.warning_count, result.totalsByCode);
             }
             if (groups.info.length > 0) {
-                reportContent += renderNoticeGroup('Info', 'info', groups.info, result.info_count);
+                reportContent += renderNoticeGroup('Info', 'info', groups.info, result.info_count, result.totalsByCode);
             }
         }
 
@@ -1273,7 +1712,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
     <div class="report-header-window">
         <div>
             <h1>Validation Report</h1>
-            <div class="file-name">File: ${lastFileName}.zip</div>
+            <div class="file-name">File: ${escapeHtml(lastFileName)}.zip</div>
         </div>
         <div style="text-align: right;">
             <div style="font-size: 1.2rem; font-weight: bold;">${summaryText}</div>
@@ -1297,4 +1736,3 @@ Download the .zip and drop it here instead; validation still runs locally in you
         win.document.close();
     }
 });
-

@@ -1,6 +1,7 @@
 name: Golden Parity
 
 on:
+  workflow_call:
   workflow_dispatch:
     inputs:
       manifest:

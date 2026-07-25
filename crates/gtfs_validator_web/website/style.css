@@ -557,25 +557,44 @@ h1 {
     color: var(--text-secondary);
 }
 
+/* Screen-reader-only: keeps the table caption available to assistive tech and
+   parsers without showing it in the layout. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .comparison-table {
-    display: flex;
-    flex-direction: column;
+    width: 100%;
+    /* `separate` rather than `collapse` so the card keeps its rounded corners. */
+    border-collapse: separate;
+    border-spacing: 0;
     overflow: hidden;
 }
 
-.comparison-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+.comparison-table th,
+.comparison-table td {
+    width: 33.33%;
     padding: 1.5rem 2rem;
+    text-align: left;
+    vertical-align: middle;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    align-items: center;
+    font-weight: 400;
 }
 
-.comparison-row:last-child {
+.comparison-table tbody tr:last-child th,
+.comparison-table tbody tr:last-child td {
     border-bottom: none;
 }
 
-.comparison-row.header {
+.comparison-row.header th {
     background: rgba(255, 255, 255, 0.03);
     font-weight: 600;
     color: var(--text-secondary);
@@ -603,19 +622,42 @@ h1 {
 }
 
 @media (max-width: 768px) {
-    .comparison-row {
-        grid-template-columns: 1fr;
-        gap: 0.5rem;
+
+    /* One card per row: the header cells stop carrying meaning once the
+       columns stack, so each cell repeats on its own line instead. */
+    .comparison-table,
+    .comparison-table tbody,
+    .comparison-table tr,
+    .comparison-table th,
+    .comparison-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .comparison-table thead {
+        display: none;
+    }
+
+    .comparison-table tbody tr {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        text-align: center;
+    }
+
+    .comparison-table tbody tr:last-child {
+        border-bottom: none;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+        padding: 0.25rem 0;
+        border-bottom: none;
         text-align: center;
     }
 
     .col-feature {
         color: var(--accent-primary);
         margin-bottom: 0.25rem;
-    }
-
-    .comparison-row.header {
-        display: none;
     }
 }
 
@@ -1310,6 +1352,82 @@ footer {
 
 .btn-link:hover {
     color: var(--text-primary);
+}
+
+/* Demo feed row */
+.demo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+.demo-row .sub-text {
+    margin: 0;
+}
+
+#try-demo-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+/* Shared report banner */
+.shared-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    text-align: left;
+}
+
+.shared-banner i {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.shared-banner button {
+    margin-left: auto;
+}
+
+/* Toast (share link copied) */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 2rem;
+    transform: translateX(-50%) translateY(1rem);
+    z-index: 2000;
+    max-width: min(90vw, 34rem);
+    padding: 0.75rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.96);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast {
+        transition: none;
+    }
 }
 
 /* Empty State */

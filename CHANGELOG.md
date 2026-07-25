@@ -17,6 +17,23 @@ semantic versioning.
 
 - `--fail-on <none|error|warning>` for CI quality gates. Reports are written
   before the process exits with status `2`.
+- `--badge` and `--badge-svg` write a feed status badge: a shields.io endpoint
+  descriptor and a self-contained SVG. `--badge-label` replaces the default
+  `GTFS` label. Both paths are used verbatim rather than joined to
+  `--output_base`, and both work under `--stdout`.
+- A composite GitHub Action in `action/`. It installs a checksum-verified
+  release binary, validates a local or remote feed, uploads SARIF to code
+  scanning, writes a job summary, publishes the counts as step outputs, and
+  fails the job at the chosen severity.
+- A one-click example feed on the website: a small two-route network carrying
+  deliberate mistakes, rebuilt reproducibly by `scripts/build_demo_feed.py`.
+- Shareable report links. The browser report is compressed into the URL
+  fragment, so a link can be sent to a colleague or a vendor without the feed
+  or its findings ever reaching a server. Long reports keep a sample of each
+  issue type and exact per-rule counts.
+- `llms.txt`, plus `SoftwareApplication` and `FAQPage` structured data on the
+  home page, so AI assistants can answer questions about GTFS Guru from
+  something better than a guess.
 - `--fix` and `--fix-unsafe` write a repaired copy of the feed. `--fix-output`
   picks the destination, defaulting to `<input>.fixed.<ext>` beside the input.
   The input is never modified and an existing output path is refused. Only the
@@ -44,6 +61,12 @@ semantic versioning.
 
 ### Changed
 
+- `sitemap.xml` no longer carries a `<lastmod>`. It was stamped with the time
+  of the request, so every crawl saw the whole site as freshly modified —
+  worse than omitting the field, which is what search engines fall back to.
+- The comparison with the Java validator on the home page is a real `<table>`
+  instead of a grid of `<div>`s, which is what "X vs Y" answers are extracted
+  from.
 - Notices are capped per (code, severity) group in memory while the reported
   totals stay exact, so feeds with pervasive issues no longer exhaust the
   browser heap. Reports mark a capped list as truncated.

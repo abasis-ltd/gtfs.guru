@@ -1773,7 +1773,6 @@ dependencies = [
  "anyhow",
  "axum",
  "base64 0.22.1",
- "chrono",
  "gtfs-guru-core",
  "gtfs-guru-report",
  "include_dir",

@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright';
 
 const projectRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -12,6 +13,8 @@ const websiteRoot = resolve(projectRoot, 'website');
 const fixturePath = resolve(projectRoot, 'test-gtfs-feeds/base-valid.zip');
 // Keep in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
 const maxFileSizeMb = 150;
+// Keep in sync with SHARE_MAX_DECODED_BYTES in website/script.js.
+const maxSharedReportDecodedBytes = 24 * 1024 * 1024;
 
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -170,6 +173,97 @@ async function validateOversizedArchive(page, forceSingleThreaded = false) {
   }, { forceSingleThreaded, maxFileSizeMb });
 }
 
+let sharedNavigationId = 0;
+
+function sharedReportUrl(baseUrl, payload, marker = 'u') {
+  const json = Buffer.from(JSON.stringify(payload));
+  const encoded = (marker === 'z' ? gzipSync(json) : json).toString('base64url');
+  sharedNavigationId += 1;
+  return `${baseUrl}/?shared-test=${sharedNavigationId}#report=${marker}${encoded}`;
+}
+
+async function testSharedReportBoundary(page, baseUrl) {
+  const pageErrors = [];
+  const recordPageError = (error) => pageErrors.push(error.message);
+  page.on('pageerror', recordPageError);
+  const legitimate = {
+    v: 1,
+    name: '<b>sample feed</b>',
+    at: '2026-07-25',
+    counts: [3, 0, 0],
+    codes: [['audit_code', 'ERROR', 3]],
+    notices: [{
+      code: 'audit_code',
+      severity: 'ERROR',
+      message: 'A legitimate shared finding',
+      file: 'stops.txt',
+      row: 2,
+    }],
+    truncated: true,
+    sampleLimit: 1,
+  };
+  await page.goto(sharedReportUrl(baseUrl, legitimate));
+  await page.waitForTimeout(1_000);
+  const legitimateState = await page.evaluate(() => ({
+    modalVisible: !document.querySelector('#report-modal')?.classList.contains('hidden'),
+    errorVisible: !document.querySelector('#error-container')?.classList.contains('hidden'),
+  }));
+  assert.equal(
+    legitimateState.modalVisible || legitimateState.errorVisible,
+    true,
+    `shared report did not finish loading: ${pageErrors.join('; ')}`,
+  );
+  assert.equal(
+    await page.locator('#error-container').getAttribute('class'),
+    'error-container hidden',
+    await page.locator('#error-message').textContent(),
+  );
+  assert.equal(await page.locator('.notice-group-count').textContent(), '3');
+  assert.match(await page.locator('#shared-banner-text').textContent(), /<b>sample feed<\/b>/);
+  assert.equal(await page.locator('#shared-banner-text b').count(), 0);
+
+  await page.goto(sharedReportUrl(baseUrl, legitimate, 'z'));
+  await page.locator('#report-modal:not(.hidden)').waitFor();
+  assert.equal(await page.locator('.notice-group-count').textContent(), '3');
+
+  const malicious = {
+    ...legitimate,
+    codes: [[
+      'audit_code',
+      'ERROR',
+      '<img src=x onerror="document.body.dataset.xss=\'yes\'">',
+    ]],
+  };
+  await page.goto(sharedReportUrl(baseUrl, malicious));
+  await page.locator('#error-container:not(.hidden)').waitFor();
+  assert.equal(await page.evaluate(() => document.body.dataset.xss), undefined);
+  assert.equal(await page.locator('img[src="x"]').count(), 0);
+
+  await page.addInitScript(({ decodedLimit }) => {
+    globalThis.__shareStreamCancelled = false;
+    Object.defineProperty(globalThis, 'DecompressionStream', {
+      configurable: true,
+      value: class {
+        constructor() {
+          this.readable = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(decodedLimit + 1));
+            },
+            cancel() {
+              globalThis.__shareStreamCancelled = true;
+            },
+          });
+          this.writable = new WritableStream();
+        }
+      },
+    });
+  }, { decodedLimit: maxSharedReportDecodedBytes });
+  await page.goto(`${baseUrl}/?shared-test=bomb#report=zAA`);
+  await page.locator('#error-container:not(.hidden)').waitFor();
+  assert.equal(await page.evaluate(() => globalThis.__shareStreamCancelled), true);
+  page.off('pageerror', recordPageError);
+}
+
 const isolated = await startServer({ isolated: true });
 const portable = await startServer({ isolated: false });
 const browser = await chromium.launch({ headless: true });
@@ -202,6 +296,8 @@ try {
   const fallback = await validate(page);
   assert.equal(fallback.runtime, 'single-threaded');
   assert.deepEqual(fallback.noticeCounts, forcedSingle.noticeCounts);
+
+  await testSharedReportBoundary(page, portable.url);
 
   console.log(JSON.stringify({ threaded, forcedSingle, fallback }, null, 2));
 } finally {
