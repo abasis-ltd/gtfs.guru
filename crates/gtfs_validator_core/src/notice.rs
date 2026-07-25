@@ -10,7 +10,7 @@ pub const NOTICE_CODE_MISSING_FILE: &str = "missing_required_file";
 pub const NOTICE_CODE_MISSING_RECOMMENDED_FILE: &str = "missing_recommended_file";
 pub const NOTICE_CODE_EMPTY_TABLE: &str = "empty_file";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoticeSeverity {
     Error,
@@ -67,6 +67,15 @@ pub enum FixOperation {
         original: String,
         replacement: String,
     },
+    /// Delete a row whose identifying field still has the expected value.
+    DeleteRow {
+        file: String,
+        row: u64,
+        field: String,
+        expected: String,
+    },
+    /// Canonicalize `stop_times.txt` without changing any row values.
+    SortStopTimes { file: String },
 }
 
 /// A suggested fix for a validation issue

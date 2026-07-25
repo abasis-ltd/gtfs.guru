@@ -45,6 +45,21 @@ semantic versioning.
   UTF-8 BOM, and every untouched file survive byte for byte. A fix whose target
   field no longer holds the expected value is reported and skipped rather than
   applied.
+- Auto-fix suggestions for the defects with exactly one reading:
+  `invalid_color` (`#FF0000` and the `0F0` shorthand), `invalid_date`
+  (separator forms of `YYYYMMDD`), `invalid_time` (a missing `:SS`, an all-zero
+  fraction), `invalid_url` (a missing scheme), and `invalid_email` (a `mailto:`
+  prefix or angle brackets) are safe; a decimal comma in `invalid_float` and a
+  redundant fraction in `invalid_integer` need `--fix-unsafe`. Every suggestion
+  is re-checked against the validator that rejected the value, so applying one
+  cannot introduce a new notice. Ambiguous input gets no suggestion: `01-05-2026`
+  could be either day-first or month-first, and `1,500` could be 1.5 or 1500.
+- Safe auto-fixes now trim declared GTFS fields and canonically order
+  `stop_times.txt` by trip and `stop_sequence` while preserving each raw record.
+  `--fix-unsafe` can delete child rows with missing foreign-key parents, with an
+  expected-value guard that refuses stale plans. Every repaired feed is
+  automatically validated again and reports resolved, remaining, and introduced
+  notice totals.
 - `gtfs_validator_core::fix` exposing `FixPlan` and `apply_fixes` for embedders.
 - `gtfs-guru --version`.
 - `service_never_active`, which flags calendar.txt rows with no active weekday

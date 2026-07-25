@@ -225,7 +225,9 @@ Optional outputs:
 * `--fail-on <none|error|warning>`: Exit with status 2 when the report reaches that severity. Reports are still written.
 * `--badge <FILE>` / `--badge-svg <FILE>`: Write a status badge. See [Status badges](docs/usage.md#status-badges).
 
-`--fix-dry-run` lists suggested edits without touching anything. `--fix` applies the safe ones and `--fix-unsafe` applies all of them, writing a repaired copy to `--fix-output` (default: `<input>.fixed.<ext>` beside the input). The input is never modified, an existing output path is refused, and only the CSV rows that carry an edit are rewritten — every other byte is copied through. Most fix-carrying rules run only under `--thorough`.
+`--fix-dry-run` lists suggested edits without touching anything. `--fix` applies the safe ones and `--fix-unsafe` applies all of them, writing a repaired copy to `--fix-output` (default: `<input>.fixed.<ext>` beside the input). The input is never modified and an existing output path is refused. Field repairs rewrite only their CSV records; sorting moves the original raw records, and every untouched file is copied byte for byte.
+
+Safe fixes cover whitespace, colors (`#FF0000`, `0F0`), dates written with separators, times missing their seconds, URLs missing a scheme, `mailto:`-wrapped emails, and canonical `stop_times.txt` ordering. Decimal commas need confirmation; deleting rows whose foreign key points at a missing parent is available only under `--fix-unsafe`. Syntactic replacements are re-validated before they are offered, ambiguous values (`01-05-2026`, `1,500`) get no suggestion, and the repaired feed is automatically validated again with resolved/remaining/introduced totals.
 
 Exit codes: `0` validation completed, `1` the run failed, `2` the feed did not meet `--fail-on`.
 
