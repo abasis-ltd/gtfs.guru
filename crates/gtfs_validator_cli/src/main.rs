@@ -803,12 +803,16 @@ fn validate_with_metrics(
 
     let load_start = std::time::Instant::now();
     let handler_clone = progress_handler.clone();
+    // The error is boxed here rather than in GtfsInputError itself: the variants
+    // carry paths and source errors that make the type large, and every caller
+    // would pay for that on the success path too.
     let load_result = catch_unwind(AssertUnwindSafe(|| {
         GtfsFeed::from_input_with_notices_and_progress(
             input,
             &mut notices,
             Some(handler_clone.as_ref()),
         )
+        .map_err(Box::new)
     }));
 
     progress_handler
@@ -861,7 +865,7 @@ fn validate_with_metrics(
             }
         }
         Ok(Err(err)) => {
-            push_input_error_notice(&mut notices, err);
+            push_input_error_notice(&mut notices, *err);
             gtfs_guru_core::ValidationOutcome {
                 feed: None,
                 notices,
