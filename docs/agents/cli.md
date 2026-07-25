@@ -42,10 +42,16 @@
 
 ## Fix Flags
 
+- Suggestions are derived in `crates/gtfs_validator_core/src/fix_suggest.rs`; each one is
+  re-checked against the validator that rejected the value before it is offered.
 - `--fix-dry-run` enumerates planned edits without writing anything.
 - `--fix` applies safe fixes; `--fix-unsafe` also applies confirm-level and unsafe ones.
 - `--fix-output` sets the destination (default `<input>.fixed.<ext>`). The input is never
   modified and an existing output path is refused.
+- Safe structural fixes can reorder raw `stop_times.txt` records; orphan row
+  deletion is reserved for `--fix-unsafe` and guarded by the expected foreign-key value.
+- After writing, the CLI validates the repaired feed and prints resolved,
+  remaining, and introduced notice counts.
 - Fix modes cannot be combined with `--stdout`; clap rejects the command instead
   of silently skipping the requested repair or preview.
 - Planning and rewriting live in `crates/gtfs_validator_core/src/fix.rs`

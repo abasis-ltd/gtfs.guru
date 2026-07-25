@@ -25,6 +25,7 @@ pub mod diff;
 pub mod engine;
 pub mod feed;
 pub mod fix;
+mod fix_suggest;
 pub mod geojson;
 pub mod input;
 pub mod notice;
