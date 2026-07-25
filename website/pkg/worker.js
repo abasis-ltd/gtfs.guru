@@ -6,6 +6,7 @@
  * Usage:
  *   const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
  *   worker.postMessage({ type: 'validate', payload: { zipBytes, countryCode }, id: 1 });
+ *   worker.postMessage({ type: 'diff', payload: { oldZipBytes, newZipBytes }, id: 2 });
  *   worker.onmessage = (e) => console.log(e.data);
  */
 
@@ -108,6 +109,27 @@ self.onmessage = async (event) => {
           // finalization, which is important after large-feed validation.
           result.free();
         }
+        break;
+      }
+
+      case 'diff': {
+        const { oldZipBytes, newZipBytes, countryCode, date } = payload;
+        const startTime = performance.now();
+        const json = wasm.diff_gtfs(
+          new Uint8Array(oldZipBytes),
+          new Uint8Array(newZipBytes),
+          countryCode || null,
+          date || null,
+        );
+        self.postMessage({
+          id,
+          type: 'diff-result',
+          payload: {
+            json,
+            comparisonTimeMs: performance.now() - startTime,
+            runtime,
+          },
+        });
         break;
       }
 

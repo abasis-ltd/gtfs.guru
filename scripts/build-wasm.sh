@@ -101,6 +101,7 @@ fi
 echo "Copying additional files..."
 cp "$WASM_CRATE/js/"*.js "$WASM_CRATE/pkg/" 2>/dev/null || true
 cp "$WASM_CRATE/types/"*.d.ts "$WASM_CRATE/pkg/" 2>/dev/null || true
+cp "$WASM_CRATE/js/worker-mt.js" "$WASM_CRATE/pkg-mt/worker-mt.js"
 
 # Apply package.json template if exists
 if [ -f "$WASM_CRATE/package.json.template" ]; then

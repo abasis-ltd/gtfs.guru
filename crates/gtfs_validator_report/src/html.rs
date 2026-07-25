@@ -1613,5 +1613,4 @@ mod tests {
         assert!(!html.contains("<span>shapePath</span>"));
         assert!(!html.contains("<span>stopLocation</span>"));
     }
-
 }
