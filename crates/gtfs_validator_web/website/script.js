@@ -1324,7 +1324,21 @@ Download the .zip and drop it here instead; validation still runs locally in you
             });
         });
 
-        // Map pins: open the stop location map
+        reportModalBody.querySelectorAll('.geometry-map-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                try {
+                    openNoticeMap(
+                        JSON.parse(btn.getAttribute('data-geometry')),
+                        btn.getAttribute('data-title')
+                    );
+                } catch (err) {
+                    console.error('Invalid notice geometry:', err);
+                }
+            });
+        });
+
+        // Stop references without notice geometry still use the stops.txt index.
         reportModalBody.querySelectorAll('.map-pin-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1338,71 +1352,241 @@ Download the .zip and drop it here instead; validation still runs locally in you
         }
     }
 
-    /* --- Stop location map (Leaflet, lazy-loaded) --- */
-    let leafletLoading = null;
-    let stopMap = null;
-    let stopMapMarkers = null;
+    /* --- Geographic notice map (MapLibre, lazy-loaded) --- */
+    let mapLibreLoading = null;
+    let noticeMap = null;
+    let noticeMapReady = false;
+    let pendingNoticeGeometry = null;
+    let noticeMapMarkers = [];
 
-    function ensureLeaflet() {
-        if (window.L) return Promise.resolve();
-        if (leafletLoading) return leafletLoading;
-        leafletLoading = new Promise((resolve, reject) => {
+    function ensureMapLibre() {
+        if (window.maplibregl) return Promise.resolve();
+        if (mapLibreLoading) return mapLibreLoading;
+        mapLibreLoading = new Promise((resolve, reject) => {
             const css = document.createElement('link');
             css.rel = 'stylesheet';
-            css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            css.href = 'https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css';
             document.head.appendChild(css);
             const script = document.createElement('script');
-            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.src = 'https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js';
             script.onload = resolve;
-            script.onerror = () => { leafletLoading = null; reject(new Error('Failed to load the map library')); };
+            script.onerror = () => {
+                mapLibreLoading = null;
+                reject(new Error('Failed to load MapLibre'));
+            };
             document.head.appendChild(script);
         });
-        return leafletLoading;
+        return mapLibreLoading;
     }
 
-    async function openStopMap(stopId, code) {
-        const info = stopsIndex && stopsIndex.get(stopId);
-        if (!info) return;
-        try {
-            await ensureLeaflet();
-        } catch (err) {
-            console.error(err);
+    function emptyGeoJson() {
+        return { type: 'FeatureCollection', features: [] };
+    }
+
+    function mapCoordinate(point) {
+        if (!point || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) {
+            return null;
+        }
+        return [point.longitude, point.latitude];
+    }
+
+    function lineGeoJson(points) {
+        const coordinates = (points || []).map(mapCoordinate).filter(Boolean);
+        if (coordinates.length < 2) return emptyGeoJson();
+        return {
+            type: 'FeatureCollection',
+            features: [{
+                type: 'Feature',
+                properties: {},
+                geometry: { type: 'LineString', coordinates }
+            }]
+        };
+    }
+
+    function setNoticeMapData(sourceId, data) {
+        const source = noticeMap && noticeMap.getSource(sourceId);
+        if (source) source.setData(data);
+    }
+
+    function clearNoticeMapMarkers() {
+        noticeMapMarkers.forEach(marker => marker.remove());
+        noticeMapMarkers = [];
+    }
+
+    function addNoticeMapMarker(point, kind, label) {
+        const position = mapCoordinate(point);
+        if (!position) return;
+        const element = document.createElement('div');
+        element.className = `notice-map-marker notice-map-marker--${kind}`;
+        element.setAttribute('aria-label', label);
+        const popupText = document.createElement('strong');
+        popupText.textContent = label;
+        const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
+            .setDOMContent(popupText);
+        noticeMapMarkers.push(
+            new maplibregl.Marker({ element, anchor: 'center' })
+                .setLngLat(position)
+                .setPopup(popup)
+                .addTo(noticeMap)
+        );
+    }
+
+    function renderNoticeMapGeometry(geometry) {
+        if (!noticeMapReady || !geometry) {
+            pendingNoticeGeometry = geometry;
             return;
         }
 
+        pendingNoticeGeometry = null;
+        clearNoticeMapMarkers();
+        setNoticeMapData('notice-shape', emptyGeoJson());
+        setNoticeMapData('notice-connector', emptyGeoJson());
+        setNoticeMapData('notice-bounds', emptyGeoJson());
+
+        let positions = [];
+        if (geometry.type === 'point') {
+            addNoticeMapMarker(geometry.point, 'point', 'Affected location');
+            const point = mapCoordinate(geometry.point);
+            if (point) positions.push(point);
+        } else if (geometry.type === 'line') {
+            setNoticeMapData('notice-shape', lineGeoJson(geometry.points));
+            positions = (geometry.points || []).map(mapCoordinate).filter(Boolean);
+        } else if (geometry.type === 'pointAndLine') {
+            setNoticeMapData('notice-shape', lineGeoJson(geometry.line));
+            addNoticeMapMarker(geometry.point, 'point', 'Affected stop');
+            addNoticeMapMarker(geometry.nearestPoint, 'nearest', 'Closest point on shape');
+            const point = mapCoordinate(geometry.point);
+            const nearest = mapCoordinate(geometry.nearestPoint);
+            if (point && nearest) {
+                setNoticeMapData(
+                    'notice-connector',
+                    lineGeoJson([geometry.point, geometry.nearestPoint])
+                );
+            }
+            positions = (geometry.line || []).map(mapCoordinate).filter(Boolean);
+            if (point) positions.push(point);
+            if (nearest) positions.push(nearest);
+        } else if (geometry.type === 'boundingBox') {
+            const southWest = mapCoordinate(geometry.southWest);
+            const northEast = mapCoordinate(geometry.northEast);
+            if (southWest && northEast) {
+                const northWest = [southWest[0], northEast[1]];
+                const southEast = [northEast[0], southWest[1]];
+                setNoticeMapData('notice-bounds', {
+                    type: 'FeatureCollection',
+                    features: [{
+                        type: 'Feature',
+                        properties: {},
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[southWest, northWest, northEast, southEast, southWest]]
+                        }
+                    }]
+                });
+                positions = [southWest, northEast];
+            }
+        }
+
+        noticeMap.resize();
+        if (positions.length === 1) {
+            noticeMap.flyTo({ center: positions[0], zoom: 16, duration: 650 });
+        } else if (positions.length > 1) {
+            const bounds = positions.reduce(
+                (result, point) => result.extend(point),
+                new maplibregl.LngLatBounds(positions[0], positions[0])
+            );
+            noticeMap.fitBounds(bounds, { padding: 72, maxZoom: 17, duration: 700 });
+        }
+    }
+
+    function createNoticeMap() {
+        if (noticeMap) return;
+        noticeMap = new maplibregl.Map({
+            container: 'stop-map',
+            center: [0, 20],
+            zoom: 1.5,
+            attributionControl: false,
+            style: {
+                version: 8,
+                sources: {
+                    basemap: {
+                        type: 'raster',
+                        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+                    }
+                },
+                layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }]
+            }
+        });
+        noticeMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+        noticeMap.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+        noticeMap.on('load', () => {
+            noticeMap.addSource('notice-shape', { type: 'geojson', data: emptyGeoJson() });
+            noticeMap.addSource('notice-connector', { type: 'geojson', data: emptyGeoJson() });
+            noticeMap.addSource('notice-bounds', { type: 'geojson', data: emptyGeoJson() });
+            noticeMap.addLayer({
+                id: 'notice-bounds-fill',
+                type: 'fill',
+                source: 'notice-bounds',
+                paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.2 }
+            });
+            noticeMap.addLayer({
+                id: 'notice-bounds-line',
+                type: 'line',
+                source: 'notice-bounds',
+                paint: { 'line-color': '#a78bfa', 'line-width': 3 }
+            });
+            noticeMap.addLayer({
+                id: 'notice-shape',
+                type: 'line',
+                source: 'notice-shape',
+                layout: { 'line-cap': 'round', 'line-join': 'round' },
+                paint: { 'line-color': '#22d3ee', 'line-width': 5, 'line-opacity': 0.95 }
+            });
+            noticeMap.addLayer({
+                id: 'notice-connector',
+                type: 'line',
+                source: 'notice-connector',
+                paint: {
+                    'line-color': '#fb7185',
+                    'line-width': 3,
+                    'line-dasharray': [1.5, 1.5]
+                }
+            });
+            noticeMapReady = true;
+            if (pendingNoticeGeometry) renderNoticeMapGeometry(pendingNoticeGeometry);
+        });
+    }
+
+    async function openNoticeMap(geometry, title) {
         const mapModal = document.getElementById('map-modal');
         const mapTitle = document.getElementById('map-modal-title');
-        if (!mapModal) return;
-
-        if (mapTitle) {
-            mapTitle.textContent = info.name ? `${info.name} (${stopId})` : stopId;
-        }
+        if (!mapModal || !geometry) return;
+        if (mapTitle) mapTitle.textContent = title || 'Geographic notice';
         mapModal.classList.remove('hidden');
-
-        if (!stopMap) {
-            stopMap = L.map('stop-map');
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(stopMap);
-            stopMapMarkers = L.layerGroup().addTo(stopMap);
+        try {
+            await ensureMapLibre();
+            createNoticeMap();
+            renderNoticeMapGeometry(geometry);
+            setTimeout(() => noticeMap.resize(), 50);
+        } catch (err) {
+            console.error(err);
+            if (mapTitle) mapTitle.textContent = 'Map could not be loaded';
         }
+    }
 
-        stopMapMarkers.clearLayers();
-        const marker = L.marker([info.lat, info.lon]).addTo(stopMapMarkers);
-        const popupHtml =
-            `<b>${escapeHtml(info.name || stopId)}</b><br>` +
-            `<code>${escapeHtml(stopId)}</code>` +
-            (code ? `<br><code>${escapeHtml(code)}</code>` : '');
-        marker.bindPopup(popupHtml);
-
-        stopMap.setView([info.lat, info.lon], 16);
-        // The map container was hidden when Leaflet measured it.
-        setTimeout(() => {
-            stopMap.invalidateSize();
-            stopMap.setView([info.lat, info.lon], 16);
-            marker.openPopup();
-        }, 50);
+    function openStopMap(stopId, code) {
+        const info = stopsIndex && stopsIndex.get(stopId);
+        if (!info) return;
+        const title = info.name ? `${info.name} (${stopId})` : stopId;
+        openNoticeMap(
+            {
+                type: 'point',
+                point: { latitude: info.lat, longitude: info.lon }
+            },
+            code ? `${title} · ${code}` : title
+        );
     }
 
     function closeStopMap() {
@@ -1474,7 +1658,15 @@ Download the .zip and drop it here instead; validation still runs locally in you
             });
 
             // Extract dynamic keys for table headers (exclude standard and internal ones)
-            const excludeKeys = ['message', 'code', 'severity', 'totalNotices', 'field_order', 'context'];
+            const excludeKeys = [
+                'message',
+                'code',
+                'severity',
+                'totalNotices',
+                'field_order',
+                'context',
+                'geometry'
+            ];
             const allKeys = new Set();
             displayNotices.forEach(n => {
                 Object.keys(n).forEach(k => {
@@ -1497,6 +1689,8 @@ Download the .zip and drop it here instead; validation still runs locally in you
 
             // Generate table headers
             const thHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+            const hasNoticeGeometry = displayNotices.some(notice => notice.geometry);
+            const mapHeaderHtml = hasNoticeGeometry ? '<th>Map</th>' : '';
 
             // Generate table rows
             const stopKeyRe = /^(stopId\d*|childStopId|parentStopId|parentStation|locationId)$/;
@@ -1518,7 +1712,15 @@ Download the .zip and drop it here instead; validation still runs locally in you
                     }
                     return `<td><code>${escapeHtml(valStr)}</code></td>`;
                 }).join('');
-                return `<tr>${tdHtml}</tr>`;
+                const geometryTitle = notice.stopName
+                    ? `${notice.stopName} · ${code}`
+                    : code;
+                const mapCellHtml = hasNoticeGeometry
+                    ? (notice.geometry
+                        ? `<td><button class="geometry-map-btn" data-geometry="${escapeAttr(JSON.stringify(notice.geometry))}" data-title="${escapeAttr(geometryTitle)}" title="View affected geometry"><i data-lucide="map"></i><span>View</span></button></td>`
+                        : '<td></td>')
+                    : '';
+                return `<tr>${tdHtml}${mapCellHtml}</tr>`;
             }).join('');
 
             const moreCount = Math.max(0, count - displayNotices.length);
@@ -1547,6 +1749,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
                                 <thead>
                                     <tr style="text-align: left; background: rgba(255,255,255,0.05); color: var(--text-secondary);">
                                         ${thHtml}
+                                        ${mapHeaderHtml}
                                     </tr>
                                 </thead>
                                 <tbody>

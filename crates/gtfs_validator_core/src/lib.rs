@@ -53,7 +53,10 @@ pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,
     GtfsInputSource,
 };
-pub use notice::{Fix, FixOperation, FixSafety, NoticeContainer, NoticeSeverity, ValidationNotice};
+pub use notice::{
+    Fix, FixOperation, FixSafety, NoticeContainer, NoticeGeometry, NoticeGeometryPoint,
+    NoticeSeverity, ValidationNotice,
+};
 pub use notice_schema::build_notice_schema_map;
 pub use progress::{NoOpProgressHandler, ProgressHandler};
 pub use rules::default_runner;

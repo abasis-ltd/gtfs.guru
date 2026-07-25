@@ -1,5 +1,8 @@
 use crate::feed::{SHAPES_FILE, STOPS_FILE};
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    GtfsFeed, NoticeContainer, NoticeGeometry, NoticeGeometryPoint, NoticeSeverity,
+    ValidationNotice, Validator,
+};
 
 const CODE_POINT_NEAR_ORIGIN: &str = "point_near_origin";
 const CODE_POINT_NEAR_POLE: &str = "point_near_pole";
@@ -143,6 +146,9 @@ fn check_point(
         notice.insert_context_field("latFieldValue", lat);
         notice.insert_context_field("lonFieldName", lon_field);
         notice.insert_context_field("lonFieldValue", lon);
+        notice.geometry = Some(NoticeGeometry::Point {
+            point: NoticeGeometryPoint::new(lat, lon),
+        });
         notice.field_order = vec![
             "csvRowNumber".into(),
             "entityId".into(),
@@ -239,6 +245,13 @@ mod tests {
         StopLatLonValidator.validate(&feed, &mut notices);
 
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices.iter().next().unwrap().code, "point_near_origin");
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, "point_near_origin");
+        assert_eq!(
+            notice.geometry,
+            Some(NoticeGeometry::Point {
+                point: NoticeGeometryPoint::new(0.5, 0.5)
+            })
+        );
     }
 }

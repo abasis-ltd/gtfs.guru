@@ -90,26 +90,246 @@ fn render_html(
     <title>GTFS Schedule Validation Report</title>
     <meta name="robots" content="noindex, nofollow">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8; width=device-width, initial-scale=1"/>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"/>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'"/>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css" crossorigin="anonymous"/>
+    <script src="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js" crossorigin="anonymous"></script>
     <script>
       document.addEventListener('DOMContentLoaded', function() {
-        // Accordion functionality (vanilla JS)
         document.querySelectorAll('.accordion tr.notice').forEach(function(row) {
             row.addEventListener('click', function() {
                 var descRow = this.nextElementSibling;
                 if (descRow && descRow.classList.contains('description')) {
                     this.classList.toggle('open');
                     descRow.classList.toggle('open');
-
-                    // Toggle +/- icon
                     var icon = this.querySelector('span');
                     if (icon) {
                         icon.textContent = this.classList.contains('open') ? '–' : '+';
                     }
                 }
             });
+        });
+
+        var modal = document.getElementById('map-modal');
+        var closeButton = document.getElementById('close-map');
+        var mapTitle = document.getElementById('map-title');
+        var mapSubtitle = document.getElementById('map-subtitle');
+        var map = null;
+        var mapReady = false;
+        var pendingGeometry = null;
+        var markers = [];
+
+        function emptyCollection() {
+            return { type: 'FeatureCollection', features: [] };
+        }
+
+        function coordinates(point) {
+            if (!point || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) {
+                return null;
+            }
+            return [point.longitude, point.latitude];
+        }
+
+        function collectionForLine(points) {
+            var line = (points || []).map(coordinates).filter(Boolean);
+            return line.length > 1 ? {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } }]
+            } : emptyCollection();
+        }
+
+        function setSourceData(id, data) {
+            var source = map && map.getSource(id);
+            if (source) source.setData(data);
+        }
+
+        function clearMarkers() {
+            markers.forEach(function(marker) { marker.remove(); });
+            markers = [];
+        }
+
+        function addMarker(point, kind, label) {
+            var position = coordinates(point);
+            if (!position) return;
+            var element = document.createElement('div');
+            element.className = 'notice-map-marker notice-map-marker--' + kind;
+            element.setAttribute('aria-label', label);
+            var popupContent = document.createElement('strong');
+            popupContent.textContent = label;
+            var popup = new maplibregl.Popup({ offset: 18, closeButton: false }).setDOMContent(popupContent);
+            markers.push(new maplibregl.Marker({ element: element, anchor: 'center' })
+                .setLngLat(position)
+                .setPopup(popup)
+                .addTo(map));
+        }
+
+        function renderGeometry(geometry) {
+            if (!mapReady || !geometry) {
+                pendingGeometry = geometry;
+                return;
+            }
+
+            pendingGeometry = null;
+            clearMarkers();
+            setSourceData('notice-line', emptyCollection());
+            setSourceData('notice-connector', emptyCollection());
+            setSourceData('notice-bounds-fill', emptyCollection());
+
+            var allCoordinates = [];
+            if (geometry.type === 'point') {
+                addMarker(geometry.point, 'point', 'Affected location');
+                var point = coordinates(geometry.point);
+                if (point) allCoordinates.push(point);
+            } else if (geometry.type === 'line') {
+                setSourceData('notice-line', collectionForLine(geometry.points));
+                allCoordinates = (geometry.points || []).map(coordinates).filter(Boolean);
+            } else if (geometry.type === 'pointAndLine') {
+                setSourceData('notice-line', collectionForLine(geometry.line));
+                addMarker(geometry.point, 'point', 'Affected stop');
+                addMarker(geometry.nearestPoint, 'nearest', 'Closest point on shape');
+                var affected = coordinates(geometry.point);
+                var nearest = coordinates(geometry.nearestPoint);
+                if (affected && nearest) {
+                    setSourceData('notice-connector', collectionForLine([
+                        geometry.point,
+                        geometry.nearestPoint
+                    ]));
+                }
+                allCoordinates = (geometry.line || []).map(coordinates).filter(Boolean);
+                if (affected) allCoordinates.push(affected);
+                if (nearest) allCoordinates.push(nearest);
+            } else if (geometry.type === 'boundingBox') {
+                var southWest = coordinates(geometry.southWest);
+                var northEast = coordinates(geometry.northEast);
+                if (southWest && northEast) {
+                    var northWest = [southWest[0], northEast[1]];
+                    var southEast = [northEast[0], southWest[1]];
+                    var polygon = {
+                        type: 'FeatureCollection',
+                        features: [{
+                            type: 'Feature',
+                            properties: {},
+                            geometry: {
+                                type: 'Polygon',
+                                coordinates: [[southWest, northWest, northEast, southEast, southWest]]
+                            }
+                        }]
+                    };
+                    setSourceData('notice-bounds-fill', polygon);
+                    allCoordinates = [southWest, northEast];
+                }
+            }
+
+            map.resize();
+            if (allCoordinates.length === 1) {
+                map.flyTo({ center: allCoordinates[0], zoom: 16, duration: 650 });
+            } else if (allCoordinates.length > 1) {
+                var bounds = allCoordinates.reduce(function(result, point) {
+                    return result.extend(point);
+                }, new maplibregl.LngLatBounds(allCoordinates[0], allCoordinates[0]));
+                map.fitBounds(bounds, { padding: 72, maxZoom: 17, duration: 700 });
+            }
+        }
+
+        function createMap() {
+            if (map || typeof maplibregl === 'undefined') return;
+            map = new maplibregl.Map({
+                container: 'map',
+                center: [0, 20],
+                zoom: 1.5,
+                attributionControl: false,
+                style: {
+                    version: 8,
+                    sources: {
+                        basemap: {
+                            type: 'raster',
+                            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                            tileSize: 256,
+                            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+                        }
+                    },
+                    layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }]
+                }
+            });
+            map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+            map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+            map.on('load', function() {
+                map.addSource('notice-line', { type: 'geojson', data: emptyCollection() });
+                map.addSource('notice-connector', { type: 'geojson', data: emptyCollection() });
+                map.addSource('notice-bounds-fill', { type: 'geojson', data: emptyCollection() });
+                map.addLayer({
+                    id: 'notice-bounds-fill',
+                    type: 'fill',
+                    source: 'notice-bounds-fill',
+                    paint: { 'fill-color': '#38bdf8', 'fill-opacity': 0.16 }
+                });
+                map.addLayer({
+                    id: 'notice-bounds-line',
+                    type: 'line',
+                    source: 'notice-bounds-fill',
+                    paint: { 'line-color': '#7dd3fc', 'line-width': 3 }
+                });
+                map.addLayer({
+                    id: 'notice-line',
+                    type: 'line',
+                    source: 'notice-line',
+                    layout: { 'line-cap': 'round', 'line-join': 'round' },
+                    paint: { 'line-color': '#38bdf8', 'line-width': 5, 'line-opacity': 0.92 }
+                });
+                map.addLayer({
+                    id: 'notice-connector',
+                    type: 'line',
+                    source: 'notice-connector',
+                    paint: {
+                        'line-color': '#fb7185',
+                        'line-width': 3,
+                        'line-dasharray': [1.5, 1.5]
+                    }
+                });
+                mapReady = true;
+                if (pendingGeometry) renderGeometry(pendingGeometry);
+            });
+        }
+
+        function openMap(button) {
+            var geometry;
+            try {
+                geometry = JSON.parse(button.dataset.geometry);
+            } catch (_) {
+                return;
+            }
+            mapTitle.textContent = button.dataset.mapTitle || 'Geographic notice';
+            mapSubtitle.textContent = button.dataset.mapSubtitle || 'Affected geometry';
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('map-open');
+            createMap();
+            if (!map) {
+                mapSubtitle.textContent = 'MapLibre could not be loaded. Check the network connection.';
+                return;
+            }
+            renderGeometry(geometry);
+            setTimeout(function() { map.resize(); }, 40);
+        }
+
+        function closeMap() {
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('map-open');
+        }
+
+        document.querySelectorAll('.view-map-btn').forEach(function(button) {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                openMap(button);
+            });
+        });
+        closeButton.addEventListener('click', closeMap);
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) closeMap();
+        });
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && modal.classList.contains('open')) closeMap();
         });
       });
     </script>
@@ -408,18 +628,33 @@ fn render_html(
     }
 
     .view-map-btn {
-        background: var(--primary);
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        background: #0f172a;
+        color: #f8fafc;
+        border: 1px solid #334155;
+        padding: 0.48rem 0.78rem;
+        border-radius: 999px;
         font-weight: 600;
         cursor: pointer;
-        transition: background 0.2s;
+        white-space: nowrap;
+        transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
     }
 
     .view-map-btn:hover {
-        background: var(--primary-hover);
+        background: #1e293b;
+        border-color: #38bdf8;
+        transform: translateY(-1px);
+    }
+
+    .view-map-btn svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    body.map-open {
+        overflow: hidden;
     }
 
     footer {
@@ -450,11 +685,11 @@ fn render_html(
         position: fixed;
         inset: 0;
         z-index: 1000;
-        background: rgba(15, 23, 42, 0.75);
-        backdrop-filter: blur(4px);
+        background: rgba(2, 6, 23, 0.82);
+        backdrop-filter: blur(10px);
         align-items: center;
         justify-content: center;
-        padding: 2rem;
+        padding: clamp(0.75rem, 3vw, 2.5rem);
     }
 
     #map-modal.open {
@@ -463,26 +698,155 @@ fn render_html(
 
     #map-container {
         width: 100%;
-        max-width: 1000px;
-        height: 70vh;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        max-width: 1180px;
+        height: min(82vh, 780px);
+        min-height: 420px;
+        background: #0f172a;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 22px;
+        box-shadow: 0 34px 80px rgba(2, 6, 23, 0.55);
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        animation: map-enter 0.24s ease-out both;
     }
 
     #map-header {
-        padding: 1.25rem 1.5rem;
-        border-bottom: 1px solid var(--border);
+        min-height: 76px;
+        padding: 1rem 1.25rem 1rem 1.5rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
         display: flex;
         justify-content: space-between;
         align-items: center;
+        color: #f8fafc;
+    }
+
+    #map-header h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        letter-spacing: -0.01em;
+    }
+
+    #map-subtitle {
+        margin: 0.2rem 0 0;
+        color: #94a3b8;
+        font-size: 0.82rem;
+    }
+
+    #close-map {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        flex: 0 0 auto;
+        background: rgba(148, 163, 184, 0.1);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 50%;
+        color: #e2e8f0;
+        font-size: 24px;
+        line-height: 1;
+        cursor: pointer;
+        transition: background 0.18s ease, transform 0.18s ease;
+    }
+
+    #close-map:hover {
+        background: rgba(148, 163, 184, 0.2);
+        transform: rotate(4deg);
+    }
+
+    #map-stage {
+        position: relative;
+        flex: 1;
+        min-height: 0;
     }
 
     #map {
-        flex: 1;
+        position: absolute;
+        inset: 0;
+    }
+
+    #map-legend {
+        position: absolute;
+        left: 18px;
+        bottom: 18px;
+        z-index: 2;
+        display: flex;
+        gap: 1rem;
+        padding: 0.62rem 0.8rem;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.86);
+        box-shadow: 0 10px 30px rgba(2, 6, 23, 0.35);
+        color: #e2e8f0;
+        font-size: 0.75rem;
+        backdrop-filter: blur(8px);
+        pointer-events: none;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .legend-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #fb7185;
+        box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.22);
+    }
+
+    .legend-dot.nearest {
+        background: #f8fafc;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.35);
+    }
+
+    .legend-line {
+        width: 18px;
+        height: 3px;
+        border-radius: 99px;
+        background: #38bdf8;
+    }
+
+    .notice-map-marker {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #f8fafc;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+
+    .notice-map-marker--point {
+        background: #fb7185;
+        box-shadow: 0 0 0 6px rgba(251, 113, 133, 0.2), 0 4px 16px rgba(2, 6, 23, 0.45);
+    }
+
+    .notice-map-marker--nearest {
+        width: 14px;
+        height: 14px;
+        background: #38bdf8;
+        box-shadow: 0 0 0 5px rgba(56, 189, 248, 0.22), 0 4px 16px rgba(2, 6, 23, 0.45);
+    }
+
+    @keyframes map-enter {
+        from { opacity: 0; transform: translateY(12px) scale(0.985); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @media (max-width: 640px) {
+        #map-container {
+            height: 88vh;
+            min-height: 360px;
+            border-radius: 16px;
+        }
+
+        #map-legend {
+            left: 10px;
+            bottom: 10px;
+            gap: 0.65rem;
+            max-width: calc(100% - 20px);
+        }
     }
 </style>
 
@@ -577,14 +941,24 @@ fn render_html(
     </table>
     <br>
 
-    <!-- Map Modal -->
-    <div id="map-modal">
+    <!-- Geographic notice map -->
+    <div id="map-modal" role="dialog" aria-modal="true" aria-labelledby="map-title" aria-hidden="true">
         <div id="map-container">
             <div id="map-header">
-                <h3 id="map-title">Geographic Error</h3>
-                <button id="close-map" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
+                <div>
+                    <h3 id="map-title">Geographic notice</h3>
+                    <p id="map-subtitle">Affected geometry</p>
+                </div>
+                <button id="close-map" type="button" aria-label="Close map">&times;</button>
             </div>
-            <div id="map"></div>
+            <div id="map-stage">
+                <div id="map"></div>
+                <div id="map-legend" aria-hidden="true">
+                    <span class="legend-item"><span class="legend-dot"></span>Affected stop</span>
+                    <span class="legend-item"><span class="legend-dot nearest"></span>Closest point</span>
+                    <span class="legend-item"><span class="legend-line"></span>Shape</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -934,10 +1308,7 @@ fn render_notice_group(
         .map(|notice| notice.message.as_str())
         .unwrap_or("");
 
-    // Check if this is a geographic notice that should have a map button
-    let has_map_data = notices
-        .iter()
-        .any(|n| n.context.contains_key("stopLocation") && n.context.contains_key("match"));
+    let has_map_data = notices.iter().any(|notice| notice.geometry.is_some());
 
     out.push_str("            <tr class=\"notice\">\n                <td style='position:relative; padding-left: 2rem;'>\n                    <span style='position:absolute; left: 0.75rem;'>+</span>\n                    <span class='notice-code'>");
     push_escaped(out, code);
@@ -994,56 +1365,37 @@ fn render_notice_group(
 }
 
 fn render_map_button(out: &mut String, notice: &ValidationNotice) {
-    let stop_location = notice.context.get("stopLocation");
-    let match_location = notice.context.get("match");
-    let shape_path = notice.context.get("shapePath");
-    let stop_name = notice
-        .context
-        .get("stopName")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Unknown");
+    if let Some(geometry) = &notice.geometry {
+        if let Ok(json) = serde_json::to_string(geometry) {
+            let stop_name = notice
+                .context
+                .get("stopName")
+                .and_then(Value::as_str)
+                .filter(|name| !name.is_empty())
+                .unwrap_or("Affected location");
+            let distance = notice
+                .context
+                .get("geoDistanceToShape")
+                .and_then(Value::as_f64)
+                .map(|meters| format!("{meters:.1} m from shape"))
+                .unwrap_or_else(|| notice.code.clone());
 
-    if let (Some(stop_loc), Some(match_loc)) = (stop_location, match_location) {
-        let (stop_lat, stop_lon) = extract_lat_lng(stop_loc);
-        let (match_lat, match_lon) = extract_lat_lng(match_loc);
-
-        if let (Some(s_lat), Some(s_lon), Some(m_lat), Some(m_lon)) =
-            (stop_lat, stop_lon, match_lat, match_lon)
-        {
             out.push_str("                                    <td>");
-            out.push_str("<button class=\"view-map-btn\" ");
-            out.push_str("data-stop-name=\"");
+            out.push_str("<button type=\"button\" class=\"view-map-btn\" data-geometry=\"");
+            push_escaped(out, &json);
+            out.push_str("\" data-map-title=\"");
             push_escaped(out, stop_name);
-            out.push_str("\" ");
-            out.push_str(&format!("data-stop-lat=\"{}\" ", s_lat));
-            out.push_str(&format!("data-stop-lon=\"{}\" ", s_lon));
-            out.push_str(&format!("data-match-lat=\"{}\" ", m_lat));
-            out.push_str(&format!("data-match-lon=\"{}\" ", m_lon));
-            // Add shape path if available
-            if let Some(path) = shape_path {
-                if let Ok(json_str) = serde_json::to_string(path) {
-                    out.push_str("data-shape-path='");
-                    out.push_str(&json_str);
-                    out.push_str("' ");
-                }
-            }
-            out.push_str(">📍 View</button>");
+            out.push_str("\" data-map-subtitle=\"");
+            push_escaped(out, &distance);
+            out.push_str("\">");
+            out.push_str(
+                r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>View map</button>"#,
+            );
             out.push_str("</td>\n");
             return;
         }
     }
     out.push_str("                                    <td>-</td>\n");
-}
-
-fn extract_lat_lng(value: &Value) -> (Option<f64>, Option<f64>) {
-    if let Some(arr) = value.as_array() {
-        if arr.len() >= 2 {
-            let lat = arr[0].as_f64();
-            let lon = arr[1].as_f64();
-            return (lat, lon);
-        }
-    }
-    (None, None)
 }
 
 fn notice_fields(notices: &[&ValidationNotice]) -> Vec<String> {
@@ -1078,13 +1430,19 @@ fn notice_fields(notices: &[&ValidationNotice]) -> Vec<String> {
 
     if !ordered.is_empty() {
         ordered.retain(|field| union.contains(field));
+        ordered.retain(|field| !is_internal_geometry_field(field));
         dedup_fields(&mut ordered);
         return ordered;
     }
 
     let mut ordered: Vec<String> = union.into_iter().collect();
+    ordered.retain(|field| !is_internal_geometry_field(field));
     ordered.sort();
     ordered
+}
+
+fn is_internal_geometry_field(field: &str) -> bool {
+    matches!(field, "stopLocation" | "match" | "shapePath" | "matchIndex")
 }
 
 fn default_notice_fields(notices: &[&ValidationNotice]) -> Vec<String> {
@@ -1213,4 +1571,47 @@ fn escape_html(value: &str) -> String {
         }
     }
     escaped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ReportSummaryContext;
+    use gtfs_guru_core::{NoticeGeometry, NoticeGeometryPoint};
+
+    #[test]
+    fn geographic_notice_renders_a_maplibre_button_and_dialog() {
+        let mut notices = NoticeContainer::new();
+        let mut notice =
+            ValidationNotice::new("geo_test", NoticeSeverity::Warning, "geographic test");
+        notice.insert_context_field("stopName", "Harbour Stop");
+        notice.insert_context_field("geoDistanceToShape", 42.5);
+        notice.insert_context_field("stopLocation", [35.0, 33.0]);
+        notice.insert_context_field("shapePath", [[35.0, 33.0], [35.1, 33.1]]);
+        notice.geometry = Some(NoticeGeometry::PointAndLine {
+            point: NoticeGeometryPoint::new(35.0, 33.0),
+            line: vec![
+                NoticeGeometryPoint::new(35.0, 33.0),
+                NoticeGeometryPoint::new(35.1, 33.1),
+            ],
+            nearest_point: Some(NoticeGeometryPoint::new(35.02, 33.02)),
+        });
+        notices.push(notice);
+
+        let summary = ReportSummary::from_context(ReportSummaryContext::new());
+        let html = generate_html_report_string(
+            &notices,
+            &summary,
+            HtmlReportContext::from_summary(&summary, "test.zip"),
+        );
+
+        assert!(html.contains("maplibre-gl@5.12.0"));
+        assert!(html.contains("class=\"view-map-btn\""));
+        assert!(html.contains("data-geometry=\"{&quot;type&quot;:&quot;pointAndLine&quot;"));
+        assert!(html.contains("id=\"map-modal\" role=\"dialog\""));
+        assert!(!html.contains("leaflet@"));
+        assert!(!html.contains("<span>shapePath</span>"));
+        assert!(!html.contains("<span>stopLocation</span>"));
+    }
+
 }
