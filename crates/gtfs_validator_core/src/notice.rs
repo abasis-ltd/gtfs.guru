@@ -30,6 +30,31 @@ pub enum FixSafety {
     Unsafe,
 }
 
+impl FixSafety {
+    /// Ordering rank: `Safe` < `RequiresConfirmation` < `Unsafe`.
+    fn rank(self) -> u8 {
+        match self {
+            FixSafety::Safe => 0,
+            FixSafety::RequiresConfirmation => 1,
+            FixSafety::Unsafe => 2,
+        }
+    }
+
+    /// Whether a fix at this level may run when the caller allows up to `max`.
+    pub fn allowed_by(self, max: FixSafety) -> bool {
+        self.rank() <= max.rank()
+    }
+
+    /// Short label used in CLI output and reports.
+    pub fn label(self) -> &'static str {
+        match self {
+            FixSafety::Safe => "SAFE",
+            FixSafety::RequiresConfirmation => "CONFIRM",
+            FixSafety::Unsafe => "UNSAFE",
+        }
+    }
+}
+
 /// The actual fix operation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]

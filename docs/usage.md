@@ -36,8 +36,9 @@ gtfs-guru --url https://example.com/gtfs.zip --output_base ./report
 | `--sarif <FILE>` | | Write SARIF report for CI/CD |
 | `--fail-on <LEVEL>` | | `none` (default), `error`, or `warning`; exit 2 at that severity |
 | `--fix-dry-run` | | List suggested auto-fixes without modifying files |
-| `--fix` | | Not implemented: print safe fixes, then exit with an error |
-| `--fix-unsafe` | | Not implemented: print all fixes, then exit with an error |
+| `--fix` | | Write a repaired copy with the safe fixes applied |
+| `--fix-unsafe` | | Like `--fix`, but also applies confirm-level and unsafe fixes |
+| `--fix-output <PATH>` | | Destination for the repaired feed (default `<input>.fixed.<ext>`) |
 | `--thorough` | | Enable thorough validation (recommended fields) |
 | `--timing` | | Print timing breakdown |
 | `--timing-json` | | Print timing report as JSON |

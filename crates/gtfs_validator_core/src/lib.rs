@@ -23,6 +23,7 @@ mod csv_schema;
 mod csv_validation;
 pub mod engine;
 pub mod feed;
+pub mod fix;
 pub mod geojson;
 pub mod input;
 pub mod notice;
@@ -42,6 +43,9 @@ pub use engine::{
     validate_input, validate_input_and_progress, ValidationOutcome,
 };
 pub use feed::GtfsFeed;
+pub use fix::{
+    apply_fixes, ConflictReason, FixConflict, FixCounts, FixError, FixOutcome, FixPlan, PlannedEdit,
+};
 pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,
     GtfsInputSource,

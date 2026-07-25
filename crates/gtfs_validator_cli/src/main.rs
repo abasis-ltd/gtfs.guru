@@ -12,8 +12,9 @@ use tracing::info;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use gtfs_guru_core::{
-    build_notice_schema_map, collect_input_notices, default_runner, set_validation_country_code,
-    set_validation_date, GtfsFeed, GtfsInput, GtfsInputError, NoticeContainer, NoticeSeverity,
+    apply_fixes, build_notice_schema_map, collect_input_notices, default_runner,
+    set_validation_country_code, set_validation_date, FixPlan, FixSafety, GtfsFeed, GtfsInput,
+    GtfsInputError, GtfsInputSource, NoticeContainer, NoticeSeverity, PlannedEdit,
     ValidationNotice, ValidatorRunner,
 };
 use gtfs_guru_report::{
@@ -36,6 +37,7 @@ enum FailOn {
 #[command(name = "gtfs-guru")]
 #[command(about = "GTFS Guru validator (Rust rewrite)")]
 #[command(version)]
+#[command(group = clap::ArgGroup::new("fix_mode").args(["fix", "fix_unsafe"]).multiple(true))]
 struct Args {
     /// Path to a GTFS zip file or unpacked feed directory.
     #[arg(short = 'i', long = "input")]
@@ -131,17 +133,23 @@ struct Args {
     #[arg(
         long = "fix-dry-run",
         alias = "fix-preview",
-        conflicts_with_all = ["fix", "fix_unsafe"]
+        conflicts_with_all = ["fix", "fix_unsafe", "fix_output"]
     )]
     fix_dry_run: bool,
 
-    /// Not implemented: prints planned safe fixes, then exits with an error.
+    /// Write a repaired copy of the feed with the safe fixes applied.
     #[arg(long = "fix")]
     fix: bool,
 
-    /// Not implemented: prints all planned fixes, then exits with an error.
+    /// Like --fix, but also applies fixes that need confirmation or may change
+    /// semantics.
     #[arg(long = "fix-unsafe")]
     pub fix_unsafe: bool,
+
+    /// Where to write the repaired feed. Defaults to `<input>.fixed.<ext>` next
+    /// to the input. Never overwrites the input or an existing path.
+    #[arg(long = "fix-output", alias = "fix_output", requires = "fix_mode")]
+    fix_output: Option<PathBuf>,
 
     /// Enable thorough validation (reports missing recommended fields and columns).
     /// By default, only mandatory GTFS rules are enforced to match Java validator behavior.
@@ -345,7 +353,7 @@ fn main() -> anyhow::Result<()> {
 
     // Handle auto-fix options
     if args.fix_dry_run || args.fix || args.fix_unsafe {
-        handle_fixes(&validation_notices, &args, input.path())?;
+        handle_fixes(&validation_notices, &args, &input)?;
     }
 
     // Reports are already written: status 2 describes feed quality, not a run failure.
@@ -382,136 +390,140 @@ fn exit_if_threshold_reached(fail_on: FailOn, notices: &NoticeContainer) {
     std::process::exit(2);
 }
 
-fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> anyhow::Result<()> {
-    use gtfs_guru_core::{FixOperation, FixSafety};
-    use std::collections::HashMap;
+fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> anyhow::Result<()> {
+    let max_safety = if args.fix_unsafe {
+        FixSafety::Unsafe
+    } else {
+        FixSafety::Safe
+    };
+    let plan = FixPlan::from_notices(notices, max_safety);
+    let counts = plan.counts();
 
-    // Collect all fixes, grouped by file
-    let mut fixes_by_file: HashMap<String, Vec<_>> = HashMap::new();
-    let mut safe_count = 0;
-    let mut requires_confirmation_count = 0;
-    let mut unsafe_count = 0;
-
-    for notice in notices.iter() {
-        if let Some(fix) = &notice.fix {
-            match fix.safety {
-                FixSafety::Safe => safe_count += 1,
-                FixSafety::RequiresConfirmation => requires_confirmation_count += 1,
-                FixSafety::Unsafe => unsafe_count += 1,
-            }
-
-            let FixOperation::ReplaceField { file, .. } = &fix.operation;
-            fixes_by_file
-                .entry(file.clone())
-                .or_default()
-                .push((notice, fix));
-        }
-    }
-
-    let total = safe_count + requires_confirmation_count + unsafe_count;
-    if total == 0 {
+    if counts.total() == 0 {
         info!("No auto-fixes available");
+        if !args.thorough {
+            // Most fix-carrying rules are gated behind thorough mode, so an
+            // empty plan usually means they never ran.
+            eprintln!(
+                "No fixable issues found. Several rules that suggest fixes only run under --thorough."
+            );
+        }
         return Ok(());
     }
 
     info!(
         "Found {} fixable issues: {} safe, {} need confirmation, {} unsafe",
-        total, safe_count, requires_confirmation_count, unsafe_count
+        counts.total(),
+        counts.safe,
+        counts.requires_confirmation,
+        counts.unsafe_
     );
 
-    // Determine which fixes to show/apply based on flags
-    let include_safe = true;
-    let include_requires_confirmation = args.fix_unsafe;
-    let include_unsafe = args.fix_unsafe;
-
-    // For dry-run, just show what would be fixed
     if args.fix_dry_run {
         println!("\n=== Fix Dry Run ===\n");
-        for (file, file_fixes) in &fixes_by_file {
-            for (notice, fix) in file_fixes {
-                let should_show = match fix.safety {
-                    FixSafety::Safe => include_safe,
-                    FixSafety::RequiresConfirmation => include_requires_confirmation,
-                    FixSafety::Unsafe => include_unsafe,
-                };
-                if !should_show {
-                    continue;
-                }
-
-                let FixOperation::ReplaceField {
-                    row,
-                    field,
-                    original,
-                    replacement,
-                    ..
-                } = &fix.operation;
-                let safety_label = match fix.safety {
-                    FixSafety::Safe => "[SAFE]",
-                    FixSafety::RequiresConfirmation => "[CONFIRM]",
-                    FixSafety::Unsafe => "[UNSAFE]",
-                };
-                println!("{} {} row {}, field '{}':", safety_label, file, row, field);
-                println!("  Error: {} ({})", notice.message, notice.code);
-                println!("  - {}", original);
-                println!("  + {}", replacement);
-                println!();
-            }
-        }
-        println!("Applying fixes is not implemented; the input was not modified.");
+        print_edits(plan.edits());
+        println!(
+            "{} edit(s) would be applied, {} skipped as above the requested safety level. \
+             The input was not modified; re-run with --fix to write a repaired copy.",
+            plan.edits().len(),
+            plan.skipped().len()
+        );
         return Ok(());
     }
 
-    // File rewriting is not implemented. Print the exact plan and fail loudly
-    // so callers cannot mistake a successful process for a modified feed.
-    if args.fix || args.fix_unsafe {
-        let mut planned = 0;
-        let mut skipped = 0;
+    if plan.is_empty() {
+        // Every fix sits above the requested safety level. Copying the feed
+        // unchanged would only produce a confusing duplicate.
+        println!(
+            "Nothing to apply at this safety level: all {} fix(es) need --fix-unsafe. \
+             No output was written.",
+            plan.skipped().len()
+        );
+        return Ok(());
+    }
 
-        println!("\n=== Planned Fixes (NOT applied) ===\n");
-        for (file, file_fixes) in &fixes_by_file {
-            for (notice, fix) in file_fixes {
-                let should_apply = match fix.safety {
-                    FixSafety::Safe => include_safe,
-                    FixSafety::RequiresConfirmation => include_requires_confirmation,
-                    FixSafety::Unsafe => include_unsafe,
-                };
+    let output = match &args.fix_output {
+        Some(path) => path.clone(),
+        None => default_fix_output(input),
+    };
 
-                if !should_apply {
-                    skipped += 1;
-                    continue;
-                }
+    println!("\n=== Applying Fixes ===\n");
+    print_edits(plan.edits());
 
-                let FixOperation::ReplaceField {
-                    row,
-                    field,
-                    original,
-                    replacement,
-                    ..
-                } = &fix.operation;
-                let safety_label = match fix.safety {
-                    FixSafety::Safe => "[SAFE]",
-                    FixSafety::RequiresConfirmation => "[CONFIRM]",
-                    FixSafety::Unsafe => "[UNSAFE]",
-                };
-                println!("{} {} row {}, field '{}':", safety_label, file, row, field);
-                println!("  Error: {} ({})", notice.message, notice.code);
-                println!("  - {}", original);
-                println!("  + {}", replacement);
-                println!();
-                planned += 1;
-            }
-        }
+    let outcome =
+        apply_fixes(input, &plan, &output).context("failed to write the repaired feed")?;
 
-        bail!(
-            "--fix is not implemented: {} was NOT modified ({} edit(s) planned, {} skipped). \
-             Use --fix-dry-run to inspect safe edits without an error.",
-            gtfs_path.display(),
-            planned,
-            skipped
+    for conflict in &outcome.conflicts {
+        eprintln!(
+            "skipped {} at {} row {}, field '{}': {}",
+            conflict.edit.notice_code,
+            conflict.edit.file,
+            conflict.edit.row,
+            conflict.edit.field,
+            conflict.reason
         );
     }
 
+    println!(
+        "Applied {} fix(es) across {} file(s) to {}.",
+        outcome.applied.len(),
+        outcome.rewritten_files.len(),
+        outcome.output.display()
+    );
+    if !plan.skipped().is_empty() {
+        println!(
+            "{} fix(es) skipped as above the requested safety level; \
+             re-run with --fix-unsafe to include them.",
+            plan.skipped().len()
+        );
+    }
+    if !outcome.conflicts.is_empty() {
+        println!(
+            "{} fix(es) did not match the file on disk and were left alone (see above).",
+            outcome.conflicts.len()
+        );
+    }
+    println!("Re-run validation on the output to confirm the result.");
+
     Ok(())
+}
+
+fn print_edits(edits: &[PlannedEdit]) {
+    for edit in edits {
+        println!(
+            "[{}] {} row {}, field '{}': {}",
+            edit.safety.label(),
+            edit.file,
+            edit.row,
+            edit.field,
+            edit.description
+        );
+        println!("  - {}", edit.original);
+        println!("  + {}", edit.replacement);
+        println!();
+    }
+}
+
+/// `feed.zip` -> `feed.fixed.zip`, `feed/` -> `feed.fixed/`. Placing the copy
+/// next to the input keeps it obvious without ever aliasing the original.
+fn default_fix_output(input: &GtfsInput) -> PathBuf {
+    let path = input.path();
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_else(|| String::from("feed"));
+
+    match input.source() {
+        GtfsInputSource::Zip => {
+            let extension = path
+                .extension()
+                .map(|ext| ext.to_string_lossy().into_owned())
+                .unwrap_or_else(|| String::from("zip"));
+            parent.join(format!("{stem}.fixed.{extension}"))
+        }
+        GtfsInputSource::Directory => parent.join(format!("{stem}.fixed")),
+    }
 }
 
 fn export_notice_schema(args: &Args) -> anyhow::Result<()> {

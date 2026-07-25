@@ -26,8 +26,12 @@
 
 ## Fix Flags
 
-- `--fix-dry-run`, `--fix`, and `--fix-unsafe` enumerate fixable issues and planned changes.
-- Current implementation reports the intended edits rather than modifying files.
+- `--fix-dry-run` enumerates planned edits without writing anything.
+- `--fix` applies safe fixes; `--fix-unsafe` also applies confirm-level and unsafe ones.
+- `--fix-output` sets the destination (default `<input>.fixed.<ext>`). The input is never
+  modified and an existing output path is refused.
+- Planning and rewriting live in `crates/gtfs_validator_core/src/fix.rs`
+  (`FixPlan`, `apply_fixes`); the CLI only formats the plan and reports conflicts.
 
 ## Examples
 

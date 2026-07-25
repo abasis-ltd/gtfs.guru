@@ -121,10 +121,28 @@ gtfs-guru --export_notices_schema --output_base ./report
 
 Open `./report/notice_schema.json` to see all notice codes, severity, and descriptions.
 
-## Fixes (Dry Run)
+## Fixes
+
+Preview the edits without changing anything:
 
 ```bash
-gtfs-guru --input /path/to/gtfs.zip --output_base ./report --fix-dry-run
+gtfs-guru --input /path/to/gtfs.zip --output_base ./report --thorough --fix-dry-run
 ```
 
-Note: `--fix` and `--fix-unsafe` currently only log intended edits; files are not modified yet.
+Write a repaired copy:
+
+```bash
+gtfs-guru --input /path/to/gtfs.zip --output_base ./report --thorough --fix --fix-output ./gtfs.fixed.zip
+```
+
+Notes:
+
+- The input is never modified. Without `--fix-output` the copy lands at
+  `<input>.fixed.<ext>`; an existing output path is refused rather than
+  overwritten.
+- `--fix` applies safe fixes only; `--fix-unsafe` also applies confirm-level and
+  unsafe ones.
+- Only CSV rows carrying an edit are rewritten, so line endings, quoting, and
+  every other file survive unchanged.
+- A fix whose field no longer holds the expected value is reported and skipped.
+- Most fix-carrying rules only run under `--thorough`.

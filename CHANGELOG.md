@@ -11,6 +11,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 - `--fail-on <none|error|warning>` for CI quality gates. Reports are written
   before the process exits with status `2`.
+- `--fix` and `--fix-unsafe` now write a repaired copy of the feed instead of
+  printing a plan and failing. `--fix-output` picks the destination, defaulting
+  to `<input>.fixed.<ext>` beside the input. The input is never modified and an
+  existing output path is refused. Only the CSV records carrying an edit are
+  re-serialized, so line endings, quoting, a UTF-8 BOM, and every untouched file
+  survive byte for byte. A fix whose target field no longer holds the expected
+  value is reported and skipped rather than applied.
+- `gtfs_validator_core::fix` exposing `FixPlan` and `apply_fixes` for embedders.
 - `gtfs-guru --version`.
 - Prebuilt Python wheels for Linux x86_64/aarch64, macOS x86_64/arm64, and
   Windows x64, plus an sdist and post-upload PyPI verification.

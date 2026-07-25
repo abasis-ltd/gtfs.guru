@@ -55,7 +55,7 @@ Closely compatible with [MobilityData gtfs-validator](https://github.com/Mobilit
 - **Multiple interfaces** — CLI, Web API, Python bindings, Desktop App, WebAssembly
 - **Cross-platform** — macOS, Linux, Windows
 - **Detailed reports** — JSON, HTML and SARIF output with geographic context
-- **Auto-fix suggestions** — `--fix-dry-run` lists suggested edits; applying them is not implemented
+- **Auto-fix** — `--fix-dry-run` lists suggested edits, `--fix` writes a repaired copy of the feed
 - **Robust CSV Parsing** — handles spaces in headers and other common format issues
 
 ## Next Steps
