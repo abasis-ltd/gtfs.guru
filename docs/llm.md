@@ -16,6 +16,17 @@ Validate from URL (optional cache):
 gtfs-guru --url https://example.com/gtfs.zip --storage_directory /tmp/gtfs --output_base ./report
 ```
 
+Compare two feed versions:
+
+```bash
+gtfs-guru diff old.zip new.zip
+gtfs-guru diff old.zip new.zip --json diff.json --markdown diff.md --fail-on-new-errors
+```
+
+The diff covers agencies, routes, stops, route-level trip/frequency aggregates,
+and validation notice deltas. Add `--no-validation` for structural comparison
+only.
+
 Common flags:
 
 - `--country_code US`

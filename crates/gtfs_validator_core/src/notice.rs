@@ -323,6 +323,34 @@ impl NoticeContainer {
         )
     }
 
+    /// Exact totals keyed by notice code and severity.
+    ///
+    /// This is primarily useful for comparing validation runs. Counts include
+    /// notices omitted from storage by the per-group cap.
+    pub fn group_counts(&self) -> Vec<((String, NoticeSeverity), usize)> {
+        let mut counts = Vec::new();
+        for (code, tallies) in &self.group_tallies {
+            for severity in [
+                NoticeSeverity::Error,
+                NoticeSeverity::Warning,
+                NoticeSeverity::Info,
+            ] {
+                let total = tallies[severity_index(severity)].total;
+                if total > 0 {
+                    counts.push(((code.clone(), severity), total));
+                }
+            }
+        }
+        counts.sort_by(
+            |((left_code, left_severity), _), ((right_code, right_severity), _)| {
+                left_code.cmp(right_code).then_with(|| {
+                    severity_index(*left_severity).cmp(&severity_index(*right_severity))
+                })
+            },
+        );
+        counts
+    }
+
     /// Exact total for one (code, severity) group, including dropped notices.
     pub fn group_total(&self, code: &str, severity: NoticeSeverity) -> usize {
         self.group_tallies

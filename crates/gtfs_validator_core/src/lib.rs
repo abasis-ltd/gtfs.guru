@@ -21,6 +21,7 @@
 pub mod csv_reader;
 mod csv_schema;
 mod csv_validation;
+pub mod diff;
 pub mod engine;
 pub mod feed;
 pub mod fix;
@@ -37,6 +38,7 @@ mod validation_context;
 pub mod validator;
 
 pub use csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
+pub use diff::{diff_feeds, FeedDiff};
 pub use engine::{
     validate_bytes, validate_bytes_reader, validate_bytes_reader_and_progress,
     validate_bytes_reader_and_progress_and_timing, validate_bytes_reader_with_timing,

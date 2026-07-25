@@ -28,6 +28,18 @@
 - `--threads` controls the reported thread count in the summary.
 - Run `gtfs-guru --help` for the full flag list.
 
+## Feed Diff
+
+- `gtfs-guru diff old.zip new.zip` compares two local archives or directories.
+- The default console report covers table presence, feed version/date range,
+  agencies, routes, added/removed/renamed/moved stops, route-level trip counts,
+  frequency windows, and notice-count changes.
+- `--json <PATH|->` and `--markdown <PATH|->` produce CI-friendly reports.
+- `--fail-on-new-errors` exits `2` when an error group's count increases.
+- `--no-validation` skips all validation rules and compares only feed contents.
+- Diff logic and its serializable result types live in
+  `gtfs_validator_core::diff`; CLI code only loads inputs and renders output.
+
 ## Fix Flags
 
 - `--fix-dry-run` enumerates planned edits without writing anything.
@@ -50,4 +62,7 @@
 
 # URL input with cached download
 ./target/release/gtfs-guru -u https://example.com/gtfs.zip -s /tmp/gtfs -o out
+
+# Compare a feed update and fail CI on newly introduced errors
+./target/release/gtfs-guru diff old.zip new.zip --markdown - --fail-on-new-errors
 ```
