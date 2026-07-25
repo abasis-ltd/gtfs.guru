@@ -10,7 +10,12 @@
  * worker when crossOriginIsolated is true; otherwise it uses ../pkg/worker.js.
  */
 
-import init, { validate_gtfs, version, initThreadPool } from './gtfs_guru_wasm.js';
+import init, {
+  diff_gtfs,
+  validate_gtfs,
+  version,
+  initThreadPool,
+} from './gtfs_guru_wasm.js';
 
 let initialized = false;
 
@@ -61,6 +66,27 @@ self.onmessage = async (event) => {
             isValid: result.is_valid,
             truncated: result.truncated,
             validationTimeMs: elapsed,
+          },
+        });
+        break;
+      }
+
+      case 'diff': {
+        const { oldZipBytes, newZipBytes, countryCode, date } = payload;
+        const startTime = performance.now();
+        const json = diff_gtfs(
+          new Uint8Array(oldZipBytes),
+          new Uint8Array(newZipBytes),
+          countryCode || null,
+          date || null,
+        );
+        self.postMessage({
+          id,
+          type: 'diff-result',
+          payload: {
+            json,
+            comparisonTimeMs: performance.now() - startTime,
+            runtime: 'multi-threaded',
           },
         });
         break;

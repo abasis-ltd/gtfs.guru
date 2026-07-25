@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use gtfs_guru_core::{
-    default_runner, set_validation_country_code, validate_input_and_progress, GtfsInput,
-    NoticeGeometry, NoticeSeverity, ProgressHandler, ValidationNotice,
+    default_runner, diff_feeds, set_validation_country_code, validate_input_and_progress, FeedDiff,
+    GtfsInput, NoticeGeometry, NoticeSeverity, ProgressHandler, ValidationNotice,
 };
 use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
@@ -151,6 +151,16 @@ pub struct ValidationResult {
     pub geo_errors: Vec<GeoError>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffResult {
+    pub report: FeedDiff,
+    pub comparison_time_secs: f64,
+    pub json_report_path: String,
+    pub old_source: String,
+    pub new_source: String,
+}
+
 #[derive(Default)]
 pub struct AppState {
     pub last_output_dir: Mutex<Option<PathBuf>>,
@@ -181,6 +191,7 @@ pub fn run() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             validate_gtfs,
+            diff_gtfs,
             check_for_updates,
             get_update_download_url,
             get_version,
@@ -219,6 +230,30 @@ async fn validate_gtfs(
         }
     }
 
+    Ok(result)
+}
+
+#[tauri::command]
+async fn diff_gtfs(
+    old_path: String,
+    new_path: String,
+    country_code: Option<String>,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<DiffResult, String> {
+    if old_path.trim().is_empty() || new_path.trim().is_empty() {
+        return Err("Select both the previous and new GTFS feeds".to_string());
+    }
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        run_diff(&old_path, &new_path, country_code.as_deref(), &app)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+
+    if let Some(parent) = PathBuf::from(&result.json_report_path).parent() {
+        *state.last_output_dir.lock().unwrap() = Some(parent.to_path_buf());
+    }
     Ok(result)
 }
 
@@ -418,6 +453,76 @@ fn run_validation(
         json_report_path: Some(json_path.to_string_lossy().to_string()),
         error_message: None,
         geo_errors,
+    })
+}
+
+fn run_diff(
+    old_path: &str,
+    new_path: &str,
+    country_code: Option<&str>,
+    app: &AppHandle,
+) -> Result<DiffResult, String> {
+    let old_input = GtfsInput::from_path(old_path).map_err(|error| error.to_string())?;
+    let new_input = GtfsInput::from_path(new_path).map_err(|error| error.to_string())?;
+    let _country_guard =
+        country_code.map(|code| set_validation_country_code(Some(code.to_string())));
+    let runner = default_runner();
+    let started_at = Instant::now();
+
+    let emit = |phase: &str, message: &str, progress: f32| {
+        let _ = app.emit(
+            "diff-progress",
+            ProgressEvent {
+                phase: phase.to_string(),
+                message: message.to_string(),
+                progress: Some(progress),
+            },
+        );
+    };
+
+    emit("old", "Validating previous feed…", 0.05);
+    let old_outcome = validate_input_and_progress(&old_input, &runner, None);
+    let old_feed = old_outcome
+        .feed
+        .as_ref()
+        .ok_or_else(|| "The previous source could not be parsed as a GTFS feed".to_string())?;
+
+    emit("new", "Validating new feed…", 0.48);
+    let new_outcome = validate_input_and_progress(&new_input, &runner, None);
+    let new_feed = new_outcome
+        .feed
+        .as_ref()
+        .ok_or_else(|| "The new source could not be parsed as a GTFS feed".to_string())?;
+
+    emit(
+        "comparing",
+        "Comparing routes, stops, trips, and notices…",
+        0.9,
+    );
+    let report = diff_feeds(
+        old_feed,
+        new_feed,
+        &old_outcome.notices,
+        &new_outcome.notices,
+    );
+
+    let output_dir = std::env::temp_dir().join(format!(
+        "gtfs_diff_{}_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S"),
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&output_dir).map_err(|error| error.to_string())?;
+    let json_path = output_dir.join("diff.json");
+    let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
+    std::fs::write(&json_path, json).map_err(|error| error.to_string())?;
+
+    emit("complete", "Comparison complete", 1.0);
+    Ok(DiffResult {
+        report,
+        comparison_time_secs: started_at.elapsed().as_secs_f64(),
+        json_report_path: json_path.to_string_lossy().to_string(),
+        old_source: old_path.to_string(),
+        new_source: new_path.to_string(),
     })
 }
 

@@ -58,15 +58,15 @@ let nextMsgId = 1;
 
 // Lazily import + init the WASM module on the main thread (fallback path only,
 // always the single-threaded module — the main thread has no rayon pool).
-let mainThreadValidatePromise = null;
-function getMainThreadValidate() {
-    if (!mainThreadValidatePromise) {
-        mainThreadValidatePromise = import('./pkg/gtfs_guru_wasm.js').then(async (mod) => {
+let mainThreadApiPromise = null;
+function getMainThreadApi() {
+    if (!mainThreadApiPromise) {
+        mainThreadApiPromise = import('./pkg/gtfs_guru_wasm.js').then(async (mod) => {
             await mod.default(); // init()
-            return mod.validate_gtfs;
+            return mod;
         });
     }
-    return mainThreadValidatePromise;
+    return mainThreadApiPromise;
 }
 
 function getValidatorWorker() {
@@ -97,6 +97,12 @@ function getValidatorWorker() {
                 warning_count: payload.warningCount,
                 info_count: payload.infoCount,
                 truncated: payload.truncated === true,
+            });
+        } else if (type === 'diff-result') {
+            p.resolve({
+                json: payload.json,
+                comparison_time_ms: payload.comparisonTimeMs,
+                runtime: payload.runtime,
             });
         } else {
             p.reject(new Error(typeof payload === 'string' ? payload : 'Validation failed'));
@@ -541,7 +547,7 @@ async function validateInWorker(arrayBuffer, dateStr) {
 }
 
 async function validateOnMainThread(arrayBuffer, dateStr) {
-    const validate_gtfs = await getMainThreadValidate();
+    const { validate_gtfs } = await getMainThreadApi();
     // Yield once so the processing spinner paints before the synchronous,
     // UI-blocking WASM call.
     await new Promise((r) => setTimeout(r, 30));
@@ -554,6 +560,58 @@ async function validateOnMainThread(arrayBuffer, dateStr) {
         info_count: res.info_count,
         truncated: res.truncated === true,
     };
+}
+
+async function diffInWorker(oldArrayBuffer, newArrayBuffer, dateStr) {
+    getValidatorWorker();
+    await Promise.race([
+        workerReadyPromise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('__WORKER_UNAVAILABLE__')), 10000)),
+    ]);
+    return new Promise((resolve, reject) => {
+        const id = nextMsgId++;
+        pendingValidation = { id, resolve, reject };
+        validatorWorker.postMessage(
+            {
+                type: 'diff',
+                id,
+                payload: {
+                    oldZipBytes: oldArrayBuffer,
+                    newZipBytes: newArrayBuffer,
+                    date: dateStr,
+                },
+            },
+            [oldArrayBuffer, newArrayBuffer],
+        );
+    });
+}
+
+async function diffOnMainThread(oldArrayBuffer, newArrayBuffer, dateStr) {
+    const { diff_gtfs } = await getMainThreadApi();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const startedAt = performance.now();
+    return {
+        json: diff_gtfs(
+            new Uint8Array(oldArrayBuffer),
+            new Uint8Array(newArrayBuffer),
+            null,
+            dateStr,
+        ),
+        comparison_time_ms: performance.now() - startedAt,
+        runtime: 'single-threaded',
+    };
+}
+
+async function diffFeeds(oldArrayBuffer, newArrayBuffer, dateStr) {
+    if (workerUsable) {
+        try {
+            return await diffInWorker(oldArrayBuffer, newArrayBuffer, dateStr);
+        } catch (err) {
+            if (!err || err.message !== '__WORKER_UNAVAILABLE__') throw err;
+        }
+    }
+    return diffOnMainThread(oldArrayBuffer, newArrayBuffer, dateStr);
 }
 
 // Validate via the worker, transparently falling back to the main thread if the
@@ -717,8 +775,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const uploadState = document.getElementById('upload-state');
+    const validateInputs = document.getElementById('validate-inputs');
+    const diffInputs = document.getElementById('diff-inputs');
+    const validateModeBtn = document.getElementById('validate-mode-btn');
+    const diffModeBtn = document.getElementById('diff-mode-btn');
+    const oldFileInput = document.getElementById('old-file-input');
+    const newFileInput = document.getElementById('new-file-input');
+    const oldFeedPicker = document.getElementById('old-feed-picker');
+    const newFeedPicker = document.getElementById('new-feed-picker');
+    const oldFeedName = document.getElementById('old-feed-name');
+    const newFeedName = document.getElementById('new-feed-name');
+    const diffAnalyzeBtn = document.getElementById('diff-analyze-btn');
     const processingState = document.getElementById('processing-state');
+    const processingTitle = document.getElementById('processing-title');
+    const processingDetail = document.getElementById('processing-detail');
     const resultState = document.getElementById('result-state');
+    const diffResultState = document.getElementById('diff-result-state');
+    const diffReport = document.getElementById('diff-report');
+    const diffTime = document.getElementById('diff-time');
+    const downloadDiffJsonBtn = document.getElementById('download-diff-json-btn');
+    const diffResetBtn = document.getElementById('diff-reset-btn');
     const resetBtn = document.getElementById('reset-btn');
     const urlInput = document.getElementById('url-input');
     const urlAnalyzeBtn = document.getElementById('url-analyze-btn');
@@ -729,12 +805,83 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharedBannerText = document.getElementById('shared-banner-text');
     const sharedNewScanBtn = document.getElementById('shared-new-scan-btn');
 
-    // The three ways in are shown and hidden together: drop zone, URL box, and
-    // the example feed.
+    let currentValidatorMode = 'validate';
+    let oldDiffFile = null;
+    let newDiffFile = null;
+    let lastDiffResult = null;
+
     function setUploadUiVisible(visible) {
-        if (uploadState) uploadState.classList.toggle('hidden', !visible);
-        if (urlInputContainer) urlInputContainer.classList.toggle('hidden', !visible);
-        if (demoRow) demoRow.classList.toggle('hidden', !visible);
+        if (validateInputs) {
+            validateInputs.classList.toggle(
+                'hidden',
+                !visible || currentValidatorMode !== 'validate'
+            );
+        }
+        if (diffInputs) {
+            diffInputs.classList.toggle(
+                'hidden',
+                !visible || currentValidatorMode !== 'diff'
+            );
+        }
+    }
+
+    function setValidatorMode(mode) {
+        currentValidatorMode = mode;
+        validateModeBtn?.classList.toggle('active', mode === 'validate');
+        diffModeBtn?.classList.toggle('active', mode === 'diff');
+        validateModeBtn?.setAttribute('aria-selected', String(mode === 'validate'));
+        diffModeBtn?.setAttribute('aria-selected', String(mode === 'diff'));
+        processingState?.classList.add('hidden');
+        resultState?.classList.add('hidden');
+        diffResultState?.classList.add('hidden');
+        document.getElementById('error-container')?.classList.add('hidden');
+        if (processingTitle) {
+            processingTitle.textContent = mode === 'diff'
+                ? 'Comparing feeds locally (WASM)…'
+                : 'Validating locally (WASM)…';
+        }
+        if (processingDetail) {
+            processingDetail.textContent = mode === 'diff'
+                ? 'Validating both releases, then comparing semantic changes'
+                : 'Large feeds (50 MB+) can take a minute or two';
+        }
+        setUploadUiVisible(true);
+    }
+
+    function updateDiffSelection(slot, file) {
+        if (!file || !file.name.toLowerCase().endsWith('.zip')) {
+            showValidationError('Please choose a GTFS ZIP file.');
+            return;
+        }
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            showTooLarge(file.size);
+            return;
+        }
+        if (slot === 'old') {
+            oldDiffFile = file;
+            oldFeedName.textContent = file.name;
+            oldFeedPicker.classList.add('ready');
+        } else {
+            newDiffFile = file;
+            newFeedName.textContent = file.name;
+            newFeedPicker.classList.add('ready');
+        }
+        diffAnalyzeBtn.disabled = !(oldDiffFile && newDiffFile);
+    }
+
+    function resetDiffSelection() {
+        oldDiffFile = null;
+        newDiffFile = null;
+        lastDiffResult = null;
+        if (oldFileInput) oldFileInput.value = '';
+        if (newFileInput) newFileInput.value = '';
+        if (oldFeedName) oldFeedName.textContent = 'Choose GTFS.zip';
+        if (newFeedName) newFeedName.textContent = 'Choose GTFS.zip';
+        oldFeedPicker?.classList.remove('ready');
+        newFeedPicker?.classList.remove('ready');
+        if (diffAnalyzeBtn) diffAnalyzeBtn.disabled = true;
+        diffResultState?.classList.add('hidden');
+        setUploadUiVisible(true);
     }
 
     // UI Elements for results
@@ -758,6 +905,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastFileName = 'gtfs_validation';
 
     if (dropZone && fileInput) {
+        validateModeBtn?.addEventListener('click', () => setValidatorMode('validate'));
+        diffModeBtn?.addEventListener('click', () => setValidatorMode('diff'));
+
         // Drag & Drop
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -773,7 +923,19 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             dropZone.style.transform = 'scale(1)';
             if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
+                const files = Array.from(e.dataTransfer.files);
+                if (currentValidatorMode === 'diff') {
+                    if (files[1]) {
+                        updateDiffSelection('old', files[0]);
+                        updateDiffSelection('new', files[1]);
+                    } else if (!oldDiffFile) {
+                        updateDiffSelection('old', files[0]);
+                    } else {
+                        updateDiffSelection('new', files[0]);
+                    }
+                } else {
+                    handleFile(files[0]);
+                }
             }
         });
 
@@ -785,6 +947,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleFile(e.target.files[0]);
             }
         });
+
+        oldFeedPicker?.addEventListener('click', () => oldFileInput?.click());
+        newFeedPicker?.addEventListener('click', () => newFileInput?.click());
+        oldFileInput?.addEventListener('change', (e) => {
+            if (e.target.files[0]) updateDiffSelection('old', e.target.files[0]);
+        });
+        newFileInput?.addEventListener('change', (e) => {
+            if (e.target.files[0]) updateDiffSelection('new', e.target.files[0]);
+        });
+        diffAnalyzeBtn?.addEventListener('click', runDiffComparison);
+        diffResetBtn?.addEventListener('click', resetDiffSelection);
+        downloadDiffJsonBtn?.addEventListener('click', downloadDiffJSON);
 
         // URL Analysis
         if (urlAnalyzeBtn && urlInput) {
@@ -813,10 +987,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset
         function resetValidator() {
             resultState.classList.add('hidden');
+            diffResultState?.classList.add('hidden');
             setUploadUiVisible(true);
             fileInput.value = '';
             urlInput.value = '';
             lastValidationResult = null;
+            lastDiffResult = null;
             setSharedBanner(null);
             // A stale #report= would otherwise reopen the shared report on reload.
             if (location.hash.startsWith('#' + SHARE_FRAGMENT_KEY)) {
@@ -1034,6 +1210,178 @@ Download the .zip and drop it here instead; validation still runs locally in you
                 'validation runs the same way, locally in your browser.'
             );
         }
+    }
+
+    async function runDiffComparison() {
+        if (!oldDiffFile || !newDiffFile) return;
+        getValidatorWorker();
+        document.getElementById('error-container')?.classList.add('hidden');
+        setUploadUiVisible(false);
+        resultState?.classList.add('hidden');
+        diffResultState?.classList.add('hidden');
+        if (processingTitle) processingTitle.textContent = 'Comparing feeds locally (WASM)…';
+        if (processingDetail) {
+            processingDetail.textContent =
+                'Validating both releases, then comparing routes, stops, trips, and notices';
+        }
+        processingState.classList.remove('hidden');
+
+        try {
+            const [oldBuffer, newBuffer] = await Promise.all([
+                oldDiffFile.arrayBuffer(),
+                newDiffFile.arrayBuffer(),
+            ]);
+            const combinedZipBytes = oldBuffer.byteLength + newBuffer.byteLength;
+            if (combinedZipBytes > MAX_FILE_SIZE_BYTES) {
+                showValidationError(
+                    `The two feeds total ${(combinedZipBytes / (1024 * 1024)).toFixed(1)} MB. ` +
+                    `Browser comparison is limited to ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB combined. ` +
+                    'Use the desktop app or CLI for larger comparisons.'
+                );
+                return;
+            }
+            const oldRawBytes = sumUncompressedBytes(oldBuffer);
+            const newRawBytes = sumUncompressedBytes(newBuffer);
+            if (oldRawBytes !== null && newRawBytes !== null &&
+                oldRawBytes + newRawBytes > MAX_UNCOMPRESSED_BYTES) {
+                showValidationError(
+                    `The two feeds unpack to ${Math.round((oldRawBytes + newRawBytes) / (1024 * 1024))} MB. ` +
+                    `Browser comparison is limited to ${MAX_UNCOMPRESSED_BYTES / (1024 * 1024)} MB combined. ` +
+                    'Use the desktop app or CLI for larger comparisons.'
+                );
+                return;
+            }
+
+            const dateStr = new Date().toISOString().split('T')[0];
+            const result = await diffFeeds(oldBuffer, newBuffer, dateStr);
+            result.report = JSON.parse(result.json);
+            lastDiffResult = result;
+            showDiffResults(result);
+        } catch (err) {
+            console.error('Feed comparison error:', err);
+            const message = err?.message === '__OOM__'
+                ? 'These feeds were too large to compare in this browser. Use the desktop app or CLI.'
+                : (err?.message || 'Could not compare these feeds.');
+            showValidationError(message);
+        }
+    }
+
+    function diffSection(title, rows) {
+        if (!rows.length) return '';
+        const visibleRows = rows.slice(0, 200);
+        const items = visibleRows.map(([label, value]) => `
+            <li><code>${escapeHtml(String(label))}</code><span>${escapeHtml(String(value))}</span></li>
+        `).join('');
+        const remaining = rows.length - visibleRows.length;
+        return `
+            <details class="diff-section">
+                <summary>${escapeHtml(title)} <span>${rows.length.toLocaleString()} changes</span></summary>
+                <ul class="diff-list">
+                    ${items}
+                    ${remaining > 0 ? `<li><span>And ${remaining.toLocaleString()} more</span><span>JSON</span></li>` : ''}
+                </ul>
+            </details>
+        `;
+    }
+
+    function entityRows(entity) {
+        return [
+            ...(entity.added || []).map((id) => [id, 'Added']),
+            ...(entity.removed || []).map((id) => [id, 'Removed']),
+            ...(entity.changed || []).map((id) => [id, 'Changed']),
+        ];
+    }
+
+    function renderDiffReport(report) {
+        const routeAdds = report.routes?.added?.length || 0;
+        const routeRemoves = report.routes?.removed?.length || 0;
+        const stopAdds = report.stops?.added?.length || 0;
+        const stopRemoves = report.stops?.removed?.length || 0;
+        const movedStops = report.stops?.moved?.length || 0;
+        const tripChanges = report.tripsByRoute?.length || 0;
+
+        const stopRows = [
+            ...entityRows(report.stops || {}),
+            ...(report.stops?.renamed || []).map((id) => [id, 'Renamed']),
+            ...(report.stops?.moved || []).map((move) => [
+                move.stopId,
+                `Moved ${Number(move.distanceMeters).toFixed(0)} m`,
+            ]),
+        ];
+        const tripRows = (report.tripsByRoute || []).map((change) => [
+            change.routeId,
+            `${change.oldCount.toLocaleString()} → ${change.newCount.toLocaleString()} trips`,
+        ]);
+        const frequencyRows = (report.frequenciesByRoute || []).map((change) => [
+            change.routeId,
+            `${change.oldWindows.length} → ${change.newWindows.length} windows`,
+        ]);
+        const noticeRows = (report.notices?.changes || []).map((change) => [
+            change.code,
+            `${change.severity} · ${change.oldCount.toLocaleString()} → ${change.newCount.toLocaleString()}`,
+        ]);
+        const fileRows = [
+            ...(report.files?.added || []).map((name) => [name, 'Added']),
+            ...(report.files?.removed || []).map((name) => [name, 'Removed']),
+        ];
+
+        const sections = [
+            diffSection('Routes', entityRows(report.routes || {})),
+            diffSection('Stops', stopRows),
+            diffSection('Trips by route', tripRows),
+            diffSection('Frequencies', frequencyRows),
+            diffSection('Validation notices', noticeRows),
+            diffSection('Agencies', entityRows(report.agencies || {})),
+            diffSection('Files', fileRows),
+        ].join('');
+        const hasChanges = sections.length > 0 || report.feedInfo?.changed;
+
+        return `
+            <div class="diff-headline">
+                <div class="introduced"><strong>${(report.notices?.newErrors || 0).toLocaleString()}</strong><span>New errors</span></div>
+                <div class="resolved"><strong>${(report.notices?.resolvedErrors || 0).toLocaleString()}</strong><span>Resolved errors</span></div>
+            </div>
+            <div class="diff-metrics">
+                <div class="diff-metric"><strong>+${routeAdds} / −${routeRemoves}</strong><span>Routes</span></div>
+                <div class="diff-metric"><strong>+${stopAdds} / −${stopRemoves}</strong><span>Stops</span></div>
+                <div class="diff-metric"><strong>${movedStops}</strong><span>Stops moved</span></div>
+                <div class="diff-metric"><strong>${tripChanges}</strong><span>Trip count changes</span></div>
+                <div class="diff-metric"><strong>${frequencyRows.length}</strong><span>Frequency changes</span></div>
+                <div class="diff-metric"><strong>${noticeRows.length}</strong><span>Issue groups changed</span></div>
+            </div>
+            ${report.feedInfo?.changed ? diffSection('Feed information', [[
+                report.feedInfo.oldVersion || 'Previous',
+                report.feedInfo.newVersion || 'New version',
+            ]]) : ''}
+            ${sections}
+            ${hasChanges ? '' : '<p class="sub-text">No semantic changes found.</p>'}
+        `;
+    }
+
+    function showDiffResults(result) {
+        processingState.classList.add('hidden');
+        diffResultState.classList.remove('hidden');
+        if (diffTime) {
+            diffTime.textContent = `${(result.comparison_time_ms / 1000).toFixed(1)} s · ${result.runtime || 'WASM'}`;
+        }
+        diffReport.innerHTML = renderDiffReport(result.report);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function downloadDiffJSON() {
+        if (!lastDiffResult) return;
+        const blob = new Blob(
+            [JSON.stringify(lastDiffResult.report, null, 2)],
+            { type: 'application/json' }
+        );
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${oldDiffFile?.name || 'old'}_to_${newDiffFile?.name || 'new'}_diff.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
     }
 
     /* --- Sharing --- */

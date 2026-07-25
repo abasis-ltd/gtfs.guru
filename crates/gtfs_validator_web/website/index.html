@@ -270,35 +270,66 @@
                             <span id="error-message"></span>
                             <button id="close-error-btn" class="close-error"><i data-lucide="x"></i></button>
                         </div>
-                        <div class="upload-state" id="upload-state">
-                            <i data-lucide="upload-cloud" class="upload-icon"></i>
-                            <h3>Drop GTFS.zip here</h3>
-                            <p class="sub-text">or click to browse</p>
-                            <input type="file" id="file-input" accept=".zip" hidden>
+                        <div class="validator-mode-switch" role="tablist" aria-label="Validator mode">
+                            <button type="button" class="validator-mode active" id="validate-mode-btn"
+                                role="tab" aria-selected="true">Validate</button>
+                            <button type="button" class="validator-mode" id="diff-mode-btn"
+                                role="tab" aria-selected="false">Compare feeds</button>
                         </div>
 
-                        <div class="url-input-container" id="url-input-container" style="margin-top: 1rem;">
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" id="url-input" placeholder="Enter URL or path..."
-                                    style="flex-grow: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; color: #fff; font-family: var(--font-body); font-size: 0.9rem;">
-                                <button id="url-analyze-btn" class="btn btn-primary"
-                                    style="padding: 0.6rem 1rem; white-space: nowrap;">
-                                    Analyze
+                        <div id="validate-inputs">
+                            <div class="upload-state" id="upload-state">
+                                <i data-lucide="upload-cloud" class="upload-icon"></i>
+                                <h3>Drop GTFS.zip here</h3>
+                                <p class="sub-text">or click to browse</p>
+                                <input type="file" id="file-input" accept=".zip" hidden>
+                            </div>
+
+                            <div class="url-input-container" id="url-input-container" style="margin-top: 1rem;">
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" id="url-input" placeholder="Enter URL or path..."
+                                        style="flex-grow: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; color: #fff; font-family: var(--font-body); font-size: 0.9rem;">
+                                    <button id="url-analyze-btn" class="btn btn-primary"
+                                        style="padding: 0.6rem 1rem; white-space: nowrap;">
+                                        Analyze
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="demo-row" id="demo-row">
+                                <span class="sub-text">No feed to hand?</span>
+                                <button type="button" class="btn btn-ghost btn-sm" id="try-demo-btn">
+                                    <i data-lucide="play-circle"></i> Try an example feed
                                 </button>
                             </div>
                         </div>
 
-                        <div class="demo-row" id="demo-row">
-                            <span class="sub-text">No feed to hand?</span>
-                            <button type="button" class="btn btn-ghost btn-sm" id="try-demo-btn">
-                                <i data-lucide="play-circle"></i> Try an example feed
+                        <div class="diff-inputs hidden" id="diff-inputs">
+                            <p class="diff-intro">Compare two GTFS releases locally. Both feeds are validated first.</p>
+                            <div class="diff-source-grid">
+                                <button type="button" class="diff-source-picker" id="old-feed-picker">
+                                    <span class="diff-source-label">Previous</span>
+                                    <strong id="old-feed-name">Choose GTFS.zip</strong>
+                                    <span>Baseline release</span>
+                                </button>
+                                <button type="button" class="diff-source-picker" id="new-feed-picker">
+                                    <span class="diff-source-label">New</span>
+                                    <strong id="new-feed-name">Choose GTFS.zip</strong>
+                                    <span>Release to review</span>
+                                </button>
+                            </div>
+                            <input type="file" id="old-file-input" accept=".zip" hidden>
+                            <input type="file" id="new-file-input" accept=".zip" hidden>
+                            <button type="button" class="btn btn-primary diff-run-btn" id="diff-analyze-btn" disabled>
+                                <i data-lucide="git-compare-arrows"></i> Compare feeds
                             </button>
+                            <p class="sub-text diff-limit-note">Up to 150 MB zipped / 700 MB unpacked combined</p>
                         </div>
 
                         <div class="processing-state hidden" id="processing-state">
                             <div class="spinner"></div>
-                            <p>Validating locally (WASM)...</p>
-                            <p class="sub-text">Large feeds (50&nbsp;MB+) can take a minute or two</p>
+                            <p id="processing-title">Validating locally (WASM)...</p>
+                            <p class="sub-text" id="processing-detail">Large feeds (50&nbsp;MB+) can take a minute or two</p>
                         </div>
 
                         <div class="result-state hidden" id="result-state">
@@ -334,6 +365,25 @@
                                 </button>
                                 <button class="btn btn-ghost" id="reset-btn">
                                     <i data-lucide="rotate-ccw"></i> New Scan
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="diff-result-state hidden" id="diff-result-state">
+                            <div class="diff-result-heading">
+                                <div>
+                                    <span class="diff-eyebrow">Comparison complete</span>
+                                    <h3>What changed</h3>
+                                </div>
+                                <span class="diff-time" id="diff-time"></span>
+                            </div>
+                            <div id="diff-report"></div>
+                            <div class="result-actions">
+                                <button class="btn btn-outline" id="download-diff-json-btn">
+                                    <i data-lucide="download"></i> JSON
+                                </button>
+                                <button class="btn btn-ghost" id="diff-reset-btn">
+                                    <i data-lucide="rotate-ccw"></i> New comparison
                                 </button>
                             </div>
                         </div>

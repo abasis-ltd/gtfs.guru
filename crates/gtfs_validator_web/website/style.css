@@ -369,7 +369,7 @@ h1 {
 /* Validator UI */
 .validator-ui {
     width: 100%;
-    max-width: 500px;
+    max-width: 620px;
     min-height: 380px;
     box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.5);
     overflow: hidden;
@@ -410,6 +410,35 @@ h1 {
     flex-direction: column;
 }
 
+.validator-mode-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-bottom: 1rem;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.validator-mode {
+    border: 0;
+    border-radius: 7px;
+    padding: 0.55rem 0.8rem;
+    color: var(--text-secondary);
+    background: transparent;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.validator-mode.active {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+}
+
 .upload-state {
     flex-grow: 1;
     border: 2px dashed rgba(255, 255, 255, 0.1);
@@ -421,6 +450,80 @@ h1 {
     transition: all 0.3s;
     cursor: pointer;
     min-height: 200px;
+}
+
+.diff-inputs {
+    padding-top: 0.35rem;
+}
+
+.diff-intro {
+    margin: 0 0 1rem;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.diff-source-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.diff-source-picker {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.025);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+
+.diff-source-picker:hover,
+.diff-source-picker.ready {
+    border-color: var(--accent-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.diff-source-picker span,
+.diff-source-picker strong {
+    display: block;
+}
+
+.diff-source-picker strong {
+    margin: 0.45rem 0 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+
+.diff-source-picker > span:last-child {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+
+.diff-source-label,
+.diff-eyebrow {
+    color: var(--accent-primary);
+    font-size: 0.7rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.diff-run-btn {
+    width: 100%;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.diff-limit-note {
+    margin: 0.65rem 0 0;
+    text-align: center;
+    font-size: 0.75rem;
 }
 
 .upload-state:hover {
@@ -471,6 +574,134 @@ h1 {
     flex-direction: column;
     align-items: center;
     width: 100%;
+}
+
+.diff-result-state {
+    width: 100%;
+}
+
+.diff-result-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.diff-result-heading h3 {
+    margin: 0.2rem 0 0;
+}
+
+.diff-time {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.diff-headline,
+.diff-metrics {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.diff-headline {
+    grid-template-columns: 1fr 1fr;
+    margin-bottom: 0.7rem;
+}
+
+.diff-metrics {
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 0.9rem;
+}
+
+.diff-headline > div,
+.diff-metric {
+    padding: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.diff-headline strong,
+.diff-metric strong {
+    display: block;
+    font-size: 1.25rem;
+}
+
+.diff-headline span,
+.diff-metric span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.diff-headline .introduced strong {
+    color: var(--error);
+}
+
+.diff-headline .resolved strong {
+    color: var(--success);
+}
+
+.diff-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.diff-section summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    cursor: pointer;
+    font-size: 0.86rem;
+    font-weight: 650;
+    list-style: none;
+}
+
+.diff-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.diff-section summary span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.diff-list {
+    display: grid;
+    gap: 0.35rem;
+    max-height: 190px;
+    margin: 0 0 0.85rem;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+}
+
+.diff-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}
+
+.diff-list code {
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+}
+
+@media (max-width: 560px) {
+    .diff-source-grid,
+    .diff-headline {
+        grid-template-columns: 1fr;
+    }
+
+    .diff-metrics {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .score-ring {
