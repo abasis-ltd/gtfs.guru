@@ -44,7 +44,7 @@ jobs:
           import json, pathlib, re, sys
 
           failures = []
-          for page in sorted(pathlib.Path("website").glob("*.html")):
+          for page in sorted(pathlib.Path("website").rglob("*.html")):
               html = page.read_text(encoding="utf-8")
               blocks = re.findall(
                   r'<script type="application/ld\+json">(.*?)</script>', html, re.S

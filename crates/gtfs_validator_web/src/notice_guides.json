@@ -1,0 +1,142 @@
+{
+  "duplicate_route_name": {
+    "impact": "Riders can see indistinguishable routes, and consumers may merge or label distinct services ambiguously.",
+    "fix": "Give routes in the same agency and mode a unique short/long-name combination. Model opposite directions as trips of one route, not as duplicate routes.",
+    "file": "routes.txt",
+    "bad": "route_id,agency_id,route_short_name,route_long_name,route_type\nR1,A,10,Downtown,3\nR2,A,10,Downtown,3",
+    "good": "route_id,agency_id,route_short_name,route_long_name,route_type\nR1,A,10,Downtown,3\nR2,A,10A,Downtown Express,3"
+  },
+  "empty_row": {
+    "impact": "Whitespace-only records are interpreted differently by CSV readers and can become malformed phantom rows.",
+    "fix": "Remove the blank or whitespace-only physical line from the source file before creating the GTFS archive.",
+    "file": "stops.txt",
+    "bad": "stop_id,stop_name,stop_lat,stop_lon\nS1,Central,35.17,33.36\n␠␠␠\nS2,Harbour,35.18,33.37",
+    "good": "stop_id,stop_name,stop_lat,stop_lon\nS1,Central,35.17,33.36\nS2,Harbour,35.18,33.37"
+  },
+  "fast_travel_between_consecutive_stops": {
+    "impact": "Journey planners may show impossible travel times; the issue often reveals swapped coordinates or an incorrect timestamp.",
+    "fix": "Verify both stop coordinates and the consecutive arrival/departure times. Correct the value that creates the unrealistic speed.",
+    "file": "stop_times.txt",
+    "bad": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nT1,08:00:00,08:00:00,S1,1\nT1,08:01:00,08:01:00,S2,2",
+    "good": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nT1,08:00:00,08:00:00,S1,1\nT1,08:15:00,08:15:00,S2,2"
+  },
+  "fast_travel_between_far_stops": {
+    "impact": "A long-distance segment with an impossible speed can corrupt routing, ETAs, and map display for the whole trip.",
+    "fix": "Check for a wrong stop_id, misplaced stop coordinates, or a missing hour in the second stop time.",
+    "file": "stop_times.txt",
+    "bad": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nT7,10:00:00,10:00:00,CITY_A,1\nT7,10:02:00,10:02:00,CITY_B,2",
+    "good": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nT7,10:00:00,10:00:00,CITY_A,1\nT7,11:02:00,11:02:00,CITY_B,2"
+  },
+  "leading_or_trailing_whitespaces": {
+    "impact": "Identifiers that differ only by spaces can break foreign-key matching, while rider-facing text may display unevenly.",
+    "fix": "Trim whitespace at both ends of the value in the source system; do not rely on the validator to normalize the published feed.",
+    "file": "stops.txt",
+    "bad": "stop_id,stop_name\nS1,\" Central Station \"",
+    "good": "stop_id,stop_name\nS1,Central Station"
+  },
+  "missing_bike_allowance": {
+    "impact": "Riders cannot tell whether a bicycle is accepted on ferry journeys.",
+    "fix": "Set trips.bikes_allowed to 1 or 2 for ferry trips according to the operator policy.",
+    "file": "trips.txt",
+    "bad": "route_id,service_id,trip_id,bikes_allowed\nFERRY,WKD,F1,",
+    "good": "route_id,service_id,trip_id,bikes_allowed\nFERRY,WKD,F1,1"
+  },
+  "missing_feed_contact_email_and_url": {
+    "impact": "Feed consumers have no reliable operational contact when they find a data problem.",
+    "fix": "Add feed_contact_email, feed_contact_url, or both to feed_info.txt and keep the contact monitored.",
+    "file": "feed_info.txt",
+    "bad": "feed_publisher_name,feed_publisher_url,feed_lang\nMetro,https://example.com,en",
+    "good": "feed_publisher_name,feed_publisher_url,feed_lang,feed_contact_email\nMetro,https://example.com,en,gtfs@example.com"
+  },
+  "missing_recommended_column": {
+    "impact": "The feed remains parseable, but consumers lose information recommended for a complete rider experience.",
+    "fix": "Use the filename and fieldName values in the report to add the named column, then populate it wherever the data is available.",
+    "file": "the file named in the notice",
+    "bad": "stop_id,stop_name,stop_lat,stop_lon",
+    "good": "stop_id,stop_code,stop_name,stop_lat,stop_lon"
+  },
+  "missing_recommended_file": {
+    "impact": "The core schedule can still work, but consumers may miss recommended metadata or service detail.",
+    "fix": "Use the filename value in the notice to add the recommended file. If the feature truly does not apply, document that decision.",
+    "file": "the file named in the notice",
+    "bad": "feed.zip\n├── agency.txt\n├── routes.txt\n└── trips.txt",
+    "good": "feed.zip\n├── agency.txt\n├── routes.txt\n├── trips.txt\n└── feed_info.txt"
+  },
+  "mixed_case_recommended_field": {
+    "impact": "ALL-CAPS or all-lowercase customer text is harder to scan and performs poorly in screen readers and voice interfaces.",
+    "fix": "Rewrite rider-facing names in natural mixed case while preserving official capitalization and acronyms.",
+    "file": "the file named in the notice",
+    "bad": "stop_id,stop_name\nS1,CENTRAL BUS STATION",
+    "good": "stop_id,stop_name\nS1,Central Bus Station"
+  },
+  "non_ascii_or_non_printable_char": {
+    "impact": "Hidden control characters in identifiers can make two values look identical while breaking joins between GTFS files.",
+    "fix": "Remove control characters from ID fields. Replace decorative Unicode in identifiers with stable printable ASCII values.",
+    "file": "the file named in the notice",
+    "bad": "stop_id,stop_name\n\"S1\\u0007\",Central",
+    "good": "stop_id,stop_name\nS1,Central"
+  },
+  "platform_without_parent_station": {
+    "impact": "Consumers cannot group the platform into a station, which weakens station navigation and transfer presentation.",
+    "fix": "Create or identify the parent station row and set the platform's parent_station to that station's stop_id.",
+    "file": "stops.txt",
+    "bad": "stop_id,stop_name,location_type,parent_station\nP1,Central Platform 1,0,",
+    "good": "stop_id,stop_name,location_type,parent_station\nST,Central Station,1,\nP1,Central Platform 1,0,ST"
+  },
+  "route_color_contrast": {
+    "impact": "Route labels may be unreadable in maps and lists, especially for riders with low vision.",
+    "fix": "Choose route_color and route_text_color with sufficient contrast; test the exact hexadecimal pair used in routes.txt.",
+    "file": "routes.txt",
+    "bad": "route_id,route_short_name,route_type,route_color,route_text_color\nR1,10,3,FFFF00,FFFFFF",
+    "good": "route_id,route_short_name,route_type,route_color,route_text_color\nR1,10,3,FFD800,000000"
+  },
+  "route_long_name_contains_short_name": {
+    "impact": "Apps commonly combine both fields, producing labels such as “10 — Route 10 Downtown”.",
+    "fix": "Keep the identifier in route_short_name and describe only the destination or corridor in route_long_name.",
+    "file": "routes.txt",
+    "bad": "route_id,route_short_name,route_long_name,route_type\nR10,10,Route 10 Downtown,3",
+    "good": "route_id,route_short_name,route_long_name,route_type\nR10,10,Downtown,3"
+  },
+  "route_short_name_too_long": {
+    "impact": "Long route labels are truncated or wrap badly in compact signs, maps, and mobile interfaces.",
+    "fix": "Put the concise public route designator in route_short_name and move the descriptive text to route_long_name.",
+    "file": "routes.txt",
+    "bad": "route_id,route_short_name,route_long_name,route_type\nR1,Airport Express,,3",
+    "good": "route_id,route_short_name,route_long_name,route_type\nR1,AX,Airport Express,3"
+  },
+  "stop_too_far_from_shape": {
+    "impact": "Vehicles can appear off-route and walking directions may lead riders away from the actual boarding point.",
+    "fix": "Verify the stop coordinates and the trip's shape_id. Move the wrong point or redraw the shape so it follows the served stops.",
+    "file": "stops.txt / shapes.txt",
+    "bad": "stop_id,stop_name,stop_lat,stop_lon\nS1,Central,35.1700,33.3600\n\nshape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence\nSH1,35.1800,33.3700,1",
+    "good": "stop_id,stop_name,stop_lat,stop_lon\nS1,Central,35.1700,33.3600\n\nshape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence\nSH1,35.1701,33.3601,1"
+  },
+  "stop_too_far_from_shape_using_user_distance": {
+    "impact": "The stop falls outside the custom shape-distance tolerance selected for this validation run.",
+    "fix": "Check stop coordinates and the referenced shape first. Increase the custom tolerance only when the wider distance is intentional.",
+    "file": "stops.txt / shapes.txt",
+    "bad": "Configured tolerance: 25 m\nMeasured stop-to-shape distance: 62 m",
+    "good": "Configured tolerance: 25 m\nCorrected stop-to-shape distance: 8 m"
+  },
+  "stop_without_stop_time": {
+    "impact": "The stop is never served and can clutter maps or indicate a misspelled stop_id in stop_times.txt.",
+    "fix": "Reference the stop from the intended trip, or remove the stops.txt row if the location is no longer published.",
+    "file": "stops.txt / stop_times.txt",
+    "bad": "stops.txt: S_UNUSED,Old Terminal,35.17,33.36\nstop_times.txt: no row references S_UNUSED",
+    "good": "stops.txt: S1,Terminal,35.17,33.36\nstop_times.txt: T1,08:00:00,08:00:00,S1,1"
+  },
+  "unknown_column": {
+    "impact": "Consumers ignore unrecognized columns, so data placed there may never reach riders.",
+    "fix": "Correct a misspelled GTFS field name. If it is a deliberate extension, use an extension documented for your target consumers.",
+    "file": "the file named in the notice",
+    "bad": "stop_id,stop_nam,stop_lat,stop_lon",
+    "good": "stop_id,stop_name,stop_lat,stop_lon"
+  },
+  "unused_stop": {
+    "impact": "The feed carries a location that is not served and is not needed as a parent, increasing noise and the chance of stale data.",
+    "fix": "Remove the stop if obsolete, or reference it from the correct stop_times row. This notice is produced in thorough mode.",
+    "file": "stops.txt / stop_times.txt",
+    "bad": "stops.txt: S2,Unused Stop,35.18,33.37\nstop_times.txt: no row references S2",
+    "good": "stop_times.txt: T1,09:10:00,09:10:00,S2,2"
+  }
+}

@@ -122,6 +122,9 @@ for WEBSITE_ROOT in "$PROJECT_ROOT/website" "$PROJECT_ROOT/crates/gtfs_validator
     cp -R "$WASM_CRATE/pkg-mt/"* "$WEBSITE_ROOT/pkg-mt/"
 done
 
+echo "Generating notice documentation..."
+cargo run --quiet -p gtfs-guru-web --bin generate-notice-pages
+
 echo ""
 echo "Build complete!"
 echo "Web package: $WASM_CRATE/pkg/"

@@ -95,6 +95,7 @@ Notes:
 
 * There are **two copies** of the website in the repo. The repo-root `website/` is what's live; keep `crates/gtfs_validator_web/website/` in sync. The `Website` workflow fails the build when they drift apart.
 * The example feed behind the "Try an example feed" button is generated, not hand-edited. Change `scripts/build_demo_feed.py` and re-run it (`python3 scripts/build_demo_feed.py`) to refresh both copies; `--check` is what CI runs.
+* Notice documentation is generated from the Rust schema and `src/notice_guides.json`. Run `cargo run -p gtfs-guru-web --bin generate-notice-pages` after changing a notice or guide. Refresh the bundled MobilityData snapshot with `python3 scripts/update_notice_metadata.py`; normal builds never require network access.
 * `deploy/update.sh` rebuilds the Docker (axum) stack — that is **not** what serves the live domain.
 * Server-level config (headers, TLS, caching) lives in `Caddyfile` and `website/nginx.conf` — since we control the server, custom headers (e.g. COOP/COEP for multithreaded WASM) can be set there.
 
