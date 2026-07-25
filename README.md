@@ -19,7 +19,7 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 2. **Privacy First**: Runs locally on your machine. No need to upload sensitive or pre-release schedules to the cloud.
 3. **Cross-Platform**: Available as a desktop app, command-line tool, Python library, Web API, and WebAssembly module.
 4. **CI & Integrations**: JSON/HTML/SARIF reports, notice schema export, URL validation, and timing breakdowns.
-5. **Deep Coverage**: 109 validators, Google-specific rules, and an optional `--thorough` mode.
+5. **Deep Coverage**: 110 validators, Google-specific rules, and an optional `--thorough` mode.
 
 | Feature | Java Validator | **GTFS Guru (Rust)** |
 | :--- | :---: | :---: |
@@ -244,7 +244,7 @@ GTFSVTOR_OPTS=-Xmx6G gtfsvtor \
 This monorepo houses the entire ecosystem:
 
 * **`crates/gtfs_model`**: Shared GTFS data model types.
-* **`crates/gtfs_validator_core`**: The validation engine (109 validators).
+* **`crates/gtfs_validator_core`**: The validation engine (110 validators).
 * **`crates/gtfs_validator_report`**: Report generation (JSON/HTML/SARIF).
 * **`crates/gtfs_validator_cli`**: CLI tool implementation.
 * **`crates/gtfs_validator_web`**: Web API service.

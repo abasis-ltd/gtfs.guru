@@ -1,6 +1,6 @@
 # Validation Rules
 
-GTFS Guru registers **109 validators**, which currently emit the **189 notice
+GTFS Guru registers **110 validators**, which currently emit the **190 notice
 codes** listed below.
 
 This list is generated from the validator's notice schema. To export the full
@@ -124,7 +124,7 @@ gtfs-guru --export-notices-schema --output_base ./out
 - `unsupported_geometry_type`
 - `wrong_parent_location_type`
 
-## WARNING (61)
+## WARNING (62)
 
 - `agency_phone_invalid`
 - `attribution_without_role`
@@ -167,6 +167,7 @@ gtfs-guru --export-notices-schema --output_base ./out
 - `same_stop_and_agency_url`
 - `same_stop_and_route_url`
 - `service_has_no_active_day_of_the_week`
+- `service_never_active`
 - `single_shape_point`
 - `stop_has_too_many_matches_for_shape`
 - `stop_headsign_invalid_char`

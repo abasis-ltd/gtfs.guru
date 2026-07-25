@@ -51,7 +51,7 @@ Closely compatible with [MobilityData gtfs-validator](https://github.com/Mobilit
 
 ## Features
 
-- **109 validation rules** — broad coverage including Fares v2, Flex and Pathways
+- **110 validation rules** — broad coverage including Fares v2, Flex and Pathways
 - **Multiple interfaces** — CLI, Web API, Python bindings, Desktop App, WebAssembly
 - **Cross-platform** — macOS, Linux, Windows
 - **Detailed reports** — JSON, HTML and SARIF output with geographic context
@@ -63,4 +63,4 @@ Closely compatible with [MobilityData gtfs-validator](https://github.com/Mobilit
 - [Installation](installation.md) — Install via pip, cargo, or download binaries
 - [CLI Usage](usage.md) — Command-line options and examples
 - [Python API](python_api.md) — Python bindings documentation
-- [Validation Rules](rules.md) — Notice codes emitted by the 109 validators
+- [Validation Rules](rules.md) — Notice codes emitted by the 110 validators
