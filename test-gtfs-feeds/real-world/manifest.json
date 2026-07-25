@@ -1,0 +1,62 @@
+{
+  "retrievedOn": "2026-07-25",
+  "catalog": "https://mobilitydatabase.org/ (MobilityData/mobility-database-catalogs)",
+  "feeds": [
+    {
+      "name": "benton_bat",
+      "mdbSourceId": "126",
+      "provider": "Benton Area Transportation",
+      "countryCode": "US",
+      "sourceUrl": "https://oregon-gtfs.trilliumtransit.com/gtfs_data/benton-or-us/benton-or-us.zip",
+      "licenseUrl": "https://oregon-gtfs.trilliumtransit.com",
+      "features": "fares-v1|flex-v1",
+      "sizeBytes": 185443,
+      "sha256": "2b32ee84d14c035fea53141a3d75648ce3205f5596025d858c08f70d4551c44a"
+    },
+    {
+      "name": "berlin_vbb",
+      "mdbSourceId": "782",
+      "provider": "Verkehrsverbund Berlin-Brandenburg (VBB)",
+      "countryCode": "DE",
+      "sourceUrl": "http://vbb.de/vbbgtfs",
+      "licenseUrl": "http://vbb.de/vbbgtfs",
+      "features": "pathways",
+      "sizeBytes": 76690342,
+      "sha256": "2ce1a98f31ab4637487b6b38c9bd51c54de88341614654c43d58210246a73cb0"
+    },
+    {
+      "name": "boston_mbta",
+      "mdbSourceId": "437",
+      "provider": "Massachusetts Bay Transportation Authority (MBTA)",
+      "countryCode": "US",
+      "sourceUrl": "https://cdn.mbta.com/MBTA_GTFS.zip",
+      "licenseUrl": "https://www.mass.gov/files/documents/2017/10/27/develop_license_agree_0.pdf",
+      "features": "pathways",
+      "sizeBytes": 18108889,
+      "sha256": "91deb20e0548859b416ffb36ce5b499a7b2844c01300c1de76a3ef61670f1196"
+    },
+    {
+      "name": "prague_pid",
+      "mdbSourceId": "767",
+      "provider": "Prazska integrovana doprava (PID)",
+      "countryCode": "CZ",
+      "sourceUrl": "http://data.pid.cz/PID_GTFS.zip",
+      "licenseUrl": "https://pid.cz/o-systemu/opendata/",
+      "features": "fares-v1|pathways",
+      "sizeBytes": 45824995,
+      "sha256": "57d30f4e9ff26795d1811448df05693f09ef90766f9ba3d2f9bdbdc2e8a1358a"
+    },
+    {
+      "name": "santacruz_scmtd",
+      "mdbSourceId": "2425",
+      "provider": "Santa Cruz Metro (SCMTD)",
+      "countryCode": "US",
+      "sourceUrl": "https://developer.scmetro.org/gtfs.zip",
+      "licenseUrl": "https://developer.scmetro.org/",
+      "features": "fares-v1|fares-v2",
+      "sizeBytes": 2620478,
+      "sha256": "58ac9b44d59b763db332c6311a8af3382f99d40c02dcdd51b6a294276119e5a8"
+    }
+  ],
+  "note": "Frozen snapshots for parity checks against the canonical validator. Only feeds whose catalog entry states a license are redistributed here; each entry keeps its source URL and SHA-256 so it can be re-fetched and verified."
+}
