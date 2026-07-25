@@ -13,10 +13,23 @@ Binaries will be in `target/release/`:
 - `gtfs-guru` — command-line tool
 - `gtfs-guru-web` — web server
 
+## Prebuilt binaries
+
+Download the CLI for your platform from the
+[latest release](https://github.com/abasis-ltd/gtfs.guru/releases/latest), or use
+the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash
+```
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.ps1 | iex
+```
+
 ## Python Package
 
 ```bash
-# From PyPI (when published)
 pip install gtfs-guru
 
 # From source

@@ -29,6 +29,9 @@ use gtfs_guru_core::feed::{
 use gtfs_guru_core::{CsvTable, GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice};
 use gtfs_guru_model::{ExceptionType, StringId};
 
+mod badge;
+pub use badge::{Badge, DEFAULT_BADGE_LABEL};
+
 mod html;
 pub use html::{generate_html_report_string, write_html_report, HtmlReportContext};
 
@@ -266,20 +269,29 @@ impl ReportSummary {
     }
 }
 
+/// The canonical validator always emits these four feed_info fields, using an
+/// empty string when the feed omits them; matching that keeps reports diffable.
+fn serialize_or_empty<S>(value: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(value.as_deref().unwrap_or(""))
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportFeedInfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub publisher_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub publisher_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub feed_language: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_start_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_end_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "serialize_or_empty")]
     pub feed_email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_service_window_start: Option<String>,
@@ -873,6 +885,38 @@ fn build_gtfs_features(feed: &GtfsFeed) -> Vec<String> {
     add(
         "Fixed-Stops Demand Responsive Transit",
         has_rows(&feed.location_groups),
+        &mut ordered,
+        &mut index,
+    );
+    add(
+        "Contactless EMV Support",
+        feed.agency.rows.iter().any(|agency| {
+            agency
+                .cemv_support
+                .is_some_and(|value| value != gtfs_guru_model::ContactlessEmvSupport::Other)
+        }) || feed.routes.rows.iter().any(|route| {
+            route
+                .cemv_support
+                .is_some_and(|value| value != gtfs_guru_model::ContactlessEmvSupport::Other)
+        }),
+        &mut ordered,
+        &mut index,
+    );
+    add(
+        "Cars Allowed",
+        feed.trips.rows.iter().any(|trip| {
+            trip.cars_allowed
+                .is_some_and(|value| value != gtfs_guru_model::CarsAllowed::Other)
+        }),
+        &mut ordered,
+        &mut index,
+    );
+    add(
+        "Stop Access",
+        feed.stops.rows.iter().any(|stop| {
+            stop.stop_access
+                .is_some_and(|value| value != gtfs_guru_model::StopAccess::Other)
+        }),
         &mut ordered,
         &mut index,
     );
@@ -1608,5 +1652,27 @@ mod tests {
         let (start, end) = compute_service_window(&feed);
         assert_eq!(start, NaiveDate::from_ymd_opt(2026, 6, 1));
         assert_eq!(end, NaiveDate::from_ymd_opt(2026, 6, 7));
+    }
+
+    #[test]
+    fn reports_v8_gtfs_features() {
+        let mut feed = GtfsFeed::default();
+        feed.agency.rows.push(gtfs_guru_model::Agency {
+            cemv_support: Some(gtfs_guru_model::ContactlessEmvSupport::Supported),
+            ..Default::default()
+        });
+        feed.trips.rows.push(gtfs_guru_model::Trip {
+            cars_allowed: Some(gtfs_guru_model::CarsAllowed::Allowed),
+            ..Default::default()
+        });
+        feed.stops.rows.push(gtfs_guru_model::Stop {
+            stop_access: Some(gtfs_guru_model::StopAccess::AccessibleViaPathways),
+            ..Default::default()
+        });
+
+        let features = build_gtfs_features(&feed);
+        assert!(features.contains(&"Contactless EMV Support".to_string()));
+        assert!(features.contains(&"Cars Allowed".to_string()));
+        assert!(features.contains(&"Stop Access".to_string()));
     }
 }

@@ -4,7 +4,6 @@ use std::io::{BufRead, BufReader, Read};
 use csv::{ReaderBuilder, StringRecord, Trim};
 use serde::de::DeserializeOwned;
 
-#[cfg(feature = "parallel")]
 use crate::ValidationNotice;
 
 #[derive(Debug)]
@@ -120,7 +119,9 @@ where
     while let Some(result) = iter.next() {
         match result {
             Ok(record) => {
-                let row_number = iter.reader().position().line().saturating_sub(1);
+                // `Position::record()` counts records (header = 0) and is
+                // terminator-independent; `line()` lags by one on CRLF feeds.
+                let row_number = iter.reader().position().record();
                 rows.push(record);
                 row_numbers.push(row_number);
             }
@@ -135,6 +136,105 @@ where
             row_numbers,
         },
         errors,
+    ))
+}
+
+/// Sequentially validate and deserialize CSV records in a single scan.
+///
+/// The row validator sees the original, untrimmed record while serde receives
+/// a trimmed copy, matching the parallel reader's behavior. This is used by
+/// WASM and non-parallel builds to avoid scanning every CSV once for validation
+/// and a second time for deserialization.
+pub fn read_csv_from_reader_with_validation<T, R, V>(
+    reader: R,
+    file_name: impl Into<String>,
+    validator: V,
+) -> Result<(CsvTable<T>, Vec<CsvParseError>, Vec<ValidationNotice>), CsvParseError>
+where
+    T: DeserializeOwned,
+    R: Read,
+    V: Fn(&csv::StringRecord, u64) -> Vec<ValidationNotice>,
+{
+    let file = file_name.into();
+    let mut buf_reader = BufReader::new(reader);
+    if let Err(err) = skip_utf8_bom(&mut buf_reader) {
+        return Err(map_io_error(&file, err));
+    }
+
+    let mut csv_reader = ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .trim(Trim::Headers)
+        .from_reader(buf_reader);
+
+    let headers_record = csv_reader
+        .headers()
+        .map_err(|err| map_csv_error(&file, None, err))?
+        .clone();
+    let headers = headers_record
+        .iter()
+        .map(|value| value.trim().to_string())
+        .collect();
+
+    let mut rows = Vec::new();
+    let mut row_numbers = Vec::new();
+    let mut errors = Vec::new();
+    let mut notices = Vec::new();
+    let mut trimmed_record = csv::StringRecord::new();
+    let mut validation_stopped = false;
+
+    for (index, result) in csv_reader.byte_records().enumerate() {
+        let record = match result {
+            Ok(record) => record,
+            Err(err) => {
+                errors.push(map_csv_error(&file, Some(&headers_record), err));
+                continue;
+            }
+        };
+        let line_number = record
+            .position()
+            .map(|position| position.record() + 1)
+            .unwrap_or((index + 2) as u64);
+
+        let (_, parsed, row_notices) = deserialize_validate_one::<T, _>(
+            record,
+            line_number,
+            &headers_record,
+            &file,
+            &|record, line| {
+                if validation_stopped {
+                    Vec::new()
+                } else {
+                    validator(record, line)
+                }
+            },
+            &mut trimmed_record,
+        );
+        if row_notices
+            .iter()
+            .any(|notice| notice.code == "too_many_rows")
+        {
+            validation_stopped = true;
+        }
+        notices.extend(row_notices);
+
+        match parsed {
+            Ok(row) => {
+                rows.push(row);
+                row_numbers.push(line_number);
+            }
+            Err(err) => errors.push(err),
+        }
+    }
+
+    Ok((
+        CsvTable {
+            headers,
+            rows,
+            row_numbers,
+        },
+        errors,
+        notices,
     ))
 }
 
@@ -245,7 +345,7 @@ where
             Ok(record) => {
                 let line_number = record
                     .position()
-                    .map(|p| p.line())
+                    .map(|p| p.record() + 1)
                     .unwrap_or((index + 2) as u64);
                 raw_records.push((line_number, record));
             }
@@ -381,7 +481,6 @@ where
 /// The common case — valid UTF-8 — converts the byte record in place. Invalid
 /// bytes are replaced with U+FFFD per field so the row validator can flag them,
 /// matching the behavior of decoding the whole buffer up front.
-#[cfg(feature = "parallel")]
 fn deserialize_validate_one<T, V>(
     record: csv::ByteRecord,
     line_number: u64,
@@ -410,20 +509,27 @@ where
     // embedded newlines, invalid characters, ...).
     let notices = validator(&string_record, line_number);
 
-    // Deserialization needs trimmed fields for numeric/enum types.
-    trimmed_record.clear();
-    for field in string_record.iter() {
-        trimmed_record.push_field(field.trim());
+    // Most production feeds do not have surrounding field whitespace. Avoid
+    // copying every field into a second StringRecord on that hot path, while
+    // preserving the existing trim-before-deserialize behavior for dirty rows.
+    let needs_trimming = string_record
+        .iter()
+        .any(|field| field.len() != field.trim().len());
+    let result = if needs_trimming {
+        trimmed_record.clear();
+        for field in string_record.iter() {
+            trimmed_record.push_field(field.trim());
+        }
+        trimmed_record.deserialize(Some(headers))
+    } else {
+        string_record.deserialize(Some(headers))
     }
-    let result = trimmed_record
-        .deserialize(Some(headers))
-        .map_err(|err| map_byte_record_error(file, Some(headers), line_number, err));
+    .map_err(|err| map_byte_record_error(file, Some(headers), line_number, err));
 
     (line_number, result, notices)
 }
 
 /// Map deserialization error from ByteRecord (used in parallel mode)
-#[cfg(feature = "parallel")]
 fn map_byte_record_error(
     file: &str,
     headers: Option<&StringRecord>,
@@ -459,6 +565,7 @@ fn map_byte_record_error(
 mod tests {
     use super::*;
     use serde::Deserialize;
+    use std::cell::Cell;
 
     #[derive(Debug, Deserialize)]
     struct ExampleRow {
@@ -476,6 +583,18 @@ mod tests {
         assert_eq!(table.rows.len(), 2);
         assert_eq!(table.rows[0].a, 1);
         assert_eq!(table.rows[1].b, 4);
+        assert_eq!(table.row_numbers, vec![2, 3]);
+    }
+
+    #[test]
+    fn row_numbers_are_line_numbers_with_crlf() {
+        // Feeds exported on Windows use CRLF. The row number must still be the
+        // physical line, matching the canonical validator.
+        let data = "a,b\r\n1,2\r\n3,4\r\n";
+        let table =
+            read_csv_from_reader::<ExampleRow, _>(data.as_bytes(), "crlf.csv").expect("parse csv");
+
+        assert_eq!(table.rows.len(), 2);
         assert_eq!(table.row_numbers, vec![2, 3]);
     }
 
@@ -506,6 +625,62 @@ mod tests {
     }
 
     #[test]
+    fn validates_and_deserializes_in_one_scan() {
+        let data = "a,b\n 1 ,2\n3,boom\n4,5\n";
+        let validated_rows = Cell::new(0usize);
+        let (table, errors, notices) = read_csv_from_reader_with_validation::<ExampleRow, _, _>(
+            data.as_bytes(),
+            "rows.csv",
+            |record, _| {
+                validated_rows.set(validated_rows.get() + 1);
+                if record.get(0) == Some(" 1 ") {
+                    vec![crate::ValidationNotice::new(
+                        "saw_untrimmed_value",
+                        crate::NoticeSeverity::Info,
+                        "row validator receives the original field",
+                    )]
+                } else {
+                    Vec::new()
+                }
+            },
+        )
+        .expect("parse csv");
+
+        assert_eq!(validated_rows.get(), 3);
+        assert_eq!(table.rows.len(), 2);
+        assert_eq!(table.rows[0].a, 1);
+        assert_eq!(table.rows[1].b, 5);
+        assert_eq!(table.row_numbers, vec![2, 4]);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices[0].code, "saw_untrimmed_value");
+    }
+
+    #[test]
+    fn stops_row_validation_after_too_many_rows_notice() {
+        let data = "a,b\n1,2\n3,4\n";
+        let validated_rows = Cell::new(0usize);
+        let (table, errors, notices) = read_csv_from_reader_with_validation::<ExampleRow, _, _>(
+            data.as_bytes(),
+            "rows.csv",
+            |_, _| {
+                validated_rows.set(validated_rows.get() + 1);
+                vec![crate::ValidationNotice::new(
+                    "too_many_rows",
+                    crate::NoticeSeverity::Error,
+                    "too many rows",
+                )]
+            },
+        )
+        .expect("parse csv");
+
+        assert_eq!(validated_rows.get(), 1);
+        assert_eq!(table.rows.len(), 2);
+        assert!(errors.is_empty());
+        assert_eq!(notices.len(), 1);
+    }
+
+    #[test]
     fn strips_utf8_bom_from_headers() {
         let data = b"\xEF\xBB\xBFa,b\n9,10\n";
         let table =
@@ -514,6 +689,43 @@ mod tests {
         assert_eq!(table.headers, vec!["a", "b"]);
         assert_eq!(table.rows.len(), 1);
         assert_eq!(table.rows[0].a, 9);
+    }
+
+    #[test]
+    fn deserializes_v8_fields() {
+        let agencies = read_csv_from_reader::<gtfs_guru_model::Agency, _>(
+            b"agency_name,agency_url,agency_timezone,cemv_support\nA,https://example.com,UTC,1\n"
+                .as_slice(),
+            "agency.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            agencies.rows[0].cemv_support,
+            Some(gtfs_guru_model::ContactlessEmvSupport::Supported)
+        );
+
+        let trips = read_csv_from_reader::<gtfs_guru_model::Trip, _>(
+            b"route_id,service_id,trip_id,cars_allowed,safe_duration_factor,safe_duration_offset\nR,S,T,2,1.5,30\n"
+                .as_slice(),
+            "trips.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            trips.rows[0].cars_allowed,
+            Some(gtfs_guru_model::CarsAllowed::NotAllowed)
+        );
+        assert_eq!(trips.rows[0].safe_duration_factor, Some(1.5));
+        assert_eq!(trips.rows[0].safe_duration_offset, Some(30.0));
+
+        let stops = read_csv_from_reader::<gtfs_guru_model::Stop, _>(
+            b"stop_id,stop_access\nS,0\n".as_slice(),
+            "stops.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            stops.rows[0].stop_access,
+            Some(gtfs_guru_model::StopAccess::AccessibleViaPathways)
+        );
     }
     #[test]
     #[cfg(feature = "parallel")]

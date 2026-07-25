@@ -1,8 +1,9 @@
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use gtfs_guru_core::{
     default_runner, set_notice_group_limit, set_thorough_mode_enabled, set_validation_country_code,
-    set_validation_date, validate_bytes,
+    set_validation_date, validate_bytes_reader_with_timing, GtfsBytesReader, TimingCollector,
 };
 use gtfs_guru_report::{
     generate_html_report_string, HtmlReportContext, ReportSummary, ReportSummaryContext,
@@ -35,6 +36,7 @@ pub fn version() -> String {
 pub struct ValidationResult {
     json: String,
     html: String,
+    timings_json: String,
     error_count: u32,
     warning_count: u32,
     info_count: u32,
@@ -53,6 +55,27 @@ impl ValidationResult {
     #[wasm_bindgen(getter)]
     pub fn html(&self) -> String {
         self.html.clone()
+    }
+
+    /// Get the loading and per-validator timing breakdown as JSON.
+    #[wasm_bindgen(getter)]
+    pub fn timings_json(&self) -> String {
+        self.timings_json.clone()
+    }
+
+    /// Move the JSON report into JavaScript without cloning it in Rust.
+    pub fn take_json(&mut self) -> String {
+        std::mem::take(&mut self.json)
+    }
+
+    /// Move the HTML report into JavaScript without cloning it in Rust.
+    pub fn take_html(&mut self) -> String {
+        std::mem::take(&mut self.html)
+    }
+
+    /// Move the timing report into JavaScript without cloning it in Rust.
+    pub fn take_timings_json(&mut self) -> String {
+        std::mem::take(&mut self.timings_json)
     }
 
     /// Get the number of errors
@@ -173,6 +196,11 @@ pub fn validate_gtfs(
         return Err(JsValue::from_str(&message));
     }
 
+    // Reuse this reader for validation instead of copying the input a second
+    // time into the WASM heap. `feed_size_error` above already rejected feeds
+    // whose central directory declares more than MAX_UNCOMPRESSED_BYTES.
+    let reader = GtfsBytesReader::from_slice(zip_bytes);
+
     // Set validation context
     // We clone these for the report context later
     let report_country_code = country_code.clone();
@@ -186,9 +214,11 @@ pub fn validate_gtfs(
 
     // Create runner with all validators
     let runner = default_runner();
+    let timing = TimingCollector::new();
 
     // Run validation (no progress handler in WASM - it runs synchronously)
-    let outcome = validate_bytes(zip_bytes, &runner);
+    let outcome = validate_bytes_reader_with_timing(&reader, &runner, &timing);
+    let timings_json = timing.summary().to_json().to_string();
 
     // Exact severity totals (they include notices dropped by the group cap)
     let (errors, warnings, infos) = outcome.notices.severity_counts();
@@ -196,7 +226,14 @@ pub fn validate_gtfs(
     let truncated = outcome.notices.is_truncated();
 
     // Encode notices to JSON
-    let notices_vec: Vec<_> = outcome.notices.iter().collect();
+    let notices_vec: Vec<_> = outcome
+        .notices
+        .iter()
+        .map(|notice| WasmNotice {
+            notice,
+            total_notices: outcome.notices.group_total(&notice.code, notice.severity),
+        })
+        .collect();
     let json = serde_json::to_string(&notices_vec).unwrap_or_else(|_| "[]".to_string());
 
     // Generate HTML Report
@@ -220,6 +257,7 @@ pub fn validate_gtfs(
     Ok(ValidationResult {
         json,
         html,
+        timings_json,
         error_count,
         warning_count,
         info_count,
@@ -234,8 +272,16 @@ pub fn validate_gtfs_json(
     country_code: Option<String>,
     date: Option<String>,
 ) -> Result<String, JsValue> {
-    let result = validate_gtfs(zip_bytes, country_code, date)?;
-    Ok(result.json)
+    let mut result = validate_gtfs(zip_bytes, country_code, date)?;
+    Ok(result.take_json())
+}
+
+#[derive(Serialize)]
+struct WasmNotice<'a> {
+    #[serde(flatten)]
+    notice: &'a gtfs_guru_core::ValidationNotice,
+    #[serde(rename = "totalNotices")]
+    total_notices: usize,
 }
 
 #[cfg(test)]

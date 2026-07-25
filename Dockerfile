@@ -4,8 +4,8 @@
 # ============================================================================
 
 # Stage 1: Chef - prepare recipe for dependency caching
-FROM rust:1.85-bookworm AS chef
-RUN cargo install cargo-chef
+FROM rust:1.91-bookworm AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /usr/src/app
 
 # Stage 2: Prepare dependency recipe

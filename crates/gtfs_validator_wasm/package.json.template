@@ -1,21 +1,22 @@
 {
-  "name": "gtfs.guru",
-  "version": "0.9.3",
+  "name": "@abasisltd/gtfs-guru-wasm",
+  "version": "1.0.0",
   "description": "GTFS feed validator - WebAssembly build. Validate GTFS feeds entirely in the browser.",
-  "main": "gtfs_validator_wasm.js",
-  "types": "gtfs_validator_wasm.d.ts",
-  "module": "gtfs_validator_wasm.js",
+  "type": "module",
+  "main": "gtfs_guru_wasm.js",
+  "types": "gtfs_guru_wasm.d.ts",
+  "module": "gtfs_guru_wasm.js",
   "sideEffects": [
     "./snippets/*"
   ],
   "files": [
-    "gtfs_validator_wasm.js",
-    "gtfs_validator_wasm.d.ts",
-    "gtfs_validator_wasm_bg.wasm",
-    "gtfs_validator_wasm_bg.wasm.d.ts",
+    "gtfs_guru_wasm.js",
+    "gtfs_guru_wasm.d.ts",
+    "gtfs_guru_wasm_bg.wasm",
+    "gtfs_guru_wasm_bg.wasm.d.ts",
     "worker.js",
     "index.js",
-    "types.d.ts"
+    "index.d.ts"
   ],
   "keywords": [
     "gtfs",
@@ -29,11 +30,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/gtfs-validator/gtfs-validator-rust"
+    "url": "https://github.com/abasis-ltd/gtfs.guru"
   },
-  "homepage": "https://github.com/gtfs-validator/gtfs-validator-rust#readme",
+  "homepage": "https://github.com/abasis-ltd/gtfs.guru#readme",
   "bugs": {
-    "url": "https://github.com/gtfs-validator/gtfs-validator-rust/issues"
+    "url": "https://github.com/abasis-ltd/gtfs.guru/issues"
   },
   "engines": {
     "node": ">=16"

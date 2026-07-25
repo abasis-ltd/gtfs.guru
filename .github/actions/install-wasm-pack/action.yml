@@ -1,0 +1,21 @@
+name: Install wasm-pack
+description: Install the pinned wasm-pack binary without a deprecated Node.js action runtime
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        WASM_PACK_SHA256: c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539
+        WASM_PACK_VERSION: 0.13.1
+      run: |
+        set -euo pipefail
+        archive="$RUNNER_TEMP/wasm-pack.tar.gz"
+        package="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl"
+        install_dir="$RUNNER_TEMP/wasm-pack-bin"
+        curl -fsSL "https://github.com/wasm-bindgen/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${package}.tar.gz" -o "$archive"
+        echo "$WASM_PACK_SHA256  $archive" | sha256sum -c -
+        tar -xzf "$archive" -C "$RUNNER_TEMP"
+        install -d "$install_dir"
+        install -m 755 "$RUNNER_TEMP/$package/wasm-pack" "$install_dir/wasm-pack"
+        echo "$install_dir" >> "$GITHUB_PATH"

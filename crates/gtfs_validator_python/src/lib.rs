@@ -7,6 +7,7 @@ use std::time::Instant;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use pyo3::IntoPyObjectExt;
 
 use gtfs_guru_core::{
     default_runner, set_validation_country_code, set_validation_date, validate_input, GtfsInput,
@@ -18,7 +19,7 @@ use gtfs_guru_report::{ReportSummary, ReportSummaryContext, ValidationReport};
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 /// A single validation notice (error, warning, or info).
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct Notice {
     #[pyo3(get)]
@@ -46,13 +47,13 @@ impl Notice {
     }
 
     /// Get context field by name.
-    fn get(&self, key: &str) -> Option<PyObject> {
-        Python::with_gil(|py| self.context.get(key).map(|v| json_to_py(py, v)))
+    fn get(&self, key: &str) -> Option<Py<PyAny>> {
+        Python::attach(|py| self.context.get(key).map(|v| json_to_py(py, v)))
     }
 
     /// Get all context as a dictionary.
-    fn context(&self, py: Python<'_>) -> PyObject {
-        let dict = PyDict::new_bound(py);
+    fn context(&self, py: Python<'_>) -> Py<PyAny> {
+        let dict = PyDict::new(py);
         for (k, v) in &self.context {
             dict.set_item(k, json_to_py(py, v)).ok();
         }
@@ -135,7 +136,7 @@ impl ValidationResult {
     }
 
     /// Get full report as Python dict.
-    fn to_dict(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let value: serde_json::Value = serde_json::from_str(&self.report_json)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(json_to_py(py, &value))
@@ -195,7 +196,7 @@ fn validate(
 }
 
 /// Progress information during validation.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub struct ProgressInfo {
     #[pyo3(get)]
@@ -268,7 +269,7 @@ fn run_validation(
     let runner = default_runner();
     let started_at = Instant::now();
     let outcome = if let Some(py) = py {
-        py.allow_threads(|| validate_input(&input, &runner))
+        py.detach(|| validate_input(&input, &runner))
     } else {
         validate_input(&input, &runner)
     };
@@ -369,7 +370,7 @@ fn validate_async(
     path: String,
     country_code: Option<String>,
     date: Option<String>,
-    on_progress: Option<PyObject>,
+    on_progress: Option<Py<PyAny>>,
 ) -> PyResult<Bound<'_, PyAny>> {
     // Clone data for the async block
     let path_clone = path.clone();
@@ -384,7 +385,7 @@ fn validate_async(
             let progress_cb: Option<Box<dyn Fn(ProgressInfo) + Send>> =
                 on_progress_clone.map(|py_cb| {
                     Box::new(move |info: ProgressInfo| {
-                        Python::with_gil(|py| {
+                        Python::attach(|py| {
                             let py_info = Py::new(py, info).ok();
                             if let Some(py_info) = py_info {
                                 let _ = py_cb.call1(py, (py_info,));
@@ -419,9 +420,9 @@ fn version() -> &'static str {
 
 /// Get list of all available notice codes.
 #[pyfunction]
-fn notice_codes(py: Python<'_>) -> PyObject {
+fn notice_codes(py: Python<'_>) -> Py<PyAny> {
     let schema = gtfs_guru_core::build_notice_schema_map();
-    let list = PyList::empty_bound(py);
+    let list = PyList::empty(py);
     for code in schema.keys() {
         list.append(code).ok();
     }
@@ -430,41 +431,48 @@ fn notice_codes(py: Python<'_>) -> PyObject {
 
 /// Get schema for all notice types.
 #[pyfunction]
-fn notice_schema(py: Python<'_>) -> PyResult<PyObject> {
+fn notice_schema(py: Python<'_>) -> PyResult<Py<PyAny>> {
     let schema = gtfs_guru_core::build_notice_schema_map();
     let json = serde_json::to_value(&schema).map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(json_to_py(py, &json))
 }
 
-fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyObject {
+fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> Py<PyAny> {
     match value {
         serde_json::Value::Null => py.None(),
-        serde_json::Value::Bool(b) => b.into_py(py),
+        serde_json::Value::Bool(b) => py_from(py, *b),
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                i.into_py(py)
+                py_from(py, i)
             } else if let Some(f) = n.as_f64() {
-                f.into_py(py)
+                py_from(py, f)
             } else {
                 py.None()
             }
         }
-        serde_json::Value::String(s) => s.into_py(py),
+        serde_json::Value::String(s) => py_from(py, s.as_str()),
         serde_json::Value::Array(arr) => {
-            let list = PyList::empty_bound(py);
+            let list = PyList::empty(py);
             for item in arr {
                 list.append(json_to_py(py, item)).ok();
             }
             list.into()
         }
         serde_json::Value::Object(obj) => {
-            let dict = PyDict::new_bound(py);
+            let dict = PyDict::new(py);
             for (k, v) in obj {
                 dict.set_item(k, json_to_py(py, v)).ok();
             }
             dict.into()
         }
     }
+}
+
+fn py_from<'py, T>(py: Python<'py>, value: T) -> Py<PyAny>
+where
+    T: IntoPyObjectExt<'py>,
+{
+    value.into_py_any(py).unwrap_or_else(|_| py.None())
 }
 
 /// Convert a Rust ValidationNotice to a Python Notice object.

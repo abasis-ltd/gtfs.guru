@@ -1,9 +1,9 @@
 name: Rust
 
 on:
+  workflow_call:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ]
     paths-ignore:
       - 'website/**'
       - 'docs/**'
@@ -20,7 +20,7 @@ jobs:
     name: Rust CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -39,7 +39,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests
         run: cargo test --all-features
@@ -48,7 +48,7 @@ jobs:
     name: WASM Build & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -58,36 +58,41 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - uses: ./.github/actions/install-wasm-pack
 
-      - name: Build WASM (web target)
-        run: wasm-pack build crates/gtfs_validator_wasm --target web --release
+      - name: Install binaryen (wasm-opt)
+        env:
+          BINARYEN_SHA256: b5bf1f0eaf17c63ee588ff7a5954dc8f6ce2c26989051c66f24dfe9ece3e46db
+          BINARYEN_VERSION: '131'
+        run: |
+          archive="$RUNNER_TEMP/binaryen.tar.gz"
+          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz" -o "$archive"
+          echo "$BINARYEN_SHA256  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin" >> "$GITHUB_PATH"
 
-      - name: Build WASM (nodejs target)
-        run: wasm-pack build crates/gtfs_validator_wasm --target nodejs --release --out-dir pkg-node
+      - name: Build all WASM packages through the production script
+        run: ./scripts/build-wasm.sh
 
       - name: Run WASM tests
         run: wasm-pack test --node crates/gtfs_validator_wasm
 
-      - name: Install binaryen (wasm-opt)
-        run: |
-          wget https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
-          tar -xzf binaryen-version_117-x86_64-linux.tar.gz
-          echo "$(pwd)/binaryen-version_117/bin" >> $GITHUB_PATH
-          ./binaryen-version_117/bin/wasm-opt --version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
 
-      - name: Optimize WASM binary
+      - name: Install Chromium for the WASM browser smoke test
         run: |
-          ./binaryen-version_117/bin/wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int -o crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm
-          mv crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm.opt crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm
-          echo "WASM size after optimization:"
-          du -h crates/gtfs_validator_wasm/pkg/gtfs_guru_wasm_bg.wasm
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Test threaded and fallback WASM runtimes in Chromium
+        run: npm run test:wasm-browser
 
       - name: Upload WASM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wasm-pkg
-          path: crates/gtfs_validator_wasm/pkg/
-
-
+          path: |
+            crates/gtfs_validator_wasm/pkg/
+            crates/gtfs_validator_wasm/pkg-mt/

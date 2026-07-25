@@ -2,7 +2,12 @@
 
 Deploy the GTFS Validator web service to Hetzner Cloud in minutes.
 
-> **Note:** the production site **gtfs.guru** runs on this stack (Hetzner Cloud VPS, Caddy → nginx), **not** on GitHub Pages. The static site is deployed with `scripts/deploy-website.sh` — see [Maintenance Guide](../docs/MAINTENANCE.md#deploying-the-website-gtfsguru) for the full deploy path.
+> **Note:** production `gtfs.guru` runs on this Hetzner stack (Cloud VPS,
+> Caddy → nginx), **not** on GitHub Pages. A `v*` tag deploys the rebuilt
+> single- and multi-threaded website only after the GitHub Release, crates.io,
+> PyPI, and npm jobs succeed; `scripts/deploy-website.sh` is the manual path.
+> See [Maintenance Guide](../docs/MAINTENANCE.md#deploying-the-website-gtfsguru)
+> for required secrets and the release gate.
 
 ## Prerequisites
 

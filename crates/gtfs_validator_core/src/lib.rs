@@ -23,6 +23,7 @@ mod csv_schema;
 mod csv_validation;
 pub mod engine;
 pub mod feed;
+pub mod fix;
 pub mod geojson;
 pub mod input;
 pub mod notice;
@@ -37,10 +38,14 @@ pub mod validator;
 
 pub use csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
 pub use engine::{
-    validate_bytes, validate_bytes_reader, validate_input, validate_input_and_progress,
-    ValidationOutcome,
+    validate_bytes, validate_bytes_reader, validate_bytes_reader_and_progress,
+    validate_bytes_reader_and_progress_and_timing, validate_bytes_reader_with_timing,
+    validate_input, validate_input_and_progress, ValidationOutcome,
 };
 pub use feed::GtfsFeed;
+pub use fix::{
+    apply_fixes, ConflictReason, FixConflict, FixCounts, FixError, FixOutcome, FixPlan, PlannedEdit,
+};
 pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,
     GtfsInputSource,
@@ -53,10 +58,11 @@ pub use string_pool::StringPool;
 pub use table_status::TableStatus;
 pub use timing::{TimingCategory, TimingCollector, TimingRecord, TimingSummary};
 pub use validation_context::{
-    google_rules_enabled, notice_group_limit, set_google_rules_enabled, set_notice_group_limit,
-    set_thorough_mode_enabled, set_validation_country_code, set_validation_date,
-    thorough_mode_enabled, validation_country_code, validation_date, NoticeGroupLimitGuard,
-    ThoroughModeGuard, ValidationContextState, ValidationCountryCodeGuard, ValidationDateGuard,
+    google_rules_enabled, notice_group_limit, performance_logs_enabled, set_google_rules_enabled,
+    set_notice_group_limit, set_performance_logs_enabled, set_thorough_mode_enabled,
+    set_validation_country_code, set_validation_date, thorough_mode_enabled,
+    validation_country_code, validation_date, NoticeGroupLimitGuard, ThoroughModeGuard,
+    ValidationContextState, ValidationCountryCodeGuard, ValidationDateGuard,
     ValidationGoogleRulesGuard,
 };
 pub use validator::{Validator, ValidatorRunner};

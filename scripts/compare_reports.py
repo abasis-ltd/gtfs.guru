@@ -34,6 +34,18 @@ def stable_json(value) -> str:
     return json.dumps(value, sort_keys=True, ensure_ascii=False)
 
 
+def normalize_floats(value, precision: int | None):
+    if precision is None:
+        return value
+    if isinstance(value, float):
+        return round(value, precision)
+    if isinstance(value, list):
+        return [normalize_floats(item, precision) for item in value]
+    if isinstance(value, dict):
+        return {key: normalize_floats(item, precision) for key, item in value.items()}
+    return value
+
+
 def normalize_report(
     data,
     ignore_summary: bool,
@@ -41,7 +53,9 @@ def normalize_report(
     ignore_feed_info_fields,
     ignore_notice_order: bool,
     sort_summary_arrays: bool,
+    float_precision: int | None,
 ):
+    data = normalize_floats(data, float_precision)
     if not isinstance(data, dict):
         return data
 
@@ -91,6 +105,44 @@ def normalize_report(
     return data
 
 
+def prune_extra_fields(actual, expected):
+    """Drop context fields the reference report does not carry.
+
+    gtfs.guru attaches extra context to some notices (stop coordinates and the
+    surrounding shape segment, which the desktop map draws). Those keys have no
+    counterpart in the canonical output, so parity runs compare only the fields
+    the reference actually emits.
+    """
+    if not isinstance(expected, dict) or not isinstance(actual, dict):
+        return actual
+    allowed: dict[str, set] = {}
+    for notice in expected.get("notices", []) or []:
+        keys = allowed.setdefault(notice.get("code"), set())
+        for sample in notice.get("sampleNotices", []) or []:
+            if isinstance(sample, dict):
+                keys.update(sample.keys())
+    if not allowed:
+        return actual
+
+    actual = dict(actual)
+    pruned_notices = []
+    for notice in actual.get("notices", []) or []:
+        keys = allowed.get(notice.get("code"))
+        if keys is None:
+            pruned_notices.append(notice)
+            continue
+        notice = dict(notice)
+        notice["sampleNotices"] = [
+            {key: value for key, value in sample.items() if key in keys}
+            if isinstance(sample, dict)
+            else sample
+            for sample in notice.get("sampleNotices", []) or []
+        ]
+        pruned_notices.append(notice)
+    actual["notices"] = pruned_notices
+    return actual
+
+
 def compare_json(
     label: str,
     left_path: Path,
@@ -100,6 +152,8 @@ def compare_json(
     ignore_feed_info_fields,
     ignore_notice_order: bool,
     sort_summary_arrays: bool,
+    float_precision: int | None,
+    ignore_extra_fields: bool = False,
 ) -> bool:
     if not left_path.exists() or not right_path.exists():
         missing = []
@@ -109,21 +163,27 @@ def compare_json(
             missing.append(str(right_path))
         print(f"{label} missing: {', '.join(missing)}")
         return False
+    left_raw = load_json(left_path)
+    right_raw = load_json(right_path)
+    if ignore_extra_fields:
+        right_raw = prune_extra_fields(right_raw, left_raw)
     left = normalize_report(
-        load_json(left_path),
+        left_raw,
         ignore_summary=ignore_summary,
         ignore_summary_fields=ignore_summary_fields,
         ignore_feed_info_fields=ignore_feed_info_fields,
         ignore_notice_order=ignore_notice_order,
         sort_summary_arrays=sort_summary_arrays,
+        float_precision=float_precision,
     )
     right = normalize_report(
-        load_json(right_path),
+        right_raw,
         ignore_summary=ignore_summary,
         ignore_summary_fields=ignore_summary_fields,
         ignore_feed_info_fields=ignore_feed_info_fields,
         ignore_notice_order=ignore_notice_order,
         sort_summary_arrays=sort_summary_arrays,
+        float_precision=float_precision,
     )
     if left == right:
         return True
@@ -193,6 +253,16 @@ def main() -> int:
         action="store_true",
         help="Sort summary arrays like files and gtfsFeatures before comparing.",
     )
+    parser.add_argument(
+        "--float-precision",
+        type=int,
+        help="Round JSON floating-point values to this many decimal places before comparing.",
+    )
+    parser.add_argument(
+        "--ignore-extra-fields",
+        action="store_true",
+        help="Ignore notice context fields the expected report does not contain.",
+    )
     parser.add_argument("--skip-html", action="store_true")
     parser.add_argument("--html-name", default="report.html")
     args = parser.parse_args()
@@ -237,6 +307,8 @@ def main() -> int:
             ignore_feed_info_fields=ignore_feed_info_fields,
             ignore_notice_order=args.ignore_notice_order,
             sort_summary_arrays=args.sort_summary_arrays,
+            float_precision=args.float_precision,
+            ignore_extra_fields=args.ignore_extra_fields,
         ):
             ok = False
 

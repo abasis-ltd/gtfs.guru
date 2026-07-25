@@ -39,6 +39,9 @@ fn main() {
     for path in files {
         println!("cargo:rerun-if-changed={}", path.display());
         let contents = fs::read_to_string(&path).expect("read source");
+        // Test fixtures use placeholder notice codes which must not become
+        // entries in the published notice schema.
+        let contents = strip_test_modules(&contents);
         for caps in const_re.captures_iter(&contents) {
             let name = caps[1].to_string();
             let value = caps[2].to_string();
@@ -358,5 +361,95 @@ fn collect_rs_files(dir: &Path, files: &mut Vec<PathBuf>) {
         {
             files.push(path);
         }
+    }
+}
+
+/// Remove `#[cfg(test)]` modules before the regex-based schema scan.
+fn strip_test_modules(contents: &str) -> String {
+    const ATTR: &str = "#[cfg(test)]";
+    let mut out = String::with_capacity(contents.len());
+    let mut rest = contents;
+
+    while let Some(idx) = rest.find(ATTR) {
+        out.push_str(&rest[..idx]);
+        let after_attr = &rest[idx + ATTR.len()..];
+        match after_attr.find('{') {
+            Some(brace) => match end_of_block(&after_attr[brace..]) {
+                Some(end) => rest = &after_attr[brace + end..],
+                None => {
+                    rest = after_attr;
+                    break;
+                }
+            },
+            None => {
+                rest = after_attr;
+                break;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Return the byte offset immediately after the closing brace of a block.
+fn end_of_block(source: &str) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index + 1);
+                }
+            }
+            b'"' => index += skip_string(&bytes[index..]),
+            b'\'' => index += skip_char_literal(&bytes[index..]),
+            b'/' if bytes.get(index + 1) == Some(&b'/') => {
+                index += bytes[index..]
+                    .iter()
+                    .position(|byte| *byte == b'\n')
+                    .unwrap_or(bytes.len() - index);
+            }
+            b'/' if bytes.get(index + 1) == Some(&b'*') => {
+                let end = source[index + 2..]
+                    .find("*/")
+                    .map(|position| position + 4)
+                    .unwrap_or(bytes.len() - index);
+                index += end - 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn skip_string(bytes: &[u8]) -> usize {
+    let mut index = 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => index += 1,
+            b'"' => return index,
+            _ => {}
+        }
+        index += 1;
+    }
+    bytes.len().saturating_sub(1)
+}
+
+fn skip_char_literal(bytes: &[u8]) -> usize {
+    match bytes.get(1) {
+        Some(b'\\') => {
+            let mut index = 2;
+            while index < bytes.len() && bytes[index] != b'\'' {
+                index += 1;
+            }
+            index
+        }
+        Some(_) if bytes.get(2) == Some(&b'\'') => 2,
+        _ => 0,
     }
 }

@@ -1,21 +1,20 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context};
 use axum::{
     body::Body,
-    extract::{DefaultBodyLimit, Path as AxumPath, State},
-    http::{header, StatusCode},
+    extract::{DefaultBodyLimit, Path as AxumPath, Query, State},
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
 };
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use chrono::Utc;
 use reqwest::blocking::Client;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use serde::{Deserialize, Serialize};
@@ -46,6 +45,11 @@ const DEFAULT_MAX_CONCURRENT_JOBS: usize = 4;
 /// a flood of requests would spawn unbounded tasks all waiting for a run permit.
 const DEFAULT_MAX_QUEUED_JOBS: usize = 64;
 
+/// Keep the browser proxy aligned with the WASM validator's input limit.
+const DEFAULT_MAX_PROXY_BYTES: usize = 70 * 1024 * 1024;
+const DEFAULT_MAX_CONCURRENT_PROXY_REQUESTS: usize = 4;
+const DEFAULT_MAX_PROXY_REQUESTS_PER_MINUTE: usize = 60;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_target(false).init();
@@ -60,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/version", get(version))
+        .route("/cors-proxy", get(cors_proxy))
         .route("/create-job", post(create_job))
         .route("/run-validator", post(run_validator))
         .route("/error", post(error))
@@ -156,6 +161,9 @@ struct AppState {
     max_upload_bytes: usize,
     job_semaphore: Arc<Semaphore>,
     admission_semaphore: Arc<Semaphore>,
+    max_proxy_bytes: usize,
+    proxy_semaphore: Arc<Semaphore>,
+    proxy_rate_limiter: Arc<ProxyRateLimiter>,
 }
 
 impl AppState {
@@ -168,6 +176,11 @@ impl AppState {
             max_upload_bytes: load_max_upload_bytes(),
             job_semaphore: Arc::new(Semaphore::new(load_max_concurrent_jobs())),
             admission_semaphore: Arc::new(Semaphore::new(load_max_queued_jobs())),
+            max_proxy_bytes: load_max_proxy_bytes(),
+            proxy_semaphore: Arc::new(Semaphore::new(load_max_concurrent_proxy_requests())),
+            proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(
+                load_max_proxy_requests_per_minute(),
+            )),
         }
     }
 }
@@ -196,6 +209,69 @@ fn load_max_queued_jobs() -> usize {
         .unwrap_or(DEFAULT_MAX_QUEUED_JOBS)
 }
 
+fn load_max_proxy_bytes() -> usize {
+    load_positive_usize(
+        "GTFS_VALIDATOR_WEB_MAX_PROXY_BYTES",
+        DEFAULT_MAX_PROXY_BYTES,
+    )
+}
+
+fn load_max_concurrent_proxy_requests() -> usize {
+    load_positive_usize(
+        "GTFS_VALIDATOR_WEB_MAX_CONCURRENT_PROXY_REQUESTS",
+        DEFAULT_MAX_CONCURRENT_PROXY_REQUESTS,
+    )
+}
+
+fn load_max_proxy_requests_per_minute() -> usize {
+    load_positive_usize(
+        "GTFS_VALIDATOR_WEB_MAX_PROXY_REQUESTS_PER_MINUTE",
+        DEFAULT_MAX_PROXY_REQUESTS_PER_MINUTE,
+    )
+}
+
+fn load_positive_usize(name: &str, default: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default)
+}
+
+struct ProxyRateLimiter {
+    max_requests: usize,
+    requests: Mutex<VecDeque<Instant>>,
+}
+
+impl ProxyRateLimiter {
+    fn new(max_requests: usize) -> Self {
+        Self {
+            max_requests,
+            requests: Mutex::new(VecDeque::new()),
+        }
+    }
+
+    fn try_acquire(&self, now: Instant) -> bool {
+        let Ok(mut requests) = self.requests.lock() else {
+            return false;
+        };
+        let cutoff = now - Duration::from_secs(60);
+        while requests.front().is_some_and(|request| *request <= cutoff) {
+            requests.pop_front();
+        }
+        if requests.len() >= self.max_requests {
+            return false;
+        }
+        requests.push_back(now);
+        true
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CorsProxyQuery {
+    url: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct JobStatusResponse {
@@ -220,8 +296,14 @@ async fn index_html() -> Response {
     serve_static_path("index.html")
 }
 
+/// Sitemap of the embedded website.
+///
+/// No `<lastmod>`: the pages are baked into the binary with no edit history to
+/// read, and stamping every URL with the current date told crawlers the whole
+/// site changed on every fetch. A sitemap whose timestamps are always "now" is
+/// worse than one with none — search engines learn to distrust the field and
+/// throttle recrawls. Restore it only with a per-page date sourced from git.
 async fn sitemap_xml() -> Response {
-    let lastmod = Utc::now().format("%Y-%m-%d").to_string();
     let base_url = "https://gtfs.guru";
 
     let mut paths: Vec<String> = WEBSITE_DIR
@@ -244,12 +326,10 @@ async fn sitemap_xml() -> Response {
     xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
     xml.push_str("  <url>\n");
     xml.push_str(&format!("    <loc>{}/</loc>\n", base_url));
-    xml.push_str(&format!("    <lastmod>{}</lastmod>\n", lastmod));
     xml.push_str("  </url>\n");
     for path in paths {
         xml.push_str("  <url>\n");
         xml.push_str(&format!("    <loc>{}/{}</loc>\n", base_url, path));
-        xml.push_str(&format!("    <lastmod>{}</lastmod>\n", lastmod));
         xml.push_str("  </url>\n");
     }
     xml.push_str("</urlset>");
@@ -269,7 +349,19 @@ async fn static_file(AxumPath(path): AxumPath<String>) -> Response {
     if clean_path.is_empty() {
         return serve_static_path("index.html");
     }
+    if is_sensitive_static_path(&clean_path) {
+        return not_found();
+    }
     serve_static_path(&clean_path)
+}
+
+fn is_sensitive_static_path(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    name.eq_ignore_ascii_case("nginx.conf")
+        || name.eq_ignore_ascii_case("dockerfile")
+        || name.eq_ignore_ascii_case(".env")
+        || name.eq_ignore_ascii_case("docker-compose.yml")
+        || name.eq_ignore_ascii_case("docker-compose.yaml")
 }
 
 fn sanitize_path(path: &str) -> Option<String> {
@@ -316,6 +408,68 @@ async fn version() -> Json<VersionResponse> {
     Json(VersionResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
     })
+}
+
+async fn cors_proxy(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<CorsProxyQuery>,
+) -> Response {
+    if is_cross_site_browser_request(&headers) {
+        return plain_text_response(
+            StatusCode::FORBIDDEN,
+            "cross-site proxy requests are blocked",
+        );
+    }
+    if guard_public_url(&query.url).is_err() {
+        return plain_text_response(StatusCode::BAD_REQUEST, "invalid or non-public URL");
+    }
+    if !state.proxy_rate_limiter.try_acquire(Instant::now()) {
+        return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "proxy rate limit exceeded");
+    }
+    let Ok(permit) = state.proxy_semaphore.clone().try_acquire_owned() else {
+        return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "proxy is busy");
+    };
+
+    let url = query.url;
+    let max_bytes = state.max_proxy_bytes;
+    let result = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        download_url_to_bytes(&url, max_bytes)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(bytes)) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(header::CACHE_CONTROL, "no-store")
+            .body(Body::from(bytes))
+            .unwrap_or_else(|_| {
+                plain_text_response(StatusCode::INTERNAL_SERVER_ERROR, "response error")
+            }),
+        Ok(Err(err)) if err.to_string().contains("exceeds") => plain_text_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "remote response is too large",
+        ),
+        Ok(Err(_)) => plain_text_response(StatusCode::BAD_GATEWAY, "remote fetch failed"),
+        Err(_) => plain_text_response(StatusCode::INTERNAL_SERVER_ERROR, "proxy worker failed"),
+    }
+}
+
+fn is_cross_site_browser_request(headers: &HeaderMap) -> bool {
+    headers
+        .get("sec-fetch-site")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| !value.eq_ignore_ascii_case("same-origin"))
+}
+
+fn plain_text_response(status: StatusCode, message: &'static str) -> Response {
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from(message))
+        .unwrap_or_else(|_| Response::new(Body::from(message)))
 }
 
 async fn create_job(
@@ -780,7 +934,44 @@ fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Res
     // public addresses only.
     guard_public_url(url)?;
 
-    let client = Client::builder()
+    let client = build_public_http_client()?;
+    let response = client
+        .get(url)
+        .send()
+        .with_context(|| format!("download gtfs from {}", url))?
+        .error_for_status()
+        .with_context(|| format!("download gtfs from {}", url))?;
+    let mut file =
+        std::fs::File::create(path).with_context(|| format!("create {}", path.display()))?;
+    copy_bounded(response, &mut file, max_bytes)
+        .with_context(|| format!("write {}", path.display()))
+        .inspect_err(|_| {
+            drop(std::fs::remove_file(path));
+        })?;
+    Ok(())
+}
+
+fn download_url_to_bytes(url: &str, max_bytes: usize) -> anyhow::Result<Vec<u8>> {
+    guard_public_url(url)?;
+    let client = build_public_http_client()?;
+    let response = client
+        .get(url)
+        .send()
+        .with_context(|| format!("fetch {}", url))?
+        .error_for_status()
+        .with_context(|| format!("fetch {}", url))?;
+    let initial_capacity = response
+        .content_length()
+        .and_then(|length| usize::try_from(length).ok())
+        .unwrap_or(0)
+        .min(max_bytes);
+    let mut bytes = Vec::with_capacity(initial_capacity);
+    copy_bounded(response, &mut bytes, max_bytes)?;
+    Ok(bytes)
+}
+
+fn build_public_http_client() -> anyhow::Result<Client> {
+    Client::builder()
         .user_agent(format!(
             "gtfs-validator-rust-web/{}",
             env!("CARGO_PKG_VERSION")
@@ -803,25 +994,21 @@ fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Res
             }
         }))
         .build()
-        .context("build http client")?;
-    let response = client
-        .get(url)
-        .send()
-        .with_context(|| format!("download gtfs from {}", url))?
-        .error_for_status()
-        .with_context(|| format!("download gtfs from {}", url))?;
-    let mut file =
-        std::fs::File::create(path).with_context(|| format!("create {}", path.display()))?;
+        .context("build http client")
+}
+
+fn copy_bounded(
+    reader: impl std::io::Read,
+    writer: &mut impl std::io::Write,
+    max_bytes: usize,
+) -> anyhow::Result<()> {
     // Read at most max_bytes (+1 to detect overflow) so a huge or endless
-    // response cannot fill the disk.
+    // response cannot fill memory or disk.
     let limit = max_bytes as u64;
-    let mut limited = std::io::Read::take(response, limit + 1);
-    let copied = std::io::copy(&mut limited, &mut file)
-        .with_context(|| format!("write {}", path.display()))?;
+    let mut limited = std::io::Read::take(reader, limit + 1);
+    let copied = std::io::copy(&mut limited, writer)?;
     if copied > limit {
-        drop(file);
-        let _ = std::fs::remove_file(path);
-        bail!("remote gtfs exceeds {}-byte limit", max_bytes);
+        bail!("remote response exceeds {}-byte limit", max_bytes);
     }
     Ok(())
 }
@@ -835,21 +1022,39 @@ fn guard_public_url(raw: &str) -> anyhow::Result<()> {
         "http" | "https" => {}
         other => bail!("unsupported url scheme: {}", other),
     }
-    let host = parsed.host_str().context("url has no host")?;
     let port = parsed.port_or_known_default().unwrap_or(80);
 
-    let mut resolved_any = false;
-    for addr in (host, port)
-        .to_socket_addrs()
-        .with_context(|| format!("resolve host {}", host))?
-    {
-        resolved_any = true;
-        if !is_global_ip(addr.ip()) {
-            bail!("refusing to fetch from non-public address {}", addr.ip());
+    // IP literals bypass reqwest's DNS resolver. Inspect them directly; this
+    // also avoids trying to resolve the bracketed form returned by host_str()
+    // for an IPv6 URL.
+    match parsed.host().context("url has no host")? {
+        url::Host::Ipv4(addr) => {
+            let ip = IpAddr::V4(addr);
+            if !is_global_ip(ip) {
+                bail!("refusing to fetch from non-public address {}", ip);
+            }
         }
-    }
-    if !resolved_any {
-        bail!("host {} did not resolve to any address", host);
+        url::Host::Ipv6(addr) => {
+            let ip = IpAddr::V6(addr);
+            if !is_global_ip(ip) {
+                bail!("refusing to fetch from non-public address {}", ip);
+            }
+        }
+        url::Host::Domain(host) => {
+            let mut resolved_any = false;
+            for addr in (host, port)
+                .to_socket_addrs()
+                .with_context(|| format!("resolve host {}", host))?
+            {
+                resolved_any = true;
+                if !is_global_ip(addr.ip()) {
+                    bail!("refusing to fetch from non-public address {}", addr.ip());
+                }
+            }
+            if !resolved_any {
+                bail!("host {} did not resolve to any address", host);
+            }
+        }
     }
     Ok(())
 }
@@ -1237,6 +1442,11 @@ mod tests {
     }
 
     #[test]
+    fn guard_public_url_accepts_public_ipv6_literal() {
+        assert!(guard_public_url("https://[2606:4700:4700::1111]/feed.zip").is_ok());
+    }
+
+    #[test]
     fn extract_job_id_finds_uuid_segment() {
         let id = format!("job-{}", uuid::Uuid::new_v4().simple());
         assert_eq!(
@@ -1266,5 +1476,55 @@ mod tests {
     fn resolve_public_addrs_rejects_private_literal() {
         assert!(resolve_public_addrs("169.254.169.254").is_err());
         assert!(resolve_public_addrs("127.0.0.1").is_err());
+    }
+
+    #[test]
+    fn copy_bounded_rejects_oversized_response() {
+        let mut output = Vec::new();
+        let error = copy_bounded(&b"12345"[..], &mut output, 4).unwrap_err();
+        assert!(error.to_string().contains("exceeds"));
+        assert_eq!(output, b"12345");
+    }
+
+    #[test]
+    fn proxy_rate_limiter_enforces_sliding_window() {
+        let limiter = ProxyRateLimiter::new(2);
+        let start = Instant::now();
+        assert!(limiter.try_acquire(start));
+        assert!(limiter.try_acquire(start));
+        assert!(!limiter.try_acquire(start));
+        assert!(limiter.try_acquire(start + Duration::from_secs(61)));
+    }
+
+    #[test]
+    fn sensitive_deployment_files_are_not_static_assets() {
+        for path in [
+            "nginx.conf",
+            "Dockerfile",
+            ".env",
+            "docker-compose.yml",
+            "docker-compose.yaml",
+            "nested/NGINX.CONF",
+        ] {
+            assert!(is_sensitive_static_path(path), "{path} must be blocked");
+        }
+        assert!(!is_sensitive_static_path("index.html"));
+    }
+
+    #[test]
+    fn browser_proxy_rejects_cross_site_requests() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "sec-fetch-site",
+            header::HeaderValue::from_static("cross-site"),
+        );
+        assert!(is_cross_site_browser_request(&headers));
+        headers.insert(
+            "sec-fetch-site",
+            header::HeaderValue::from_static("same-origin"),
+        );
+        assert!(!is_cross_site_browser_request(&headers));
+        headers.remove("sec-fetch-site");
+        assert!(!is_cross_site_browser_request(&headers));
     }
 }

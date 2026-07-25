@@ -89,7 +89,7 @@ Get validator version.
 
 ```python
 >>> gtfs_guru.version()
-'0.9.0'
+'1.0.0'
 ```
 
 #### `notice_codes() -> list[str]`
@@ -98,7 +98,7 @@ Get list of all available notice codes.
 
 ```python
 >>> len(gtfs_guru.notice_codes())
-164
+190
 >>> gtfs_guru.notice_codes()[:3]
 ['attribution_without_role', 'bidirectional_exit_gate', 'block_trips_with_overlapping_stop_times']
 ```

@@ -4,7 +4,8 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use web_time::Instant;
 
 /// Records timing information for a named operation
 #[derive(Debug, Clone)]
@@ -135,7 +136,7 @@ impl TimingSummary {
 
                 // Sort by duration descending
                 let mut sorted: Vec<_> = records.iter().collect();
-                sorted.sort_by(|a, b| b.duration.cmp(&a.duration));
+                sorted.sort_by_key(|record| std::cmp::Reverse(record.duration));
 
                 // Show top 10 or all if less
                 for record in sorted.iter().take(10) {

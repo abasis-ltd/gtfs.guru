@@ -41,9 +41,13 @@ echo "Server: $SERVER"
 echo "Remote directory: $REMOTE_DIR"
 echo ""
 
-# 1. Sync website files using SCP (matching user's past workflow)
-log_step "Copying website files to server via SCP..."
-scp -r "$WEBSITE_DIR"/* "$SERVER:$REMOTE_DIR"
+# 1. Sync public assets only; deployment/configuration files must not enter the web root.
+log_step "Copying website files to server via rsync..."
+rsync -az \
+    --exclude Dockerfile \
+    --exclude nginx.conf \
+    "$WEBSITE_DIR/" "$SERVER:$REMOTE_DIR/"
+ssh "$SERVER" "rm -f -- ~/gtfs-guru-web/Dockerfile ~/gtfs-guru-web/nginx.conf"
 
 log_info "Website files copied successfully!"
 echo ""

@@ -180,10 +180,10 @@ impl SarifReport {
             runs: vec![SarifRun {
                 tool: SarifTool {
                     driver: SarifDriver {
-                        name: "gtfs-validator-rs".to_string(),
+                        name: "gtfs-guru".to_string(),
                         version: env!("CARGO_PKG_VERSION").to_string(),
                         information_uri: Some(
-                            "https://github.com/MobilityData/gtfs-validator".to_string(),
+                            "https://github.com/abasis-ltd/gtfs.guru".to_string(),
                         ),
                         rules,
                     },

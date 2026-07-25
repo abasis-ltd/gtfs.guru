@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GTFS Guru | The World's Fastest GTFS Validator</title>
+    <title>GTFS Guru | Fast, Private GTFS Validation</title>
     <meta name="description"
-        content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
+        content="Validate GTFS feeds locally with GTFS Guru. Open source, private, up to 100x faster on small feeds, and 4.6–6.7x faster on published large-feed benchmarks.">
     <link rel="canonical" href="https://gtfs.guru/">
     <link rel="sitemap" type="application/xml" title="Sitemap" href="https://gtfs.guru/sitemap.xml">
     <meta name="robots" content="index, follow">
@@ -14,34 +14,140 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="GTFS Guru">
-    <meta property="og:title" content="GTFS Guru | The World's Fastest GTFS Validator">
+    <meta property="og:title" content="GTFS Guru | Fast, Private GTFS Validation">
     <meta property="og:description"
-        content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
+        content="Validate GTFS feeds locally with GTFS Guru. Open source, private, up to 100x faster on small feeds, and 4.6–6.7x faster on published large-feed benchmarks.">
     <meta property="og:image" content="https://gtfs.guru/og-image.png">
     <meta property="og:url" content="https://gtfs.guru/">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="GTFS Guru | The World's Fastest GTFS Validator">
+    <meta name="twitter:title" content="GTFS Guru | Fast, Private GTFS Validation">
     <meta name="twitter:description"
-        content="Validate GTFS feeds instantly with GTFS Guru. Open-source, local processing, and 100x faster than Java validators.">
+        content="Validate GTFS feeds locally with GTFS Guru. Open source, private, up to 100x faster on small feeds, and 4.6–6.7x faster on published large-feed benchmarks.">
     <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
     <meta name="theme-color" content="#0f172a">
 
+    <!-- Every claim below is also visible on the page. Structured data that
+         disagrees with the rendered content is treated as deceptive and dropped,
+         so these figures and the ones in the comparison table move together. -->
     <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Organization",
+        "@id": "https://gtfs.guru/#organization",
         "name": "GTFS Guru",
         "url": "https://gtfs.guru/",
-        "logo": "https://gtfs.guru/logo.png"
+        "logo": "https://gtfs.guru/logo.png",
+        "parentOrganization": {
+          "@type": "Organization",
+          "name": "Abasis.AI",
+          "url": "https://abasis.ai"
+        }
       },
       {
         "@type": "WebSite",
+        "@id": "https://gtfs.guru/#website",
         "name": "GTFS Guru",
-        "url": "https://gtfs.guru/"
+        "url": "https://gtfs.guru/",
+        "publisher": { "@id": "https://gtfs.guru/#organization" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://gtfs.guru/#software",
+        "name": "GTFS Guru",
+        "url": "https://gtfs.guru/",
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "GTFS validator",
+        "operatingSystem": "macOS, Windows, Linux, Web browser",
+        "softwareVersion": "1.0.0",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0",
+        "isAccessibleForFree": true,
+        "description": "A native GTFS validator written in Rust. Validates transit feeds locally — in the browser via WebAssembly, on the desktop, from the command line, from Python, or in CI — without uploading the feed anywhere.",
+        "featureList": [
+          "110 validation rules covering the GTFS specification",
+          "Runs entirely on the user's device; feeds are never uploaded",
+          "Browser validation via WebAssembly, no installation required",
+          "Desktop app for macOS, Windows and Linux",
+          "Command-line binary with SARIF, JSON and HTML reports",
+          "Native Python package (pip install gtfs-guru)",
+          "GitHub Action with a --fail-on quality gate",
+          "Optional Google-specific rules and a thorough mode",
+          "Automatic fixes for a subset of findings"
+        ],
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": { "@id": "https://gtfs.guru/#organization" },
+        "codeRepository": "https://github.com/abasis-ltd/gtfs.guru",
+        "downloadUrl": "https://github.com/abasis-ltd/gtfs.guru/releases/latest",
+        "softwareHelp": "https://gtfs.guru/faq.html"
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://gtfs.guru/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is a GTFS validator?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Think of it as a spell-checker for transit data. A validator catches errors in your feed before you submit it to apps like Google Maps or Apple Maps. GTFS Guru finds these issues instantly, saving you from a lot of debugging headaches."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is GTFS Guru free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Absolutely. GTFS Guru is completely free and open source (Apache 2.0 license). Whether you're using the web validator, the desktop app, or our libraries, there are no costs, no usage limits, and no hidden premium versions."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is my transit data safe when I validate it?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Your data never leaves your computer. GTFS Guru uses WebAssembly to run the validator directly in your browser. The desktop and CLI tools also process everything locally. Nothing is uploaded, stored, or seen by anyone else."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is GTFS Guru different from the canonical Java validator?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "GTFS Guru is built for speed. It can be up to 100x faster on small feeds where JVM startup dominates, while published large-feed benchmarks measure it at 4.6-6.7x faster than the canonical Java validator: 2.32s versus 10.60s on the MBTA feed and 9.75s versus 65.18s on the OVapi Netherlands feed, using roughly 150MB of memory instead of 1.5GB. It also runs where the Java validator cannot: in a web browser and as a native Python package."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I get my routes on Google Maps?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "It's a three-step process: create a GTFS feed, use GTFS Guru to make sure it's error-free, and then submit it through the Google Transit Partner Dashboard. Having a clean, validated file is the best way to speed up publication."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a file size limit for the browser validator?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The browser validator handles feeds up to 150 MB zipped (700 MB unpacked) directly in your browser. Larger files can hit browser memory limits, so for those we recommend the desktop app or the CLI tools, which handle any size."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I run GTFS validation in CI?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. The GitHub Action abasis-ltd/gtfs.guru/action validates a feed on every push, uploads SARIF so findings appear in the GitHub Security tab, and fails the job when the feed reaches a chosen severity. The CLI supports the same gate with --fail-on error, and can emit a shields.io status badge with --badge."
+            }
+          }
+        ]
       }
     ]
   }
@@ -51,9 +157,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&family=Fira+Code:wght@400;500&display=swap"
+        crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700;800&family=Fira+Code:wght@400;500&display=swap"
         rel="stylesheet">
-    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
     <link rel="stylesheet" href="style.css">
     <script>
         // Set synchronously, before first paint: the scroll-reveal styles are
@@ -61,7 +168,9 @@
         document.documentElement.classList.remove('no-js');
         document.documentElement.classList.add('js');
     </script>
-    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <!-- crossorigin is required: the page is COEP: require-corp for wasm threads,
+         which blocks cross-origin scripts requested without CORS. -->
+    <script src="https://unpkg.com/lucide@latest" crossorigin="anonymous" defer></script>
     <script>
         // Check for file protocol and show warning
         window.addEventListener('DOMContentLoaded', () => {
@@ -133,11 +242,12 @@
 
                 <div class="stats-row">
                     <div class="stat-item">
+                        <span class="stat-prefix">Up to</span>
                         <span class="stat-number" data-target="100">100</span><span class="stat-suffix">x</span>
-                        <span class="stat-label">Faster than Java</span>
+                        <span class="stat-label">Faster on Small Feeds</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-number" data-target="88">88</span>
+                        <span class="stat-number" data-target="110">110</span>
                         <span class="stat-label">Validation Rules</span>
                     </div>
                     <div class="stat-item">
@@ -178,6 +288,13 @@
                             </div>
                         </div>
 
+                        <div class="demo-row" id="demo-row">
+                            <span class="sub-text">No feed to hand?</span>
+                            <button type="button" class="btn btn-ghost btn-sm" id="try-demo-btn">
+                                <i data-lucide="play-circle"></i> Try an example feed
+                            </button>
+                        </div>
+
                         <div class="processing-state hidden" id="processing-state">
                             <div class="spinner"></div>
                             <p>Validating locally (WASM)...</p>
@@ -185,6 +302,13 @@
                         </div>
 
                         <div class="result-state hidden" id="result-state">
+                            <div class="shared-banner hidden" id="shared-banner">
+                                <i data-lucide="link"></i>
+                                <span id="shared-banner-text">Viewing a shared report.</span>
+                                <button type="button" class="btn btn-ghost btn-sm" id="shared-new-scan-btn">
+                                    Validate my own feed
+                                </button>
+                            </div>
                             <div class="completion-indicator">
                                 <div class="completion-icon">
                                     <i data-lucide="check-circle"></i>
@@ -204,6 +328,9 @@
                                 </button>
                                 <button class="btn btn-outline" id="download-json-btn">
                                     <i data-lucide="download"></i> JSON
+                                </button>
+                                <button class="btn btn-outline" id="share-btn" title="Copy a link to this report. The link carries the report itself — nothing is uploaded.">
+                                    <i data-lucide="share-2"></i> Share
                                 </button>
                                 <button class="btn btn-ghost" id="reset-btn">
                                     <i data-lucide="rotate-ccw"></i> New Scan
@@ -229,6 +356,9 @@
                         <button class="btn btn-sm btn-outline" id="download-html-modal-btn">
                             <i data-lucide="file-code"></i> HTML
                         </button>
+                        <button class="btn btn-sm btn-outline" id="share-modal-btn">
+                            <i data-lucide="share-2"></i> Share
+                        </button>
                     </div>
                 </div>
             </div>
@@ -253,39 +383,50 @@
                 <h2>Why Switch to GTFS Guru?</h2>
                 <p>Inspired by the official standards, rebuilt for the modern era.</p>
             </div>
-            <div class="comparison-table glass-card fade-up delay-100">
-                <div class="comparison-row header">
-                    <div class="col-feature">Feature</div>
-                    <div class="col-old">Canonical Java Validator</div>
-                    <div class="col-new">GTFS Guru (Rust)</div>
-                </div>
-                <!-- Rows -->
-                <div class="comparison-row">
-                    <div class="col-feature">Speed (Small Feed)</div>
-                    <div class="col-old">~1.5s</div>
-                    <div class="col-new highlight">~0.01s (100x Faster)</div>
-                </div>
-                <div class="comparison-row">
-                    <div class="col-feature">Speed (Large Feed)</div>
-                    <div class="col-old">40s</div>
-                    <div class="col-new highlight">20s (2-5x Faster)</div>
-                </div>
-                <div class="comparison-row">
-                    <div class="col-feature">Memory Usage</div>
-                    <div class="col-old">~1.5GB RAM</div>
-                    <div class="col-new highlight">~150MB RAM</div>
-                </div>
-                <div class="comparison-row">
-                    <div class="col-feature">Privacy</div>
-                    <div class="col-old">Local code / Cloud validator</div>
-                    <div class="col-new highlight">Local App / Working in your browser</div>
-                </div>
-                <div class="comparison-row">
-                    <div class="col-feature">Python Support</div>
-                    <div class="col-old">Wrapper only</div>
-                    <div class="col-new highlight">Native (<code>pip install</code>)</div>
-                </div>
-            </div>
+            <!-- A real <table>: "X vs Y" answers are extracted from table markup,
+                 and a CSS grid of <div>s carries none of that structure. -->
+            <table class="comparison-table glass-card fade-up delay-100">
+                <caption class="sr-only">GTFS Guru compared with the canonical Java GTFS validator</caption>
+                <thead>
+                    <tr class="comparison-row header">
+                        <th scope="col" class="col-feature">Feature</th>
+                        <th scope="col" class="col-old">Canonical Java Validator</th>
+                        <th scope="col" class="col-new">GTFS Guru (Rust)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="comparison-row">
+                        <th scope="row" class="col-feature">MBTA benchmark</th>
+                        <td class="col-old">10.60s</td>
+                        <td class="col-new highlight">2.32s (4.6x faster)</td>
+                    </tr>
+                    <tr class="comparison-row">
+                        <th scope="row" class="col-feature">OVapi NL benchmark</th>
+                        <td class="col-old">65.18s</td>
+                        <td class="col-new highlight">9.75s (6.7x faster)</td>
+                    </tr>
+                    <tr class="comparison-row">
+                        <th scope="row" class="col-feature">Memory Usage</th>
+                        <td class="col-old">~1.5GB RAM</td>
+                        <td class="col-new highlight">~150MB RAM</td>
+                    </tr>
+                    <tr class="comparison-row">
+                        <th scope="row" class="col-feature">Privacy</th>
+                        <td class="col-old">Local code / Cloud validator</td>
+                        <td class="col-new highlight">Local App / Working in your browser</td>
+                    </tr>
+                    <tr class="comparison-row">
+                        <th scope="row" class="col-feature">Python Support</th>
+                        <td class="col-old">Wrapper only</td>
+                        <td class="col-new highlight">Native (<code>pip install</code>)</td>
+                    </tr>
+                    <tr class="comparison-row">
+                        <th scope="row" class="col-feature">CI output</th>
+                        <td class="col-old">JSON / HTML reports</td>
+                        <td class="col-new highlight">SARIF, JSON, HTML + GitHub Action</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </section>
 
@@ -400,7 +541,7 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                         </p>
                     </div>
                     <div>
-                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is it free?</h3>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is GTFS Guru free?</h3>
                         <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
                             Absolutely. GTFS Guru is completely free and open source (Apache 2.0 license). Whether
                             you're using the web validator, the desktop app, or our libraries, there are no costs, no
@@ -408,7 +549,8 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                         </p>
                     </div>
                     <div>
-                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is my data safe?</h3>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is my transit data safe when
+                            I validate it?</h3>
                         <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
                             Your data never leaves your computer. We use WebAssembly (WASM) to run the validator
                             directly in your browser. Our desktop and CLI tools also process everything locally. We
@@ -416,11 +558,25 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                         </p>
                     </div>
                     <div>
-                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">How is this different?</h3>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">How is GTFS Guru different
+                            from the canonical Java validator?</h3>
                         <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
-                            GTFS Guru is built for speed. It's written in Rust, which means it can be up to 100x faster
-                            and use 10x less memory than the standard Java-based validator. It's also much easier to use
-                            in modern environments like web browsers or Python scripts.
+                            GTFS Guru is built for speed. It can be up to 100x faster on small feeds where JVM startup
+                            dominates, while published large-feed benchmarks measure it at 4.6–6.7x faster than the
+                            canonical Java validator: 2.32s versus 10.60s on the MBTA feed and 9.75s versus 65.18s on
+                            the OVapi Netherlands feed, using roughly 150&nbsp;MB of memory instead of 1.5&nbsp;GB. It
+                            also runs where the Java validator cannot: in a web browser and as a native Python package.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Can I run GTFS validation in
+                            CI?</h3>
+                        <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
+                            Yes. The GitHub Action
+                            <code>abasis-ltd/gtfs.guru/action</code> validates a feed on every push, uploads SARIF so
+                            findings appear in the GitHub Security tab, and fails the job when the feed reaches a
+                            chosen severity. The CLI supports the same gate with <code>--fail-on error</code>, and can
+                            emit a shields.io status badge with <code>--badge</code>.
                         </p>
                     </div>
                     <div>
@@ -433,8 +589,8 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
                         </p>
                     </div>
                     <div>
-                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is there a file size limit?
-                        </h3>
+                        <h3 style="margin-bottom: 0.5rem; color: var(--accent-primary);">Is there a file size limit
+                            for the browser validator?</h3>
                         <p style="color: var(--text-secondary); font-size: 1.05rem; line-height: 1.6;">
                             The browser validator handles feeds up to 150&nbsp;MB zipped (700&nbsp;MB unpacked) directly in your browser.
                             Larger files can hit browser memory limits, so for those we recommend our desktop app or
@@ -458,7 +614,7 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
     <footer>
         <div class="container footer-container">
             <div class="footer-brand">
-                <img src="logo.png" alt="GTFS Guru" style="height: 24px; margin-right: 6px; vertical-align: middle;">
+                <img class="footer-logo" src="favicon.svg?v=2" alt="" aria-hidden="true">
                 <span class="logo-text">GTFS Guru</span>
                 <p>Made by <a href="https://abasis.ai">Abasis.AI</a></p>
             </div>
@@ -477,7 +633,7 @@ gtfs-guru --json -i feed.zip | jq .</code></pre>
     </footer>
 
     <!-- ?v= busts the HTTP cache on deploy: a stale script.js against a fresh pkg/ (or vice versa) breaks size limits and worker payloads. Bump together with the wasm version. -->
-    <script src="script.js?v=0.9.5" type="module"></script>
+    <script src="script.js?v=1.0.0" type="module"></script>
     <script>
         // Fallback for Lucide icons
         window.addEventListener('load', function () {
