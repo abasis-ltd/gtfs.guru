@@ -7,6 +7,26 @@
  */
 export type NoticeSeverity = 'ERROR' | 'WARNING' | 'INFO';
 
+export interface NoticeGeometryPoint {
+  latitude: number;
+  longitude: number;
+}
+
+export type NoticeGeometry =
+  | { type: 'point'; point: NoticeGeometryPoint }
+  | { type: 'line'; points: NoticeGeometryPoint[] }
+  | {
+      type: 'pointAndLine';
+      point: NoticeGeometryPoint;
+      line: NoticeGeometryPoint[];
+      nearestPoint?: NoticeGeometryPoint;
+    }
+  | {
+      type: 'boundingBox';
+      southWest: NoticeGeometryPoint;
+      northEast: NoticeGeometryPoint;
+    };
+
 /**
  * A validation notice (error, warning, or info)
  */
@@ -23,6 +43,8 @@ export interface ValidationNotice {
   csvRowNumber?: number;
   /** Affected field name */
   fieldName?: string;
+  /** Renderer-neutral geographic context for map-capable notices */
+  geometry?: NoticeGeometry;
   /** Additional context as key-value pairs */
   [key: string]: unknown;
 }

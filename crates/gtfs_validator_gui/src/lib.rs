@@ -11,7 +11,7 @@ use tauri::State;
 
 use gtfs_guru_core::{
     default_runner, set_validation_country_code, validate_input_and_progress, GtfsInput,
-    NoticeSeverity, ProgressHandler,
+    NoticeGeometry, NoticeSeverity, ProgressHandler, ValidationNotice,
 };
 use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
@@ -399,13 +399,8 @@ fn run_validation(
             NoticeSeverity::Info => info_count += 1,
         }
 
-        // Extract geographic errors for map display
-        if notice.code == "stop_too_far_from_shape"
-            || notice.code == "stop_too_far_from_shape_using_user_distance"
-        {
-            if let Some(geo_error) = extract_geo_error(&notice.context) {
-                geo_errors.push(geo_error);
-            }
+        if let Some(geo_error) = extract_geo_error(notice) {
+            geo_errors.push(geo_error);
         }
     }
 
@@ -426,7 +421,35 @@ fn run_validation(
     })
 }
 
-fn extract_geo_error(
+fn extract_geo_error(notice: &ValidationNotice) -> Option<GeoError> {
+    if let Some(NoticeGeometry::PointAndLine {
+        point,
+        line,
+        nearest_point: Some(nearest_point),
+    }) = &notice.geometry
+    {
+        return Some(GeoError {
+            stop_name: notice
+                .context
+                .get("stopName")
+                .and_then(|value| value.as_str())
+                .unwrap_or("Unknown")
+                .to_string(),
+            stop_lat: point.latitude,
+            stop_lon: point.longitude,
+            match_lat: nearest_point.latitude,
+            match_lon: nearest_point.longitude,
+            shape_path: line
+                .iter()
+                .map(|point| [point.latitude, point.longitude])
+                .collect(),
+        });
+    }
+
+    extract_legacy_geo_error(&notice.context)
+}
+
+fn extract_legacy_geo_error(
     context: &std::collections::BTreeMap<String, serde_json::Value>,
 ) -> Option<GeoError> {
     let stop_location = context.get("stopLocation")?.as_array()?;

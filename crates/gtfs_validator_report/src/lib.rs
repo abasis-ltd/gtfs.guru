@@ -487,6 +487,7 @@ fn notice_context(notice: &ValidationNotice) -> NoticeContext {
             }
             fields.push((key.clone(), value.clone()));
         }
+        append_notice_geometry(notice, &mut fields);
         return NoticeContext { fields };
     }
 
@@ -544,7 +545,19 @@ fn notice_context(notice: &ValidationNotice) -> NoticeContext {
         }
     }
 
+    append_notice_geometry(notice, &mut fields);
     NoticeContext { fields }
+}
+
+fn append_notice_geometry(notice: &ValidationNotice, fields: &mut Vec<(String, Value)>) {
+    if fields.iter().any(|(key, _)| key == "geometry") {
+        return;
+    }
+    if let Some(geometry) = &notice.geometry {
+        if let Ok(value) = serde_json::to_value(geometry) {
+            fields.push(("geometry".to_string(), value));
+        }
+    }
 }
 
 fn severity_ordinal(severity: NoticeSeverity) -> u8 {
@@ -1432,7 +1445,9 @@ fn path_to_file_url(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtfs_guru_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
+    use gtfs_guru_core::{
+        NoticeContainer, NoticeGeometry, NoticeGeometryPoint, NoticeSeverity, ValidationNotice,
+    };
     use std::collections::HashMap;
 
     #[test]
@@ -1481,6 +1496,29 @@ mod tests {
             sample_map.get("fieldName").and_then(|value| value.as_str()),
             Some("stop_id")
         );
+    }
+
+    #[test]
+    fn includes_notice_geometry_in_json_samples() {
+        let mut container = NoticeContainer::new();
+        let notice = ValidationNotice::new("geo", NoticeSeverity::Warning, "geographic notice")
+            .with_geometry(NoticeGeometry::Point {
+                point: NoticeGeometryPoint::new(35.1856, 33.3823),
+            });
+        container.push(notice);
+
+        let report = ValidationReport::from_container(&container);
+        let sample = &report.notices[0].sample_notices[0];
+        let geometry = sample
+            .fields
+            .iter()
+            .find(|(key, _)| key == "geometry")
+            .map(|(_, value)| value)
+            .expect("geometry field");
+
+        assert_eq!(geometry["type"], "point");
+        assert_eq!(geometry["point"]["latitude"], 35.1856);
+        assert_eq!(geometry["point"]["longitude"], 33.3823);
     }
 
     #[test]

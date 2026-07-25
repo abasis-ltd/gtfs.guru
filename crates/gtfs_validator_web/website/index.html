@@ -363,14 +363,24 @@
                 </div>
             </div>
 
-            <!-- Stop Location Map Modal -->
-            <div class="map-modal hidden" id="map-modal">
+            <!-- Geographic Notice Map Modal -->
+            <div class="map-modal hidden" id="map-modal" role="dialog" aria-modal="true" aria-labelledby="map-modal-title">
                 <div class="map-modal-content glass-card">
                     <div class="map-modal-header">
-                        <h3 id="map-modal-title">Stop location</h3>
-                        <button class="close-btn" id="close-map-btn"><i data-lucide="x"></i></button>
+                        <div>
+                            <span class="map-modal-kicker">Affected geometry</span>
+                            <h3 id="map-modal-title">Geographic notice</h3>
+                        </div>
+                        <button class="close-btn" id="close-map-btn" aria-label="Close map"><i data-lucide="x"></i></button>
                     </div>
-                    <div id="stop-map"></div>
+                    <div class="map-stage">
+                        <div id="stop-map"></div>
+                        <div class="map-legend" aria-hidden="true">
+                            <span><i class="map-legend-dot affected"></i>Affected stop</span>
+                            <span><i class="map-legend-dot nearest"></i>Closest point</span>
+                            <span><i class="map-legend-line"></i>Shape</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
