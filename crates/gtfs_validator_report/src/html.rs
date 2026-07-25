@@ -735,6 +735,9 @@ fn build_feed_info_entries(info: &ReportFeedInfo) -> Vec<(String, String)> {
     if let Some(value) = info.feed_end_date.as_ref() {
         entries.push(("Feed End Date".to_string(), value.clone()));
     }
+    if let Some(value) = info.feed_version.as_ref() {
+        entries.push(("Feed Version".to_string(), value.clone()));
+    }
     if info.feed_service_window_start.is_some() || info.feed_service_window_end.is_some() {
         entries.push(("Service Window".to_string(), service_window_display(info)));
     }
@@ -830,11 +833,14 @@ struct NoticeCounts {
 
 impl NoticeCounts {
     fn from_container(container: &NoticeContainer) -> Self {
+        // Exact totals from the container's counters — these include notices
+        // dropped by the per-group storage cap.
+        let (errors, warnings, infos) = container.severity_counts();
         Self {
-            total: container.len(),
-            errors: container.count_by_severity(NoticeSeverity::Error),
-            warnings: container.count_by_severity(NoticeSeverity::Warning),
-            infos: container.count_by_severity(NoticeSeverity::Info),
+            total: errors + warnings + infos,
+            errors,
+            warnings,
+            infos,
         }
     }
 }
@@ -870,14 +876,6 @@ impl HtmlSeverity {
             HtmlSeverity::Info => "info",
         }
     }
-
-    fn notice_severity(self) -> NoticeSeverity {
-        match self {
-            HtmlSeverity::Error => NoticeSeverity::Error,
-            HtmlSeverity::Warning => NoticeSeverity::Warning,
-            HtmlSeverity::Info => NoticeSeverity::Info,
-        }
-    }
 }
 
 fn render_notice_groups(out: &mut String, notices_container: &NoticeContainer) {
@@ -888,9 +886,11 @@ fn render_notice_groups(out: &mut String, notices_container: &NoticeContainer) {
         HtmlSeverity::Info,
     ] {
         if let Some(code_map) = grouped.get(&severity) {
-            for (code, notices) in code_map {
-                let total = notices_container.count_for(code, severity.notice_severity());
-                render_notice_group(out, severity, code, notices, total);
+            for (code, group) in code_map {
+                let total = notices_container
+                    .group_total(code, severity_from_html(severity))
+                    .max(group.len());
+                render_notice_group(out, severity, code, group, total);
             }
         }
     }
@@ -910,6 +910,14 @@ fn group_notices(
             .push(notice);
     }
     grouped
+}
+
+fn severity_from_html(severity: HtmlSeverity) -> NoticeSeverity {
+    match severity {
+        HtmlSeverity::Error => NoticeSeverity::Error,
+        HtmlSeverity::Warning => NoticeSeverity::Warning,
+        HtmlSeverity::Info => NoticeSeverity::Info,
+    }
 }
 
 fn render_notice_group(

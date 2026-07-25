@@ -1,22 +1,87 @@
-// Validation runs in a Web Worker (see pkg/worker.js) so the WASM heap lives
-// off the main thread: large feeds no longer freeze the UI, and a hard
-// out-of-memory failure kills only the worker instead of the whole tab.
+// Validation runs in a Web Worker so the WASM heap lives off the main thread:
+// large feeds no longer freeze the UI, and a hard out-of-memory failure kills
+// only the worker instead of the whole tab.
+//
+// On cross-origin-isolated pages (COOP: same-origin + COEP: require-corp →
+// SharedArrayBuffer available) we prefer the multithreaded worker
+// (pkg-mt/worker-mt.js), which runs a wasm-bindgen-rayon thread pool to
+// parallelize CSV parsing and the validator run. Otherwise, or if that worker
+// can't be loaded, we fall back to the single-threaded worker (pkg/worker.js),
+// and finally to validating on the main thread so the tool always works — just
+// without the off-thread/parallel benefits. OOM mid-validation is a distinct
+// case and is surfaced to the user rather than retried.
 
-// Keep this in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
-const MAX_FILE_SIZE_BYTES = 70 * 1024 * 1024;
+// Keep these in sync with MAX_FILE_SIZE_BYTES / MAX_UNCOMPRESSED_BYTES in
+// crates/gtfs_validator_wasm/src/lib.rs. The real memory gate is the
+// UNCOMPRESSED size (wasm peak ≈ 4-5× raw); the zip cap is just a coarse
+// sanity check — measured on real feeds, a sparse 129 MB zip fits fine while
+// a dense 107 MB zip (1 GB raw) would OOM.
+const MAX_FILE_SIZE_BYTES = 150 * 1024 * 1024;
+const MAX_UNCOMPRESSED_BYTES = 700 * 1024 * 1024;
+
+// Multithreaded (wasm threads) validation: ~5x faster on large feeds. Only
+// engages on cross-origin-isolated pages (COOP/COEP headers set server-side);
+// everything else falls back to the single-threaded worker automatically.
+const MT_ENABLED = true;
+
+// URL override for testing/rollout: ?mt=1 forces the multithreaded tier on,
+// ?mt=0 forces it off, regardless of MT_ENABLED.
+const MT_REQUESTED = (() => {
+    try {
+        const param = new URLSearchParams(location.search).get('mt');
+        if (param === '1') return true;
+        if (param === '0') return false;
+    } catch (_) { /* non-browser context */ }
+    return MT_ENABLED;
+})();
+
+// Ordered worker tiers to try, best first. The multithreaded tier is only
+// offered when enabled AND the page is cross-origin-isolated with
+// SharedArrayBuffer available.
+const WORKER_TIERS = (() => {
+    const tiers = [];
+    if (MT_REQUESTED &&
+        typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated &&
+        typeof SharedArrayBuffer !== 'undefined') {
+        tiers.push({ name: 'mt', url: './pkg-mt/worker-mt.js' });
+    }
+    tiers.push({ name: 'st', url: './pkg/worker.js' });
+    return tiers;
+})();
+let workerTierIndex = 0;        // which tier we're currently using
 
 let validatorWorker = null;
-let pendingValidation = null; // { id, resolve, reject }
+let workerReadyPromise = null; // resolves once the worker signals 'ready'
+let workerUsable = true;       // set false once all worker tiers are exhausted
+let pendingValidation = null;  // { id, resolve, reject }
 let nextMsgId = 1;
+
+// Lazily import + init the WASM module on the main thread (fallback path only,
+// always the single-threaded module — the main thread has no rayon pool).
+let mainThreadValidatePromise = null;
+function getMainThreadValidate() {
+    if (!mainThreadValidatePromise) {
+        mainThreadValidatePromise = import('./pkg/gtfs_guru_wasm.js').then(async (mod) => {
+            await mod.default(); // init()
+            return mod.validate_gtfs;
+        });
+    }
+    return mainThreadValidatePromise;
+}
 
 function getValidatorWorker() {
     if (validatorWorker) return validatorWorker;
 
-    validatorWorker = new Worker(new URL('./pkg/worker.js', import.meta.url), { type: 'module' });
+    let resolveReady, rejectReady;
+    workerReadyPromise = new Promise((res, rej) => { resolveReady = res; rejectReady = rej; });
+    let becameReady = false;
 
-    validatorWorker.onmessage = (e) => {
+    const tier = WORKER_TIERS[workerTierIndex];
+    const worker = new Worker(new URL(tier.url, import.meta.url), { type: 'module' });
+
+    worker.onmessage = (e) => {
         const { type, id, payload } = e.data || {};
-        if (type === 'ready') return;
+        if (type === 'ready') { becameReady = true; resolveReady(); return; }
         if (!pendingValidation || id !== pendingValidation.id) return;
 
         const p = pendingValidation;
@@ -31,46 +96,248 @@ function getValidatorWorker() {
                 error_count: payload.errorCount,
                 warning_count: payload.warningCount,
                 info_count: payload.infoCount,
-                validation_time_ms: payload.validationTimeMs,
-                timings: payload.timings,
-                runtime: payload.runtime,
+                truncated: payload.truncated === true,
             });
         } else {
             p.reject(new Error(typeof payload === 'string' ? payload : 'Validation failed'));
         }
     };
 
-    validatorWorker.onerror = (e) => {
-        // A worker-level error usually means the WASM ran out of memory on a
-        // very large feed and the worker died. Reject the in-flight run and
-        // drop the worker so the next attempt starts a fresh one.
+    worker.onerror = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
         const p = pendingValidation;
         pendingValidation = null;
-        try { validatorWorker.terminate(); } catch (_) { /* ignore */ }
-        validatorWorker = null;
-        if (p) p.reject(new Error('__OOM__'));
-        if (e && e.preventDefault) e.preventDefault();
+        try { worker.terminate(); } catch (_) { /* ignore */ }
+        if (validatorWorker === worker) validatorWorker = null;
+
+        if (!becameReady) {
+            // This tier's worker never loaded (blocked script, 403/404, syntax
+            // error, or a missing pkg-mt build). Advance to the next tier; only
+            // when every tier is exhausted do we give up on workers entirely.
+            if (workerTierIndex < WORKER_TIERS.length - 1) {
+                workerTierIndex++;
+            } else {
+                workerUsable = false;
+            }
+            rejectReady(new Error('__WORKER_UNAVAILABLE__'));
+            if (p) p.reject(new Error('__WORKER_UNAVAILABLE__'));
+        } else {
+            // It was running and died — almost always a hard OOM on a big feed.
+            if (p) p.reject(new Error('__OOM__'));
+        }
     };
 
-    return validatorWorker;
+    validatorWorker = worker;
+    return worker;
 }
 
-function validateInWorker(arrayBuffer, dateStr) {
+// ---- Stops index for the error map ----
+// Built from stops.txt before the zip buffer is transferred to the worker
+// (the transfer detaches the buffer on the main thread). Small: id -> coords.
+let stopsIndex = null;
+
+async function buildStopsIndex(arrayBuffer) {
+    const entry = findZipEntry(new DataView(arrayBuffer), 'stops.txt');
+    if (!entry) return null;
+    const bytes = await readZipEntry(arrayBuffer, entry);
+    if (!bytes) return null;
+    return parseStopsCsv(new TextDecoder('utf-8').decode(bytes));
+}
+
+// Sum of uncompressed entry sizes from the zip central directory (no
+// decompression). Returns null when the archive can't be parsed (the wasm
+// side will produce a proper error) and Infinity for zip64-sized entries —
+// those are far beyond the browser limit anyway.
+function sumUncompressedBytes(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    const len = view.byteLength;
+    const minPos = Math.max(0, len - 65558); // EOCD + max comment length
+    let eocd = -1;
+    for (let i = len - 22; i >= minPos; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    const count = view.getUint16(eocd + 10, true);
+    const cdOffset = view.getUint32(eocd + 16, true);
+    if (cdOffset === 0xFFFFFFFF) return Infinity; // zip64 archive
+    let p = cdOffset;
+    let total = 0;
+    for (let i = 0; i < count && p + 46 <= len; i++) {
+        if (view.getUint32(p, true) !== 0x02014b50) break;
+        const uncompSize = view.getUint32(p + 24, true);
+        if (uncompSize === 0xFFFFFFFF) return Infinity; // zip64 entry
+        total += uncompSize;
+        const nameLen = view.getUint16(p + 28, true);
+        const extraLen = view.getUint16(p + 30, true);
+        const commentLen = view.getUint16(p + 32, true);
+        p += 46 + nameLen + extraLen + commentLen;
+    }
+    return total;
+}
+
+// Minimal zip central-directory reader. Feeds are capped at 150 MB zipped, so
+// no zip64 handling is needed; anything unusual just means "no map", never an error.
+function findZipEntry(view, wantedName) {
+    const len = view.byteLength;
+    const minPos = Math.max(0, len - 65558); // EOCD + max comment length
+    let eocd = -1;
+    for (let i = len - 22; i >= minPos; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    const count = view.getUint16(eocd + 10, true);
+    const cdOffset = view.getUint32(eocd + 16, true);
+    if (cdOffset === 0xFFFFFFFF) return null; // zip64
+    let p = cdOffset;
+    let best = null;
+    const nameDecoder = new TextDecoder('utf-8');
+    for (let i = 0; i < count && p + 46 <= len; i++) {
+        if (view.getUint32(p, true) !== 0x02014b50) break;
+        const method = view.getUint16(p + 10, true);
+        const compSize = view.getUint32(p + 20, true);
+        const nameLen = view.getUint16(p + 28, true);
+        const extraLen = view.getUint16(p + 30, true);
+        const commentLen = view.getUint16(p + 32, true);
+        const localOffset = view.getUint32(p + 42, true);
+        const name = nameDecoder.decode(new Uint8Array(view.buffer, p + 46, nameLen));
+        // Prefer the shallowest match: feeds are sometimes zipped inside a folder.
+        if (name.split('/').pop() === wantedName && (!best || name.length < best.name.length)) {
+            best = { name, method, compSize, localOffset };
+        }
+        p += 46 + nameLen + extraLen + commentLen;
+    }
+    return best;
+}
+
+async function readZipEntry(arrayBuffer, entry) {
+    const view = new DataView(arrayBuffer);
+    const p = entry.localOffset;
+    if (view.getUint32(p, true) !== 0x04034b50) return null;
+    const nameLen = view.getUint16(p + 26, true);
+    const extraLen = view.getUint16(p + 28, true);
+    const start = p + 30 + nameLen + extraLen;
+    const comp = new Uint8Array(arrayBuffer.slice(start, start + entry.compSize));
+    if (entry.method === 0) return comp; // stored
+    if (entry.method !== 8) return null;
+    const stream = new Blob([comp]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+            if (c === '"') {
+                if (text[i + 1] === '"') { field += '"'; i++; }
+                else inQuotes = false;
+            } else {
+                field += c;
+            }
+        } else if (c === '"') {
+            inQuotes = true;
+        } else if (c === ',') {
+            row.push(field); field = '';
+        } else if (c === '\n' || c === '\r') {
+            if (c === '\r' && text[i + 1] === '\n') i++;
+            row.push(field); field = '';
+            if (row.length > 1 || row[0] !== '') rows.push(row);
+            row = [];
+        } else {
+            field += c;
+        }
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows;
+}
+
+function parseStopsCsv(text) {
+    const rows = parseCsv(text);
+    if (!rows.length) return null;
+    const header = rows[0].map(h => h.replace(/^\uFEFF/, '').trim());
+    const idI = header.indexOf('stop_id');
+    const latI = header.indexOf('stop_lat');
+    const lonI = header.indexOf('stop_lon');
+    const nameI = header.indexOf('stop_name');
+    if (idI < 0 || latI < 0 || lonI < 0) return null;
+    const index = new Map();
+    for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const id = r[idI];
+        const lat = parseFloat(r[latI]);
+        const lon = parseFloat(r[lonI]);
+        if (id && Number.isFinite(lat) && Number.isFinite(lon)) {
+            index.set(id, { lat, lon, name: nameI >= 0 ? (r[nameI] || '').trim() : '' });
+        }
+    }
+    return index.size ? index : null;
+}
+
+async function validateInWorker(arrayBuffer, dateStr) {
+    getValidatorWorker();
+    // Wait until the worker is confirmed loaded BEFORE transferring the buffer.
+    // If it never loads, the buffer is untouched and the caller can fall back.
+    await Promise.race([
+        workerReadyPromise,
+        new Promise((_, rej) => setTimeout(() => rej(new Error('__WORKER_UNAVAILABLE__')), 10000)),
+    ]);
     return new Promise((resolve, reject) => {
-        const worker = getValidatorWorker();
         const id = nextMsgId++;
         pendingValidation = { id, resolve, reject };
-        // Transfer (not copy) the ArrayBuffer — feeds can be up to 70 MB.
-        worker.postMessage(
+        // Transfer (not copy) the ArrayBuffer — feeds can be up to 150 MB.
+        validatorWorker.postMessage(
             { type: 'validate', id, payload: { zipBytes: arrayBuffer, date: dateStr } },
             [arrayBuffer],
         );
     });
 }
 
+async function validateOnMainThread(arrayBuffer, dateStr) {
+    const validate_gtfs = await getMainThreadValidate();
+    // Yield once so the processing spinner paints before the synchronous,
+    // UI-blocking WASM call.
+    await new Promise((r) => setTimeout(r, 30));
+    const res = validate_gtfs(new Uint8Array(arrayBuffer), null, dateStr);
+    return {
+        json: res.json,
+        html: res.html,
+        error_count: res.error_count,
+        warning_count: res.warning_count,
+        info_count: res.info_count,
+        truncated: res.truncated === true,
+    };
+}
+
+// Validate via the worker, transparently falling back to the main thread if the
+// worker can't be loaded. A mid-validation OOM ('__OOM__') is NOT retried.
+async function validateFeed(arrayBuffer, dateStr) {
+    if (workerUsable) {
+        try {
+            return await validateInWorker(arrayBuffer, dateStr);
+        } catch (err) {
+            if (err && err.message === '__WORKER_UNAVAILABLE__') {
+                // fall through to main-thread validation with the intact buffer
+            } else {
+                throw err;
+            }
+        }
+    }
+    return validateOnMainThread(arrayBuffer, dateStr);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Enable fade-up animations by removing the no-js class
-    document.documentElement.classList.remove('no-js');
+    // The .js class is set synchronously in <head>; the scroll-reveal styles
+    // are scoped to it, so markup stays visible if this script never runs.
+    const prefersReducedMotion =
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const revealEl = (el) => {
+        el.classList.add('visible');
+        if (el.querySelector('.stat-number')) startCounters(el);
+    };
 
     /* --- Intersection Observer for Fade-Up Animations --- */
     const observerOptions = {
@@ -81,40 +348,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-
-                // Trigger counters if this is the hero stats section
-                if (entry.target.querySelector('.stat-number')) {
-                    startCounters(entry.target);
-                }
-
+                revealEl(entry.target);
                 observer.unobserve(entry.target);
             }
         });
     }, observerOptions);
 
-    document.querySelectorAll('.fade-up').forEach(el => {
-        observer.observe(el);
-    });
+    const fadeEls = document.querySelectorAll('.fade-up');
+    fadeEls.forEach(el => observer.observe(el));
+
+    // Failsafe: never let content stay invisible. If the observer hasn't
+    // revealed an element (deep link landing exactly on a section edge, an
+    // early script error, an unsupported environment), show it anyway.
+    setTimeout(() => {
+        fadeEls.forEach(el => {
+            if (!el.classList.contains('visible')) revealEl(el);
+        });
+    }, 1500);
 
     /* --- Number Counters --- */
+    // Time-based rather than fixed-increment-per-frame: a throttled or
+    // background tab drops frames instead of stalling the count partway
+    // (the old version could sit on "17x" indefinitely).
     function startCounters(container) {
         container.querySelectorAll('.stat-number').forEach(counter => {
-            const target = +counter.getAttribute('data-target');
-            const duration = 2000; // ms
-            const increment = target / (duration / 16); // 60fps
+            if (counter.dataset.counted) return;
+            counter.dataset.counted = '1';
 
-            let current = 0;
-            const updateCounter = () => {
-                current += increment;
-                if (current < target) {
-                    counter.innerText = Math.ceil(current);
-                    requestAnimationFrame(updateCounter);
-                } else {
-                    counter.innerText = target;
-                }
+            const target = +counter.getAttribute('data-target');
+            if (prefersReducedMotion || !target) {
+                counter.textContent = String(target);
+                return;
+            }
+
+            const duration = 1200; // ms
+            const startedAt = performance.now();
+            const step = (now) => {
+                const p = Math.min(1, (now - startedAt) / duration);
+                const eased = 1 - Math.pow(1 - p, 3);
+                counter.textContent = String(Math.round(target * eased));
+                if (p < 1) requestAnimationFrame(step);
+                else counter.textContent = String(target);
             };
-            updateCounter();
+            requestAnimationFrame(step);
+        });
+    }
+
+    /* --- Mobile nav toggle --- */
+    const navToggle = document.getElementById('nav-toggle');
+    const navLinks = document.getElementById('nav-links');
+    if (navToggle && navLinks) {
+        const setNav = (open) => {
+            navLinks.classList.toggle('open', open);
+            navToggle.setAttribute('aria-expanded', String(open));
+            navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+            navToggle.innerHTML = `<i data-lucide="${open ? 'x' : 'menu'}"></i>`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        };
+
+        navToggle.addEventListener('click', () => {
+            setNav(!navLinks.classList.contains('open'));
+        });
+
+        // Close after choosing a destination, and on Escape.
+        navLinks.addEventListener('click', (e) => {
+            if (e.target.closest('a')) setNav(false);
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && navLinks.classList.contains('open')) setNav(false);
         });
     }
 
@@ -305,9 +606,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Close modal on Escape
+        // Close modal on Escape (map modal first, then the report modal)
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && reportModal && !reportModal.classList.contains('hidden')) {
+            if (e.key !== 'Escape') return;
+            const mapModal = document.getElementById('map-modal');
+            if (mapModal && !mapModal.classList.contains('hidden')) {
+                mapModal.classList.add('hidden');
+                return;
+            }
+            if (reportModal && !reportModal.classList.contains('hidden')) {
                 closeReportModal();
             }
         });
@@ -324,11 +631,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        lastFileName = file.name.replace('.zip', '');
-
-        // Start compiling WASM and creating the Rayon pool while the browser
+        // Start compiling WASM and creating the rayon pool while the browser
         // reads the selected archive from disk.
         getValidatorWorker();
+
+        lastFileName = file.name.replace('.zip', '');
 
         // Show processing
         const errorContainer = document.getElementById('error-container');
@@ -340,6 +647,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const arrayBuffer = await file.arrayBuffer();
+            const rawBytes = sumUncompressedBytes(arrayBuffer);
+            if (rawBytes !== null && rawBytes > MAX_UNCOMPRESSED_BYTES) {
+                showTooDense(rawBytes);
+                return;
+            }
             await runValidation(arrayBuffer);
         } catch (err) {
             console.error("File reading error:", err);
@@ -384,6 +696,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (arrayBuffer.byteLength > MAX_FILE_SIZE_BYTES) {
                 showTooLarge(arrayBuffer.byteLength);
+                return;
+            }
+            const rawBytes = sumUncompressedBytes(arrayBuffer);
+            if (rawBytes !== null && rawBytes > MAX_UNCOMPRESSED_BYTES) {
+                showTooDense(rawBytes);
                 return;
             }
 
@@ -433,15 +750,32 @@ Download the .zip and drop it here instead; validation still runs locally in you
     function showTooLarge(sizeBytes) {
         const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
         showValidationError(
-            `This feed is ${sizeMb} MB. In-browser validation is capped at 70 MB. ` +
+            `This feed is ${sizeMb} MB. In-browser validation is capped at 150 MB (zipped). ` +
             `For larger feeds use the free desktop app or CLI (see the Download section) — they handle any size.`
+        );
+    }
+
+    function showTooDense(rawBytes) {
+        const rawMb = Number.isFinite(rawBytes) ? Math.round(rawBytes / (1024 * 1024)) + ' MB' : 'over 4 GB';
+        showValidationError(
+            `This feed unpacks to ${rawMb} of data — more than a browser tab can hold in memory ` +
+            `(limit: ${MAX_UNCOMPRESSED_BYTES / (1024 * 1024)} MB uncompressed). ` +
+            `Use the free desktop app or CLI (see the Download section) — they handle any size.`
         );
     }
 
     async function runValidation(arrayBuffer) {
         const dateStr = new Date().toISOString().split('T')[0];
+        // Build the stop_id -> coordinates index before the buffer is
+        // transferred to the worker (transfer detaches it on this thread).
+        stopsIndex = null;
         try {
-            const result = await validateInWorker(arrayBuffer, dateStr);
+            stopsIndex = await buildStopsIndex(arrayBuffer);
+        } catch (e) {
+            console.warn('Stops index unavailable (map disabled):', e);
+        }
+        try {
+            const result = await validateFeed(arrayBuffer, dateStr);
             lastValidationResult = result;
             showResults(result);
         } catch (err) {
@@ -518,6 +852,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
                 </div>
             `;
         } else {
+            html += renderTruncationNote(result, notices.length);
             // Render each group
             if (groups.error.length > 0) {
                 html += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
@@ -556,13 +891,117 @@ Download the .zip and drop it here instead; validation still runs locally in you
             });
         });
 
+        // Map pins: open the stop location map
+        reportModalBody.querySelectorAll('.map-pin-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openStopMap(btn.getAttribute('data-stop-id'), btn.getAttribute('data-code'));
+            });
+        });
+
         // Initialize lucide icons in modal
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
     }
 
-    function renderNoticeGroup(title, severity, notices, totalCount) {
+    /* --- Stop location map (Leaflet, lazy-loaded) --- */
+    let leafletLoading = null;
+    let stopMap = null;
+    let stopMapMarkers = null;
+
+    function ensureLeaflet() {
+        if (window.L) return Promise.resolve();
+        if (leafletLoading) return leafletLoading;
+        leafletLoading = new Promise((resolve, reject) => {
+            const css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(css);
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.onload = resolve;
+            script.onerror = () => { leafletLoading = null; reject(new Error('Failed to load the map library')); };
+            document.head.appendChild(script);
+        });
+        return leafletLoading;
+    }
+
+    async function openStopMap(stopId, code) {
+        const info = stopsIndex && stopsIndex.get(stopId);
+        if (!info) return;
+        try {
+            await ensureLeaflet();
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+
+        const mapModal = document.getElementById('map-modal');
+        const mapTitle = document.getElementById('map-modal-title');
+        if (!mapModal) return;
+
+        if (mapTitle) {
+            mapTitle.textContent = info.name ? `${info.name} (${stopId})` : stopId;
+        }
+        mapModal.classList.remove('hidden');
+
+        if (!stopMap) {
+            stopMap = L.map('stop-map');
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(stopMap);
+            stopMapMarkers = L.layerGroup().addTo(stopMap);
+        }
+
+        stopMapMarkers.clearLayers();
+        const marker = L.marker([info.lat, info.lon]).addTo(stopMapMarkers);
+        const popupHtml =
+            `<b>${escapeHtml(info.name || stopId)}</b><br>` +
+            `<code>${escapeHtml(stopId)}</code>` +
+            (code ? `<br><code>${escapeHtml(code)}</code>` : '');
+        marker.bindPopup(popupHtml);
+
+        stopMap.setView([info.lat, info.lon], 16);
+        // The map container was hidden when Leaflet measured it.
+        setTimeout(() => {
+            stopMap.invalidateSize();
+            stopMap.setView([info.lat, info.lon], 16);
+            marker.openPopup();
+        }, 50);
+    }
+
+    function closeStopMap() {
+        const mapModal = document.getElementById('map-modal');
+        if (mapModal) mapModal.classList.add('hidden');
+    }
+
+    const closeMapBtn = document.getElementById('close-map-btn');
+    if (closeMapBtn) closeMapBtn.addEventListener('click', closeStopMap);
+    const mapModalEl = document.getElementById('map-modal');
+    if (mapModalEl) {
+        mapModalEl.addEventListener('click', (e) => {
+            if (e.target === mapModalEl) closeStopMap();
+        });
+    }
+
+    // Very large reports are capped in the validator: it stores the first
+    // 10,000 notices per issue type and keeps exact counters for the rest,
+    // so the tab doesn't run out of memory. Tell the user when that happened.
+    function renderTruncationNote(result, shownCount) {
+        const totalCount = (result.error_count || 0) + (result.warning_count || 0) + (result.info_count || 0);
+        const isTruncated = result.truncated === true || shownCount < totalCount;
+        if (!isTruncated) return '';
+        return `
+            <div style="margin-bottom: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--border, #d0d7de); border-radius: 8px; font-size: 0.9rem; opacity: 0.9;">
+                Showing the first ${shownCount.toLocaleString()} of ${totalCount.toLocaleString()} notices.
+                Long issue lists are capped per issue type to keep the browser responsive — the summary counts are exact.
+            </div>
+        `;
+    }
+
+    function renderNoticeGroup(title, severity, notices, totalOverride) {
         // First, group notices by CODE
         const noticesByCode = {};
         notices.forEach(notice => {
@@ -580,8 +1019,8 @@ Download the .zip and drop it here instead; validation still runs locally in you
 
         sortedCodes.forEach(code => {
             const codeNotices = noticesByCode[code];
+            const count = codeNotices.length;
             const sample = codeNotices[0];
-            const count = sample.totalNotices || codeNotices.length;
 
             // Prepare flattened data for display
             // We'll process only the first 50 displayed
@@ -621,6 +1060,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
             const thHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
 
             // Generate table rows
+            const stopKeyRe = /^(stopId\d*|childStopId|parentStopId|parentStation|locationId)$/;
             const rowsHtml = displayNotices.map(notice => {
                 const tdHtml = headers.map(h => {
                     let val = notice[h];
@@ -632,6 +1072,10 @@ Download the .zip and drop it here instead; validation still runs locally in you
                         valStr = JSON.stringify(val);
                     } else {
                         valStr = String(val);
+                    }
+                    // Stop references become clickable pins that open the map.
+                    if (stopsIndex && stopKeyRe.test(h) && stopsIndex.has(valStr)) {
+                        return `<td><code>${escapeHtml(valStr)}</code><button class="map-pin-btn" data-stop-id="${escapeAttr(valStr)}" data-code="${escapeAttr(code)}" title="Show on map"><i data-lucide="map-pin"></i></button></td>`;
                     }
                     return `<td><code>${escapeHtml(valStr)}</code></td>`;
                 }).join('');
@@ -680,7 +1124,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
         return `
             <div style="margin-bottom: 2rem;">
                 <h3 style="margin-bottom: 1rem; color: var(--${severity}); display: flex; align-items: center; gap: 0.5rem;">
-                    ${title} <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.6rem; border-radius: 20px; font-size: 0.8rem;">${totalCount}</span>
+                    ${title} <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.6rem; border-radius: 20px; font-size: 0.8rem;">${typeof totalOverride === 'number' ? totalOverride : notices.length}</span>
                 </h3>
                 ${sectionsHtml}
             </div>
@@ -692,6 +1136,14 @@ Download the .zip and drop it here instead; validation still runs locally in you
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function escapeAttr(text) {
+        return String(text ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
 
     function closeReportModal() {
@@ -753,10 +1205,15 @@ Download the .zip and drop it here instead; validation still runs locally in you
 
         let reportContent = '';
 
+        // Prefer the validator's exact counters: the notice list itself may be
+        // capped per issue type for very large reports.
         let headerTotals = [];
-        if (groups.error.length > 0) headerTotals.push(`${groups.error.length} Errors`);
-        if (groups.warning.length > 0) headerTotals.push(`${groups.warning.length} Warnings`);
-        if (groups.info.length > 0) headerTotals.push(`${groups.info.length} Info`);
+        const errorTotal = typeof result.error_count === 'number' ? result.error_count : groups.error.length;
+        const warningTotal = typeof result.warning_count === 'number' ? result.warning_count : groups.warning.length;
+        const infoTotal = typeof result.info_count === 'number' ? result.info_count : groups.info.length;
+        if (errorTotal > 0) headerTotals.push(`${errorTotal} Errors`);
+        if (warningTotal > 0) headerTotals.push(`${warningTotal} Warnings`);
+        if (infoTotal > 0) headerTotals.push(`${infoTotal} Info`);
 
         const summaryText = headerTotals.join(', ') || 'No issues found';
 
@@ -769,6 +1226,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
                 </div>
             `;
         } else {
+            reportContent += renderTruncationNote(result, notices.length);
             if (groups.error.length > 0) {
                 reportContent += renderNoticeGroup('Errors', 'error', groups.error, result.error_count);
             }
@@ -839,3 +1297,4 @@ Download the .zip and drop it here instead; validation still runs locally in you
         win.document.close();
     }
 });
+

@@ -2,19 +2,21 @@ use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use gtfs_guru_core::{
-    default_runner, set_thorough_mode_enabled, set_validation_country_code, set_validation_date,
-    validate_bytes_reader_with_timing, GtfsBytesReader, NoticeContainer, NoticeSeverity,
-    TimingCollector,
+    default_runner, set_notice_group_limit, set_thorough_mode_enabled, set_validation_country_code,
+    set_validation_date, validate_bytes_reader_with_timing, GtfsBytesReader, TimingCollector,
 };
 use gtfs_guru_report::{
     generate_html_report_string, HtmlReportContext, ReportSummary, ReportSummaryContext,
 };
 
-#[cfg(feature = "threads")]
-pub use wasm_bindgen_rayon::init_thread_pool;
-
 #[cfg(feature = "console_error_panic_hook")]
 pub use console_error_panic_hook::set_once as set_panic_hook;
+
+// Multithreaded build only: exposes `initThreadPool(numThreads)` to JS. The
+// worker must await it once (after `init()`) before calling `validate_gtfs`,
+// otherwise the first rayon parallel iterator has no pool and panics.
+#[cfg(feature = "threads")]
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 /// Initialize the WASM module (call once on page load)
 #[wasm_bindgen]
@@ -38,6 +40,7 @@ pub struct ValidationResult {
     error_count: u32,
     warning_count: u32,
     info_count: u32,
+    truncated: bool,
 }
 
 #[wasm_bindgen]
@@ -98,18 +101,77 @@ impl ValidationResult {
     pub fn is_valid(&self) -> bool {
         self.error_count == 0
     }
+
+    /// True when the notice list in `json` was capped per issue type to keep
+    /// memory bounded. Counts (`error_count` etc.) are always exact.
+    #[wasm_bindgen(getter)]
+    pub fn truncated(&self) -> bool {
+        self.truncated
+    }
 }
 
-/// Maximum ZIP size accepted for in-browser (wasm32) validation.
-///
-/// Compressed size alone is not a reliable memory predictor, so validation also
-/// checks the total declared uncompressed size below.
-const MAX_FILE_SIZE_BYTES: usize = 70 * 1024 * 1024;
+/// Coarse upper bound on the ZIP itself (sanity check before we even look
+/// inside). The real gate is `MAX_UNCOMPRESSED_BYTES` below.
+const MAX_FILE_SIZE_BYTES: usize = 150 * 1024 * 1024;
 
-/// Maximum total size of root-level files declared in the ZIP central
-/// directory. This remains a defense-in-depth check because compressed size
-/// alone does not reliably predict the memory needed while parsing.
-const MAX_UNCOMPRESSED_SIZE_BYTES: u64 = 512 * 1024 * 1024;
+/// Maximum uncompressed feed size accepted for in-browser (wasm32) validation.
+///
+/// The ceiling is the wasm32 linear-memory limit (~4 GB), and measured peak
+/// memory is ~4-5x the UNCOMPRESSED size — the ZIP size is a bad proxy in
+/// both directions (measured on real feeds: Hallandstrafiken 129 MB zip /
+/// 576 MB raw peaks at 2.3 GB and fits, while Île-de-France 107 MB zip /
+/// 1.06 GB raw needs ~5 GB and aborts). 700 MB raw keeps peak under ~3.5 GB.
+/// Entry sizes come from the ZIP central directory (no decompression), so
+/// this also rejects zip bombs cheaply. Beyond the limit we bail out with a
+/// clear message pointing at the desktop app / CLI rather than risk an OOM
+/// that takes down the worker.
+const MAX_UNCOMPRESSED_BYTES: u64 = 700 * 1024 * 1024;
+
+/// Returns a user-facing error when the feed is too big for in-browser
+/// validation, `None` when it is fine. An unreadable archive returns `None`:
+/// `validate_bytes` will produce the proper "not a valid ZIP" notice.
+fn feed_size_error(zip_bytes: &[u8]) -> Option<String> {
+    if zip_bytes.len() > MAX_FILE_SIZE_BYTES {
+        let size_mb = zip_bytes.len() as f64 / (1024.0 * 1024.0);
+        return Some(format!(
+            "File too large ({:.1} MB). Maximum size for browser validation is {} MB. \
+             Please download the desktop application or CLI for larger feeds.",
+            size_mb,
+            MAX_FILE_SIZE_BYTES / (1024 * 1024),
+        ));
+    }
+
+    let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes)) else {
+        return None;
+    };
+    let mut uncompressed: u64 = 0;
+    for index in 0..archive.len() {
+        if let Ok(entry) = archive.by_index_raw(index) {
+            uncompressed = uncompressed.saturating_add(entry.size());
+        }
+    }
+    if uncompressed > MAX_UNCOMPRESSED_BYTES {
+        let raw_mb = uncompressed as f64 / (1024.0 * 1024.0);
+        return Some(format!(
+            "This feed unpacks to {:.0} MB of data — too large for in-browser validation \
+             (limit: {} MB uncompressed, roughly the memory a browser tab can hold). \
+             Please download the desktop application or CLI for feeds of any size.",
+            raw_mb,
+            MAX_UNCOMPRESSED_BYTES / (1024 * 1024),
+        ));
+    }
+    None
+}
+
+/// Maximum notices stored per (code, severity) group in the browser.
+///
+/// Feeds with pervasive issues can emit millions of notices for the same
+/// rule; each one holds several heap strings plus a context map, so an
+/// unbounded list — and the flat JSON string built from it — is what
+/// actually OOMs the wasm32 heap, not the feed size. Storing the first 10k
+/// per issue type keeps memory bounded while the report still shows exact
+/// totals (counters keep counting dropped notices).
+const MAX_NOTICES_PER_CODE_AND_SEVERITY: usize = 10_000;
 
 /// Validate a GTFS ZIP file from bytes
 ///
@@ -122,38 +184,22 @@ const MAX_UNCOMPRESSED_SIZE_BYTES: u64 = 512 * 1024 * 1024;
 /// A ValidationResult containing the JSON report and summary counts
 ///
 /// # Errors
-/// Throws a JavaScript error if the ZIP exceeds 70 MB compressed or 512 MB
-/// uncompressed
+/// Throws a JavaScript error if the feed exceeds the browser size limits
+/// (150 MB zipped / 700 MB uncompressed)
 #[wasm_bindgen]
 pub fn validate_gtfs(
     zip_bytes: &[u8],
     country_code: Option<String>,
     date: Option<String>,
 ) -> Result<ValidationResult, JsValue> {
-    // Check file size limit
-    if zip_bytes.len() > MAX_FILE_SIZE_BYTES {
-        let size_mb = zip_bytes.len() as f64 / (1024.0 * 1024.0);
-        return Err(JsValue::from_str(&format!(
-            "File too large ({:.1} MB). Maximum size for browser validation is 70 MB. \
-             Please download the desktop application or CLI for larger feeds.",
-            size_mb
-        )));
+    if let Some(message) = feed_size_error(zip_bytes) {
+        return Err(JsValue::from_str(&message));
     }
 
-    // Keep this reader for validation after inspecting the central directory,
-    // avoiding a second copy of the input in the WASM heap.
+    // Reuse this reader for validation instead of copying the input a second
+    // time into the WASM heap. `feed_size_error` above already rejected feeds
+    // whose central directory declares more than MAX_UNCOMPRESSED_BYTES.
     let reader = GtfsBytesReader::from_slice(zip_bytes);
-    if let Ok(files) = reader.get_files_with_sizes() {
-        let uncompressed_bytes = files.values().copied().fold(0u64, u64::saturating_add);
-        if uncompressed_bytes > MAX_UNCOMPRESSED_SIZE_BYTES {
-            let size_mb = uncompressed_bytes as f64 / (1024.0 * 1024.0);
-            return Err(JsValue::from_str(&format!(
-                "Feed expands to {:.1} MB. Maximum uncompressed size for browser validation is 512 MB. \
-                 Please download the desktop application or CLI for larger feeds.",
-                size_mb
-            )));
-        }
-    }
 
     // Set validation context
     // We clone these for the report context later
@@ -164,6 +210,7 @@ pub fn validate_gtfs(
     let naive_date = date.and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
     let _date_guard = set_validation_date(naive_date);
     let _thorough_guard = set_thorough_mode_enabled(false); // Default to standard mode
+    let _notice_limit_guard = set_notice_group_limit(Some(MAX_NOTICES_PER_CODE_AND_SEVERITY));
 
     // Create runner with all validators
     let runner = default_runner();
@@ -173,8 +220,10 @@ pub fn validate_gtfs(
     let outcome = validate_bytes_reader_with_timing(&reader, &runner, &timing);
     let timings_json = timing.summary().to_json().to_string();
 
-    // Count notices by severity
-    let (error_count, warning_count, info_count) = count_notices(&outcome.notices);
+    // Exact severity totals (they include notices dropped by the group cap)
+    let (errors, warnings, infos) = outcome.notices.severity_counts();
+    let (error_count, warning_count, info_count) = (errors as u32, warnings as u32, infos as u32);
+    let truncated = outcome.notices.is_truncated();
 
     // Encode notices to JSON
     let notices_vec: Vec<_> = outcome
@@ -182,7 +231,7 @@ pub fn validate_gtfs(
         .iter()
         .map(|notice| WasmNotice {
             notice,
-            total_notices: outcome.notices.count_for(&notice.code, notice.severity),
+            total_notices: outcome.notices.group_total(&notice.code, notice.severity),
         })
         .collect();
     let json = serde_json::to_string(&notices_vec).unwrap_or_else(|_| "[]".to_string());
@@ -212,6 +261,7 @@ pub fn validate_gtfs(
         error_count,
         warning_count,
         info_count,
+        truncated,
     })
 }
 
@@ -224,15 +274,6 @@ pub fn validate_gtfs_json(
 ) -> Result<String, JsValue> {
     let mut result = validate_gtfs(zip_bytes, country_code, date)?;
     Ok(result.take_json())
-}
-
-fn count_notices(notices: &NoticeContainer) -> (u32, u32, u32) {
-    let count = |severity| u32::try_from(notices.count_by_severity(severity)).unwrap_or(u32::MAX);
-    (
-        count(NoticeSeverity::Error),
-        count(NoticeSeverity::Warning),
-        count(NoticeSeverity::Info),
-    )
 }
 
 #[derive(Serialize)]
@@ -251,5 +292,37 @@ mod tests {
     fn test_version() {
         let v = version();
         assert!(!v.is_empty());
+    }
+
+    fn zip_with_stored_entry(name: &str, payload: &[u8]) -> Vec<u8> {
+        use std::io::Write;
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let options =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        writer.start_file(name, options).unwrap();
+        writer.write_all(payload).unwrap();
+        writer.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn small_feed_passes_size_gate() {
+        let bytes = zip_with_stored_entry("stops.txt", b"stop_id,stop_name\n1,A\n");
+        assert_eq!(feed_size_error(&bytes), None);
+    }
+
+    #[test]
+    fn dense_feed_rejected_by_uncompressed_size() {
+        // Highly compressible payload: tiny zip, huge uncompressed size —
+        // exactly the IDFM-style case the old zip-size cap missed.
+        let payload = vec![b'a'; (MAX_UNCOMPRESSED_BYTES + 1) as usize];
+        let bytes = zip_with_stored_entry("stop_times.txt", &payload);
+        assert!(bytes.len() < MAX_FILE_SIZE_BYTES);
+        let message = feed_size_error(&bytes).expect("must be rejected");
+        assert!(message.contains("unpacks to"), "got: {message}");
+    }
+
+    #[test]
+    fn non_zip_bytes_pass_gate_for_downstream_error() {
+        assert_eq!(feed_size_error(b"not a zip at all"), None);
     }
 }

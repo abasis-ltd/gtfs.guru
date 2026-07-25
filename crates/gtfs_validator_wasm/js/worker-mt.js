@@ -1,32 +1,35 @@
 /**
- * GTFS Validator Web Worker
+ * GTFS Validator Web Worker — multithreaded (wasm threads) variant.
  *
- * This worker runs the WASM validator in a separate thread to avoid blocking the main UI.
+ * Same message protocol as worker.js, but after init() it spins up a
+ * wasm-bindgen-rayon thread pool (backed by nested Web Workers). The rayon
+ * pool parallelizes CSV parsing (stop_times) and the validator run.
  *
- * Usage:
- *   const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
- *   worker.postMessage({ type: 'validate', payload: { zipBytes, countryCode }, id: 1 });
- *   worker.onmessage = (e) => console.log(e.data);
+ * Requires a cross-origin-isolated page (COOP: same-origin + COEP:
+ * require-corp) so SharedArrayBuffer is available. The site only loads this
+ * worker when crossOriginIsolated is true; otherwise it uses ../pkg/worker.js.
  */
 
-import init, { validate_gtfs, version } from './gtfs_guru_wasm.js';
+import init, { validate_gtfs, version, initThreadPool } from './gtfs_guru_wasm.js';
 
 let initialized = false;
 
-/**
- * Initialize the WASM module
- * @returns {Promise<void>}
- */
+// Cap the pool: beyond ~8 workers the marginal gain fades while per-thread
+// stack memory keeps growing, which matters for large feeds in wasm32.
+const MAX_THREADS = 8;
+
 async function ensureInitialized() {
-  if (!initialized) {
-    await init();
-    initialized = true;
-  }
+  if (initialized) return;
+  await init();
+  const threads = Math.max(
+    1,
+    Math.min(MAX_THREADS, self.navigator?.hardwareConcurrency || 4),
+  );
+  // Must run before any rayon parallel iterator, or the first one panics.
+  await initThreadPool(threads);
+  initialized = true;
 }
 
-/**
- * Handle incoming messages from the main thread
- */
 self.onmessage = async (event) => {
   const { type, payload, id } = event.data;
 
@@ -64,11 +67,7 @@ self.onmessage = async (event) => {
       }
 
       case 'version': {
-        self.postMessage({
-          id,
-          type: 'version',
-          payload: version(),
-        });
+        self.postMessage({ id, type: 'version', payload: version() });
         break;
       }
 
@@ -88,5 +87,6 @@ self.onmessage = async (event) => {
   }
 };
 
-// Signal that the worker is ready
+// Signal that the worker is ready (module loaded). Note: the thread pool is
+// initialized lazily on the first 'validate' message, not here.
 self.postMessage({ type: 'ready' });

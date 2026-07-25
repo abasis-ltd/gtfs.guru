@@ -427,6 +427,7 @@ impl GtfsFeed {
                     p.on_start_file_load(filename);
                 }
 
+                // Native-only timing; `Instant::now()` panics on wasm32.
                 #[cfg(not(target_arch = "wasm32"))]
                 let start = std::time::Instant::now();
                 let mut local_notices = NoticeContainer::new();
@@ -453,7 +454,7 @@ impl GtfsFeed {
                     )
                 };
 
-                // Output per-file timing if GTFS_PERF_DEBUG is set
+                // Output per-file timing if GTFS_PERF_DEBUG is set (native only).
                 #[cfg(not(target_arch = "wasm32"))]
                 if std::env::var("GTFS_PERF_DEBUG").is_ok() && crate::performance_logs_enabled() {
                     let elapsed = start.elapsed();

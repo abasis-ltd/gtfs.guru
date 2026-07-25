@@ -2123,9 +2123,10 @@ const IANA_TIMEZONES: &[&str] = &[
     "Etc/Zulu",
 ];
 
-/// tzdb backward-compatibility link names accepted by Java's `ZoneId`, and
-/// therefore by the canonical validator. Keep these embedded so validation is
-/// deterministic even on systems without a complete zoneinfo installation.
+/// tzdb backward-compatibility link names (e.g. Europe/Nicosia, US/Eastern)
+/// accepted by Java's `ZoneId`, and therefore by the canonical validator. Keep
+/// these embedded so validation is deterministic even on systems without a
+/// complete zoneinfo installation.
 const IANA_TIMEZONE_LINKS: &[&str] = &[
     "Africa/Asmera",
     "Africa/Timbuktu",
@@ -2330,36 +2331,6 @@ fn valid_timezones() -> &'static HashSet<String> {
     })
 }
 
-#[cfg(test)]
-mod tests_timezones {
-    use super::*;
-
-    #[test]
-    fn accepts_tzdb_link_names() {
-        for zone in [
-            "Europe/Nicosia",
-            "US/Eastern",
-            "Europe/Kiev",
-            "Asia/Calcutta",
-            "America/Buenos_Aires",
-        ] {
-            assert!(is_valid_timezone(zone), "{zone} should be valid");
-        }
-    }
-
-    #[test]
-    fn accepts_canonical_names() {
-        assert!(is_valid_timezone("Asia/Nicosia"));
-        assert!(is_valid_timezone("Europe/Berlin"));
-    }
-
-    #[test]
-    fn rejects_unknown_names() {
-        assert!(!is_valid_timezone("Europe/Atlantis"));
-        assert!(!is_valid_timezone(""));
-    }
-}
-
 fn is_valid_currency_code(value: &str) -> bool {
     currency_codes().contains(value)
 }
@@ -2428,6 +2399,36 @@ fn missing_required_field_notice(
     notice.field = Some(field_name.to_string());
     notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
     notice
+}
+
+#[cfg(test)]
+mod tests_timezones {
+    use super::*;
+
+    #[test]
+    fn accepts_tzdb_link_names() {
+        for zone in [
+            "Europe/Nicosia",
+            "US/Eastern",
+            "Europe/Kiev",
+            "Asia/Calcutta",
+            "America/Buenos_Aires",
+        ] {
+            assert!(is_valid_timezone(zone), "{zone} should be valid");
+        }
+    }
+
+    #[test]
+    fn accepts_canonical_names() {
+        assert!(is_valid_timezone("Asia/Nicosia"));
+        assert!(is_valid_timezone("Europe/Berlin"));
+    }
+
+    #[test]
+    fn rejects_unknown_names() {
+        assert!(!is_valid_timezone("Europe/Atlantis"));
+        assert!(!is_valid_timezone(""));
+    }
 }
 
 #[cfg(test)]

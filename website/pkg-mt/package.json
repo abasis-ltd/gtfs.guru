@@ -2,7 +2,7 @@
   "name": "gtfs-guru-wasm",
   "type": "module",
   "description": "GTFS validator compiled to WebAssembly for browser-based validation",
-  "version": "1.0.0",
+  "version": "0.9.4",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

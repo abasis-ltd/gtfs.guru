@@ -16,6 +16,16 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["console_error_panic_hook"]
+# Multithreaded build: turns on rayon in the core (parallel CSV parse + parallel
+# validator run) and pulls in wasm-bindgen-rayon, which sets up a Web Worker
+# backed rayon thread pool. Requires a nightly + build-std build with
+# +atomics,+bulk-memory,+mutable-globals and a cross-origin-isolated page.
+# See scripts/build-wasm.sh (pkg-mt output).
+# dep:parking_lot_core turns on its "nightly" feature so parking_lot's thread
+# parker uses real wasm atomics: without it, DashMap contention parks via a
+# fallback that panics on wasm32 (traps a rayon worker and hangs the join).
+# no-bundler makes wasm-bindgen-rayon emit a concrete module import, so the
+# glue works when the site is served as plain static files.
 threads = [
     "dep:wasm-bindgen-rayon",
     "dep:parking_lot_core",
@@ -25,6 +35,7 @@ threads = [
 
 [dependencies]
 wasm-bindgen = "0.2"
+zip = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 js-sys = "0.3"

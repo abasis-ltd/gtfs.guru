@@ -4,6 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "gtfs-guru"
+# Version comes from Cargo.toml (maturin dynamic) so it can't drift again —
+# the 0.9.4 release published stale 0.9.3 wheels because this file was missed.
 dynamic = ["version"]
 description = "Fast GTFS validator written in Rust"
 readme = "README.md"

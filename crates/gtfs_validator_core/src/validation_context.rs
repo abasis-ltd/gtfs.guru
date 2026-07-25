@@ -10,6 +10,7 @@ thread_local! {
     static VALIDATION_COUNTRY_CODE: RefCell<Option<String>> = const { RefCell::new(None) };
     static GOOGLE_RULES_ENABLED: Cell<bool> = const { Cell::new(false) };
     static THOROUGH_MODE: Cell<bool> = const { Cell::new(false) };
+    static NOTICE_GROUP_LIMIT: Cell<Option<usize>> = const { Cell::new(None) };
 }
 
 static PERFORMANCE_LOGS_ENABLED: AtomicBool = AtomicBool::new(true);
@@ -128,12 +129,39 @@ pub fn thorough_mode_enabled() -> bool {
     THOROUGH_MODE.with(|cell| cell.get())
 }
 
+pub struct NoticeGroupLimitGuard {
+    previous: Option<usize>,
+}
+
+impl Drop for NoticeGroupLimitGuard {
+    fn drop(&mut self) {
+        NOTICE_GROUP_LIMIT.with(|cell| cell.set(self.previous));
+    }
+}
+
+/// Caps how many notices a `NoticeContainer` stores per (code, severity)
+/// group. Exact totals are still tracked for every group; only the stored
+/// samples are bounded. `None` (the default) stores everything.
+pub fn set_notice_group_limit(limit: Option<usize>) -> NoticeGroupLimitGuard {
+    let previous = NOTICE_GROUP_LIMIT.with(|cell| {
+        let previous = cell.get();
+        cell.set(limit);
+        previous
+    });
+    NoticeGroupLimitGuard { previous }
+}
+
+pub fn notice_group_limit() -> Option<usize> {
+    NOTICE_GROUP_LIMIT.with(|cell| cell.get())
+}
+
 #[derive(Clone, Debug)]
 pub struct ValidationContextState {
     pub date: NaiveDate,
     pub country_code: Option<String>,
     pub google_rules: bool,
     pub thorough_mode: bool,
+    pub notice_group_limit: Option<usize>,
 }
 
 // Ensure it is Send + Sync (NaiveDate is Copy/Send/Sync, String is Send/Sync)
@@ -147,6 +175,7 @@ impl ValidationContextState {
             country_code: validation_country_code(),
             google_rules: google_rules_enabled(),
             thorough_mode: thorough_mode_enabled(),
+            notice_group_limit: notice_group_limit(),
         }
     }
 
@@ -157,12 +186,14 @@ impl ValidationContextState {
         ValidationCountryCodeGuard,
         ValidationGoogleRulesGuard,
         ThoroughModeGuard,
+        NoticeGroupLimitGuard,
     ) {
         (
             set_validation_date(Some(self.date)),
             set_validation_country_code(self.country_code.clone()),
             set_google_rules_enabled(self.google_rules),
             set_thorough_mode_enabled(self.thorough_mode),
+            set_notice_group_limit(self.notice_group_limit),
         )
     }
 }

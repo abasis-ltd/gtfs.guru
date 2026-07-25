@@ -50,6 +50,7 @@ def normalize_report(
     data,
     ignore_summary: bool,
     ignore_summary_fields,
+    ignore_feed_info_fields,
     ignore_notice_order: bool,
     sort_summary_arrays: bool,
     float_precision: int | None,
@@ -68,6 +69,15 @@ def normalize_report(
                 summary.pop(field, None)
             data = dict(data)
             data["summary"] = summary
+        if ignore_feed_info_fields and isinstance(data.get("summary"), dict):
+            summary = dict(data["summary"])
+            if isinstance(summary.get("feedInfo"), dict):
+                feed_info = dict(summary["feedInfo"])
+                for field in ignore_feed_info_fields:
+                    feed_info.pop(field, None)
+                summary["feedInfo"] = feed_info
+                data = dict(data)
+                data["summary"] = summary
         if sort_summary_arrays and isinstance(data.get("summary"), dict):
             summary = dict(data["summary"])
             for key in ("files", "gtfsFeatures"):
@@ -101,6 +111,7 @@ def compare_json(
     right_path: Path,
     ignore_summary: bool,
     ignore_summary_fields,
+    ignore_feed_info_fields,
     ignore_notice_order: bool,
     sort_summary_arrays: bool,
     float_precision: int | None,
@@ -117,6 +128,7 @@ def compare_json(
         load_json(left_path),
         ignore_summary=ignore_summary,
         ignore_summary_fields=ignore_summary_fields,
+        ignore_feed_info_fields=ignore_feed_info_fields,
         ignore_notice_order=ignore_notice_order,
         sort_summary_arrays=sort_summary_arrays,
         float_precision=float_precision,
@@ -125,6 +137,7 @@ def compare_json(
         load_json(right_path),
         ignore_summary=ignore_summary,
         ignore_summary_fields=ignore_summary_fields,
+        ignore_feed_info_fields=ignore_feed_info_fields,
         ignore_notice_order=ignore_notice_order,
         sort_summary_arrays=sort_summary_arrays,
         float_precision=float_precision,
@@ -172,7 +185,10 @@ def main() -> int:
     parser.add_argument(
         "--strip-runtime-fields",
         action="store_true",
-        help="Ignore validatedAt, validationTimeSeconds, memoryUsageRecords, outputDirectory.",
+        help=(
+            "Ignore validatedAt, validationTimeSeconds, memoryUsageRecords, "
+            "outputDirectory, and gtfs.guru report extensions (feedInfo.feedVersion)."
+        ),
     )
     parser.add_argument(
         "--ignore-input",
@@ -213,6 +229,7 @@ def main() -> int:
     checks.extend((name, name) for name in args.extra_json)
 
     ignore_summary_fields = list(args.ignore_summary_field)
+    ignore_feed_info_fields = []
     if args.strip_runtime_fields:
         ignore_summary_fields.extend(
             [
@@ -222,6 +239,8 @@ def main() -> int:
                 "outputDirectory",
             ]
         )
+        # gtfs.guru extends the canonical schema; drop extensions for parity checks.
+        ignore_feed_info_fields.append("feedVersion")
     if args.ignore_input:
         ignore_summary_fields.append("gtfsInput")
     if args.ignore_validator_version:
@@ -237,6 +256,7 @@ def main() -> int:
             right_path,
             ignore_summary=args.ignore_summary,
             ignore_summary_fields=ignore_summary_fields,
+            ignore_feed_info_fields=ignore_feed_info_fields,
             ignore_notice_order=args.ignore_notice_order,
             sort_summary_arrays=args.sort_summary_arrays,
             float_precision=args.float_precision,

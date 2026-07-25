@@ -375,8 +375,8 @@ fn should_fail(fail_on: FailOn, errors: usize, warnings: usize) -> bool {
 }
 
 fn exit_if_threshold_reached(fail_on: FailOn, notices: &NoticeContainer) {
-    let errors = notices.count_by_severity(NoticeSeverity::Error);
-    let warnings = notices.count_by_severity(NoticeSeverity::Warning);
+    // Exact totals, including notices dropped by the per-group storage cap.
+    let (errors, warnings, _infos) = notices.severity_counts();
     if !should_fail(fail_on, errors, warnings) {
         return;
     }

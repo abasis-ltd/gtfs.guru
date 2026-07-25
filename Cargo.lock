@@ -1763,6 +1763,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-rayon",
  "wasm-bindgen-test",
+ "zip 0.6.6",
 ]
 
 [[package]]

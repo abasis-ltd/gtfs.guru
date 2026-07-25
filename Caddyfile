@@ -23,6 +23,9 @@ gtfs.guru {
         # XSS protection
         X-Content-Type-Options "nosniff"
         X-XSS-Protection "1; mode=block"
+        # Cross-origin isolation — required for SharedArrayBuffer (multithreaded WASM)
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Embedder-Policy "require-corp"
         # Remove server header
         -Server
     }

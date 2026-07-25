@@ -72,6 +72,7 @@ impl ValidatorRunner {
         let captured_country = crate::validation_country_code();
         let captured_google_rules = crate::google_rules_enabled();
         let captured_thorough = crate::thorough_mode_enabled();
+        let captured_notice_limit = crate::notice_group_limit();
 
         if let Some(p) = progress {
             p.set_total_validators(self.validators.len());
@@ -84,6 +85,7 @@ impl ValidatorRunner {
             captured_country,
             captured_google_rules,
             captured_thorough,
+            captured_notice_limit,
             progress,
             timing,
         );
@@ -95,6 +97,7 @@ impl ValidatorRunner {
             captured_country,
             captured_google_rules,
             captured_thorough,
+            captured_notice_limit,
             progress,
             timing,
         );
@@ -110,6 +113,7 @@ impl ValidatorRunner {
         captured_country: Option<String>,
         captured_google_rules: bool,
         captured_thorough: bool,
+        captured_notice_limit: Option<usize>,
         progress: Option<&dyn ProgressHandler>,
         timing: Option<&crate::timing::TimingCollector>,
     ) -> NoticeContainer {
@@ -121,14 +125,20 @@ impl ValidatorRunner {
                 let _country_guard = crate::set_validation_country_code(captured_country.clone());
                 let _google_rules_guard = crate::set_google_rules_enabled(captured_google_rules);
                 let _thorough_guard = crate::set_thorough_mode_enabled(captured_thorough);
+                let _notice_limit_guard = crate::set_notice_group_limit(captured_notice_limit);
 
                 if let Some(p) = progress {
                     p.on_start_validation(validator.name());
                 }
 
+                // `web_time::Instant` is backed by `performance.now()` on wasm32,
+                // so this path keeps real timings in the browser under `parallel`.
                 let start = Instant::now();
                 let res = self.run_single_validator(validator.as_ref(), feed);
+                #[cfg(not(target_arch = "wasm32"))]
                 let elapsed = start.elapsed();
+                #[cfg(target_arch = "wasm32")]
+                let elapsed = std::time::Duration::from_secs(0);
 
                 if let Some(t) = timing {
                     t.record(
@@ -145,10 +155,15 @@ impl ValidatorRunner {
 
                 res
             })
-            .reduce(NoticeContainer::new, |mut a, b| {
-                a.merge(b);
-                a
-            })
+            .reduce(
+                // rayon may call the identity on worker threads where the
+                // thread-local limit isn't set, so pass it explicitly.
+                || NoticeContainer::with_group_limit(captured_notice_limit),
+                |mut a, b| {
+                    a.merge(b);
+                    a
+                },
+            )
     }
 
     #[cfg(not(feature = "parallel"))]
@@ -159,6 +174,7 @@ impl ValidatorRunner {
         captured_country: Option<String>,
         captured_google_rules: bool,
         captured_thorough: bool,
+        captured_notice_limit: Option<usize>,
         progress: Option<&dyn ProgressHandler>,
         timing: Option<&crate::timing::TimingCollector>,
     ) -> NoticeContainer {
@@ -167,6 +183,7 @@ impl ValidatorRunner {
         let _country_guard = crate::set_validation_country_code(captured_country);
         let _google_rules_guard = crate::set_google_rules_enabled(captured_google_rules);
         let _thorough_guard = crate::set_thorough_mode_enabled(captured_thorough);
+        let _notice_limit_guard = crate::set_notice_group_limit(captured_notice_limit);
 
         self.validators
             .iter()
@@ -193,10 +210,13 @@ impl ValidatorRunner {
                 }
                 res
             })
-            .fold(NoticeContainer::new(), |mut a, b| {
-                a.merge(b);
-                a
-            })
+            .fold(
+                NoticeContainer::with_group_limit(captured_notice_limit),
+                |mut a, b| {
+                    a.merge(b);
+                    a
+                },
+            )
     }
 
     fn run_single_validator(&self, validator: &dyn Validator, feed: &GtfsFeed) -> NoticeContainer {

@@ -104,7 +104,8 @@ a {
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 2rem;
+    /* 2rem each side costs 64px of a 375px screen; taper it on small viewports. */
+    padding: 0 clamp(1.25rem, 4vw, 2rem);
 }
 
 .highlight {
@@ -159,6 +160,33 @@ a {
 
 .nav-links a:hover {
     color: var(--text-primary);
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Hidden on desktop; the mobile block below turns it on. 44px = min touch target. */
+.nav-toggle {
+    display: none;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.nav-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.35);
 }
 
 /* Buttons */
@@ -275,9 +303,14 @@ a {
 }
 
 h1 {
-    font-size: 3.5rem;
+    /* Fluid: at 375px this resolves to 2rem, which keeps the longest line
+       ("Ensure your transit") inside the content box instead of being clipped
+       by body{overflow-x:hidden}. Desktop is unchanged at 3.5rem. */
+    font-size: clamp(2rem, 6vw, 3.5rem);
     line-height: 1.1;
     margin-bottom: 1rem;
+    overflow-wrap: break-word;
+    text-wrap: balance;
 }
 
 .hero-sub {
@@ -310,14 +343,6 @@ h1 {
     font-weight: 700;
     color: var(--text-primary);
     font-family: var(--font-heading);
-}
-
-.stat-prefix {
-    margin-right: 0.35rem;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
 }
 
 .stat-suffix {
@@ -847,9 +872,6 @@ pre {
     line-height: 1.5;
 }
 
-color: var(--warning);
-}
-
 .notice-message {
     margin-bottom: 0.5rem;
     font-size: 0.9rem;
@@ -876,39 +898,6 @@ footer {
     align-items: flex-end;
 }
 
-.footer-brand {
-    display: grid;
-    grid-template-columns: 2.25rem auto;
-    align-items: center;
-    column-gap: 0.65rem;
-    row-gap: 0.4rem;
-}
-
-.footer-logo {
-    display: block;
-    width: 2.25rem;
-    height: 2.25rem;
-}
-
-.footer-brand .logo-text {
-    font-size: 1.35rem;
-    line-height: 1;
-    letter-spacing: -0.02em;
-}
-
-.footer-brand p {
-    grid-column: 1 / -1;
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    line-height: 1.45;
-}
-
-.footer-brand p a {
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
 .footer-links {
     display: flex;
     gap: 2rem;
@@ -920,25 +909,34 @@ footer {
 
 .footer-copy {
     font-size: 0.9rem;
-    color: #475569;
+    /* was #475569 — only 2.66:1 on the near-black background (WCAG AA fail) */
+    color: var(--text-secondary);
 }
 
 /* Animations */
-.fade-up {
+/* Scroll reveal is scoped to .js, which is set synchronously in <head>. The
+   hidden state therefore never applies when JS is absent, blocked, or slow to
+   boot — previously .fade-up defaulted to opacity:0, so any hiccup before the
+   IntersectionObserver ran left whole sections blank (visible on deep links). */
+.js .fade-up {
     opacity: 0;
     transform: translateY(20px);
     transition: opacity 0.6s ease-out, transform 0.6s ease-out;
 }
 
-.fade-up.visible {
+.js .fade-up.visible {
     opacity: 1;
     transform: translateY(0);
 }
 
-/* Fallback: If JS fails (e.g. CORS on file://), ensure content is visible */
-.no-js .fade-up {
-    opacity: 1 !important;
-    transform: none !important;
+@media (prefers-reduced-motion: reduce) {
+
+    .js .fade-up,
+    .js .fade-up.visible {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
 }
 
 /* File Protocol Warning */
@@ -984,16 +982,11 @@ footer {
         justify-content: center;
     }
 
-    .nav-links {
-        display: none;
-    }
+    /* .nav-links: see the consolidated mobile nav block at the end of this file */
 
     .tech-grid {
         grid-template-columns: 1fr;
     }
-}
-
-font-weight: bold;
 }
 
 .hidden {
@@ -1056,9 +1049,7 @@ font-weight: bold;
         justify-content: center;
     }
 
-    .nav-links {
-        display: none;
-    }
+    /* .nav-links: see the consolidated mobile nav block at the end of this file */
 
     /* Simplified mobile nav for now */
     .hero-section {
@@ -1083,21 +1074,6 @@ font-weight: bold;
 
     .footer-container {
         gap: 2rem;
-        align-items: center;
-    }
-
-    .footer-brand {
-        justify-content: center;
-    }
-
-    .footer-links {
-        flex-wrap: wrap;
-        justify-content: center;
-        row-gap: 0.75rem;
-    }
-
-    .footer-copy {
-        text-align: center;
     }
 }
 
@@ -1401,13 +1377,16 @@ font-weight: bold;
 .faq-article {
     max-width: 800px;
     margin: 0 auto;
-    padding: 120px 2rem 4rem;
+    padding: 120px clamp(1.25rem, 4vw, 2rem) 4rem;
     color: var(--text-secondary);
 }
 
 .faq-article h1 {
-    font-size: 2.5rem;
+    /* Article titles are long ("What's the Difference Between GTFS and
+       GTFS-Realtime?"); keep them fluid so they never clip on small screens. */
+    font-size: clamp(1.75rem, 5.5vw, 2.5rem);
     color: var(--text-primary);
+    overflow-wrap: break-word;
     margin-bottom: 2rem;
     line-height: 1.2;
 }
@@ -1588,4 +1567,149 @@ font-weight: bold;
         opacity: 1;
         transform: translateY(0);
     }
+}
+/* --- Stop Location Map Modal --- */
+.map-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.map-modal.hidden {
+    display: none;
+}
+
+.map-modal-content {
+    width: min(900px, 100%);
+    height: min(600px, 90vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.map-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+    flex-shrink: 0;
+}
+
+.map-modal-header h3 {
+    font-size: 1.05rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#stop-map {
+    flex: 1;
+    min-height: 0;
+    /* Leaflet panes stay below the modal chrome */
+    isolation: isolate;
+}
+
+.map-pin-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent-primary);
+    padding: 0 0 0 6px;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.map-pin-btn svg,
+.map-pin-btn i {
+    width: 14px;
+    height: 14px;
+}
+
+.map-pin-btn:hover {
+    color: var(--accent-secondary);
+}
+
+/* --- Mobile navigation ---------------------------------------------------
+   Below 900px the link row used to be display:none with nothing in its place,
+   so Web Validator / FAQ / Guides / Contact / Developers / GitHub were simply
+   unreachable on a phone. It now collapses into a toggleable panel. */
+/* Only shown inside the collapsed mobile panel. */
+.nav-mobile-cta {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .nav-toggle {
+        display: inline-flex;
+    }
+
+    /* Logo + CTA + burger together overflow a 375px bar by ~8px. The hero
+       already carries "Download for Desktop", so the bar CTA moves into the
+       panel instead of being cut off. */
+    .nav-actions .btn {
+        display: none;
+    }
+
+    /* Scoped through .nav-links so it outranks the generic `.nav-links a` rule. */
+    .nav-links a.nav-mobile-cta {
+        display: block;
+        color: var(--accent-primary);
+        font-weight: 600;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        margin-top: 0.25rem;
+    }
+
+    .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        gap: 0;
+        padding: 0.5rem 0;
+        background: rgba(2, 6, 23, 0.98);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        text-align: left;
+    }
+
+    .nav-links.open {
+        display: flex;
+    }
+
+    .nav-links a {
+        padding: 0.85rem clamp(1.25rem, 4vw, 2rem);
+        font-size: 1rem;
+        color: var(--text-primary);
+    }
+
+    .nav-links a:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
+
+/* The panel is absolutely positioned against the nav bar. */
+.glass-nav {
+    position: fixed;
+}
+
+.nav-container {
+    position: relative;
+}
+
+/* Keyboard focus must stay visible everywhere (buttons reset outlines above). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
