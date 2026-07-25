@@ -1,7 +1,7 @@
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 
 const CODE_INVALID_TRANSFER_COUNT: &str = "fare_transfer_rule_invalid_transfer_count";
-const CODE_MISSING_TRANSFER_COUNT: &str = "fare_transfer_rule_missing_transfer_count";
+const CODE_MISSING_TRANSFER_COUNT: &str = "fare_transfer_rule_without_transfer_count";
 const CODE_FORBIDDEN_TRANSFER_COUNT: &str = "fare_transfer_rule_with_forbidden_transfer_count";
 
 #[derive(Debug, Default)]

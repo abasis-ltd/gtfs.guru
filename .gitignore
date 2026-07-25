@@ -1,8 +1,12 @@
 /target
 **/*.rs.bk
 .DS_Store
+
+# Local AI coding sessions may contain full worktrees and conversation data.
+.claude/
 /golden_actual/
 /scripts/golden_manifest.tsv
+/node_modules/
 google-transitfeed/
 
 # Python
@@ -18,6 +22,8 @@ __pycache__/
 # Local test files
 /tmp/
 /benchmark-feeds/
+# Ignored so local scratch feeds stay out; the checked-in fixtures under it,
+# including real-world/, are tracked and were added with `git add -f`.
 /test-gtfs-feeds/
 /mobility-data-test-feeds/
 /expected-nl/

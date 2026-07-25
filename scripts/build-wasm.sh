@@ -4,6 +4,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 WASM_CRATE="$PROJECT_ROOT/crates/gtfs_validator_wasm"
+WASM_THREADS_TOOLCHAIN="${WASM_THREADS_TOOLCHAIN:-nightly-2026-03-01}"
+WASM_OPT_LEVEL="${WASM_OPT_LEVEL:--Oz}"
+WASM_MT_OPT_LEVEL="${WASM_MT_OPT_LEVEL:-$WASM_OPT_LEVEL}"
+WASM_MT_SIMD="${WASM_MT_SIMD:-1}"
 
 echo "Building GTFS Validator WASM..."
 
@@ -17,104 +21,86 @@ fi
 echo "Building for web target..."
 wasm-pack build "$WASM_CRATE" --target web --release --out-dir pkg
 
+# Build a separate browser package with shared memory and Rayon workers. Keep
+# this opt-in so Node.js and npm consumers retain the portable single-threaded
+# build by default.
+echo "Building multi-threaded web target..."
+rustup toolchain install "$WASM_THREADS_TOOLCHAIN" --profile minimal \
+    --target wasm32-unknown-unknown --component rust-src
+MT_TARGET_FEATURES="+atomics,+bulk-memory,+mutable-globals"
+MT_WASM_OPT_FEATURES="--enable-threads"
+if [ "$WASM_MT_SIMD" = "1" ]; then
+    MT_TARGET_FEATURES="$MT_TARGET_FEATURES,+simd128"
+    MT_WASM_OPT_FEATURES="$MT_WASM_OPT_FEATURES --enable-simd"
+fi
+# Keep the maximum one wasm page below 4 GiB. An exact 2^32 maximum wraps in
+# some linker/toolchain combinations and can silently produce an unusable
+# shared-memory declaration.
+RUSTFLAGS="-C target-feature=$MT_TARGET_FEATURES -C link-arg=--shared-memory -C link-arg=--max-memory=4294901760 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base" \
+    rustup run "$WASM_THREADS_TOOLCHAIN" wasm-pack build "$WASM_CRATE" \
+    --target web --release --out-dir pkg-mt \
+    -- --features threads -Z build-std=panic_abort,std
+
+# wasm-bindgen-rayon 1.3 still calls the deprecated two-argument initializer.
+# Normalize its generated no-bundler helper to the current options object API.
+MT_WORKER_HELPER="$(find "$WASM_CRATE/pkg-mt" -name 'workerHelpers.no-bundler.js' -print -quit)"
+if [ -n "$MT_WORKER_HELPER" ]; then
+    perl -pi -e 's/pkg\.default\(data\.module, data\.memory\)/pkg.default({ module_or_path: data.module, memory: data.memory })/' "$MT_WORKER_HELPER"
+fi
+
 # Build for Node.js target
 echo "Building for Node.js target..."
 wasm-pack build "$WASM_CRATE" --target nodejs --release --out-dir pkg-node
 
-# Build multithreaded web variant (wasm threads via wasm-bindgen-rayon).
-#
-# The rayon pool parallelizes CSV parsing and the validator run (~5x on
-# 1M-row feeds vs the single-threaded worker). Requires a cross-origin-isolated
-# page (COOP/COEP headers) — the site falls back to pkg/worker.js otherwise.
-#
-# Toolchain notes (hard-won):
-#  * Needs nightly + rust-src for -Z build-std (std rebuilt with atomics).
-#  * wasm-bindgen's thread transform needs shared IMPORTED memory and the TLS
-#    symbols exported. rustc auto-configures all of this when you pass ONLY
-#    the target features — but then the shared-memory maximum is left at the
-#    1GB default, which large feeds exceed (grow fails -> a rayon worker traps
-#    -> the join hangs). Overriding --max-memory disables rustc's auto set, so
-#    we must then spell out the FULL flag set: --shared-memory --import-memory
-#    --max-memory and the four TLS exports.
-#  * --max-memory must be < 4GB exactly: 4294967296 wraps to 0 in the linker.
-#    We use 4GB - 64KB (4294901760).
-#  * parking_lot (under dashmap) needs its "nightly" feature on wasm+atomics,
-#    or its fallback thread parker panics under lock contention and hangs the
-#    pool. Wired through the wasm crate's `threads` feature.
-#  * wasm-bindgen-rayon's workerHelpers.js does `import('../../..')` (a directory
-#    import that only resolves under a bundler). We serve static files with no
-#    bundler, so we rewrite it to the concrete module file after the build.
-#  * nightly-2026-03-01 (rustc 1.96) + wasm-bindgen 0.2.126 is known good.
-BUILT_MT=0
-MT_TOOLCHAIN="${MT_TOOLCHAIN:-nightly-2026-03-01}"
-echo "Building multithreaded (threads) web variant..."
-if rustup toolchain list 2>/dev/null | grep -q "^${MT_TOOLCHAIN}"; then
-    RUSTUP_TOOLCHAIN="$MT_TOOLCHAIN" \
-    RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-arg=--shared-memory -C link-arg=--import-memory -C link-arg=--max-memory=4294901760 -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base" \
-    wasm-pack build "$WASM_CRATE" --target web --release --out-dir pkg-mt \
-        -- --features threads -Z build-std=std,panic_abort
-    # Rewrite the no-bundler-incompatible directory import in the rayon glue.
-    for WH in "$WASM_CRATE"/pkg-mt/snippets/wasm-bindgen-rayon-*/src/workerHelpers.js; do
-        [ -f "$WH" ] && sed -i.bak "s#await import('../../..')#await import('../../../gtfs_guru_wasm.js')#" "$WH" && rm -f "$WH.bak"
-    done
-    BUILT_MT=1
-else
-    echo "  toolchain '$MT_TOOLCHAIN' not found — skipping multithreaded build."
-    echo "  Enable with: rustup toolchain install $MT_TOOLCHAIN --component rust-src"
+# Binaryen 108 (shipped by Ubuntu 24.04) can emit a multi-threaded module whose
+# function table cannot grow during wasm-bindgen-rayon initialization. Refuse
+# to run an optimizer version older than the one used by CI and releases.
+BINARYEN_MIN_VERSION=131
+BINARYEN_VERSION=""
+if command -v wasm-opt &> /dev/null; then
+    BINARYEN_VERSION="$(wasm-opt --version | grep -Eo '[0-9]+' | tail -n 1)"
 fi
 
-# Optimize with wasm-opt if available
-if command -v wasm-opt &> /dev/null; then
+# Optimize with a known-good wasm-opt if available.
+if [ -n "$BINARYEN_VERSION" ] && [ "$BINARYEN_VERSION" -ge "$BINARYEN_MIN_VERSION" ]; then
     echo "Optimizing WASM binary with wasm-opt..."
-    WASM_OPT_FLAGS="-Oz --enable-bulk-memory --enable-nontrapping-float-to-int"
+    WASM_OPT_FLAGS="$WASM_OPT_LEVEL --enable-bulk-memory --enable-nontrapping-float-to-int"
+    WASM_MT_OPT_FLAGS="$WASM_MT_OPT_LEVEL --enable-bulk-memory --enable-nontrapping-float-to-int $MT_WASM_OPT_FEATURES"
 
     WEB_WASM="$(ls "$WASM_CRATE/pkg/"*_bg.wasm 2>/dev/null | head -n 1)"
+    MT_WASM="$(ls "$WASM_CRATE/pkg-mt/"*_bg.wasm 2>/dev/null | head -n 1)"
     NODE_WASM="$(ls "$WASM_CRATE/pkg-node/"*_bg.wasm 2>/dev/null | head -n 1)"
 
-    if [ -z "$WEB_WASM" ] || [ -z "$NODE_WASM" ]; then
-        echo "Expected *_bg.wasm in pkg/ and pkg-node/ but did not find them."
+    if [ -z "$WEB_WASM" ] || [ -z "$MT_WASM" ] || [ -z "$NODE_WASM" ]; then
+        echo "Expected *_bg.wasm in pkg/, pkg-mt/, and pkg-node/ but did not find them."
         exit 1
     fi
 
     wasm-opt $WASM_OPT_FLAGS -o "${WEB_WASM}.opt" "$WEB_WASM"
     mv "${WEB_WASM}.opt" "$WEB_WASM"
+    wasm-opt $WASM_MT_OPT_FLAGS -o "${MT_WASM}.opt" "$MT_WASM"
+    mv "${MT_WASM}.opt" "$MT_WASM"
     wasm-opt $WASM_OPT_FLAGS -o "${NODE_WASM}.opt" "$NODE_WASM"
     mv "${NODE_WASM}.opt" "$NODE_WASM"
 
     # Report sizes
     WEB_SIZE=$(du -h "$WEB_WASM" | cut -f1)
+    MT_SIZE=$(du -h "$MT_WASM" | cut -f1)
     NODE_SIZE=$(du -h "$NODE_WASM" | cut -f1)
-    echo "Optimized sizes: web=$WEB_SIZE, node=$NODE_SIZE"
-
-    # The multithreaded binary must keep its atomics + shared memory, so it
-    # needs --enable-threads (and a less aggressive -O2 to be safe).
-    if [ "$BUILT_MT" = "1" ]; then
-        MT_WASM="$(ls "$WASM_CRATE/pkg-mt/"*_bg.wasm 2>/dev/null | head -n 1)"
-        if [ -n "$MT_WASM" ]; then
-            wasm-opt -O2 --enable-threads --enable-bulk-memory --enable-nontrapping-float-to-int \
-                -o "${MT_WASM}.opt" "$MT_WASM"
-            mv "${MT_WASM}.opt" "$MT_WASM"
-            MT_SIZE=$(du -h "$MT_WASM" | cut -f1)
-            echo "Optimized sizes: web-mt=$MT_SIZE"
-        fi
-    fi
+    echo "Optimized sizes: web=$WEB_SIZE, web-mt=$MT_SIZE, node=$NODE_SIZE"
 else
-    echo "wasm-opt not found. Skipping optimization."
-    echo "Install binaryen to enable: brew install binaryen (macOS) or apt install binaryen (Linux)"
+    if [ -n "$BINARYEN_VERSION" ]; then
+        echo "wasm-opt $BINARYEN_VERSION is older than the required $BINARYEN_MIN_VERSION; skipping optimization."
+    else
+        echo "wasm-opt not found. Skipping optimization."
+    fi
+    echo "Install Binaryen $BINARYEN_MIN_VERSION or newer to enable optimization."
 fi
 
-# Copy additional files to pkg (single-threaded worker + main-thread wrapper).
+# Copy additional files to pkg
 echo "Copying additional files..."
-cp "$WASM_CRATE/js/worker.js" "$WASM_CRATE/js/index.js" "$WASM_CRATE/pkg/" 2>/dev/null || true
+cp "$WASM_CRATE/js/"*.js "$WASM_CRATE/pkg/" 2>/dev/null || true
 cp "$WASM_CRATE/types/"*.d.ts "$WASM_CRATE/pkg/" 2>/dev/null || true
-
-# The multithreaded worker only makes sense next to the pkg-mt module.
-if [ "$BUILT_MT" = "1" ]; then
-    cp "$WASM_CRATE/js/worker-mt.js" "$WASM_CRATE/pkg-mt/" 2>/dev/null || true
-    # wasm-pack drops a `*` .gitignore into the out-dir, which would make any
-    # website copy of pkg-mt ignore itself. Remove it.
-    rm -f "$WASM_CRATE/pkg-mt/.gitignore"
-fi
 
 # Apply package.json template if exists
 if [ -f "$WASM_CRATE/package.json.template" ]; then
@@ -125,10 +111,19 @@ if [ -f "$WASM_CRATE/package.json.template" ]; then
     mv "$WASM_CRATE/pkg/package.json.new" "$WASM_CRATE/pkg/package.json"
 fi
 
+# Keep both checked-in website copies aligned with the generated browser
+# packages. The Node.js package remains a library artifact only.
+echo "Syncing browser packages to website copies..."
+for WEBSITE_ROOT in "$PROJECT_ROOT/website" "$PROJECT_ROOT/crates/gtfs_validator_web/website"; do
+    mkdir -p "$WEBSITE_ROOT/pkg" "$WEBSITE_ROOT/pkg-mt"
+    cp -R "$WASM_CRATE/pkg/." "$WEBSITE_ROOT/pkg/"
+    # Deliberately exclude wasm-pack's generated .gitignore: these static-site
+    # artifacts must be visible to Git.
+    cp -R "$WASM_CRATE/pkg-mt/"* "$WEBSITE_ROOT/pkg-mt/"
+done
+
 echo ""
 echo "Build complete!"
 echo "Web package: $WASM_CRATE/pkg/"
+echo "Multi-threaded web package: $WASM_CRATE/pkg-mt/"
 echo "Node.js package: $WASM_CRATE/pkg-node/"
-if [ "$BUILT_MT" = "1" ]; then
-    echo "Web package (multithreaded): $WASM_CRATE/pkg-mt/"
-fi

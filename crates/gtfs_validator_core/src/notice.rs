@@ -10,7 +10,7 @@ pub const NOTICE_CODE_MISSING_FILE: &str = "missing_required_file";
 pub const NOTICE_CODE_MISSING_RECOMMENDED_FILE: &str = "missing_recommended_file";
 pub const NOTICE_CODE_EMPTY_TABLE: &str = "empty_file";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoticeSeverity {
     Error,
@@ -28,6 +28,31 @@ pub enum FixSafety {
     RequiresConfirmation,
     /// May change semantics (referential fixes)
     Unsafe,
+}
+
+impl FixSafety {
+    /// Ordering rank: `Safe` < `RequiresConfirmation` < `Unsafe`.
+    fn rank(self) -> u8 {
+        match self {
+            FixSafety::Safe => 0,
+            FixSafety::RequiresConfirmation => 1,
+            FixSafety::Unsafe => 2,
+        }
+    }
+
+    /// Whether a fix at this level may run when the caller allows up to `max`.
+    pub fn allowed_by(self, max: FixSafety) -> bool {
+        self.rank() <= max.rank()
+    }
+
+    /// Short label used in CLI output and reports.
+    pub fn label(self) -> &'static str {
+        match self {
+            FixSafety::Safe => "SAFE",
+            FixSafety::RequiresConfirmation => "CONFIRM",
+            FixSafety::Unsafe => "UNSAFE",
+        }
+    }
 }
 
 /// The actual fix operation
@@ -281,7 +306,7 @@ impl NoticeContainer {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.notices.is_empty()
+        self.len() == 0
     }
 
     /// Exact number of notices pushed, including ones dropped by the cap.

@@ -1,0 +1,126 @@
+# GTFS Guru
+
+> A GTFS validator written in Rust. It checks transit feeds (GTFS) against 110
+> validation rules and runs entirely on the user's own machine — in the browser
+> via WebAssembly, on the desktop, from the command line, from Python, or in CI.
+> Free and open source under Apache 2.0.
+
+GTFS (General Transit Feed Specification) is the file format transit agencies
+publish so that journey planners such as Google Maps, Apple Maps, Transit and
+Citymapper can show their schedules. A GTFS validator catches errors in that
+feed before it is published.
+
+GTFS Guru is a Rust rewrite of the canonical Java validator maintained by
+MobilityData. It reproduces the same rules and notice codes, so a report from
+either tool describes the same feed problems.
+
+## Answers to common questions
+
+- **How do I validate a GTFS feed?** Drop the `.zip` on <https://gtfs.guru/>
+  (it never leaves the browser), or run `gtfs-guru -i feed.zip -o ./report`.
+- **Is it free?** Yes. Apache 2.0, no usage limits, no paid tier.
+- **Is my feed uploaded anywhere?** No. Browser validation runs in WebAssembly
+  on the visitor's device; the desktop, CLI and Python paths are local too. The
+  only network call the site can make with a feed is the optional URL fetch
+  proxy, used when a feed host blocks cross-origin browser requests.
+- **How does it compare with the Java validator?** See the table below.
+- **How do I run it in CI?** Use the GitHub Action, or the CLI with
+  `--fail-on error`. Both can emit SARIF for GitHub code scanning.
+
+## GTFS Guru vs the canonical Java validator
+
+| Measure | Canonical Java validator | GTFS Guru (Rust) |
+| --- | --- | --- |
+| MBTA feed benchmark | 10.60s | 2.32s (4.6x faster) |
+| OVapi Netherlands feed benchmark | 65.18s | 9.75s (6.7x faster) |
+| Small feeds | JVM startup dominates | up to 100x faster |
+| Peak memory | ~1.5 GB | ~150 MB |
+| Runtime requirement | Java runtime | standalone binary, no runtime |
+| Browser | not available | WebAssembly, runs in the tab |
+| Python | wrapper around the JAR | native package (`pip install gtfs-guru`) |
+| CI output | JSON, HTML | SARIF, JSON, HTML, plus a GitHub Action |
+| Validation rules | canonical rule set | 110 validators, 190 notice codes |
+| Licence | Apache 2.0 | Apache 2.0 |
+
+Benchmarks were run on an Apple M3 Pro with a warm page cache, each tool
+validating end to end and writing its normal reports. Numbers and method:
+<https://github.com/abasis-ltd/gtfs.guru#-performance>
+
+## How to use it
+
+Browser (nothing to install):
+
+1. Open <https://gtfs.guru/>
+2. Drop a `gtfs.zip` on the validator, paste a feed URL, or click
+   "Try an example feed"
+3. Read the report; download it as JSON or HTML, or copy a shareable link
+
+Command line:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash
+gtfs-guru -i feed.zip -o ./report              # JSON + HTML reports
+gtfs-guru -i feed.zip -o ./report --fail-on error   # exit 2 on any error
+gtfs-guru -i feed.zip -o ./report --sarif report.sarif.json
+gtfs-guru -i feed.zip -o ./report --badge badge.json
+gtfs-guru --stdout -i feed.zip | jq .
+```
+
+Python:
+
+```python
+import gtfs_guru
+
+report = gtfs_guru.validate("feed.zip")
+if not report.is_valid:
+    print(report.error_count)
+    report.save_html("report.html")
+```
+
+GitHub Actions:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: abasis-ltd/gtfs.guru/action@v1
+  with:
+    feed: feed.zip
+    fail-on: error
+```
+
+## Docs
+
+- [Homepage and browser validator](https://gtfs.guru/): drag-and-drop validation, no upload
+- [How to validate a GTFS feed](https://gtfs.guru/how-to-validate-gtfs.html): step by step
+- [Why a GTFS feed gets rejected](https://gtfs.guru/why-is-my-gtfs-rejected.html): the common causes
+- [How to create a GTFS file](https://gtfs.guru/how-to-create-gtfs-file.html): building a feed from scratch
+- [Getting a bus onto Google Maps](https://gtfs.guru/how-to-get-my-bus-on-google-maps.html): the submission process
+- [How often to update a GTFS feed](https://gtfs.guru/how-often-update-gtfs.html): publishing cadence
+- [Where to find GTFS feeds](https://gtfs.guru/where-to-find-gtfs-feeds.html): public feed sources
+- [GTFS vs GTFS Realtime](https://gtfs.guru/gtfs-vs-gtfs-realtime.html): what each format covers
+- [What GTFS stands for](https://gtfs.guru/what-does-gtfs-stand-for.html): the acronym and its history
+- [What GTFS is used for](https://gtfs.guru/what-is-gtfs-used-for.html): who consumes the data
+- [Who uses GTFS](https://gtfs.guru/who-uses-gtfs.html): agencies, apps and analysts
+- [Is GTFS free](https://gtfs.guru/is-gtfs-free.html): licensing of the format and of feeds
+- [All guides](https://gtfs.guru/faq.html): index of the above
+
+## Reference
+
+- [Source code](https://github.com/abasis-ltd/gtfs.guru): Rust workspace, Apache 2.0
+- [Validation rules](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/rules.md): all 110 validators and 190 notice codes
+- [CLI usage](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/usage.md): every flag, exit codes, report layout
+- [Python API](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/python_api.md): the `gtfs_guru` package
+- [WebAssembly](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/wasm.md): embedding the validator in a page
+- [GitHub Action](https://github.com/abasis-ltd/gtfs.guru/blob/main/action/README.md): inputs, outputs, badges
+- [Compact LLM guide](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md): copy-paste reference kept short for context windows
+- [Machine-readable notice schema](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/rules.md): export with `gtfs-guru --export-notices-schema`
+- [Releases](https://github.com/abasis-ltd/gtfs.guru/releases/latest): binaries for macOS, Windows and Linux
+- [PyPI package](https://pypi.org/project/gtfs-guru/): `pip install gtfs-guru`
+- [Crates.io package](https://crates.io/crates/gtfs-guru): `cargo install gtfs-guru`
+
+## Optional
+
+- [Privacy policy](https://gtfs.guru/privacy.html): what the site does and does not collect
+- [Terms](https://gtfs.guru/terms.html): terms of use
+- [Contact](https://gtfs.guru/contact.html): how to reach the maintainers
+- [Upstream Java validator](https://github.com/MobilityData/gtfs-validator): the reference implementation GTFS Guru mirrors
+- [GTFS specification](https://gtfs.org/documentation/schedule/reference/): the format itself

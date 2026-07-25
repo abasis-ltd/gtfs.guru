@@ -1,4 +1,5 @@
 use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::NaiveDate;
 #[cfg(not(target_arch = "wasm32"))]
@@ -10,6 +11,16 @@ thread_local! {
     static GOOGLE_RULES_ENABLED: Cell<bool> = const { Cell::new(false) };
     static THOROUGH_MODE: Cell<bool> = const { Cell::new(false) };
     static NOTICE_GROUP_LIMIT: Cell<Option<usize>> = const { Cell::new(None) };
+}
+
+static PERFORMANCE_LOGS_ENABLED: AtomicBool = AtomicBool::new(true);
+
+pub fn set_performance_logs_enabled(enabled: bool) -> bool {
+    PERFORMANCE_LOGS_ENABLED.swap(enabled, Ordering::SeqCst)
+}
+
+pub fn performance_logs_enabled() -> bool {
+    PERFORMANCE_LOGS_ENABLED.load(Ordering::Relaxed)
 }
 
 pub struct ValidationDateGuard {

@@ -5,11 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GTFS Guru | The world's fastest opensource GTFS validator</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="stylesheet" href="./vendor/leaflet.css">
+    <script src="./vendor/leaflet.js"></script>
     <style>
         * {
             margin: 0;
@@ -18,7 +15,7 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             min-height: 100vh;
             background: #f8fafc;
             color: #1e293b;
@@ -37,38 +34,26 @@
             padding-top: 0.25rem;
         }
 
-        .logo {
-            color: #4f46e5;
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
+        .app-header {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
+            gap: 0.75rem;
+            padding-bottom: 0.5rem;
         }
 
-        .logo svg {
-            width: 24px;
-            height: 24px;
+        .app-header img {
+            width: 44px;
+            height: 44px;
+            flex: 0 0 auto;
         }
 
-        h1 {
-            font-size: 1.5rem;
+        .app-header h1 {
+            min-width: 0;
+            font-size: 1.25rem;
             font-weight: 700;
-            color: #4f46e5;
-            margin-bottom: 0.25rem;
-        }
-
-        .subtitle {
-            color: #64748b;
-            font-size: 1rem;
-        }
-
-        .version {
-            color: #94a3b8;
-            font-size: 0.75rem;
-            margin-top: 0.5rem;
+            color: #1e293b;
+            line-height: 1.25;
         }
 
         .card {
@@ -93,6 +78,7 @@
         }
 
         .drop-zone {
+            width: 100%;
             border: 2px dashed #e2e8f0;
             border-radius: 12px;
             padding: 1rem;
@@ -103,9 +89,15 @@
         }
 
         .drop-zone:hover,
-        .drop-zone.dragover {
+        .drop-zone.dragover,
+        .drop-zone:focus-visible {
             border-color: #4f46e5;
             background: #eef2ff;
+        }
+
+        .drop-zone:focus-visible {
+            outline: 3px solid rgba(79, 70, 229, 0.2);
+            outline-offset: 2px;
         }
 
         .drop-zone.has-file {
@@ -124,9 +116,12 @@
         }
 
         .drop-zone-file {
+            display: block;
+            max-width: 100%;
             color: #1e293b;
             font-weight: 500;
             font-size: 0.95rem;
+            overflow-wrap: anywhere;
         }
 
         .select-input {
@@ -172,6 +167,13 @@
             gap: 0.5rem;
         }
 
+        .btn:focus-visible,
+        .report-link:focus-visible,
+        .footer-text a:focus-visible {
+            outline: 3px solid rgba(79, 70, 229, 0.25);
+            outline-offset: 2px;
+        }
+
         .btn-primary {
             background: #4f46e5;
             border: none;
@@ -210,17 +212,24 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 0.75rem;
             margin-bottom: 0.75rem;
         }
 
         .progress-title {
+            flex: 0 0 auto;
             font-weight: 500;
             color: #374151;
         }
 
         .progress-status {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
             font-size: 0.875rem;
             color: #4f46e5;
+            text-align: right;
         }
 
         .progress-bar {
@@ -262,6 +271,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
             margin-bottom: 1.5rem;
         }
 
@@ -375,6 +386,7 @@
             gap: 0.75rem;
             justify-content: center;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .footer-text a {
@@ -386,7 +398,7 @@
             text-decoration: underline;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 480px) {
             .results-grid {
                 grid-template-columns: 1fr;
             }
@@ -397,6 +409,97 @@
 
             .report-links {
                 flex-direction: column;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding-inline: 0.75rem;
+            }
+
+            .app-header {
+                gap: 0.5rem;
+            }
+
+            .app-header img {
+                width: 40px;
+                height: 40px;
+            }
+
+            .app-header h1 {
+                font-size: 1.05rem;
+            }
+
+            .results-grid {
+                gap: 0.5rem;
+            }
+
+            .result-card {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .result-count {
+                font-size: 1.65rem;
+            }
+        }
+
+        @media (max-height: 550px) {
+            .container {
+                padding-top: 0.25rem;
+            }
+
+            header {
+                margin-bottom: 0.35rem;
+                padding-top: 0;
+            }
+
+            .app-header {
+                padding-bottom: 0.25rem;
+            }
+
+            .card {
+                padding: 0.75rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .form-group {
+                margin-bottom: 0.5rem;
+            }
+
+            .form-label {
+                margin-bottom: 0.25rem;
+            }
+
+            .drop-zone {
+                padding: 0.55rem;
+            }
+
+            .drop-zone-icon {
+                font-size: 1.5rem;
+                line-height: 1.2;
+                margin-bottom: 0.1rem;
+            }
+
+            .select-input {
+                padding-block: 0.55rem;
+            }
+
+            .btn-group {
+                margin-top: 0.75rem;
+            }
+
+            .btn {
+                padding-block: 0.6rem;
+            }
+
+            .results-header,
+            .results-grid {
+                margin-bottom: 0.75rem;
+            }
+
+            footer {
+                margin-top: 0.5rem;
+                padding: 0.5rem 0;
             }
         }
 
@@ -477,41 +580,25 @@
             display: none;
         }
 
-        .update-log {
-            font-size: 0.75rem;
-            color: #94a3b8;
-            text-align: center;
-            margin: 0 auto 0.75rem;
-        }
-
-        .update-log.error {
-            color: #b91c1c;
-        }
-
-        .update-log.hidden {
-            display: none;
-        }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <header style="display: flex; align-items: center; justify-content: center; gap: 12px; padding-bottom: 0.5rem;">
-            <img src="./icons/icon.png" alt="GTFS Guru" style="width: 32px; height: 32px;">
-            <h1 style="font-size: 1.25rem; margin: 0; color: #1e293b;">GTFS Guru — The world's fastest GTFS validator
-            </h1>
+        <header class="app-header">
+            <img src="./icons/icon.png" alt="">
+            <h1>GTFS Guru — The world's fastest GTFS validator</h1>
         </header>
 
         <div class="update-banner hidden" id="updateBanner">
             <span id="updateText">Update available</span>
             <button class="btn btn-primary btn-small" id="updateBtn">Download update</button>
         </div>
-        <div class="update-log hidden" id="updateLog"></div>
-
         <div class="card" id="uploadCard">
             <div class="form-group">
-                <label class="form-label">Select a GTFS ZIP file</label>
-                <div class="drop-zone" id="dropZone">
+                <div class="form-label" id="filePickerLabel">Select a GTFS ZIP file</div>
+                <div class="drop-zone" id="dropZone" role="button" tabindex="0"
+                    aria-labelledby="filePickerLabel dropZoneText">
                     <div class="drop-zone-icon">📁</div>
                     <div class="drop-zone-text" id="dropZoneText">
                         Drop a file here or click to browse
@@ -521,13 +608,13 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Or load from a URL</label>
+                <label class="form-label" for="urlInput">Or load from a URL</label>
                 <input type="url" class="select-input" id="urlInput" placeholder="https://example.com/feed.zip"
                     style="background-image: none; cursor: text;">
             </div>
 
             <div class="form-group">
-                <label class="form-label">Region (optional)</label>
+                <label class="form-label" for="regionSelect">Region (optional)</label>
                 <select class="select-input" id="regionSelect">
                     <option value="">Choose a region</option>
                     <option value="AF">Afghanistan</option>
@@ -788,10 +875,10 @@
                 </button>
             </div>
 
-            <div class="error-message" id="errorMessage"></div>
+            <div class="error-message" id="errorMessage" role="alert" aria-live="assertive"></div>
         </div>
 
-        <div class="card progress-section" id="progressSection">
+        <div class="card progress-section" id="progressSection" role="status" aria-live="polite">
             <div class="progress-header">
                 <div class="progress-title">Validating your GTFS feed...</div>
                 <div class="progress-status" id="progressStatus">Processing</div>
@@ -801,7 +888,7 @@
             </div>
         </div>
 
-        <div class="card results-section" id="resultsSection">
+        <div class="card results-section" id="resultsSection" aria-live="polite">
             <div class="results-header">
                 <div class="results-title" id="resultsTitle">✓ Validation Complete</div>
                 <div class="results-time" id="resultsTime"></div>
@@ -875,10 +962,12 @@
         const core = tauri ? (tauri.core || tauri.invoke) : null;
         const dialog = tauri ? (tauri.dialog || tauri.pluginDialog) : null;
         const shell = tauri ? (tauri.shell || tauri.pluginShell) : null;
+        const webview = tauri ? tauri.webview : null;
 
         const invoke = core ? (core.invoke || core) : null;
         const listen = tauri ? (tauri.event ? tauri.event.listen : (tauri.listen || window.__TAURI__.event.listen)) : null;
         const shellOpen = shell ? (shell.open) : null;
+        const getCurrentWebview = webview ? webview.getCurrentWebview : null;
 
         if (!dialog) console.error("Tauri Dialog plugin NOT found in window.__TAURI__");
         if (!shell) console.error("Tauri Shell plugin NOT found in window.__TAURI__");
@@ -907,11 +996,11 @@
         const updateBanner = document.getElementById('updateBanner');
         const updateText = document.getElementById('updateText');
         const updateBtn = document.getElementById('updateBtn');
-        const updateLog = document.getElementById('updateLog');
 
         let selectedFilePath = null;
         let lastResult = null;
         let unlistenProgress = null;
+        let unlistenDragDrop = null;
         let updateDownloadUrl = null;
 
         // Initialize
@@ -929,25 +1018,18 @@
                 updateDownloadUrl = null;
             }
 
-            await checkForUpdates();
+            await Promise.all([
+                checkForUpdates(),
+                setupNativeDragDrop()
+            ]);
         }
 
         init();
-
-        function showUpdateLog(message, isError = false) {
-            if (!updateLog) return;
-            updateLog.textContent = message;
-            updateLog.classList.remove('hidden');
-            updateLog.classList.toggle('error', isError);
-            const logger = isError ? console.warn : console.log;
-            logger('[Updater]', message);
-        }
 
         async function checkForUpdates() {
             if (!invoke || !updateBanner || !updateText || !updateBtn) return;
 
             try {
-                showUpdateLog('Checking for updates...');
                 const currentVersion = await invoke('get_version');
                 const result = await invoke('check_for_updates');
                 
@@ -957,12 +1039,9 @@
                     updateText.textContent = `Update available: ${latest}`;
                     updateBanner.classList.remove('hidden');
                     updateBanner.hidden = false;
-                    showUpdateLog(`Update available: ${latest}`);
-                } else {
-                    showUpdateLog('Update check: no updates.');
                 }
             } catch (e) {
-                showUpdateLog(`Update check failed: ${String(e)}`, true);
+                console.warn('[Updater] Update check failed:', e);
             }
         }
 
@@ -994,27 +1073,62 @@
             }
         });
 
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
+        dropZone.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                dropZone.click();
+            }
         });
 
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-
+        // Prevent the webview from navigating if the browser-level drop event fires.
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
-            // Note: Tauri handles file drops differently, this is visual only
         });
+
+        async function setupNativeDragDrop() {
+            if (!getCurrentWebview) {
+                console.warn('Tauri webview drag-and-drop API is unavailable.');
+                return;
+            }
+
+            try {
+                const currentWebview = getCurrentWebview();
+                unlistenDragDrop = await currentWebview.onDragDropEvent((event) => {
+                    const payload = event.payload;
+
+                    if (payload.type === 'over') {
+                        dropZone.classList.add('dragover');
+                        return;
+                    }
+
+                    dropZone.classList.remove('dragover');
+
+                    if (payload.type !== 'drop') {
+                        return;
+                    }
+
+                    const zipPath = (payload.paths || []).find((path) =>
+                        path.toLowerCase().endsWith('.zip')
+                    );
+
+                    if (zipPath) {
+                        handleFileSelect(zipPath);
+                    } else {
+                        showError('Please drop a GTFS ZIP file.');
+                    }
+                });
+            } catch (error) {
+                console.warn('Failed to initialize native drag-and-drop:', error);
+            }
+        }
 
         // URL Input handler
         urlInput.addEventListener('input', () => {
             if (urlInput.value.trim()) {
                 // Clear file selection if URL is typed
                 selectedFilePath = null;
-                dropZoneText.innerHTML = 'Drop a file here or click to browse';
+                setDropZoneText('Drop a file here or click to browse');
                 dropZone.classList.remove('has-file');
                 validateBtn.disabled = false;
                 hideError();
@@ -1027,14 +1141,19 @@
             selectedFilePath = path;
             urlInput.value = ''; // Clear URL if file selected
             const fileName = path.split(/[/\\]/).pop();
-            dropZoneText.innerHTML = `<span class="drop-zone-file">📁 ${fileName}</span>`;
+            setDropZoneText(`📁 ${fileName}`, true);
             dropZone.classList.add('has-file');
             validateBtn.disabled = false;
             hideError();
         }
 
+        function setDropZoneText(text, isFile = false) {
+            dropZoneText.textContent = text;
+            dropZoneText.classList.toggle('drop-zone-file', isFile);
+        }
+
         validateBtn.addEventListener('click', startValidation);
-        resetBtn.addEventListener('click', resetUI);
+        resetBtn.addEventListener('click', () => resetUI());
 
         htmlReportBtn.addEventListener('click', async () => {
             if (lastResult && lastResult.htmlReportPath) {
@@ -1065,6 +1184,12 @@
         async function startValidation() {
             if (!selectedFilePath && !urlInput.value.trim()) {
                 showError('Please select a file or enter a URL');
+                return;
+            }
+
+            if (urlInput.value.trim() && !urlInput.checkValidity()) {
+                showError('Please enter a valid feed URL.');
+                urlInput.focus();
                 return;
             }
 
@@ -1101,8 +1226,8 @@
                 lastResult = result;
                 showResults(result);
             } catch (error) {
-                showError(error.toString());
                 resetUI();
+                showError(error.toString());
             } finally {
                 if (unlistenProgress) {
                     unlistenProgress();
@@ -1239,7 +1364,7 @@
             }
 
             urlInput.value = '';
-            dropZoneText.innerHTML = 'Drop a file here or click to browse';
+            setDropZoneText('Drop a file here or click to browse');
             dropZone.classList.remove('has-file');
             validateBtn.disabled = true;
             uploadCard.style.display = 'block';
@@ -1257,6 +1382,12 @@
         function hideError() {
             errorMessage.classList.remove('active');
         }
+
+        window.addEventListener('beforeunload', () => {
+            if (unlistenDragDrop) {
+                unlistenDragDrop();
+            }
+        });
     </script>
 </body>
 

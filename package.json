@@ -1,0 +1,10 @@
+{
+  "name": "gtfs-guru-browser-tests",
+  "private": true,
+  "scripts": {
+    "test:wasm-browser": "node scripts/test-wasm-browser.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}

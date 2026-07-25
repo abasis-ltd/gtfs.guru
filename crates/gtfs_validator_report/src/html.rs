@@ -809,6 +809,7 @@ fn feature_group(name: &str) -> Option<&'static str> {
         "Fare Transfers" => Some("Fares"),
         "Time-Based Fares" => Some("Fares"),
         "Rider Categories" => Some("Fares"),
+        "Contactless EMV Support" => Some("Fares"),
         "Booking Rules" => Some("Flexible Services"),
         "Fixed-Stops Demand Responsive Transit" => Some("Flexible Services"),
         "Route-Based Fares" => Some("Fares"),
@@ -877,8 +878,8 @@ impl HtmlSeverity {
     }
 }
 
-fn render_notice_groups(out: &mut String, notices: &NoticeContainer) {
-    let grouped = group_notices(notices);
+fn render_notice_groups(out: &mut String, notices_container: &NoticeContainer) {
+    let grouped = group_notices(notices_container);
     for severity in [
         HtmlSeverity::Error,
         HtmlSeverity::Warning,
@@ -886,7 +887,7 @@ fn render_notice_groups(out: &mut String, notices: &NoticeContainer) {
     ] {
         if let Some(code_map) = grouped.get(&severity) {
             for (code, group) in code_map {
-                let total = notices
+                let total = notices_container
                     .group_total(code, severity_from_html(severity))
                     .max(group.len());
                 render_notice_group(out, severity, code, group, total);

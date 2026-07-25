@@ -93,7 +93,8 @@ The live site **does not run on GitHub Pages**. The `pages.yml` workflow still p
 
 Notes:
 
-* There are **two copies** of the website in the repo. The repo-root `website/` is what's live; keep `crates/gtfs_validator_web/website/` in sync.
+* There are **two copies** of the website in the repo. The repo-root `website/` is what's live; keep `crates/gtfs_validator_web/website/` in sync. The `Website` workflow fails the build when they drift apart.
+* The example feed behind the "Try an example feed" button is generated, not hand-edited. Change `scripts/build_demo_feed.py` and re-run it (`python3 scripts/build_demo_feed.py`) to refresh both copies; `--check` is what CI runs.
 * `deploy/update.sh` rebuilds the Docker (axum) stack — that is **not** what serves the live domain.
 * Server-level config (headers, TLS, caching) lives in `Caddyfile` and `website/nginx.conf` — since we control the server, custom headers (e.g. COOP/COEP for multithreaded WASM) can be set there.
 
@@ -101,17 +102,36 @@ Notes:
 
 ## Releasing a New Version
 
-When you want to publish a new version (e.g., to PyPI or Crates.io):
+A release is intentionally gated by a `v*` tag. Merging to `main` or running the
+workflow manually only builds artifacts; it does not publish or deploy anything.
 
-1. Update version numbers in `Cargo.toml`.
-2. Commit and merge to `main`.
-3. Create a GitHub Release:
-    * Go to "Releases" -> "Draft a new release".
-    * Create a tag (e.g., `v0.2.0`).
-    * Click "Publish release".
+1. Update every package version and the Tauri version.
+2. Run `python3 scripts/check-release-version.py --tag vX.Y.Z`.
+3. Run the normal Rust, golden, WASM, and browser checks and merge to `main`.
+4. Only after explicit release approval, push the matching `vX.Y.Z` tag.
+5. Move the major-version tag the GitHub Action is published under, so that
+   `abasis-ltd/gtfs.guru/action@v1` keeps resolving to the newest release:
 
-The CI/CD pipeline (`.github/workflows/release.yml`) will automatically:
+   ```bash
+   git tag -f v1 vX.Y.Z && git push -f origin v1
+   ```
 
-* Build binaries for all platforms.
-* Publish to PyPI.
-* Upload assets to the release page.
+   Without this step every workflow pinned to `@v1` keeps running the previous
+   release, and a brand-new major tag does not exist at all.
+
+The tag workflow verifies version consistency before it does any build. It then:
+
+* builds desktop installers and CLI archives for macOS, Linux, and Windows;
+* creates the GitHub Release and updater manifest;
+* publishes the Rust crates, Python wheel, and npm package;
+* rebuilds both WASM tiers and synchronizes the static website to Hetzner;
+* verifies that `https://gtfs.guru/pkg/package.json` reports the tag version.
+
+Required release secrets are `CARGO_REGISTRY_TOKEN`, `PYPI_API_TOKEN`,
+`NPM_TOKEN`, the Tauri/Apple signing secrets, `HETZNER_HOST`,
+`HETZNER_SSH_KEY`, and `HETZNER_KNOWN_HOSTS`. `HETZNER_USER` defaults to
+`botuser`; `HETZNER_PATH` defaults to `gtfs-guru-web/` in that user's home.
+
+The known-hosts value must be provisioned out of band (for example from a
+trusted existing SSH connection). The workflow deliberately does not use
+`ssh-keyscan` at release time.

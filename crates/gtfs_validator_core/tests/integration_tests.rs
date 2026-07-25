@@ -64,6 +64,13 @@ fn test_errors() {
             } else {
                 path.file_name().unwrap().to_str().unwrap()
             };
+            let expected_notice_code = match error_code {
+                // Renamed by gtfs-validator v8.0.0; keep the existing tracked fixture path.
+                "fare_transfer_rule_missing_transfer_count" => {
+                    "fare_transfer_rule_without_transfer_count"
+                }
+                _ => error_code,
+            };
             println!("Testing error expectation: {} in {:?}", error_code, path);
 
             let _date_guard = gtfs_guru_core::set_validation_date(Some(
@@ -77,13 +84,16 @@ fn test_errors() {
             let runner = gtfs_guru_core::rules::default_runner();
             let outcome = gtfs_guru_core::engine::validate_input(&input, &runner);
 
-            let found = outcome.notices.iter().any(|n| n.code == error_code);
+            let found = outcome
+                .notices
+                .iter()
+                .any(|n| n.code == expected_notice_code);
 
             if !found {
                 println!("Notices found: {:#?}", outcome.notices);
                 panic!(
                     "Expected notice code '{}' not found in {:?}",
-                    error_code, path
+                    expected_notice_code, path
                 );
             }
         }

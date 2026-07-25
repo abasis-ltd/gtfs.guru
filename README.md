@@ -19,7 +19,7 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 2. **Privacy First**: Runs locally on your machine. No need to upload sensitive or pre-release schedules to the cloud.
 3. **Cross-Platform**: Available as a desktop app, command-line tool, Python library, Web API, and WebAssembly module.
 4. **CI & Integrations**: JSON/HTML/SARIF reports, notice schema export, URL validation, and timing breakdowns.
-5. **Deep Coverage**: 100+ validators, Google-specific rules, and an optional `--thorough` mode.
+5. **Deep Coverage**: 110 validators, Google-specific rules, and an optional `--thorough` mode.
 
 | Feature | Java Validator | **GTFS Guru (Rust)** |
 | :--- | :---: | :---: |
@@ -34,7 +34,7 @@ GTFS Guru is a next-generation tool to check your transit data (GTFS) for errors
 
 ## 📌 Versions
 
-* Current engine/CLI/report/model/python/wasm/web crate versions: **`v0.9.3`**
+* Current engine/CLI/report/model/python/wasm/web crate versions: **`v1.0.0`**
 * Desktop app releases are tagged on GitHub; download the latest for your OS.
 
 ---
@@ -101,9 +101,31 @@ iwr -useb https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/in
 Optional env vars:
 * `INSTALL_DIR=/custom/bin`
 * `GTFS_GURU_LINUX_FLAVOR=gnu|musl` (x86_64 Linux only)
-* `GTFS_GURU_VERSION=v0.9.3`
+* `GTFS_GURU_VERSION=v1.0.0`
 
 **CI examples (GitHub Actions):**
+
+Use the action — it installs a checksum-verified binary, runs the validation,
+sends SARIF to the Security tab, and fails the job on a bad feed:
+
+```yaml
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: abasis-ltd/gtfs.guru/action@v1
+        with:
+          feed: feed.zip
+          fail-on: error
+```
+
+Full input/output reference: [`action/README.md`](action/README.md).
+
+Or drive the CLI yourself:
 
 ```yaml
 jobs:
@@ -116,7 +138,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Run validation
-        run: gtfs-guru -i feed.zip -o out
+        run: gtfs-guru -i feed.zip -o out --fail-on error
 ```
 
 **CI examples (GitLab CI):**
@@ -129,7 +151,7 @@ validate:
     - curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash
     - export PATH="$HOME/.local/bin:$PATH"
   script:
-    - gtfs-guru -i feed.zip -o out
+    - gtfs-guru -i feed.zip -o out --fail-on error
 ```
 
 ### 🦀 For Rust Developers (CLI)
@@ -173,6 +195,7 @@ Default outputs in the report directory:
 
 Optional outputs:
 * `--sarif report.sarif.json`
+* `--badge badge.json` (a shields.io endpoint descriptor for a README badge)
 * `--export-notices-schema` (writes `notice_schema.json`)
 
 **Options (highlights):**
@@ -180,14 +203,19 @@ Optional outputs:
 * `-u, --url <URL>`: Validate a remote GTFS zip.
 * `-s, --storage_directory <DIR>`: Save downloaded feeds when using `--url`.
 * `-o, --output_base <DIR>`: Directory to save reports.
+* `--stdout`: Write only the JSON validation report to stdout instead of report files.
 * `--skip_validator_update`: Skip the online validator update check.
 * `--threads <N>`: Thread count recorded in the generated report.
 * `--google-rules`: Enable Google-specific rules.
 * `--thorough`: Enable recommended-field checks.
 * `--sarif <FILE>`: Write SARIF report for CI.
 * `--timing` / `--timing-json`: Print timing breakdowns.
+* `--fail-on <none|error|warning>`: Exit with status 2 when the report reaches that severity. Reports are still written.
+* `--badge <FILE>` / `--badge-svg <FILE>`: Write a status badge. See [Status badges](docs/usage.md#status-badges).
 
-Auto-fix flags (`--fix-dry-run`, `--fix`, `--fix-unsafe`) currently print planned edits; file rewriting is not implemented yet.
+`--fix-dry-run` lists suggested edits without touching anything. `--fix` applies the safe ones and `--fix-unsafe` applies all of them, writing a repaired copy to `--fix-output` (default: `<input>.fixed.<ext>` beside the input). The input is never modified, an existing output path is refused, and only the CSV rows that carry an edit are rewritten — every other byte is copied through. Most fix-carrying rules run only under `--thorough`.
+
+Exit codes: `0` validation completed, `1` the run failed, `2` the feed did not meet `--fail-on`.
 
 See the [LLM Guide](docs/llm.md) for a compact, copy/paste reference.
 
@@ -240,7 +268,7 @@ GTFSVTOR_OPTS=-Xmx6G gtfsvtor \
 This monorepo houses the entire ecosystem:
 
 * **`crates/gtfs_model`**: Shared GTFS data model types.
-* **`crates/gtfs_validator_core`**: The validation engine (100+ validators).
+* **`crates/gtfs_validator_core`**: The validation engine (110 validators).
 * **`crates/gtfs_validator_report`**: Report generation (JSON/HTML/SARIF).
 * **`crates/gtfs_validator_cli`**: CLI tool implementation.
 * **`crates/gtfs_validator_web`**: Web API service.

@@ -56,6 +56,7 @@ mod route_agency_id;
 mod route_color_contrast;
 mod routes;
 mod service_never_active;
+mod service_windows_v8;
 pub mod shape_to_stop_matching;
 mod shape_usage;
 mod shapes;
@@ -88,6 +89,8 @@ mod unused_route;
 mod unused_stop;
 mod url_consistency;
 mod url_syntax;
+mod v8_data_quality;
+mod v8_feature_rules;
 
 use crate::ValidatorRunner;
 
@@ -153,6 +156,7 @@ pub use route_agency_id::RouteAgencyIdValidator;
 pub use route_color_contrast::RouteColorContrastValidator;
 pub use routes::RoutesValidator;
 pub use service_never_active::ServiceNeverActiveValidator;
+pub use service_windows_v8::ServiceWindowsV8Validator;
 pub use shape_to_stop_matching::ShapeToStopMatchingValidator;
 pub use shape_usage::ShapeUsageValidator;
 pub use shapes::ShapeIncreasingDistanceValidator;
@@ -185,6 +189,14 @@ pub use unused_route::UnusedRouteValidator;
 pub use unused_stop::UnusedStopValidator;
 pub use url_consistency::UrlConsistencyValidator;
 pub use url_syntax::UrlSyntaxValidator;
+pub use v8_data_quality::{
+    ServiceHasNoActiveDayOfTheWeekValidator, TripHeadsignMatchesIntermediateStopValidator,
+    TripWithShapeDistTraveledButNoShapeDistancesValidator, UnsortedStopTimesValidator,
+};
+pub use v8_feature_rules::{
+    InconsistentRouteTypeForBlockIdValidator, InconsistentRouteTypeForInSeatTransferValidator,
+    PathwayStopAccessValidator, StopAccessValidator,
+};
 
 pub fn default_runner() -> ValidatorRunner {
     let mut runner = ValidatorRunner::new();
@@ -226,6 +238,15 @@ pub fn default_runner() -> ValidatorRunner {
     runner.register(RoutesValidator);
     runner.register(BikesAllowanceValidator);
     runner.register(RouteAgencyIdValidator);
+    runner.register(StopAccessValidator);
+    runner.register(PathwayStopAccessValidator);
+    runner.register(InconsistentRouteTypeForBlockIdValidator);
+    runner.register(InconsistentRouteTypeForInSeatTransferValidator);
+    runner.register(ServiceHasNoActiveDayOfTheWeekValidator);
+    runner.register(UnsortedStopTimesValidator);
+    runner.register(TripHeadsignMatchesIntermediateStopValidator);
+    runner.register(TripWithShapeDistTraveledButNoShapeDistancesValidator);
+    runner.register(ServiceWindowsV8Validator);
     runner.register(MatchingFeedAndAgencyLangValidator);
     runner.register(UrlConsistencyValidator);
     runner.register(RouteColorContrastValidator);

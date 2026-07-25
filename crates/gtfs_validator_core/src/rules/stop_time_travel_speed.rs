@@ -284,17 +284,23 @@ impl StopTimeTravelSpeedValidator {
         if indices.len() <= 1 {
             return Vec::new();
         }
-        let mut coords = Vec::with_capacity(indices.len());
-        for &index in indices {
-            let stop_time = &feed.stop_times.rows[index];
-            let coords_for_stop = stop_coords(stop_time, &context.stops_by_id);
-            coords.push(coords_for_stop);
-        }
-        let mut distances_km = Vec::with_capacity(coords.len() - 1);
-        for i in 0..coords.len() - 1 {
-            let (lat1, lon1) = coords[i];
-            let (lat2, lon2) = coords[i + 1];
-            distances_km.push(haversine_km(lat1, lon1, lat2, lon2));
+        let mut distances_km = Vec::with_capacity(indices.len() - 1);
+        let mut current_coords =
+            stop_coords(&feed.stop_times.rows[indices[0]], &context.stops_by_id);
+        for &index in &indices[1..] {
+            let next_coords = stop_coords(&feed.stop_times.rows[index], &context.stops_by_id);
+            if let Some(next) = next_coords {
+                let distance = current_coords
+                    .map(|current| haversine_km(current.0, current.1, next.0, next.1))
+                    .unwrap_or(0.0);
+                distances_km.push(distance);
+                current_coords = Some(next);
+            } else {
+                // A Flex GeoJSON location has no single coordinate. Its segment
+                // contributes zero distance, while the last known fixed-stop
+                // coordinate is retained for the next calculable segment.
+                distances_km.push(0.0);
+            }
         }
         distances_km
     }
@@ -458,10 +464,10 @@ fn populate_travel_speed_notice(
 fn stop_coords(
     stop_time: &gtfs_guru_model::StopTime,
     stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
-) -> (f64, f64) {
+) -> Option<(f64, f64)> {
     let mut current_id = stop_time.stop_id;
     if current_id.0 == 0 {
-        return (0.0, 0.0);
+        return None;
     }
     for _ in 0..3 {
         let stop = match stops_by_id.get(&current_id) {
@@ -469,15 +475,14 @@ fn stop_coords(
             None => break,
         };
         if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
-            return (lat, lon);
+            return Some((lat, lon));
         }
         let Some(parent) = stop.parent_station.filter(|id| id.0 != 0) else {
             break;
         };
         current_id = parent;
     }
-    // Match Java behavior: fall back to (0,0) if no coordinates are found.
-    (0.0, 0.0)
+    None
 }
 
 fn stop_by_id<'a>(
@@ -595,7 +600,8 @@ fn max_speed_kph(route_type: RouteType) -> f64 {
 }
 
 fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    let radius_km = 6371.0;
+    // S2Earth's radius, which is what the canonical validator measures with.
+    let radius_km = 6371.01;
     let lat1_rad = lat1.to_radians();
     let lat2_rad = lat2.to_radians();
     let delta_lat = (lat2 - lat1).to_radians();
@@ -776,6 +782,60 @@ mod tests {
         StopTimeTravelSpeedValidator.validate(&feed, &mut notices);
 
         assert!(notices.iter().any(|n| n.code == CODE_FAST_TRAVEL_FAR));
+    }
+
+    #[test]
+    fn flex_location_between_stops_preserves_last_fixed_coordinate() {
+        let mut feed = GtfsFeed::default();
+        let stop_1 = feed.pool.intern("S1");
+        let stop_2 = feed.pool.intern("S2");
+        feed.stops.rows = vec![
+            Stop {
+                stop_id: stop_1,
+                stop_lat: Some(0.0),
+                stop_lon: Some(0.0),
+                ..Default::default()
+            },
+            Stop {
+                stop_id: stop_2,
+                stop_lat: Some(0.1),
+                stop_lon: Some(0.0),
+                ..Default::default()
+            },
+        ];
+        feed.stop_times.rows = vec![
+            StopTime {
+                stop_id: stop_1,
+                stop_sequence: 1,
+                ..Default::default()
+            },
+            StopTime {
+                location_id: Some(feed.pool.intern("FLEX")),
+                stop_sequence: 2,
+                ..Default::default()
+            },
+            StopTime {
+                stop_id: stop_2,
+                stop_sequence: 3,
+                ..Default::default()
+            },
+        ];
+        let context = ValidationContext {
+            stops_by_id: feed
+                .stops
+                .rows
+                .iter()
+                .map(|stop| (stop.stop_id, stop))
+                .collect(),
+            routes_by_id: HashMap::new(),
+            trips_by_id: HashMap::new(),
+        };
+
+        let distances =
+            StopTimeTravelSpeedValidator::distances_for_pattern(&[0, 1, 2], &feed, &context);
+
+        assert_eq!(distances[0], 0.0);
+        assert!((distances[1] - 11.119).abs() < 0.01);
     }
 
     #[test]

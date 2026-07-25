@@ -63,8 +63,8 @@ Golden tests compare validator output against expected reference files.
 # Run benchmarks comparing Rust vs Java
 python3 scripts/benchmark_compare.py benchmark-feeds/nl.zip --iterations 3
 
-# Run golden test suite
-python3 scripts/golden.py suite golden_manifest.tsv tmp/actual
+# Run the committed canonical-v8 golden suite
+scripts/ci_golden.sh
 
 # Deploy to production server
 ./scripts/deploy-to-hetzner.sh validator.example.com

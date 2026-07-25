@@ -7,18 +7,18 @@ The GTFS Validator can run entirely in the browser using WebAssembly. No server 
 ### npm / yarn / pnpm
 
 ```bash
-npm install gtfs.guru
+npm install @abasisltd/gtfs-guru-wasm
 # or
-yarn add gtfs.guru
+yarn add @abasisltd/gtfs-guru-wasm
 # or
-pnpm add gtfs.guru
+pnpm add @abasisltd/gtfs-guru-wasm
 ```
 
 ### CDN
 
 ```html
 <script type="module">
-  import init, { validate_gtfs } from 'https://unpkg.com/gtfs.guru/gtfs_validator_wasm.js';
+  import init, { validate_gtfs } from 'https://unpkg.com/@abasisltd/gtfs-guru-wasm/gtfs_guru_wasm.js';
 </script>
 ```
 
@@ -26,7 +26,7 @@ Or use jsDelivr:
 
 ```html
 <script type="module">
-  import init, { validate_gtfs } from 'https://cdn.jsdelivr.net/npm/gtfs.guru/gtfs_validator_wasm.js';
+  import init, { validate_gtfs } from 'https://cdn.jsdelivr.net/npm/@abasisltd/gtfs-guru-wasm/gtfs_guru_wasm.js';
 </script>
 ```
 
@@ -35,7 +35,7 @@ Or use jsDelivr:
 ### Browser (ES Modules)
 
 ```javascript
-import init, { validate_gtfs, version } from 'gtfs.guru';
+import init, { validate_gtfs, version } from '@abasisltd/gtfs-guru-wasm';
 
 async function main() {
   // Initialize WASM module (required once)
@@ -68,13 +68,18 @@ main();
 ### Node.js
 
 ```javascript
-const fs = require('fs');
-const { init, validate_gtfs } = require('gtfs.guru');
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import init, { validate_gtfs } from '@abasisltd/gtfs-guru-wasm';
 
 async function main() {
-  await init();
+  const require = createRequire(import.meta.url);
+  const wasmPath = require.resolve(
+    '@abasisltd/gtfs-guru-wasm/gtfs_guru_wasm_bg.wasm'
+  );
+  await init({ module_or_path: await readFile(wasmPath) });
 
-  const bytes = fs.readFileSync('gtfs.zip');
+  const bytes = await readFile('gtfs.zip');
   const result = validate_gtfs(new Uint8Array(bytes));
 
   console.log('Valid:', result.is_valid);
@@ -89,7 +94,7 @@ main();
 For better user experience, use the Web Worker to avoid blocking the main thread:
 
 ```javascript
-import { GtfsValidator } from 'gtfs.guru';
+import { GtfsValidator } from '@abasisltd/gtfs-guru-wasm/index.js';
 
 const validator = new GtfsValidator();
 
@@ -133,6 +138,8 @@ Validates a GTFS ZIP file.
 - `warning_count: number` - Number of warnings
 - `info_count: number` - Number of info notices
 - `is_valid: boolean` - True if no errors
+- `timings_json: string` - Aggregate loading, per-table parsing, indexing, and
+  per-validator timings as JSON
 
 ### `validate_gtfs_json(bytes, countryCode?): string`
 
@@ -173,7 +180,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ['gtfs.guru']
+    exclude: ['@abasisltd/gtfs-guru-wasm']
   }
 });
 ```
@@ -209,18 +216,37 @@ export default {
 TypeScript definitions are included. Import types like this:
 
 ```typescript
-import type { ValidationResult, ValidationNotice, NoticeSeverity } from 'gtfs.guru';
+import type { ValidationResult } from '@abasisltd/gtfs-guru-wasm';
 ```
 
 ## Memory Considerations
 
 WASM runs in a limited memory environment. For large GTFS feeds:
 
-1. **File Size Limit**: Browsers typically allow ~2GB memory. Large feeds (>100MB) may approach limits.
+1. **File Size Limits**: Browser validation accepts up to 150 MB compressed and
+   700 MB total uncompressed data. Both limits are checked before parsing.
 
 2. **Web Worker**: Always use the Web Worker for files over 10MB to avoid UI freezing.
 
 3. **Server-Side**: For very large feeds (>200MB), consider server-side validation with the CLI or REST API.
+
+The uncompressed limit remains essential because ZIP size alone is misleading.
+For example, a feed near the compressed-size ceiling may still exceed the
+700 MB uncompressed limit. The central-directory guard rejects it before
+parsing, including smaller but highly compressed archives.
+
+CSV members are streamed from the ZIP directly into the sequential parser, so
+the browser does not retain a second full uncompressed copy of large tables.
+Validation notices are bounded to 1,000 retained samples per code and severity;
+`totalNotices` and the summary severity counts remain exact.
+
+## Threads benchmark
+
+On Apple M3 Pro / Chrome 150, three runs of `paris.zip` (10 MB compressed,
+89 MB uncompressed) averaged 2.242 s single-threaded and 1.818 s with parallel
+validators, a 1.23x speedup. Reports matched exactly by SHA-256. Parallel CSV
+deserialization was disabled for WASM after it exceeded a five-minute timeout
+on the same feed due to shared interner contention; native builds retain it.
 
 ## Browser Compatibility
 
@@ -258,12 +284,24 @@ curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 # Build for web
 wasm-pack build crates/gtfs_validator_wasm --target web --release
 
+# Build for browsers with WebAssembly threads (nightly + rust-src required)
+RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals,+simd128 -C link-arg=--shared-memory -C link-arg=--max-memory=4294901760 -C link-arg=--import-memory -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base' \
+  rustup run nightly-2026-03-01 wasm-pack build crates/gtfs_validator_wasm --target web \
+  --release --out-dir pkg-mt -- \
+  --features threads -Z build-std=panic_abort,std
+
 # Build for Node.js
 wasm-pack build crates/gtfs_validator_wasm --target nodejs --release --out-dir pkg-node
 
 # Or use the build script
 ./scripts/build-wasm.sh
 ```
+
+The threaded package is selected automatically when the page is cross-origin
+isolated (`COOP: same-origin` and `COEP: require-corp`) and
+`SharedArrayBuffer` is available. Otherwise the worker uses the portable
+single-threaded package. Use the included Caddy, Nginx, or Cloudflare Pages
+headers to enable threads.
 
 ## Demo
 

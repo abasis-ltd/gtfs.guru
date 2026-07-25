@@ -31,6 +31,7 @@ const AGENCY_FIELDS: &[&str] = &[
     "agency_phone",
     "agency_fare_url",
     "agency_email",
+    "cemv_support",
 ];
 const AGENCY_REQUIRED_FIELDS: &[&str] = &["agency_name", "agency_url", "agency_timezone"];
 const STOPS_FIELDS: &[&str] = &[
@@ -55,6 +56,7 @@ const STOPS_FIELDS: &[&str] = &[
     "stop_postcode",
     "stop_country",
     "stop_phone",
+    "stop_access",
 ];
 const STOPS_REQUIRED_FIELDS: &[&str] = &["stop_id"];
 const STOPS_RECOMMENDED_FIELDS: &[&str] = &[
@@ -82,6 +84,7 @@ const ROUTES_FIELDS: &[&str] = &[
     "continuous_drop_off",
     "network_id",
     "route_branding_url",
+    "cemv_support",
 ];
 const ROUTES_REQUIRED_FIELDS: &[&str] = &["route_id", "route_type"];
 const ROUTES_RECOMMENDED_FIELDS: &[&str] = &[
@@ -103,6 +106,9 @@ const TRIPS_FIELDS: &[&str] = &[
     "shape_id",
     "wheelchair_accessible",
     "bikes_allowed",
+    "cars_allowed",
+    "safe_duration_factor",
+    "safe_duration_offset",
     "continuous_pickup",
     "continuous_drop_off",
 ];

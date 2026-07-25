@@ -7,17 +7,37 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v1.0.0)'
-        required: false
+        description: 'Version to validate and build (does not publish without a tag)'
+        required: true
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify tag and package versions
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+        run: python3 scripts/check-release-version.py --tag "$RELEASE_VERSION"
+
+  rust-gate:
+    uses: ./.github/workflows/rust.yml
+
+  golden-gate:
+    uses: ./.github/workflows/golden.yml
+
   build-and-release:
+    needs: [validate-release, rust-gate, golden-gate]
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +57,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -96,7 +116,7 @@ jobs:
 
       - name: Upload CLI artifacts (Linux)
         if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-linux
           path: dist/*.tar.gz
@@ -104,7 +124,7 @@ jobs:
 
       - name: Upload CLI artifacts (macOS)
         if: matrix.platform == 'macos-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-macos
           path: dist/*.tar.gz
@@ -112,7 +132,7 @@ jobs:
 
       - name: Upload CLI artifacts (Windows)
         if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-windows
           path: dist/*.zip
@@ -188,7 +208,7 @@ jobs:
 
       - name: Upload macOS artifacts
         if: matrix.platform == 'macos-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-installers
           path: |
@@ -200,7 +220,7 @@ jobs:
 
       - name: Upload Linux artifacts
         if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-installers
           path: |
@@ -212,7 +232,7 @@ jobs:
 
       - name: Upload Windows artifacts
         if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-installers
           path: |
@@ -226,10 +246,12 @@ jobs:
     needs: build-and-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -354,11 +376,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-crates:
-    needs: build-and-release
+    needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Publish crates (skip if already published)
         env:
@@ -380,17 +402,26 @@ jobs:
 
             if [ "$status" -eq 0 ]; then
               echo "$output"
-              sleep 30
-              return 0
-            fi
-
-            if echo "$output" | grep -q "already exists"; then
+            elif echo "$output" | grep -q "already exists"; then
               echo "Skip ${name} ${VERSION} (already published)"
-              return 0
+            else
+              echo "$output"
+              return "$status"
             fi
 
-            echo "$output"
-            return "$status"
+            # Dependent packages cannot be prepared until the exact version is
+            # visible in the crates.io index. Propagation time is variable, so
+            # poll with a bounded timeout instead of sleeping a fixed 30s.
+            for attempt in $(seq 1 20); do
+              if cargo info "${name}@${VERSION}" >/dev/null 2>&1; then
+                echo "${name} ${VERSION} is visible in crates.io"
+                return 0
+              fi
+              echo "Waiting for crates.io index (${attempt}/20)..."
+              sleep 15
+            done
+            echo "Timed out waiting for ${name} ${VERSION} in crates.io" >&2
+            return 1
           }
 
           publish_or_skip gtfs-guru-model
@@ -399,41 +430,157 @@ jobs:
           publish_or_skip gtfs-guru
           publish_or_skip gtfs-guru-web
 
+  build-wheels:
+    needs: create-release
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64
+            manylinux: auto
+          - runner: ubuntu-latest
+            target: aarch64
+            manylinux: '2_28'
+          - runner: macos-latest
+            target: x86_64
+          - runner: macos-latest
+            target: aarch64
+          - runner: windows-latest
+            target: x64
+    runs-on: ${{ matrix.runner }}
+    name: Wheel (${{ matrix.runner }} ${{ matrix.target }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist -m crates/gtfs_validator_python/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.runner }}-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  build-sdist:
+    needs: create-release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist -m crates/gtfs_validator_python/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  test-python-wheel:
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.8'
+      - uses: actions/download-artifact@v8
+        with:
+          name: wheels-ubuntu-latest-x86_64
+          path: dist
+      - name: Install the built wheel
+        run: "python -m pip install --only-binary=:all: dist/*.whl"
+      - name: Exercise the Python API
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: python scripts/test-python-wheel.py
+
   publish-pypi:
-    needs: build-and-release
+    needs: [build-wheels, build-sdist, test-python-wheel]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Check artifacts before upload
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          ls -la dist/
+          wheels=$(find dist -name '*.whl' | wc -l)
+          sdists=$(find dist -name '*.tar.gz' | wc -l)
+          echo "wheels=$wheels sdists=$sdists"
+          if [ "$wheels" -lt 5 ] || [ "$sdists" -lt 1 ]; then
+            echo "::error::expected >=5 wheels and >=1 sdist, got $wheels/$sdists"
+            exit 1
+          fi
+          if [ -z "${PYPI_TOKEN}" ]; then
+            echo "::error::PYPI_API_TOKEN is not set"
+            exit 1
+          fi
+
       - uses: PyO3/maturin-action@v1
         with:
-          command: publish
-          args: --non-interactive --skip-existing -m crates/gtfs_validator_python/Cargo.toml
+          command: upload
+          args: --non-interactive --skip-existing dist/*
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
 
+      - name: Verify the version is live on PyPI
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -sf "https://pypi.org/pypi/gtfs-guru/${VERSION}/json" >/dev/null; then
+              echo "gtfs-guru ${VERSION} is live on PyPI."
+              exit 0
+            fi
+            echo "Not visible yet (attempt ${attempt}/6); waiting 20s..."
+            sleep 20
+          done
+          echo "::error::gtfs-guru ${VERSION} never appeared on PyPI after upload"
+          exit 1
+
   publish-npm:
-    needs: build-and-release
+    needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-      - uses: jetli/wasm-pack-action@v0.4.0
+      - uses: ./.github/actions/install-wasm-pack
       - name: Build Wasm
         run: |
+          set -euo pipefail
           cd crates/gtfs_validator_wasm
-          wasm-pack build --target web --scope abasisltd
+          wasm-pack build --target web --release --out-dir pkg
+          cp js/worker.js js/index.js pkg/
+          cp types/*.d.ts pkg/
+          cp package.json.template pkg/package.json
       - name: Publish to NPM
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           cd crates/gtfs_validator_wasm/pkg
+          test "$(node -p 'require("./package.json").name')" = "@abasisltd/gtfs-guru-wasm"
+          test "$(node -p 'require("./package.json").version')" = "$VERSION"
+          npm pack --dry-run
           if npm view "@abasisltd/gtfs-guru-wasm@${VERSION}" version >/dev/null 2>&1; then
             echo "Skip @abasisltd/gtfs-guru-wasm ${VERSION} (already published)"
           else
@@ -443,60 +590,80 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   deploy-website:
-    needs: create-release
+    needs: [publish-crates, publish-pypi, publish-npm]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Check deploy secret
-        id: secret
-        run: |
-          if [ -n "${{ secrets.HETZNER_SSH_KEY }}" ] && [ -n "${{ secrets.HETZNER_HOST }}" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "HETZNER_SSH_KEY / HETZNER_HOST secrets not set — skipping site deploy."
-          fi
-
-      - uses: dtolnay/rust-toolchain@stable
-        if: steps.secret.outputs.available == 'true'
-
-      - name: Install multithreaded-wasm toolchain
-        if: steps.secret.outputs.available == 'true'
-        run: |
-          rustup toolchain install nightly-2026-03-01 --component rust-src
-          rustup target add wasm32-unknown-unknown --toolchain nightly-2026-03-01
-          rustup target add wasm32-unknown-unknown
-
-      - uses: jetli/wasm-pack-action@v0.4.0
-        if: steps.secret.outputs.available == 'true'
-
-      - name: Install binaryen (wasm-opt)
-        if: steps.secret.outputs.available == 'true'
-        run: sudo apt-get update && sudo apt-get install -y binaryen
-
-      - name: Build wasm packages (single-threaded + multithreaded)
-        if: steps.secret.outputs.available == 'true'
-        run: ./scripts/build-wasm.sh
-
-      - name: Assemble website
-        if: steps.secret.outputs.available == 'true'
-        run: |
-          rm -rf website/pkg website/pkg-mt
-          cp -r crates/gtfs_validator_wasm/pkg website/pkg
-          cp -r crates/gtfs_validator_wasm/pkg-mt website/pkg-mt
-
-      - name: Deploy to Hetzner
-        if: steps.secret.outputs.available == 'true'
+      - name: Verify deployment configuration
         env:
-          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          echo "$HETZNER_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$HETZNER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          scp -i ~/.ssh/deploy_key -r website/* "botuser@$HETZNER_HOST:~/gtfs-guru-web/"
-          echo "Site deployed."
+          for name in HETZNER_HOST HETZNER_KNOWN_HOSTS HETZNER_SSH_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required release secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: ./.github/actions/install-wasm-pack
+
+      - name: Install binaryen
+        env:
+          BINARYEN_SHA256: b5bf1f0eaf17c63ee588ff7a5954dc8f6ce2c26989051c66f24dfe9ece3e46db
+          BINARYEN_VERSION: '131'
+        run: |
+          archive="$RUNNER_TEMP/binaryen.tar.gz"
+          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz" -o "$archive"
+          echo "$BINARYEN_SHA256  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Build production website assets
+        run: ./scripts/build-wasm.sh
+
+      - name: Synchronize website to Hetzner
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+          HETZNER_PATH: ${{ secrets.HETZNER_PATH }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$HETZNER_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          install -m 600 /dev/null "$RUNNER_TEMP/hetzner_deploy_key"
+          printf '%s\n' "$HETZNER_SSH_KEY" > "$RUNNER_TEMP/hetzner_deploy_key"
+          trap 'rm -f "$RUNNER_TEMP/hetzner_deploy_key"' EXIT
+
+          DEPLOY_USER="${HETZNER_USER:-botuser}"
+          DEPLOY_PATH="${HETZNER_PATH:-gtfs-guru-web/}"
+          rsync -az --delete-delay --delete-excluded \
+            --exclude Dockerfile \
+            --exclude nginx.conf \
+            -e "ssh -i $RUNNER_TEMP/hetzner_deploy_key -o IdentitiesOnly=yes" \
+            website/ "$DEPLOY_USER@$HETZNER_HOST:$DEPLOY_PATH"
+
+      - name: Verify deployed website version
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          EXPECTED_VERSION="${EXPECTED_VERSION#v}"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            https://gtfs.guru/pkg/package.json > "$RUNNER_TEMP/package.json"
+          DEPLOYED_VERSION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$RUNNER_TEMP/package.json")
+          test "$DEPLOYED_VERSION" = "$EXPECTED_VERSION" || {
+            echo "Website reports $DEPLOYED_VERSION, expected $EXPECTED_VERSION" >&2
+            exit 1
+          }

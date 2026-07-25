@@ -398,6 +398,40 @@ pub enum WheelchairBoarding {
     Other,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+pub enum ContactlessEmvSupport {
+    #[serde(rename = "0")]
+    NoInformation,
+    #[serde(rename = "1")]
+    Supported,
+    #[serde(rename = "2")]
+    NotSupported,
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+pub enum CarsAllowed {
+    #[serde(rename = "0")]
+    NoInformation,
+    #[serde(rename = "1")]
+    Allowed,
+    #[serde(rename = "2")]
+    NotAllowed,
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+pub enum StopAccess {
+    #[serde(rename = "0")]
+    AccessibleViaPathways,
+    #[serde(rename = "1")]
+    NotAccessibleViaPathways,
+    #[serde(other)]
+    Other,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RouteType {
     Tram,
@@ -727,6 +761,7 @@ pub struct Agency {
     pub agency_phone: Option<CompactString>,
     pub agency_fare_url: Option<StringId>,
     pub agency_email: Option<CompactString>,
+    pub cemv_support: Option<ContactlessEmvSupport>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -746,6 +781,7 @@ pub struct Stop {
     pub wheelchair_boarding: Option<WheelchairBoarding>,
     pub level_id: Option<StringId>,
     pub platform_code: Option<CompactString>,
+    pub stop_access: Option<StopAccess>,
     pub stop_address: Option<CompactString>,
     pub stop_city: Option<CompactString>,
     pub stop_region: Option<CompactString>,
@@ -778,6 +814,7 @@ pub struct Route {
     pub continuous_drop_off: Option<ContinuousPickupDropOff>,
     pub network_id: Option<StringId>,
     pub route_branding_url: Option<StringId>,
+    pub cemv_support: Option<ContactlessEmvSupport>,
     pub checkin_duration: Option<u32>,
 }
 
@@ -798,6 +835,7 @@ impl Default for Route {
             continuous_drop_off: None,
             network_id: None,
             route_branding_url: None,
+            cemv_support: None,
             checkin_duration: None,
         }
     }
@@ -815,6 +853,9 @@ pub struct Trip {
     pub shape_id: Option<StringId>,
     pub wheelchair_accessible: Option<WheelchairAccessible>,
     pub bikes_allowed: Option<BikesAllowed>,
+    pub cars_allowed: Option<CarsAllowed>,
+    pub safe_duration_factor: Option<f64>,
+    pub safe_duration_offset: Option<f64>,
     pub continuous_pickup: Option<ContinuousPickupDropOff>,
     pub continuous_drop_off: Option<ContinuousPickupDropOff>,
 }

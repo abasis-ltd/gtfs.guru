@@ -1,4 +1,5 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use web_time::Instant;
 
 use crate::{
     input::{collect_input_notices, GtfsBytesReader},
@@ -74,10 +75,28 @@ pub fn validate_bytes_reader(
     validate_bytes_reader_and_progress(reader, runner, None)
 }
 
+/// Validate a bytes reader and collect loading and per-validator timings.
+pub fn validate_bytes_reader_with_timing(
+    reader: &GtfsBytesReader,
+    runner: &ValidatorRunner,
+    timing: &crate::TimingCollector,
+) -> ValidationOutcome {
+    validate_bytes_reader_and_progress_and_timing(reader, runner, None, Some(timing))
+}
+
 pub fn validate_bytes_reader_and_progress(
     reader: &GtfsBytesReader,
     runner: &ValidatorRunner,
     progress: Option<&dyn crate::ProgressHandler>,
+) -> ValidationOutcome {
+    validate_bytes_reader_and_progress_and_timing(reader, runner, progress, None)
+}
+
+pub fn validate_bytes_reader_and_progress_and_timing(
+    reader: &GtfsBytesReader,
+    runner: &ValidatorRunner,
+    progress: Option<&dyn crate::ProgressHandler>,
+    timing: Option<&crate::TimingCollector>,
 ) -> ValidationOutcome {
     let mut notices = NoticeContainer::new();
 
@@ -99,13 +118,26 @@ pub fn validate_bytes_reader_and_progress(
         }
     }
 
+    let load_started = Instant::now();
     let load_result = catch_unwind(AssertUnwindSafe(|| {
-        GtfsFeed::from_bytes_reader_with_notices_and_progress(reader, &mut notices, progress)
+        GtfsFeed::from_bytes_reader_with_notices_and_progress_and_timing(
+            reader,
+            &mut notices,
+            progress,
+            timing,
+        )
     }));
+    if let Some(timing) = timing {
+        timing.record(
+            "feed_loading",
+            load_started.elapsed(),
+            crate::TimingCategory::Loading,
+        );
+    }
 
     match load_result {
         Ok(Ok(feed)) => {
-            runner.run_with_progress(&feed, &mut notices, progress);
+            runner.run_with_progress_and_timing(&feed, &mut notices, progress, timing);
             ValidationOutcome {
                 feed: Some(feed),
                 notices,

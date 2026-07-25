@@ -2,15 +2,14 @@
 
 **High-performance GTFS feed validator written in Rust.**
 
-Full compatibility with [MobilityData gtfs-validator](https://github.com/MobilityData/gtfs-validator) (Java), with identical validation rules and output format — but 10-50x faster.
+Closely compatible with [MobilityData gtfs-validator](https://github.com/MobilityData/gtfs-validator) (Java), with the same report shape and familiar notice codes. The rule sets are not identical.
 
 ## Why GTFS.Guru?
 
 | Feature | Java Validator | GTFS.Guru |
 |---------|---------------|-----------|
-| **Speed** | 1x | 10-50x faster |
-| **Memory** | ~500MB | ~50MB |
-| **Binary size** | 50MB (JAR) | 5MB (CLI) |
+| **Speed** | 1x | 4.6–6.7x faster on published benchmarks |
+| **Startup** | JVM warm-up | Native binary, no runtime |
 | **Python bindings** | ❌ | ✅ |
 | **WebAssembly** | ❌ | ✅ |
 | **Parsing Strategy** | Serial | Parallel (Rayon) |
@@ -52,11 +51,11 @@ Full compatibility with [MobilityData gtfs-validator](https://github.com/Mobilit
 
 ## Features
 
-- **88 validation rules** — full parity with Java gtfs-validator
+- **110 validation rules** — broad coverage including Fares v2, Flex and Pathways
 - **Multiple interfaces** — CLI, Web API, Python bindings, Desktop App, WebAssembly
 - **Cross-platform** — macOS, Linux, Windows
-- **Detailed reports** — JSON and HTML output with geographic context
-- **Auto-fix suggestions** — machine-applicable fixes for common issues
+- **Detailed reports** — JSON, HTML and SARIF output with geographic context
+- **Auto-fix** — `--fix-dry-run` lists suggested edits, `--fix` writes a repaired copy of the feed
 - **Robust CSV Parsing** — handles spaces in headers and other common format issues
 
 ## Next Steps
@@ -64,4 +63,4 @@ Full compatibility with [MobilityData gtfs-validator](https://github.com/Mobilit
 - [Installation](installation.md) — Install via pip, cargo, or download binaries
 - [CLI Usage](usage.md) — Command-line options and examples
 - [Python API](python_api.md) — Python bindings documentation
-- [Validation Rules](rules.md) — All 88 validation rules explained
+- [Validation Rules](rules.md) — Notice codes emitted by the 110 validators

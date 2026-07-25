@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use anyhow::{bail, Context};
 use chrono::NaiveDate;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use reqwest::blocking::Client;
 use tracing::info;
 
@@ -12,37 +12,71 @@ use tracing::info;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use gtfs_guru_core::{
-    build_notice_schema_map, collect_input_notices, default_runner, set_validation_country_code,
-    set_validation_date, GtfsFeed, GtfsInput, GtfsInputError, NoticeContainer, NoticeSeverity,
+    apply_fixes, build_notice_schema_map, collect_input_notices, default_runner,
+    set_validation_country_code, set_validation_date, FixPlan, FixSafety, GtfsFeed, GtfsInput,
+    GtfsInputError, GtfsInputSource, NoticeContainer, NoticeSeverity, PlannedEdit,
     ValidationNotice, ValidatorRunner,
 };
 use gtfs_guru_report::{
-    write_html_report, HtmlReportContext, MemoryUsageRecord, ReportSummary, ReportSummaryContext,
-    SarifReport, ValidationReport,
+    write_html_report, Badge, HtmlReportContext, MemoryUsageRecord, ReportSummary,
+    ReportSummaryContext, SarifReport, ValidationReport,
 };
+
+/// Severity threshold at which a completed validation exits non-zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum FailOn {
+    /// Always exit 0 when validation completes.
+    None,
+    /// Exit 2 when at least one error is present.
+    Error,
+    /// Exit 2 when at least one error or warning is present.
+    Warning,
+}
 
 #[derive(Debug, Parser)]
 #[command(name = "gtfs-guru")]
 #[command(about = "GTFS Guru validator (Rust rewrite)")]
+#[command(version)]
+#[command(group = clap::ArgGroup::new("fix_mode").args(["fix", "fix_unsafe"]).multiple(true))]
 struct Args {
+    /// Path to a GTFS zip file or unpacked feed directory.
     #[arg(short = 'i', long = "input")]
     input: Option<PathBuf>,
 
+    /// URL of a remote GTFS zip file to download and validate.
     #[arg(short = 'u', long = "url")]
     url: Option<String>,
 
+    /// Directory in which to keep a feed downloaded with --url.
     #[arg(short = 's', long = "storage_directory", alias = "storage-directory")]
     storage_directory: Option<PathBuf>,
 
-    #[arg(short = 'o', long = "output_base", alias = "output")]
-    output: PathBuf,
+    /// Directory for generated reports; required unless --stdout is used.
+    #[arg(
+        short = 'o',
+        long = "output_base",
+        alias = "output",
+        required_unless_present = "stdout",
+        conflicts_with = "stdout"
+    )]
+    output: Option<PathBuf>,
 
+    /// Output the JSON validation report to stdout instead of writing report files.
+    #[arg(
+        long = "stdout",
+        conflicts_with_all = ["fix_dry_run", "fix", "fix_unsafe", "fix_output"]
+    )]
+    stdout: bool,
+
+    /// ISO country code used by region-specific rules (for example US or CY).
     #[arg(short = 'c', long = "country_code", alias = "country-code")]
     country_code: Option<String>,
 
+    /// Date against which to validate the feed, in YYYY-MM-DD format.
     #[arg(short = 'd', long = "date", alias = "date-for-validation")]
     date_for_validation: Option<String>,
 
+    /// File name for the JSON validation report (default: report.json).
     #[arg(
         short = 'v',
         long = "validation_report_name",
@@ -50,9 +84,11 @@ struct Args {
     )]
     validation_report_name: Option<String>,
 
+    /// File name for the HTML report (default: report.html).
     #[arg(short = 'r', long = "html_report_name", alias = "html-report-name")]
     html_report_name: Option<String>,
 
+    /// File name for the system errors report (default: system_errors.json).
     #[arg(
         short = 'e',
         long = "system_errors_report_name",
@@ -60,9 +96,11 @@ struct Args {
     )]
     system_errors_report_name: Option<String>,
 
+    /// Pretty-print JSON output.
     #[arg(short = 'p', long = "pretty")]
     pretty: bool,
 
+    /// Write notice_schema.json describing every notice this build can emit.
     #[arg(
         short = 'n',
         long = "export_notices_schema",
@@ -70,15 +108,19 @@ struct Args {
     )]
     export_notices_schema: bool,
 
+    /// Skip the online check for a newer validator release.
     #[arg(long = "skip_validator_update", alias = "skip-validator-update")]
     skip_validator_update: bool,
 
+    /// Override the validated_at timestamp stored in report metadata.
     #[arg(long = "validated-at")]
     validated_at: Option<String>,
 
+    /// Thread count stored in report metadata; use RAYON_NUM_THREADS to control parallelism.
     #[arg(long = "threads", default_value_t = 1)]
     threads: u32,
 
+    /// Enable additional rules used by Google's GTFS ingestion.
     #[arg(long = "google_rules", alias = "google-rules")]
     google_rules: bool,
 
@@ -86,17 +128,44 @@ struct Args {
     #[arg(long = "sarif")]
     sarif: Option<String>,
 
+    /// Exit 2 when the completed report reaches this severity.
+    #[arg(long = "fail-on", value_enum, default_value_t = FailOn::None)]
+    fail_on: FailOn,
+
+    /// Write a shields.io endpoint descriptor for a README status badge.
+    /// The path is taken as given, independent of --output_base.
+    #[arg(long = "badge", value_name = "PATH")]
+    badge: Option<PathBuf>,
+
+    /// Write a self-contained SVG status badge (no shields.io request at render time).
+    #[arg(long = "badge-svg", alias = "badge_svg", value_name = "PATH")]
+    badge_svg: Option<PathBuf>,
+
+    /// Left-hand text on the badge (default: GTFS).
+    #[arg(long = "badge-label", alias = "badge_label", value_name = "TEXT")]
+    badge_label: Option<String>,
+
     /// Show what fixes would be applied without modifying files
-    #[arg(long = "fix-dry-run")]
+    #[arg(
+        long = "fix-dry-run",
+        alias = "fix-preview",
+        conflicts_with_all = ["fix", "fix_unsafe", "fix_output"]
+    )]
     fix_dry_run: bool,
 
-    /// Apply safe auto-fixes to the GTFS feed
+    /// Write a repaired copy of the feed with the safe fixes applied.
     #[arg(long = "fix")]
     fix: bool,
 
-    /// Apply all fixes including potentially unsafe ones (implies --fix)
+    /// Like --fix, but also applies fixes that need confirmation or may change
+    /// semantics.
     #[arg(long = "fix-unsafe")]
     pub fix_unsafe: bool,
+
+    /// Where to write the repaired feed. Defaults to `<input>.fixed.<ext>` next
+    /// to the input. Never overwrites the input or an existing path.
+    #[arg(long = "fix-output", alias = "fix_output", requires = "fix_mode")]
+    fix_output: Option<PathBuf>,
 
     /// Enable thorough validation (reports missing recommended fields and columns).
     /// By default, only mandatory GTFS rules are enforced to match Java validator behavior.
@@ -113,8 +182,18 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_target(false).init();
     let args = Args::parse();
+    if args.stdout {
+        gtfs_guru_core::set_performance_logs_enabled(false);
+    }
+    if args.stdout {
+        tracing_subscriber::fmt()
+            .with_target(false)
+            .with_max_level(tracing::Level::ERROR)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_target(false).init();
+    }
 
     if args.export_notices_schema {
         export_notice_schema(&args)?;
@@ -169,6 +248,7 @@ fn main() -> anyhow::Result<()> {
         } else {
             None
         },
+        args.stdout,
     );
     record_memory_usage(
         &mut memory_usage_records,
@@ -182,16 +262,21 @@ fn main() -> anyhow::Result<()> {
         (outcome.notices, NoticeContainer::new())
     };
 
-    std::fs::create_dir_all(&args.output)
-        .with_context(|| format!("create output dir {}", args.output.display()))?;
+    let output = args.output.as_deref();
+    if let Some(output) = output {
+        std::fs::create_dir_all(output)
+            .with_context(|| format!("create output dir {}", output.display()))?;
+    }
 
     let mut summary_context = ReportSummaryContext::new()
         .with_gtfs_input(input.path())
-        .with_output_directory(&args.output)
         .with_validation_time_seconds(elapsed.as_secs_f64())
         .with_validator_version(env!("CARGO_PKG_VERSION"))
         .with_memory_usage_records(memory_usage_records)
         .with_threads(args.threads);
+    if let Some(output) = output {
+        summary_context = summary_context.with_output_directory(output);
+    }
     if let Some(gtfs_input_uri) = resolved.gtfs_input_uri.as_deref() {
         summary_context = summary_context.with_gtfs_input_uri(gtfs_input_uri);
     }
@@ -229,21 +314,44 @@ fn main() -> anyhow::Result<()> {
         .system_errors_report_name
         .clone()
         .unwrap_or_else(|| "system_errors.json".to_string());
+    let stdout_report_container = if outcome.feed.is_some() {
+        &validation_notices
+    } else {
+        &system_errors
+    };
+    // Badges describe feed quality, so they follow the same container as
+    // --fail-on: validation notices normally, system errors when the feed
+    // could not be loaded at all.
+    write_badges(&args, stdout_report_container)?;
+    if args.stdout {
+        let report =
+            ValidationReport::from_container_with_summary(stdout_report_container, summary);
+        let json = if args.pretty {
+            serde_json::to_string_pretty(&report)
+        } else {
+            serde_json::to_string(&report)
+        }
+        .context("serialize report")?;
+        println!("{json}");
+        exit_if_threshold_reached(args.fail_on, stdout_report_container);
+        return Ok(());
+    }
+    let output = output.expect("clap requires --output_base unless --stdout is used");
     let html_context = HtmlReportContext::from_summary(&summary, resolved.gtfs_source_label);
     write_html_report(
-        args.output.join(&html_report_name),
+        output.join(&html_report_name),
         &validation_notices,
         &summary,
         html_context,
     )?;
     let report = ValidationReport::from_container_with_summary(&validation_notices, summary);
-    report.write_json_with_format(args.output.join(&validation_report_name), args.pretty)?;
+    report.write_json_with_format(output.join(&validation_report_name), args.pretty)?;
     ValidationReport::from_container(&system_errors)
-        .write_json_with_format(args.output.join(&system_errors_report_name), args.pretty)?;
+        .write_json_with_format(output.join(&system_errors_report_name), args.pretty)?;
 
     // Generate SARIF report if requested
     if let Some(sarif_name) = &args.sarif {
-        let sarif_path = args.output.join(sarif_name);
+        let sarif_path = output.join(sarif_name);
         let sarif_report = SarifReport::from_notices(&validation_notices);
         sarif_report.write(&sarif_path)?;
         info!("SARIF report written to {}", sarif_path.display());
@@ -265,150 +373,211 @@ fn main() -> anyhow::Result<()> {
 
     // Handle auto-fix options
     if args.fix_dry_run || args.fix || args.fix_unsafe {
-        handle_fixes(&validation_notices, &args, input.path())?;
+        handle_fixes(&validation_notices, &args, &input)?;
     }
+
+    // Reports are already written: status 2 describes feed quality, not a run failure.
+    exit_if_threshold_reached(args.fail_on, stdout_report_container);
 
     Ok(())
 }
 
-fn handle_fixes(notices: &NoticeContainer, args: &Args, gtfs_path: &Path) -> anyhow::Result<()> {
-    use gtfs_guru_core::{FixOperation, FixSafety};
-    use std::collections::HashMap;
+fn perf_logging_enabled() -> bool {
+    std::env::var_os("GTFS_PERF_DEBUG").is_some()
+}
 
-    // Collect all fixes, grouped by file
-    let mut fixes_by_file: HashMap<String, Vec<_>> = HashMap::new();
-    let mut safe_count = 0;
-    let mut requires_confirmation_count = 0;
-    let mut unsafe_count = 0;
-
-    for notice in notices.iter() {
-        if let Some(fix) = &notice.fix {
-            match fix.safety {
-                FixSafety::Safe => safe_count += 1,
-                FixSafety::RequiresConfirmation => requires_confirmation_count += 1,
-                FixSafety::Unsafe => unsafe_count += 1,
-            }
-
-            let FixOperation::ReplaceField { file, .. } = &fix.operation;
-            fixes_by_file
-                .entry(file.clone())
-                .or_default()
-                .push((notice, fix));
-        }
+fn write_badges(args: &Args, notices: &NoticeContainer) -> anyhow::Result<()> {
+    if args.badge.is_none() && args.badge_svg.is_none() {
+        return Ok(());
     }
 
-    let total = safe_count + requires_confirmation_count + unsafe_count;
-    if total == 0 {
+    let mut badge = Badge::from_notices(notices);
+    if let Some(label) = args.badge_label.as_deref() {
+        badge = badge.with_label(label);
+    }
+
+    if let Some(path) = args.badge.as_deref() {
+        badge
+            .write_endpoint_json(path)
+            .with_context(|| format!("write badge endpoint to {}", path.display()))?;
+        info!("Badge endpoint written to {}", path.display());
+    }
+    if let Some(path) = args.badge_svg.as_deref() {
+        badge
+            .write_svg(path)
+            .with_context(|| format!("write badge SVG to {}", path.display()))?;
+        info!("Badge SVG written to {}", path.display());
+    }
+    Ok(())
+}
+
+fn should_fail(fail_on: FailOn, errors: usize, warnings: usize) -> bool {
+    match fail_on {
+        FailOn::None => false,
+        FailOn::Error => errors > 0,
+        FailOn::Warning => errors > 0 || warnings > 0,
+    }
+}
+
+fn exit_if_threshold_reached(fail_on: FailOn, notices: &NoticeContainer) {
+    // Exact totals, including notices dropped by the per-group storage cap.
+    let (errors, warnings, _infos) = notices.severity_counts();
+    if !should_fail(fail_on, errors, warnings) {
+        return;
+    }
+
+    let threshold = match fail_on {
+        FailOn::Error => "error",
+        FailOn::Warning => "warning",
+        FailOn::None => unreachable!(),
+    };
+    eprintln!("Feed did not pass --fail-on {threshold}: {errors} error(s), {warnings} warning(s).");
+    std::process::exit(2);
+}
+
+fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> anyhow::Result<()> {
+    let max_safety = if args.fix_unsafe {
+        FixSafety::Unsafe
+    } else {
+        FixSafety::Safe
+    };
+    let plan = FixPlan::from_notices(notices, max_safety);
+    let counts = plan.counts();
+
+    if counts.total() == 0 {
         info!("No auto-fixes available");
+        if !args.thorough {
+            // Most fix-carrying rules are gated behind thorough mode, so an
+            // empty plan usually means they never ran.
+            eprintln!(
+                "No fixable issues found. Several rules that suggest fixes only run under --thorough."
+            );
+        }
         return Ok(());
     }
 
     info!(
         "Found {} fixable issues: {} safe, {} need confirmation, {} unsafe",
-        total, safe_count, requires_confirmation_count, unsafe_count
+        counts.total(),
+        counts.safe,
+        counts.requires_confirmation,
+        counts.unsafe_
     );
 
-    // Determine which fixes to show/apply based on flags
-    let include_safe = true;
-    let include_requires_confirmation = args.fix_unsafe;
-    let include_unsafe = args.fix_unsafe;
-
-    // For dry-run, just show what would be fixed
     if args.fix_dry_run {
         println!("\n=== Fix Dry Run ===\n");
-        for (file, file_fixes) in &fixes_by_file {
-            for (notice, fix) in file_fixes {
-                let should_show = match fix.safety {
-                    FixSafety::Safe => include_safe,
-                    FixSafety::RequiresConfirmation => include_requires_confirmation,
-                    FixSafety::Unsafe => include_unsafe,
-                };
-                if !should_show {
-                    continue;
-                }
-
-                let FixOperation::ReplaceField {
-                    row,
-                    field,
-                    original,
-                    replacement,
-                    ..
-                } = &fix.operation;
-                let safety_label = match fix.safety {
-                    FixSafety::Safe => "[SAFE]",
-                    FixSafety::RequiresConfirmation => "[CONFIRM]",
-                    FixSafety::Unsafe => "[UNSAFE]",
-                };
-                println!("{} {} row {}, field '{}':", safety_label, file, row, field);
-                println!("  Error: {} ({})", notice.message, notice.code);
-                println!("  - {}", original);
-                println!("  + {}", replacement);
-                println!();
-            }
-        }
-        println!("Run with --fix to apply safe fixes, or --fix-unsafe to apply all.");
+        print_edits(plan.edits());
+        println!(
+            "{} edit(s) would be applied, {} skipped as above the requested safety level. \
+             The input was not modified; re-run with --fix to write a repaired copy.",
+            plan.edits().len(),
+            plan.skipped().len()
+        );
         return Ok(());
     }
 
-    // Apply fixes
-    if args.fix || args.fix_unsafe {
-        let mut applied = 0;
-        let mut skipped = 0;
-
-        // Note: For MVP, we just log what would be done. Full CSV rewriting is complex.
-        // A complete implementation would:
-        // 1. Read the CSV file
-        // 2. Parse while preserving original formatting (quotes, delimiters)
-        // 3. Apply fixes by row/field
-        // 4. Write back
-
-        for (file, file_fixes) in &fixes_by_file {
-            for (_notice, fix) in file_fixes {
-                let should_apply = match fix.safety {
-                    FixSafety::Safe => include_safe,
-                    FixSafety::RequiresConfirmation => include_requires_confirmation,
-                    FixSafety::Unsafe => include_unsafe,
-                };
-
-                if should_apply {
-                    // For MVP, just log. Full implementation would modify the file.
-                    let FixOperation::ReplaceField {
-                        row,
-                        field,
-                        original,
-                        replacement,
-                        ..
-                    } = &fix.operation;
-                    info!(
-                        "Would fix {}: row {}, {} '{}' -> '{}'",
-                        file, row, field, original, replacement
-                    );
-                    applied += 1;
-                } else {
-                    skipped += 1;
-                }
-            }
-        }
-
-        info!(
-            "Fixes: {} would be applied, {} skipped (use --fix-unsafe to include)",
-            applied, skipped
+    if plan.is_empty() {
+        // Every fix sits above the requested safety level. Copying the feed
+        // unchanged would only produce a confusing duplicate.
+        println!(
+            "Nothing to apply at this safety level: all {} fix(es) need --fix-unsafe. \
+             No output was written.",
+            plan.skipped().len()
         );
-
-        if applied > 0 {
-            info!(
-                "Note: Actual file modification not yet implemented. Files at {} unchanged.",
-                gtfs_path.display()
-            );
-        }
+        return Ok(());
     }
+
+    let output = match &args.fix_output {
+        Some(path) => path.clone(),
+        None => default_fix_output(input),
+    };
+
+    println!("\n=== Applying Fixes ===\n");
+    print_edits(plan.edits());
+
+    let outcome =
+        apply_fixes(input, &plan, &output).context("failed to write the repaired feed")?;
+
+    for conflict in &outcome.conflicts {
+        eprintln!(
+            "skipped {} at {} row {}, field '{}': {}",
+            conflict.edit.notice_code,
+            conflict.edit.file,
+            conflict.edit.row,
+            conflict.edit.field,
+            conflict.reason
+        );
+    }
+
+    println!(
+        "Applied {} fix(es) across {} file(s) to {}.",
+        outcome.applied.len(),
+        outcome.rewritten_files.len(),
+        outcome.output.display()
+    );
+    if !plan.skipped().is_empty() {
+        println!(
+            "{} fix(es) skipped as above the requested safety level; \
+             re-run with --fix-unsafe to include them.",
+            plan.skipped().len()
+        );
+    }
+    if !outcome.conflicts.is_empty() {
+        println!(
+            "{} fix(es) did not match the file on disk and were left alone (see above).",
+            outcome.conflicts.len()
+        );
+    }
+    println!("Re-run validation on the output to confirm the result.");
 
     Ok(())
 }
 
+fn print_edits(edits: &[PlannedEdit]) {
+    for edit in edits {
+        println!(
+            "[{}] {} row {}, field '{}': {}",
+            edit.safety.label(),
+            edit.file,
+            edit.row,
+            edit.field,
+            edit.description
+        );
+        println!("  - {}", edit.original);
+        println!("  + {}", edit.replacement);
+        println!();
+    }
+}
+
+/// `feed.zip` -> `feed.fixed.zip`, `feed/` -> `feed.fixed/`. Placing the copy
+/// next to the input keeps it obvious without ever aliasing the original.
+fn default_fix_output(input: &GtfsInput) -> PathBuf {
+    let path = input.path();
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_else(|| String::from("feed"));
+
+    match input.source() {
+        GtfsInputSource::Zip => {
+            let extension = path
+                .extension()
+                .map(|ext| ext.to_string_lossy().into_owned())
+                .unwrap_or_else(|| String::from("zip"));
+            parent.join(format!("{stem}.fixed.{extension}"))
+        }
+        GtfsInputSource::Directory => parent.join(format!("{stem}.fixed")),
+    }
+}
+
 fn export_notice_schema(args: &Args) -> anyhow::Result<()> {
-    std::fs::create_dir_all(&args.output)
-        .with_context(|| format!("create output dir {}", args.output.display()))?;
+    let output = args
+        .output
+        .as_deref()
+        .context("--export_notices_schema requires --output_base")?;
+    std::fs::create_dir_all(output)
+        .with_context(|| format!("create output dir {}", output.display()))?;
     let schema = build_notice_schema_map();
     let json = if args.pretty {
         serde_json::to_string_pretty(&schema)
@@ -416,7 +585,7 @@ fn export_notice_schema(args: &Args) -> anyhow::Result<()> {
         serde_json::to_string(&schema)
     }
     .context("serialize notice schema")?;
-    let path = args.output.join("notice_schema.json");
+    let path = output.join("notice_schema.json");
     std::fs::write(&path, format!("{}\n", json))
         .with_context(|| format!("write {}", path.display()))?;
     Ok(())
@@ -542,10 +711,14 @@ struct IndicatifHandler {
 }
 
 impl IndicatifHandler {
-    fn new() -> Self {
+    fn new(hidden: bool) -> Self {
         let multi = MultiProgress::new();
 
-        let loading_pb = multi.add(ProgressBar::new(0));
+        let loading_pb = if hidden {
+            ProgressBar::hidden()
+        } else {
+            multi.add(ProgressBar::new(0))
+        };
         loading_pb.set_style(
             ProgressStyle::with_template(
                 "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {percent}% {msg}",
@@ -555,7 +728,11 @@ impl IndicatifHandler {
         );
         loading_pb.set_message("Waiting to load files...");
 
-        let validation_pb = multi.add(ProgressBar::new(0));
+        let validation_pb = if hidden {
+            ProgressBar::hidden()
+        } else {
+            multi.add(ProgressBar::new(0))
+        };
         validation_pb.set_style(
             ProgressStyle::with_template(
                 "{spinner:.green} [{elapsed_precise}] {bar:40.magenta/magenta} {percent}% {msg}",
@@ -612,6 +789,7 @@ fn validate_with_metrics(
     memory_usage_records: &mut Vec<MemoryUsageRecord>,
     last_used_bytes: &mut Option<u64>,
     timing: Option<&gtfs_guru_core::TimingCollector>,
+    quiet: bool,
 ) -> gtfs_guru_core::ValidationOutcome {
     let mut notices = NoticeContainer::new();
 
@@ -621,23 +799,29 @@ fn validate_with_metrics(
         }
     }
 
-    let progress_handler = Arc::new(IndicatifHandler::new());
+    let progress_handler = Arc::new(IndicatifHandler::new(quiet));
 
     let load_start = std::time::Instant::now();
     let handler_clone = progress_handler.clone();
+    // The error is boxed here rather than in GtfsInputError itself: the variants
+    // carry paths and source errors that make the type large, and every caller
+    // would pay for that on the success path too.
     let load_result = catch_unwind(AssertUnwindSafe(|| {
         GtfsFeed::from_input_with_notices_and_progress(
             input,
             &mut notices,
             Some(handler_clone.as_ref()),
         )
+        .map_err(Box::new)
     }));
 
     progress_handler
         .loading_pb
         .finish_with_message("Loading complete");
     let load_elapsed = load_start.elapsed();
-    eprintln!("[PERF] Feed loading took: {:?}", load_elapsed);
+    if !quiet && perf_logging_enabled() {
+        eprintln!("[PERF] Feed loading took: {:?}", load_elapsed);
+    }
 
     // Record loading time in timing collector
     if let Some(t) = timing {
@@ -667,7 +851,9 @@ fn validate_with_metrics(
             progress_handler
                 .validation_pb
                 .finish_with_message("Validation complete");
-            eprintln!("[PERF] Validation took: {:?}", validate_start.elapsed());
+            if !quiet && perf_logging_enabled() {
+                eprintln!("[PERF] Validation took: {:?}", validate_start.elapsed());
+            }
             record_memory_usage(
                 memory_usage_records,
                 last_used_bytes,
@@ -679,7 +865,7 @@ fn validate_with_metrics(
             }
         }
         Ok(Err(err)) => {
-            push_input_error_notice(&mut notices, err);
+            push_input_error_notice(&mut notices, *err);
             gtfs_guru_core::ValidationOutcome {
                 feed: None,
                 notices,
@@ -820,13 +1006,103 @@ fn current_rss_bytes() -> Option<u64> {
         {
             Some(max_rss)
         }
+        // Linux reports ru_maxrss in kilobytes, macOS in bytes.
         #[cfg(not(target_os = "macos"))]
         {
-            return Some(max_rss.saturating_mul(1024));
+            Some(max_rss.saturating_mul(1024))
         }
     }
     #[cfg(not(unix))]
     {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::error::ErrorKind;
+    use clap::CommandFactory;
+
+    #[test]
+    fn fail_on_none_never_fails() {
+        assert!(!should_fail(FailOn::None, 0, 0));
+        assert!(!should_fail(FailOn::None, 42, 7));
+    }
+
+    #[test]
+    fn fail_on_error_ignores_warnings() {
+        assert!(!should_fail(FailOn::Error, 0, 9));
+        assert!(should_fail(FailOn::Error, 1, 0));
+    }
+
+    #[test]
+    fn fail_on_warning_covers_errors_and_warnings() {
+        assert!(!should_fail(FailOn::Warning, 0, 0));
+        assert!(should_fail(FailOn::Warning, 0, 1));
+        assert!(should_fail(FailOn::Warning, 1, 0));
+    }
+
+    #[test]
+    fn cli_definition_is_valid_and_has_version() {
+        let command = Args::command();
+        command.clone().debug_assert();
+        assert_eq!(command.get_version(), Some(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn badge_flags_are_written_to_the_paths_given() {
+        let dir = std::env::temp_dir().join(format!("gtfs-guru-badge-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let json_path = dir.join("badge.json");
+        let svg_path = dir.join("nested").join("badge.svg");
+
+        let args = Args::parse_from([
+            "gtfs-guru",
+            "--stdout",
+            "--badge",
+            json_path.to_str().unwrap(),
+            "--badge-svg",
+            svg_path.to_str().unwrap(),
+            "--badge-label",
+            "MBTA feed",
+        ]);
+
+        let mut notices = NoticeContainer::new();
+        notices.push(ValidationNotice::new(
+            "duplicate_key",
+            NoticeSeverity::Error,
+            "duplicate",
+        ));
+        write_badges(&args, &notices).unwrap();
+
+        let json = std::fs::read_to_string(&json_path).unwrap();
+        assert!(json.contains("\"label\": \"MBTA feed\""), "{json}");
+        assert!(json.contains("\"message\": \"1 error\""), "{json}");
+        // A nested destination is created rather than failing the run.
+        assert!(std::fs::read_to_string(&svg_path).unwrap().contains("<svg"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn badges_are_skipped_when_neither_flag_is_given() {
+        let args = Args::parse_from(["gtfs-guru", "--stdout"]);
+        write_badges(&args, &NoticeContainer::new()).unwrap();
+    }
+
+    #[test]
+    fn stdout_rejects_every_fix_mode() {
+        for fix_args in [
+            vec!["--fix-dry-run"],
+            vec!["--fix"],
+            vec!["--fix-unsafe"],
+            vec!["--fix", "--fix-output", "fixed.zip"],
+        ] {
+            let mut argv = vec!["gtfs-guru", "--stdout"];
+            argv.extend(fix_args);
+            let error = Args::try_parse_from(argv).expect_err("fix mode must conflict with stdout");
+            assert_eq!(error.kind(), ErrorKind::ArgumentConflict);
+        }
     }
 }

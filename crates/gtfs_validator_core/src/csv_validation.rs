@@ -40,6 +40,8 @@ const FLOAT_FIELDS: &[&str] = &[
     "shape_dist_traveled",
     "shape_pt_lat",
     "shape_pt_lon",
+    "safe_duration_factor",
+    "safe_duration_offset",
     "stop_lat",
     "stop_lon",
 ];
@@ -185,6 +187,9 @@ enum EnumKind {
     DirectionId,
     WheelchairAccessible,
     BikesAllowed,
+    CarsAllowed,
+    ContactlessEmvSupport,
+    StopAccess,
     ServiceAvailability,
     ExceptionType,
     PaymentMethod,
@@ -859,6 +864,29 @@ mod tests {
             .and_then(|value| value.as_str());
         assert_eq!(field_type, Some("non-negative integer"));
     }
+
+    #[test]
+    fn validates_v8_enum_fields() {
+        let mut notices = NoticeContainer::new();
+        validate_csv_data(
+            "trips.txt",
+            b"route_id,service_id,trip_id,cars_allowed\nR,S,T,3\n",
+            &mut notices,
+        );
+        validate_csv_data(
+            "agency.txt",
+            b"agency_name,agency_url,agency_timezone,cemv_support\nA,https://example.com,UTC,3\n",
+            &mut notices,
+        );
+        validate_csv_data("stops.txt", b"stop_id,stop_access\nS,2\n", &mut notices);
+
+        let enum_notices = notices
+            .iter()
+            .filter(|notice| notice.code == "unexpected_enum_value")
+            .count();
+        assert_eq!(enum_notices, 3);
+        assert!(!notices.iter().any(|notice| notice.code == "unknown_column"));
+    }
 }
 
 fn new_line_notice(file: &str, field_name: &str, row_number: u64, value: &str) -> ValidationNotice {
@@ -1324,6 +1352,9 @@ fn enum_kind(field: &str) -> Option<EnumKind> {
         "direction_id" => Some(EnumKind::DirectionId),
         "wheelchair_accessible" => Some(EnumKind::WheelchairAccessible),
         "bikes_allowed" => Some(EnumKind::BikesAllowed),
+        "cars_allowed" => Some(EnumKind::CarsAllowed),
+        "cemv_support" => Some(EnumKind::ContactlessEmvSupport),
+        "stop_access" => Some(EnumKind::StopAccess),
         "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday" => {
             Some(EnumKind::ServiceAvailability)
         }
@@ -1355,6 +1386,9 @@ fn enum_value_allowed(kind: EnumKind, value: i64) -> bool {
         EnumKind::DirectionId => matches!(value, 0 | 1),
         EnumKind::WheelchairAccessible => matches!(value, 0 | 1 | 2),
         EnumKind::BikesAllowed => matches!(value, 0 | 1 | 2),
+        EnumKind::CarsAllowed => matches!(value, 0 | 1 | 2),
+        EnumKind::ContactlessEmvSupport => matches!(value, 0 | 1 | 2),
+        EnumKind::StopAccess => matches!(value, 0 | 1),
         EnumKind::ServiceAvailability => matches!(value, 0 | 1),
         EnumKind::ExceptionType => matches!(value, 1 | 2),
         EnumKind::PaymentMethod => matches!(value, 0 | 1),
@@ -2089,8 +2123,10 @@ const IANA_TIMEZONES: &[&str] = &[
     "Etc/Zulu",
 ];
 
-/// tzdb backward-compatibility link names (e.g. Europe/Nicosia, US/Eastern).
-/// Java's ZoneId accepts these, so the canonical validator does too.
+/// tzdb backward-compatibility link names (e.g. Europe/Nicosia, US/Eastern)
+/// accepted by Java's `ZoneId`, and therefore by the canonical validator. Keep
+/// these embedded so validation is deterministic even on systems without a
+/// complete zoneinfo installation.
 const IANA_TIMEZONE_LINKS: &[&str] = &[
     "Africa/Asmera",
     "Africa/Timbuktu",

@@ -2,7 +2,7 @@ use crate::feed::{AGENCY_FILE, FARE_ATTRIBUTES_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::StringId;
 
-const CODE_MISSING_REQUIRED_FIELD: &str = "missing_required_field";
+const CODE_MISSING_REQUIRED_AGENCY_ID: &str = "missing_required_agency_id";
 const CODE_MISSING_RECOMMENDED_FIELD: &str = "missing_recommended_field";
 
 #[derive(Debug, Default)]
@@ -32,7 +32,7 @@ impl Validator for FareAttributeAgencyIdValidator {
             if !has_value(fare.agency_id) {
                 let (code, severity, message) = if total_agencies > 1 {
                     (
-                        CODE_MISSING_REQUIRED_FIELD,
+                        CODE_MISSING_REQUIRED_AGENCY_ID,
                         NoticeSeverity::Error,
                         "agency_id is required when multiple agencies exist",
                     )
@@ -45,10 +45,19 @@ impl Validator for FareAttributeAgencyIdValidator {
                 };
                 let mut notice = ValidationNotice::new(code, severity, message);
                 notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("fieldName", "agency_id");
                 notice.insert_context_field("filename", FARE_ATTRIBUTES_FILE);
-                notice.field_order =
-                    vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
+                if total_agencies > 1 {
+                    notice.insert_context_field("agencyName", Option::<String>::None);
+                    notice.field_order = vec![
+                        "filename".into(),
+                        "csvRowNumber".into(),
+                        "agencyName".into(),
+                    ];
+                } else {
+                    notice.insert_context_field("fieldName", "agency_id");
+                    notice.field_order =
+                        vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
+                }
                 notices.push(notice);
             }
         }
@@ -129,7 +138,7 @@ mod tests {
         assert_eq!(notices.len(), 1);
         assert_eq!(
             notices.iter().next().unwrap().code,
-            CODE_MISSING_REQUIRED_FIELD
+            CODE_MISSING_REQUIRED_AGENCY_ID
         );
     }
 
