@@ -562,7 +562,7 @@ impl GtfsInputReader {
                         Ok(record) => {
                             let line_number = record
                                 .position()
-                                .map(|p| p.line())
+                                .map(|p| p.record() + 1)
                                 .unwrap_or((record_index + 2) as u64);
                             batch.push((line_number, record));
                             record_index += 1;

@@ -119,7 +119,9 @@ where
     while let Some(result) = iter.next() {
         match result {
             Ok(record) => {
-                let row_number = iter.reader().position().line().saturating_sub(1);
+                // `Position::record()` counts records (header = 0) and is
+                // terminator-independent; `line()` lags by one on CRLF feeds.
+                let row_number = iter.reader().position().record();
                 rows.push(record);
                 row_numbers.push(row_number);
             }
@@ -191,7 +193,7 @@ where
         };
         let line_number = record
             .position()
-            .map(|position| position.line())
+            .map(|position| position.record() + 1)
             .unwrap_or((index + 2) as u64);
 
         let (_, parsed, row_notices) = deserialize_validate_one::<T, _>(
@@ -343,7 +345,7 @@ where
             Ok(record) => {
                 let line_number = record
                     .position()
-                    .map(|p| p.line())
+                    .map(|p| p.record() + 1)
                     .unwrap_or((index + 2) as u64);
                 raw_records.push((line_number, record));
             }
@@ -581,6 +583,18 @@ mod tests {
         assert_eq!(table.rows.len(), 2);
         assert_eq!(table.rows[0].a, 1);
         assert_eq!(table.rows[1].b, 4);
+        assert_eq!(table.row_numbers, vec![2, 3]);
+    }
+
+    #[test]
+    fn row_numbers_are_line_numbers_with_crlf() {
+        // Feeds exported on Windows use CRLF. The row number must still be the
+        // physical line, matching the canonical validator.
+        let data = "a,b\r\n1,2\r\n3,4\r\n";
+        let table =
+            read_csv_from_reader::<ExampleRow, _>(data.as_bytes(), "crlf.csv").expect("parse csv");
+
+        assert_eq!(table.rows.len(), 2);
         assert_eq!(table.row_numbers, vec![2, 3]);
     }
 

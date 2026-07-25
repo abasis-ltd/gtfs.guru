@@ -526,14 +526,16 @@ fn rewrite_csv(file: &str, data: &[u8], edits: &[&PlannedEdit]) -> Result<Rewrit
         match result {
             Ok(record) => {
                 if let Some(position) = record.position() {
-                    let line = position.line();
-                    starts.push((line, position.byte() as usize));
-                    records.insert(line, record.clone());
+                    // Must match the loader's numbering (see csv_reader):
+                    // `record()` is terminator-independent, `line()` is not.
+                    let row = position.record() + 1;
+                    starts.push((row, position.byte() as usize));
+                    records.insert(row, record.clone());
                 }
             }
             Err(err) => {
                 if let Some(position) = err.position() {
-                    starts.push((position.line(), position.byte() as usize));
+                    starts.push((position.record() + 1, position.byte() as usize));
                 }
             }
         }
@@ -766,11 +768,11 @@ mod tests {
     fn preserves_crlf_and_bom() {
         let mut data = UTF8_BOM.to_vec();
         data.extend_from_slice(b"agency_id,agency_url\r\n1,www.a.com\r\n2,www.b.com\r\n");
-        // Row numbers follow the loader, which reports the first data row of a
-        // CRLF file as line 1 (see `loader_row_numbering_is_reproduced`).
+        // Row numbers follow the loader: header is row 1, so the second data
+        // row is row 3 regardless of the line terminator.
         let result = rewrite(
             &data,
-            &[edit(2, "agency_url", "www.b.com", "https://www.b.com")],
+            &[edit(3, "agency_url", "www.b.com", "https://www.b.com")],
         );
 
         let mut expected = UTF8_BOM.to_vec();
@@ -780,10 +782,27 @@ mod tests {
         assert!(result.conflicts.is_empty());
     }
 
+    #[test]
+    fn edits_the_only_data_row_of_a_crlf_file() {
+        let data = b"agency_id,agency_url\r\n1,www.a.com\r\n".to_vec();
+        let result = rewrite(
+            &data,
+            &[edit(2, "agency_url", "www.a.com", "https://www.a.com")],
+        );
+        assert!(
+            result.conflicts.is_empty(),
+            "row 2 must resolve, got {:?}",
+            result.conflicts
+        );
+        assert_eq!(
+            result.bytes,
+            b"agency_id,agency_url\r\n1,https://www.a.com\r\n".to_vec()
+        );
+    }
+
     /// The writer resolves a fix's `row` exactly the way the loader assigns it,
-    /// so a notice always points at the record the writer edits. The loader's
-    /// numbering itself is off by one on CRLF input; this test pins the coupling
-    /// rather than the correctness of that numbering.
+    /// so a notice always points at the record the writer edits. Both number the
+    /// header as row 1, independent of the line terminator.
     #[test]
     fn loader_row_numbering_is_reproduced() {
         #[derive(serde::Deserialize)]
@@ -801,7 +820,7 @@ mod tests {
             (
                 "crlf",
                 b"stop_id,stop_name\r\nS1,A\r\nS2,B\r\n".to_vec(),
-                vec![1, 2],
+                vec![2, 3],
             ),
         ] {
             let dir = temp_path(&format!("gtfs_rows_{label}"));
