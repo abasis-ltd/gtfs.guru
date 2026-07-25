@@ -226,7 +226,14 @@ impl ReportSummary {
             .map(|path| path.to_string_lossy().to_string());
         let feed_info = context.feed.map(build_feed_info);
         let agencies = context.feed.map(build_agencies);
-        let files = context.feed.map(build_files);
+        let files = context
+            .files
+            .map(|mut names| {
+                names.sort();
+                names.dedup();
+                names
+            })
+            .or_else(|| context.feed.map(build_files));
         let counts = context.feed.map(build_counts);
         let gtfs_features = context.feed.map(build_gtfs_features);
         let memory_usage_records = context.memory_usage_records.or_else(|| Some(Vec::new()));
@@ -330,6 +337,10 @@ pub struct ReportCounts {
 
 pub struct ReportSummaryContext<'a> {
     pub feed: Option<&'a GtfsFeed>,
+    /// Every file the input actually contains. The canonical validator reports
+    /// the archive's listing verbatim, including files it has no schema for, so
+    /// deriving the list from the parsed feed silently drops extensions.
+    pub files: Option<Vec<String>>,
     pub gtfs_input: Option<&'a Path>,
     pub gtfs_input_uri: Option<String>,
     pub output_directory: Option<&'a Path>,
@@ -349,6 +360,7 @@ impl<'a> ReportSummaryContext<'a> {
     pub fn new() -> Self {
         Self {
             feed: None,
+            files: None,
             gtfs_input: None,
             gtfs_input_uri: None,
             output_directory: None,
@@ -363,6 +375,11 @@ impl<'a> ReportSummaryContext<'a> {
             date_for_validation: None,
             threads: 1,
         }
+    }
+
+    pub fn with_files(mut self, files: Vec<String>) -> Self {
+        self.files = Some(files);
+        self
     }
 
     pub fn with_feed(mut self, feed: &'a GtfsFeed) -> Self {
