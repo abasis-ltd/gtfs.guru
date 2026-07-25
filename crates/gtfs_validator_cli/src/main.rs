@@ -1006,9 +1006,10 @@ fn current_rss_bytes() -> Option<u64> {
         {
             Some(max_rss)
         }
+        // Linux reports ru_maxrss in kilobytes, macOS in bytes.
         #[cfg(not(target_os = "macos"))]
         {
-            return Some(max_rss.saturating_mul(1024));
+            Some(max_rss.saturating_mul(1024))
         }
     }
     #[cfg(not(unix))]
