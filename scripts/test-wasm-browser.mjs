@@ -10,6 +10,8 @@ import { chromium } from 'playwright';
 const projectRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const websiteRoot = resolve(projectRoot, 'website');
 const fixturePath = resolve(projectRoot, 'test-gtfs-feeds/base-valid.zip');
+// Keep in sync with MAX_FILE_SIZE_BYTES in crates/gtfs_validator_wasm/src/lib.rs.
+const maxFileSizeMb = 150;
 
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -123,8 +125,8 @@ async function validate(page, forceSingleThreaded = false) {
 }
 
 async function validateOversizedArchive(page, forceSingleThreaded = false) {
-  return page.evaluate(async ({ forceSingleThreaded }) => {
-    const zipBytes = new ArrayBuffer(70 * 1024 * 1024 + 1);
+  return page.evaluate(async ({ forceSingleThreaded, maxFileSizeMb }) => {
+    const zipBytes = new ArrayBuffer(maxFileSizeMb * 1024 * 1024 + 1);
     const workerUrl = `/pkg/worker.js${forceSingleThreaded ? '?threads=off' : ''}`;
 
     return new Promise((resolveResult, reject) => {
@@ -165,7 +167,7 @@ async function validateOversizedArchive(page, forceSingleThreaded = false) {
         }
       };
     });
-  }, { forceSingleThreaded });
+  }, { forceSingleThreaded, maxFileSizeMb });
 }
 
 const isolated = await startServer({ isolated: true });
@@ -188,11 +190,11 @@ try {
   );
   assert.match(
     await validateOversizedArchive(page),
-    /Maximum size for browser validation is 70 MB/,
+    new RegExp(`Maximum size for browser validation is ${maxFileSizeMb} MB`),
   );
   assert.match(
     await validateOversizedArchive(page, true),
-    /Maximum size for browser validation is 70 MB/,
+    new RegExp(`Maximum size for browser validation is ${maxFileSizeMb} MB`),
   );
 
   await page.goto(portable.url);

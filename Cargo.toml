@@ -36,11 +36,21 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 # Release profile tuned for CLI speed; use release-wasm for size.
+# Shipped binaries carry no debug info: on Linux the DWARF is embedded in the
+# ELF, which inflates every published tarball for no user benefit.
 [profile.release]
 lto = "thin"
 opt-level = 3
 codegen-units = 1
-debug = true  # Enable symbols for profiling (flamegraph)
+debug = false
+strip = "symbols"
+
+# Same codegen as release, but keeps the symbols a flamegraph needs.
+# Build with: cargo build --profile profiling -p gtfs-guru
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
 
 # WASM profile optimized for minimal binary size.
 [profile.release-wasm]

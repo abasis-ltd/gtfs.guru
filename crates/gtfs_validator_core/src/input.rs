@@ -1054,6 +1054,10 @@ fn read_zip_member_capped(
 /// buffers a whole member, so without this a large member would be decompressed
 /// past the cap one batch at a time. On overflow it yields an
 /// `InvalidData` io error, which the streaming producer surfaces as a CSV error.
+///
+/// Only the streaming reader uses this, and that path is `parallel`-only, so
+/// the single-threaded build (notably wasm32) leaves it out entirely.
+#[cfg(feature = "parallel")]
 struct CappedReader<'a, R> {
     inner: R,
     file_name: String,
@@ -1063,6 +1067,7 @@ struct CappedReader<'a, R> {
     budget: &'a AtomicU64,
 }
 
+#[cfg(feature = "parallel")]
 impl<'a, R> CappedReader<'a, R> {
     fn new(
         inner: R,
@@ -1082,6 +1087,7 @@ impl<'a, R> CappedReader<'a, R> {
     }
 }
 
+#[cfg(feature = "parallel")]
 impl<R: Read> Read for CappedReader<'_, R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let n = self.inner.read(buf)?;
