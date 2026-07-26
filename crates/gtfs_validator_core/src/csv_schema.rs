@@ -50,12 +50,9 @@ const STOPS_FIELDS: &[&str] = &[
     "wheelchair_boarding",
     "level_id",
     "platform_code",
-    "stop_address",
-    "stop_city",
-    "stop_region",
-    "stop_postcode",
-    "stop_country",
-    "stop_phone",
+    // stop_address/city/region/postcode/country/phone are not GTFS fields; the
+    // canonical validator reports them as unknown columns, so they must not be
+    // listed here. Verified by feeding all of them to gtfs-validator 8.0.1.
     "stop_access",
 ];
 const STOPS_REQUIRED_FIELDS: &[&str] = &["stop_id"];
