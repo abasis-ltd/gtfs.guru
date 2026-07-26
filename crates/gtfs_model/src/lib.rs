@@ -1222,7 +1222,7 @@ pub struct Pathway {
     pub is_bidirectional: Bidirectional,
     pub length: Option<f64>,
     pub traversal_time: Option<u32>,
-    pub stair_count: Option<u32>,
+    pub stair_count: Option<i32>,
     pub max_slope: Option<f64>,
     pub min_width: Option<f64>,
     pub signposted_as: Option<CompactString>,
