@@ -40,6 +40,18 @@
 - Diff logic and its serializable result types live in
   `gtfs_validator_core::diff`; CLI code only loads inputs and renders output.
 
+## Feed Profile and Explanation
+
+- `gtfs-guru profile -i feed.zip` emits deterministic model-friendly JSON.
+- `gtfs-guru explain -i feed.zip` emits an evidence-backed Markdown summary;
+  add `--json` for structured output.
+- Both commands accept `--url`, `--date`, `--country-code`, `--google-rules`,
+  and `--thorough`.
+- Facts and prose structures live in `gtfs-guru-profile`; the CLI must not
+  duplicate service-calendar or issue-ranking logic.
+- Service facts cover seven actual dates beginning with the analysis date and
+  apply `calendar_dates.txt` additions and removals.
+
 ## Fix Flags
 
 - Suggestions are derived in `crates/gtfs_validator_core/src/fix_suggest.rs`; each one is

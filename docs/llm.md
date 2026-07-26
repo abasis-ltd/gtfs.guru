@@ -27,6 +27,66 @@ The diff covers agencies, routes, stops, route-level trip/frequency aggregates,
 and validation notice deltas. Add `--no-validation` for structural comparison
 only.
 
+Get deterministic facts or an evidence-backed explanation:
+
+```bash
+gtfs-guru profile --input /path/to/gtfs.zip --date 2026-07-27 --pretty
+gtfs-guru explain --input /path/to/gtfs.zip --date 2026-07-27
+gtfs-guru explain --input /path/to/gtfs.zip --json --pretty
+```
+
+`profile` includes unique entity counts, route types, completeness facts,
+seven days of actual service after calendar exceptions, and exact grouped
+notice totals. `explain` is generated only from that profile and explicitly
+does not promise acceptance by Google Maps or another consumer.
+
+## MCP Server
+
+Build and run the local stdio server:
+
+```bash
+cargo build --release -p gtfs-guru-mcp
+./target/release/gtfs-guru-mcp --allow-dir /path/to/feeds
+```
+
+Example MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "gtfs-guru": {
+      "command": "/absolute/path/to/gtfs.guru/target/release/gtfs-guru-mcp",
+      "args": ["--allow-dir", "/path/to/feeds"]
+    }
+  }
+}
+```
+
+Tools:
+
+- `validate_gtfs`
+- `explain_gtfs`
+- `get_notice_details`
+
+Public URL fetching is opt-in with `--allow-url`.
+
+For a remote client, use authenticated stateless Streamable HTTP:
+
+```bash
+export GTFS_GURU_MCP_BEARER_TOKEN="$(openssl rand -hex 32)"
+./target/release/gtfs-guru-mcp \
+  --transport http \
+  --bind 127.0.0.1:3000 \
+  --allow-dir /path/to/feeds \
+  --allow-url
+```
+
+Connect to `http://127.0.0.1:3000/mcp` and send
+`Authorization: Bearer $GTFS_GURU_MCP_BEARER_TOKEN`. For an internet-facing
+deployment, terminate TLS at a reverse proxy and add its public hostname with
+`--allowed-host`. Use `--allowed-origin` when browser clients have a known
+origin. `/healthz` does not require authentication.
+
 Common flags:
 
 - `--country_code US`

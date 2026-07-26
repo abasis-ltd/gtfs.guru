@@ -1,34 +1,36 @@
 [package]
-name = "gtfs-guru"
+name = "gtfs-guru-mcp"
 version = "1.0.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Command-line interface for GTFS Guru validator"
+description = "Validation-focused MCP server for GTFS Guru"
 repository = "https://github.com/abasis-ltd/gtfs.guru"
 homepage = "https://github.com/abasis-ltd/gtfs.guru"
+
 [[bin]]
-name = "gtfs-guru"
+name = "gtfs-guru-mcp"
 path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+axum = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 reqwest = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-mimalloc = { version = "0.1", default-features = false }
-indicatif = "0.18.3"
+rmcp = { version = "2.2.0", features = ["server", "transport-io", "transport-streamable-http-server"] }
+schemars = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true, features = ["io-std", "net"] }
+tower-http = { version = "0.6", features = ["limit"] }
+url = { workspace = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
 version = "1.0.0"
 
-[dependencies.gtfs-guru-report]
-path = "../gtfs_validator_report"
-version = "1.0.0"
-
 [dependencies.gtfs-guru-profile]
 path = "../gtfs_validator_profile"
 version = "1.0.0"
+
+[dev-dependencies]
+serde_json = { workspace = true }
