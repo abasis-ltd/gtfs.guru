@@ -224,6 +224,29 @@ async function validateOversizedArchive(page, forceSingleThreaded = false) {
   }, { forceSingleThreaded, maxFileSizeMb });
 }
 
+async function testResponsiveLayout(page, baseUrl) {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(baseUrl);
+  await page.locator('footer').scrollIntoViewIfNeeded();
+
+  const layout = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    installCommands: [...document.querySelectorAll('.install-cmd-row code')]
+      .map((element) => element.textContent?.trim()),
+    navToggleVisible: getComputedStyle(document.querySelector('#nav-toggle')).display !== 'none',
+  }));
+  assert.equal(
+    layout.scrollWidth,
+    layout.clientWidth,
+    `mobile page overflows by ${layout.scrollWidth - layout.clientWidth}px`,
+  );
+  assert.equal(layout.installCommands.includes('cargo install gtfs-guru'), true);
+  assert.equal(layout.navToggleVisible, true);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+}
+
 let sharedNavigationId = 0;
 
 function sharedReportUrl(baseUrl, payload, marker = 'u') {
@@ -366,6 +389,7 @@ try {
   await page.locator('#diff-result-state:not(.hidden)').waitFor({ timeout: 120_000 });
   assert.equal(await page.locator('.diff-headline .introduced strong').textContent(), '0');
 
+  await testResponsiveLayout(page, portable.url);
   await testSharedReportBoundary(page, portable.url);
 
   console.log(JSON.stringify({
