@@ -331,6 +331,10 @@ fn main() -> anyhow::Result<()> {
         .with_validator_version(env!("CARGO_PKG_VERSION"))
         .with_memory_usage_records(memory_usage_records)
         .with_threads(args.threads);
+    // Report what the archive holds, not what the parser understood.
+    if let Ok(files) = input.reader().list_files() {
+        summary_context = summary_context.with_files(files);
+    }
     if let Some(output) = output {
         summary_context = summary_context.with_output_directory(output);
     }
