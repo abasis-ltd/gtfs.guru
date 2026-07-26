@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::{bail, Context};
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use reqwest::blocking::Client;
 use tracing::info;
@@ -17,6 +17,7 @@ use gtfs_guru_core::{
     GtfsInput, GtfsInputError, GtfsInputSource, NoticeContainer, NoticeSeverity, PlannedEdit,
     ValidationNotice, ValidatorRunner,
 };
+use gtfs_guru_profile::{FeedExplanation, FeedProfile, ValidationOverview};
 use gtfs_guru_report::{
     write_html_report, Badge, HtmlReportContext, MemoryUsageRecord, ReportSummary,
     ReportSummaryContext, SarifReport, ValidationReport,
@@ -189,6 +190,10 @@ struct Args {
 enum Command {
     /// Compare two GTFS feeds and their validation results.
     Diff(DiffArgs),
+    /// Emit deterministic, model-friendly facts about a GTFS feed as JSON.
+    Profile(ProfileArgs),
+    /// Explain a GTFS feed using deterministic facts and validation results.
+    Explain(ExplainArgs),
 }
 
 #[derive(Debug, ClapArgs)]
@@ -232,12 +237,66 @@ struct DiffArgs {
     thorough: bool,
 }
 
+#[derive(Debug, ClapArgs)]
+struct ProfileArgs {
+    #[command(flatten)]
+    source: AnalysisSourceArgs,
+
+    /// Pretty-print the profile JSON.
+    #[arg(long)]
+    pretty: bool,
+}
+
+#[derive(Debug, ClapArgs)]
+struct ExplainArgs {
+    #[command(flatten)]
+    source: AnalysisSourceArgs,
+
+    /// Emit a structured JSON explanation instead of Markdown.
+    #[arg(long)]
+    json: bool,
+
+    /// Pretty-print JSON output.
+    #[arg(long, requires = "json")]
+    pretty: bool,
+}
+
+#[derive(Debug, ClapArgs)]
+#[command(group = clap::ArgGroup::new("analysis_source").required(true).args(["input", "url"]))]
+struct AnalysisSourceArgs {
+    /// Path to a GTFS ZIP file or unpacked feed directory.
+    #[arg(short = 'i', long, conflicts_with = "url")]
+    input: Option<PathBuf>,
+
+    /// URL of a remote GTFS ZIP file.
+    #[arg(short = 'u', long, conflicts_with = "input")]
+    url: Option<String>,
+
+    /// Analysis start date in YYYY-MM-DD. Defaults to the current UTC date.
+    #[arg(short = 'd', long = "date")]
+    analysis_date: Option<String>,
+
+    /// ISO country code used by region-specific validation rules.
+    #[arg(short = 'c', long = "country-code")]
+    country_code: Option<String>,
+
+    /// Enable additional rules used by Google's GTFS ingestion.
+    #[arg(long = "google-rules")]
+    google_rules: bool,
+
+    /// Enable recommended-field and other thorough validation rules.
+    #[arg(long)]
+    thorough: bool,
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     if let Some(command) = args.command.as_ref() {
         tracing_subscriber::fmt().with_target(false).init();
         return match command {
             Command::Diff(diff_args) => run_diff(diff_args),
+            Command::Profile(profile_args) => run_profile(profile_args),
+            Command::Explain(explain_args) => run_explain(explain_args),
         };
     }
     if args.stdout {
@@ -441,6 +500,126 @@ fn main() -> anyhow::Result<()> {
     exit_if_threshold_reached(args.fail_on, stdout_report_container);
 
     Ok(())
+}
+
+fn run_profile(args: &ProfileArgs) -> anyhow::Result<()> {
+    let analysis = analyze_feed(&args.source)?;
+    let profile = analysis.profile.ok_or_else(|| {
+        anyhow::anyhow!(
+            "the feed could not be parsed ({} validation errors)",
+            analysis.validation.errors
+        )
+    })?;
+    let json = if args.pretty {
+        serde_json::to_string_pretty(&profile)
+    } else {
+        serde_json::to_string(&profile)
+    }
+    .context("serialize feed profile")?;
+    println!("{json}");
+    Ok(())
+}
+
+fn run_explain(args: &ExplainArgs) -> anyhow::Result<()> {
+    let analysis = analyze_feed(&args.source)?;
+    let explanation = analysis
+        .profile
+        .as_ref()
+        .map(FeedExplanation::from_profile)
+        .unwrap_or_else(|| {
+            FeedExplanation::for_unreadable_feed(
+                analysis.validation.clone(),
+                analysis.analysis_date,
+            )
+        });
+    if args.json {
+        let json = if args.pretty {
+            serde_json::to_string_pretty(&explanation)
+        } else {
+            serde_json::to_string(&explanation)
+        }
+        .context("serialize feed explanation")?;
+        println!("{json}");
+    } else {
+        print!("{}", explanation.render_markdown());
+    }
+    Ok(())
+}
+
+struct CliFeedAnalysis {
+    analysis_date: NaiveDate,
+    profile: Option<FeedProfile>,
+    validation: ValidationOverview,
+}
+
+fn analyze_feed(args: &AnalysisSourceArgs) -> anyhow::Result<CliFeedAnalysis> {
+    let analysis_date = match args.analysis_date.as_deref() {
+        Some(value) => parse_validation_date(value)?,
+        None => Utc::now().date_naive(),
+    };
+    let _validation_date_guard = set_validation_date(Some(analysis_date));
+    let _validation_country_guard = match args.country_code.as_deref() {
+        Some(value) if !value.trim().is_empty() && !value.trim().eq_ignore_ascii_case("ZZ") => {
+            Some(set_validation_country_code(Some(value.trim().to_string())))
+        }
+        _ => None,
+    };
+    let _google_rules_guard = args
+        .google_rules
+        .then(|| gtfs_guru_core::set_google_rules_enabled(true));
+    let _thorough_guard = args
+        .thorough
+        .then(|| gtfs_guru_core::set_thorough_mode_enabled(true));
+
+    let resolved = resolve_analysis_input(args)?;
+    let runner = default_runner();
+    let outcome = gtfs_guru_core::engine::validate_input(&resolved.input, &runner);
+    if args.url.is_some() {
+        std::fs::remove_file(resolved.input.path()).ok();
+    }
+    let validation = ValidationOverview::from_notices(&outcome.notices);
+    let profile = outcome
+        .feed
+        .as_ref()
+        .map(|feed| FeedProfile::build(feed, &outcome.notices, analysis_date));
+    Ok(CliFeedAnalysis {
+        analysis_date,
+        profile,
+        validation,
+    })
+}
+
+fn resolve_analysis_input(args: &AnalysisSourceArgs) -> anyhow::Result<ResolvedInput> {
+    match (&args.input, &args.url) {
+        (Some(path), None) => {
+            let input = GtfsInput::from_path(path)
+                .with_context(|| format!("load input {}", path.display()))?;
+            Ok(ResolvedInput {
+                input,
+                gtfs_input_uri: None,
+                gtfs_source_label: path.display().to_string(),
+            })
+        }
+        (None, Some(url)) => {
+            if url.trim().is_empty() {
+                bail!("--url must not be empty");
+            }
+            let download_path = std::env::temp_dir().join(format!(
+                "gtfs_profile_{}_{}.zip",
+                std::process::id(),
+                unique_suffix()
+            ));
+            download_url_to_path(url, &download_path)?;
+            let input = GtfsInput::from_path(&download_path)
+                .with_context(|| format!("load input {}", download_path.display()))?;
+            Ok(ResolvedInput {
+                input,
+                gtfs_input_uri: Some(url.clone()),
+                gtfs_source_label: url.clone(),
+            })
+        }
+        _ => bail!("exactly one of --input or --url is required"),
+    }
 }
 
 fn run_diff(args: &DiffArgs) -> anyhow::Result<()> {
@@ -1410,6 +1589,63 @@ mod tests {
         assert_eq!(diff.new, PathBuf::from("new.zip"));
         assert_eq!(diff.json, Some(PathBuf::from("-")));
         assert!(diff.fail_on_new_errors);
+    }
+
+    #[test]
+    fn profile_and_explain_subcommands_have_independent_sources() {
+        let profile = Args::try_parse_from([
+            "gtfs-guru",
+            "profile",
+            "--input",
+            "feed.zip",
+            "--date",
+            "2026-07-27",
+            "--pretty",
+        ])
+        .unwrap();
+        let Some(Command::Profile(profile)) = profile.command else {
+            panic!("expected profile subcommand");
+        };
+        assert_eq!(profile.source.input, Some(PathBuf::from("feed.zip")));
+        assert_eq!(profile.source.analysis_date.as_deref(), Some("2026-07-27"));
+        assert!(profile.pretty);
+
+        let explain = Args::try_parse_from([
+            "gtfs-guru",
+            "explain",
+            "--url",
+            "https://example.com/feed.zip",
+            "--json",
+            "--pretty",
+        ])
+        .unwrap();
+        let Some(Command::Explain(explain)) = explain.command else {
+            panic!("expected explain subcommand");
+        };
+        assert_eq!(
+            explain.source.url.as_deref(),
+            Some("https://example.com/feed.zip")
+        );
+        assert!(explain.json);
+        assert!(explain.pretty);
+    }
+
+    #[test]
+    fn profile_requires_exactly_one_source() {
+        let missing = Args::try_parse_from(["gtfs-guru", "profile", "--pretty"])
+            .expect_err("profile needs a source");
+        assert_eq!(missing.kind(), ErrorKind::MissingRequiredArgument);
+
+        let conflicting = Args::try_parse_from([
+            "gtfs-guru",
+            "profile",
+            "--input",
+            "feed.zip",
+            "--url",
+            "https://example.com/feed.zip",
+        ])
+        .expect_err("profile sources conflict");
+        assert_eq!(conflicting.kind(), ErrorKind::ArgumentConflict);
     }
 
     #[test]

@@ -1,0 +1,26 @@
+[package]
+name = "gtfs-guru-profile"
+version = "1.0.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Deterministic feed profiles and explanations for GTFS Guru"
+repository = "https://github.com/abasis-ltd/gtfs.guru"
+homepage = "https://github.com/abasis-ltd/gtfs.guru"
+
+[dependencies]
+chrono = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+
+[dependencies.gtfs-guru-core]
+path = "../gtfs_validator_core"
+version = "1.0.0"
+default-features = false
+
+[dependencies.gtfs-guru-model]
+path = "../gtfs_model"
+version = "1.0.0"
+
+[features]
+default = ["parallel"]
+parallel = ["gtfs-guru-core/parallel"]

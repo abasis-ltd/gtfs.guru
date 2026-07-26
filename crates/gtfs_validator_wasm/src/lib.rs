@@ -142,9 +142,7 @@ fn feed_size_error(zip_bytes: &[u8]) -> Option<String> {
         ));
     }
 
-    let Some(uncompressed) = uncompressed_size(zip_bytes) else {
-        return None;
-    };
+    let uncompressed = uncompressed_size(zip_bytes)?;
     if uncompressed > MAX_UNCOMPRESSED_BYTES {
         let raw_mb = uncompressed as f64 / (1024.0 * 1024.0);
         return Some(format!(

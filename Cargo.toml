@@ -3,7 +3,9 @@ members = [
   "crates/gtfs_model",
   "crates/gtfs_validator_core",
   "crates/gtfs_validator_report",
+  "crates/gtfs_validator_profile",
   "crates/gtfs_validator_cli",
+  "crates/gtfs_validator_mcp",
   "crates/gtfs_validator_web",
   "crates/gtfs_validator_gui",
   "crates/gtfs_validator_python",
@@ -29,6 +31,7 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 regex = "1.10"
 base64 = "0.22"
 url = "2.5"
+schemars = "1.0"
 axum = "0.7"
 tokio = { version = "1.37", features = ["rt-multi-thread", "macros", "fs", "signal"] }
 tower = "0.4"
