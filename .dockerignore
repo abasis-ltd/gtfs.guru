@@ -6,3 +6,18 @@ target/
 *.swp
 *.ds_store
 .env
+
+# Test data, benchmark input, and build output. The image needs none of it, and
+# docker.yml runs on every v* tag, so it would otherwise ship ~160 MB of feeds
+# into the build context each release. Keep this list in step with .gitignore.
+benchmark-feeds/
+test-gtfs-feeds/
+mobility-data-test-feeds/
+expected-nl/
+golden_actual/
+node_modules/
+output*/
+verification_report*/
+benchmark-java/
+benchmark-rust/
+*.log
