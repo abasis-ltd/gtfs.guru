@@ -7,11 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-07-25
+## [1.0.0] - 2026-07-26
 
-First stable release. The CLI, report, core, model, Python, WASM, and web
-crates share the 1.0.0 version and their public APIs are now covered by
-semantic versioning.
+First stable release. The CLI, core, model, report, profile, MCP, web, WASM,
+Python, and desktop crates share the 1.0.0 version and their public APIs are
+now covered by semantic versioning.
 
 ### Added
 
@@ -61,6 +61,18 @@ semantic versioning.
   automatically validated again and reports resolved, remaining, and introduced
   notice totals.
 - `gtfs_validator_core::fix` exposing `FixPlan` and `apply_fixes` for embedders.
+- `gtfs-guru profile` and `gtfs-guru explain`, backed by the new
+  `gtfs-guru-profile` crate. The profile is deterministic: entity counts, route
+  types, completeness facts, seven actual service dates with calendar
+  exceptions applied, and grouped validation issues. The explanation is derived
+  from that same profile, so every statement can be checked without sending the
+  feed to an LLM provider.
+- `gtfs-guru-mcp`, a read-only MCP server exposing `validate_gtfs`,
+  `explain_gtfs`, and `get_notice_details`. It speaks stdio for a local host and
+  authenticated stateless Streamable HTTP for a remote one. Local reads are
+  confined to the roots passed with `--allow-dir`; downloading a public URL is
+  off until `--allow-url` is given. HTTP defaults to 60 authenticated requests
+  per rolling minute, four concurrent validations, and 64 KiB request bodies.
 - `gtfs-guru --version`.
 - `service_never_active`, which flags calendar.txt rows with no active weekday
   and no added dates in calendar_dates.txt.
@@ -98,8 +110,16 @@ semantic versioning.
   retaining a second 0.11 TLS stack.
 - `[PERF]` diagnostics require `GTFS_PERF_DEBUG`.
 - SARIF output identifies the tool and repository as GTFS Guru.
-- Documentation reports the current 110 validators and 190 notice codes, and
+- Documentation reports the current 110 validators and 191 notice codes, and
   uses the measured 4.6–6.7x benchmark results.
+- `docs/rules.md` is generated from the notice schema instead of being edited by
+  hand, and the generator's `--check` mode fails CI when it drifts. That is what
+  moved the documented total from 190 to 191: `leading_or_trailing_whitespaces`
+  was already emitted but had never been listed.
+- `inconsistent_route_type_for_block_id` and
+  `inconsistent_route_type_for_in_seat_transfer` no longer compare extended
+  route types. MobilityData's canonical typed route table rejects extended HVT
+  values, so the validators that read that table never see them.
 - `--threads` is documented as report metadata; actual parallelism is
   controlled with `RAYON_NUM_THREADS`.
 - Parallel CSV loading is faster, and the hottest rules were optimized.
@@ -119,6 +139,15 @@ semantic versioning.
 - IPv6 URL literals are classified directly, so public IPv6 hosts work while
   private and loopback literals remain blocked.
 - Zip decompression is capped per member and across the archive.
+- Negative `pathways.txt` stair counts are loaded as valid downward stairs
+  instead of silently dropping the pathway and producing false reachability
+  errors.
+- The home page advertised `cargo install gtfs-guru-cli` and a `--json` flag.
+  The crate is `gtfs-guru` and the flag is `--stdout`, so both copied commands
+  failed for anyone who followed them.
+- The home page no longer overflows horizontally on a 375 px viewport; the
+  stats row, install commands, and footer links wrap instead. A Chromium check
+  asserts the mobile page has no horizontal scroll.
 - tzdb backward-compatibility link names (for example `Europe/Nicosia`,
   `US/Eastern`) are accepted, matching Java's `ZoneId`.
 - Translation foreign-key lookups are indexed instead of scanned, which fixed a
