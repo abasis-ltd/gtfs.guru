@@ -1,6 +1,6 @@
 # Validation Rules
 
-GTFS Guru registers **110 validators**, which currently emit the **190 notice
+GTFS Guru registers **110 validators**, which currently emit the **191 notice
 codes** listed below.
 
 This list is generated from the validator's notice schema. To export the full
@@ -124,7 +124,7 @@ gtfs-guru --export-notices-schema --output_base ./out
 - `unsupported_geometry_type`
 - `wrong_parent_location_type`
 
-## WARNING (62)
+## WARNING (63)
 
 - `agency_phone_invalid`
 - `attribution_without_role`
@@ -145,6 +145,7 @@ gtfs-guru --export-notices-schema --output_base ./out
 - `inconsistent_agency_lang`
 - `inconsistent_route_type_for_block_id`
 - `inconsistent_route_type_for_in_seat_transfer`
+- `leading_or_trailing_whitespaces`
 - `missing_bike_allowance`
 - `missing_feed_contact_email_and_url`
 - `missing_feed_info_date`
