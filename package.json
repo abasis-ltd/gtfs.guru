@@ -2,6 +2,7 @@
   "name": "gtfs-guru-browser-tests",
   "private": true,
   "scripts": {
+    "test:live-website": "node scripts/test-live-website.mjs",
     "test:wasm-browser": "node scripts/test-wasm-browser.mjs"
   },
   "devDependencies": {
