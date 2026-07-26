@@ -134,7 +134,9 @@ impl Validator for InconsistentRouteTypeForBlockIdValidator {
             .routes
             .rows
             .iter()
-            .map(|route| (route.route_id, route.route_type))
+            .filter_map(|route| {
+                route_type_value(route.route_type).map(|value| (route.route_id, value))
+            })
             .collect();
         let mut blocks: HashMap<_, Vec<_>> = HashMap::new();
         for trip in &feed.trips.rows {
@@ -187,7 +189,7 @@ impl Validator for InconsistentRouteTypeForBlockIdValidator {
                 "routeTypes",
                 distinct_types
                     .iter()
-                    .map(|value| route_type_value(*value).to_string())
+                    .map(i32::to_string)
                     .collect::<Vec<_>>()
                     .join(", "),
             );
@@ -213,7 +215,9 @@ impl Validator for InconsistentRouteTypeForInSeatTransferValidator {
             .routes
             .rows
             .iter()
-            .map(|route| (route.route_id, route.route_type))
+            .filter_map(|route| {
+                route_type_value(route.route_type).map(|value| (route.route_id, value))
+            })
             .collect();
         for (index, transfer) in transfers.rows.iter().enumerate() {
             if transfer.transfer_type != Some(TransferType::InSeat) {
@@ -241,8 +245,8 @@ impl Validator for InconsistentRouteTypeForInSeatTransferValidator {
             notice.insert_context_field("csvRowNumber", transfers.row_number(index));
             notice.insert_context_field("fromRouteId", feed.pool.resolve(from_route_id).as_str());
             notice.insert_context_field("toRouteId", feed.pool.resolve(to_route_id).as_str());
-            notice.insert_context_field("fromRouteType", route_type_value(from_type));
-            notice.insert_context_field("toRouteType", route_type_value(to_type));
+            notice.insert_context_field("fromRouteType", from_type);
+            notice.insert_context_field("toRouteType", to_type);
             notice.field_order = vec![
                 "csvRowNumber".into(),
                 "fromRouteId".into(),
@@ -274,20 +278,21 @@ fn location_type_value(value: LocationType) -> i32 {
     }
 }
 
-fn route_type_value(value: RouteType) -> i32 {
+fn route_type_value(value: RouteType) -> Option<i32> {
     match value {
-        RouteType::Tram => 0,
-        RouteType::Subway => 1,
-        RouteType::Rail => 2,
-        RouteType::Bus => 3,
-        RouteType::Ferry => 4,
-        RouteType::CableCar => 5,
-        RouteType::Gondola => 6,
-        RouteType::Funicular => 7,
-        RouteType::Trolleybus => 11,
-        RouteType::Monorail => 12,
-        RouteType::Extended(value) => i32::from(value),
-        RouteType::Unknown => -1,
+        RouteType::Tram => Some(0),
+        RouteType::Subway => Some(1),
+        RouteType::Rail => Some(2),
+        RouteType::Bus => Some(3),
+        RouteType::Ferry => Some(4),
+        RouteType::CableCar => Some(5),
+        RouteType::Gondola => Some(6),
+        RouteType::Funicular => Some(7),
+        RouteType::Trolleybus => Some(11),
+        RouteType::Monorail => Some(12),
+        // MobilityData's canonical typed route table rejects extended HVT
+        // values, so validators that consume that table never compare them.
+        RouteType::Extended(_) | RouteType::Unknown => None,
     }
 }
 
@@ -390,5 +395,47 @@ mod tests {
         assert!(notices
             .iter()
             .any(|notice| { notice.code == "inconsistent_route_type_for_in_seat_transfer" }));
+    }
+
+    #[test]
+    fn extended_route_types_are_absent_from_the_canonical_typed_table() {
+        let mut feed = GtfsFeed::default();
+        let route_1 = feed.pool.intern("R1");
+        let route_2 = feed.pool.intern("R2");
+        let block_id = feed.pool.intern("B1");
+        feed.routes.rows = vec![
+            Route {
+                route_id: route_1,
+                route_type: RouteType::Bus,
+                ..Default::default()
+            },
+            Route {
+                route_id: route_2,
+                route_type: RouteType::Extended(700),
+                ..Default::default()
+            },
+        ];
+        feed.trips.rows = vec![
+            Trip {
+                trip_id: feed.pool.intern("T1"),
+                route_id: route_1,
+                block_id: Some(block_id),
+                ..Default::default()
+            },
+            Trip {
+                trip_id: feed.pool.intern("T2"),
+                route_id: route_2,
+                block_id: Some(block_id),
+                ..Default::default()
+            },
+        ];
+
+        let mut notices = NoticeContainer::new();
+        InconsistentRouteTypeForBlockIdValidator.validate(&feed, &mut notices);
+
+        assert!(
+            notices.is_empty(),
+            "extended route types are absent from the canonical validator's typed route table"
+        );
     }
 }
