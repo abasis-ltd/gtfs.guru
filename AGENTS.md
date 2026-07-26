@@ -2,14 +2,15 @@
 
 ## Overview
 
-- Rust implementation of the Java validator at `../gtfs-validator` (`/Users/akimov/Documents/GitHub/gtfs-validator`).
+- Rust implementation of the Java validator at `../gtfs-validator-java`
+  (`/Users/akimov/Documents/GitHub/gtfs-validator-java`).
 - Workspace crates live in `crates/`; core logic is in `gtfs_validator_core`, deterministic feed facts live in `gtfs_validator_profile`, and CLI, MCP, web, WASM, Python, and GUI are adapters.
 - Benchmark inputs and the Java baseline live in `benchmark-feeds/` (`gtfs-validator.jar`).
 
 ## Essential Commands
 
 - `cargo build` (workspace build)
-- `cargo build --release -p gtfs-guru-cli` (CLI binary)
+- `cargo build --release -p gtfs-guru` (CLI binary)
 - `cargo run --release -p gtfs-guru-web` (local API server)
 - `cargo test` or `cargo test -p gtfs_validator_core`
 - `cargo fmt` and `cargo clippy --all-targets --all-features -- -D warnings`

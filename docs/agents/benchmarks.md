@@ -20,7 +20,7 @@ cargo build --release -p gtfs-guru
 ./target/release/gtfs-guru -i benchmark-feeds/nl.zip -o benchmark-feeds/output-guru-nl
 ```
 
-- Run the Java validator from the `../gtfs-validator` repo with the same input and output naming.
+- Run the Java validator from the `../gtfs-validator-java` repo with the same input and output naming.
 - Record wall time, commit hash, and machine details for comparisons.
 
 ## Comparing Outputs
