@@ -73,7 +73,7 @@ You are safe! Click **"Squash and merge"**.
 
 ## Deploying the Website (gtfs.guru)
 
-The live site **does not run on GitHub Pages**. The `pages.yml` workflow still publishes to GitHub Pages on every merge to `main`, but the `gtfs.guru` domain is not wired to it — **merging to `main` does NOT update the live site.**
+The live site **does not run on GitHub Pages**, and **merging to `main` does NOT update it.** The `Website` workflow only checks the static assets; the site is published by the `deploy-website` job in `release.yml`, which runs on a `v*` tag.
 
 **Actual hosting:** a VPS at Hetzner Cloud (`157.90.246.102`), where Caddy terminates TLS and proxies to nginx serving static files.
 
