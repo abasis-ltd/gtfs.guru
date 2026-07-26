@@ -568,13 +568,13 @@ if not report.is_valid:
                     </div>
                     <div class="code-block glass-card">
                         <div class="install-cmd-row">
-                            <code>cargo install gtfs-guru-cli</code>
-                            <button class="copy-tiny" data-text="cargo install gtfs-guru-cli">Copy</button>
+                            <code>cargo install gtfs-guru</code>
+                            <button class="copy-tiny" data-text="cargo install gtfs-guru">Copy</button>
                         </div>
                         <pre><code>gtfs-guru -i ./feed.zip -o ./dist
 
 # Output JSON for CI/CD
-gtfs-guru --json -i feed.zip | jq .</code></pre>
+gtfs-guru --stdout -i feed.zip | jq .</code></pre>
                     </div>
                 </div>
             </div>

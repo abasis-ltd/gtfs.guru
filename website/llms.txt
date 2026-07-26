@@ -39,7 +39,7 @@ either tool describes the same feed problems.
 | Browser | not available | WebAssembly, runs in the tab |
 | Python | wrapper around the JAR | native package (`pip install gtfs-guru`) |
 | CI output | JSON, HTML | SARIF, JSON, HTML, plus a GitHub Action |
-| Validation rules | canonical rule set | 110 validators, 190 notice codes |
+| Validation rules | canonical rule set | 110 validators, 191 notice codes |
 | Licence | Apache 2.0 | Apache 2.0 |
 
 Benchmarks were run on an Apple M3 Pro with a warm page cache, each tool
@@ -106,7 +106,7 @@ GitHub Actions:
 ## Reference
 
 - [Source code](https://github.com/abasis-ltd/gtfs.guru): Rust workspace, Apache 2.0
-- [Validation rules](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/rules.md): all 110 validators and 190 notice codes
+- [Validation rules](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/rules.md): all 110 validators and 191 notice codes
 - [CLI usage](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/usage.md): every flag, exit codes, report layout
 - [Python API](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/python_api.md): the `gtfs_guru` package
 - [WebAssembly](https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/wasm.md): embedding the validator in a page

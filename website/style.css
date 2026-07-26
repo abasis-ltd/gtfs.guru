@@ -278,6 +278,11 @@ a {
     align-items: center;
 }
 
+.hero-container > *,
+.tech-grid > * {
+    min-width: 0;
+}
+
 .badge-row {
     display: flex;
     gap: 0.5rem;
@@ -955,6 +960,7 @@ h1 {
     position: relative;
     padding: 1.5rem;
     background: rgba(0, 0, 0, 0.3);
+    max-width: 100%;
 }
 
 .install-cmd-row {
@@ -965,16 +971,20 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
     margin-bottom: 1.5rem;
 }
 
 .install-cmd-row code {
     color: var(--warning);
     font-family: var(--font-mono);
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 pre {
     overflow-x: auto;
+    max-width: 100%;
     font-family: var(--font-mono);
     font-size: 0.9rem;
     color: #e2e8f0;
@@ -2123,6 +2133,32 @@ footer {
         bottom: 10px;
         gap: 0.65rem;
         max-width: calc(100% - 20px);
+    }
+
+    .stats-row {
+        width: 100%;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .stat-item {
+        flex: 1;
+        min-width: 0;
+        text-align: center;
+    }
+
+    .code-block {
+        padding: 1rem;
+    }
+
+    .install-cmd-row {
+        align-items: flex-start;
+    }
+
+    .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1rem 1.25rem;
     }
 }
 
