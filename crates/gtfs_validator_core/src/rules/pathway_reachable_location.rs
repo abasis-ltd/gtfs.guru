@@ -256,8 +256,9 @@ mod tests {
     /// one-way pathways rather than one bidirectional pathway. Reachable both
     /// ways, so nothing is reported.
     ///
-    /// The real feed still produces false notices on stations shaped like this,
-    /// so whatever causes them is not the paired-one-way spelling on its own.
+    /// The negative stair count mirrors MBTA's downward stairways. It must not
+    /// make the pathway row disappear during deserialization, because dropping
+    /// those edges produced false one-way reachability failures.
     #[test]
     fn paired_one_way_pathways_reach_the_platform() {
         let mut feed = GtfsFeed::default();
@@ -302,7 +303,10 @@ mod tests {
             ..Default::default()
         };
         let rows = vec![
-            hop("E1", "N1", &mut feed),
+            Pathway {
+                stair_count: Some(-34),
+                ..hop("E1", "N1", &mut feed)
+            },
             hop("N1", "E1", &mut feed),
             hop("N1", "P1", &mut feed),
             hop("P1", "N1", &mut feed),
