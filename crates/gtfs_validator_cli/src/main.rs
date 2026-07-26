@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -11,6 +12,7 @@ use tracing::info;
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+use gtfs_guru_core::FixOperation;
 use gtfs_guru_core::{
     apply_fixes, build_notice_schema_map, collect_input_notices, default_runner, diff_feeds,
     set_validation_country_code, set_validation_date, FeedDiff, FixPlan, FixSafety, GtfsFeed,
@@ -493,7 +495,7 @@ fn main() -> anyhow::Result<()> {
 
     // Handle auto-fix options
     if args.fix_dry_run || args.fix || args.fix_unsafe {
-        handle_fixes(&validation_notices, &args, &input)?;
+        handle_fixes(&validation_notices, &args, &input, &runner)?;
     }
 
     // Reports are already written: status 2 describes feed quality, not a run failure.
@@ -954,7 +956,12 @@ fn exit_if_threshold_reached(fail_on: FailOn, notices: &NoticeContainer) {
     std::process::exit(2);
 }
 
-fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> anyhow::Result<()> {
+fn handle_fixes(
+    notices: &NoticeContainer,
+    args: &Args,
+    input: &GtfsInput,
+    runner: &ValidatorRunner,
+) -> anyhow::Result<()> {
     let max_safety = if args.fix_unsafe {
         FixSafety::Unsafe
     } else {
@@ -966,10 +973,10 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> an
     if counts.total() == 0 {
         info!("No auto-fixes available");
         if !args.thorough {
-            // Most fix-carrying rules are gated behind thorough mode, so an
-            // empty plan usually means they never ran.
+            // A few fix-carrying rules are gated behind thorough mode, so an
+            // empty plan may just mean they never ran.
             eprintln!(
-                "No fixable issues found. Several rules that suggest fixes only run under --thorough."
+                "No fixable issues found. Some rules that suggest fixes only run under --thorough."
             );
         }
         return Ok(());
@@ -1019,11 +1026,9 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> an
 
     for conflict in &outcome.conflicts {
         eprintln!(
-            "skipped {} at {} row {}, field '{}': {}",
+            "skipped {} at {}: {}",
             conflict.edit.notice_code,
-            conflict.edit.file,
-            conflict.edit.row,
-            conflict.edit.field,
+            edit_target(&conflict.edit),
             conflict.reason
         );
     }
@@ -1047,24 +1052,136 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> an
             outcome.conflicts.len()
         );
     }
-    println!("Re-run validation on the output to confirm the result.");
+    let repaired_input = GtfsInput::from_path(&outcome.output)
+        .with_context(|| format!("open repaired feed {}", outcome.output.display()))?;
+    let repaired = gtfs_guru_core::engine::validate_input(&repaired_input, runner);
+    if repaired.feed.is_none() {
+        bail!(
+            "the repaired feed was written but could not be loaded again; inspect {}",
+            outcome.output.display()
+        );
+    }
+    let delta = validation_delta(notices, &repaired.notices);
+    let (errors, warnings, infos) = repaired.notices.severity_counts();
+    println!(
+        "Revalidation: {} resolved, {} remaining, {} introduced \
+         ({} errors, {} warnings, {} infos).",
+        delta.resolved, delta.remaining, delta.introduced, errors, warnings, infos
+    );
+    for ((code, severity), increase) in &delta.introduced_groups {
+        println!(
+            "  new: +{} {} [{}]",
+            increase,
+            code,
+            notice_severity_label(*severity)
+        );
+    }
 
     Ok(())
 }
 
 fn print_edits(edits: &[PlannedEdit]) {
     for edit in edits {
-        println!(
-            "[{}] {} row {}, field '{}': {}",
-            edit.safety.label(),
-            edit.file,
-            edit.row,
-            edit.field,
-            edit.description
-        );
-        println!("  - {}", edit.original);
-        println!("  + {}", edit.replacement);
+        match &edit.operation {
+            FixOperation::ReplaceField { .. } => {
+                println!(
+                    "[{}] {}: {}",
+                    edit.safety.label(),
+                    edit_target(edit),
+                    edit.description
+                );
+                println!("  - {}", edit.original);
+                println!("  + {}", edit.replacement);
+            }
+            FixOperation::DeleteRow {
+                field, expected, ..
+            } => {
+                println!(
+                    "[{}] {}: {}",
+                    edit.safety.label(),
+                    edit_target(edit),
+                    edit.description
+                );
+                println!("  delete when {field} = {expected:?}");
+            }
+            FixOperation::SortStopTimes { .. } => {
+                println!(
+                    "[{}] {}: {}",
+                    edit.safety.label(),
+                    edit.file,
+                    edit.description
+                );
+            }
+        }
         println!();
+    }
+}
+
+fn edit_target(edit: &PlannedEdit) -> String {
+    match &edit.operation {
+        FixOperation::ReplaceField { .. } => {
+            format!("{} row {}, field '{}'", edit.file, edit.row, edit.field)
+        }
+        FixOperation::DeleteRow { .. } => format!("{} row {}", edit.file, edit.row),
+        FixOperation::SortStopTimes { .. } => edit.file.clone(),
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ValidationDelta {
+    resolved: usize,
+    remaining: usize,
+    introduced: usize,
+    introduced_groups: Vec<((String, NoticeSeverity), usize)>,
+}
+
+fn validation_delta(before: &NoticeContainer, after: &NoticeContainer) -> ValidationDelta {
+    fn group_counts(notices: &NoticeContainer) -> HashMap<(String, NoticeSeverity), usize> {
+        let groups: HashSet<(String, NoticeSeverity)> = notices
+            .iter()
+            .map(|notice| (notice.code.clone(), notice.severity))
+            .collect();
+        groups
+            .into_iter()
+            .map(|(code, severity)| {
+                let count = notices.group_total(&code, severity);
+                ((code, severity), count)
+            })
+            .collect()
+    }
+
+    let before = group_counts(before);
+    let after = group_counts(after);
+    let keys: HashSet<_> = before.keys().chain(after.keys()).cloned().collect();
+    let mut delta = ValidationDelta {
+        remaining: after.values().sum(),
+        ..ValidationDelta::default()
+    };
+    for key in keys {
+        let old_count = before.get(&key).copied().unwrap_or(0);
+        let new_count = after.get(&key).copied().unwrap_or(0);
+        delta.resolved += old_count.saturating_sub(new_count);
+        let increase = new_count.saturating_sub(old_count);
+        delta.introduced += increase;
+        if increase > 0 {
+            delta.introduced_groups.push((key, increase));
+        }
+    }
+    delta.introduced_groups.sort_by(
+        |((left_code, left_severity), _), ((right_code, right_severity), _)| {
+            left_code
+                .cmp(right_code)
+                .then(left_severity.cmp(right_severity))
+        },
+    );
+    delta
+}
+
+fn notice_severity_label(severity: NoticeSeverity) -> &'static str {
+    match severity {
+        NoticeSeverity::Error => "ERROR",
+        NoticeSeverity::Warning => "WARNING",
+        NoticeSeverity::Info => "INFO",
     }
 }
 
@@ -1687,6 +1804,44 @@ mod tests {
     fn badges_are_skipped_when_neither_flag_is_given() {
         let args = Args::parse_from(["gtfs-guru", "--stdout"]);
         write_badges(&args, &NoticeContainer::new()).unwrap();
+    }
+
+    #[test]
+    fn validation_delta_compares_notice_groups_without_row_noise() {
+        let mut before = NoticeContainer::new();
+        for _ in 0..3 {
+            before.push(ValidationNotice::new(
+                "invalid_color",
+                NoticeSeverity::Error,
+                "bad color",
+            ));
+        }
+        before.push(ValidationNotice::new(
+            "old_warning",
+            NoticeSeverity::Warning,
+            "old",
+        ));
+
+        let mut after = NoticeContainer::new();
+        after.push(ValidationNotice::new(
+            "invalid_color",
+            NoticeSeverity::Error,
+            "bad color",
+        ));
+        after.push(ValidationNotice::new(
+            "new_warning",
+            NoticeSeverity::Warning,
+            "new",
+        ));
+
+        let delta = validation_delta(&before, &after);
+        assert_eq!(delta.resolved, 3);
+        assert_eq!(delta.remaining, 2);
+        assert_eq!(delta.introduced, 1);
+        assert_eq!(
+            delta.introduced_groups,
+            vec![(("new_warning".into(), NoticeSeverity::Warning), 1)]
+        );
     }
 
     #[test]
