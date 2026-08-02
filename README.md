@@ -282,7 +282,17 @@ We welcome contributions! Whether it's adding new rules, fixing bugs, or improvi
 
 1. Clone the repo: `git clone https://github.com/abasis-ltd/gtfs.guru`
 2. Install Rust: [rustup.rs](https://rustup.rs)
-3. Run tests: `cargo test --workspace`
+3. Install the dependencies:\
+RHEL _(and therefore Fedora Linux)_:
+```terminal
+sudo dnf install pkgconf-pkg-config glib2-devel gtk3-devel javascriptcoregtk4.1-devel libsoup3-devel webkit2gtk4.1-devel
+```
+Debian _(and therefore Ubuntu)_:
+```terminal
+sudo apt-get update
+sudo apt install pkg-config libglib2.0-dev libgtk-3-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev libwebkit2gtk-4.1-dev
+```
+4. Run tests: `cargo test --workspace`
 
 ## 📄 License
 
