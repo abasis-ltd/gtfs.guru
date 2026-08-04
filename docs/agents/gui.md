@@ -8,7 +8,8 @@
 ## Prerequisites
 
 - Rust (stable)
-- Tauri CLI (see https://tauri.app/v1/guides/getting-started/prerequisites)
+- Tauri CLI (`cargo install tauri-cli`)
+- On Linux, GTK/WebKit system packages – see `docs/system-dependencies.md`
 - Node.js only if frontend tooling is needed
 
 ## Development and Build
