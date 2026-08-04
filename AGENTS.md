@@ -8,7 +8,7 @@
 
 ## System Dependencies (Linux)
 
-The GUI crate (Tauri) is part of the default workspace, so a plain `cargo build`/`cargo test` on Linux needs system packages installed first, or the build fails with missing `pkg-config` headers. See `docs/system-dependencies.md` for the exact package list.
+See `docs/system-dependencies.md` for the package list.
 
 ## Essential Commands
 
