@@ -2,6 +2,8 @@
 
 ## From Source (Rust)
 
+On Linux, install the system dependencies first – see [System Dependencies](system-dependencies.md).
+
 ```bash
 git clone https://github.com/abasis-ltd/gtfs.guru
 cd gtfs.guru

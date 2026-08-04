@@ -6,6 +6,10 @@
 - Workspace crates live in `crates/`; core logic is in `gtfs_validator_core` with CLI, web, WASM, Python, and GUI front-ends.
 - Benchmark inputs and the Java baseline live in `benchmark-feeds/` (`gtfs-validator.jar`).
 
+## System Dependencies (Linux)
+
+The GUI crate (Tauri) is part of the default workspace, so a plain `cargo build`/`cargo test` on Linux needs system packages installed first, or the build fails with missing `pkg-config` headers. See `docs/system-dependencies.md` for the exact package list.
+
 ## Essential Commands
 
 - `cargo build` (workspace build)

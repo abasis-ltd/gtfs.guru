@@ -70,6 +70,8 @@ Unsure where to begin contributing to GTFS Guru? You can start by looking throug
 
 You will need [Rust](https://www.rust-lang.org/tools/install) installed. We recommend using `rustup` to manage your Rust installation.
 
+The workspace includes the desktop GUI crate (Tauri), so a plain `cargo build`/`cargo test` on Linux also needs its system libraries installed first – see [`docs/system-dependencies.md`](docs/system-dependencies.md) for the exact package list.
+
 ### Building parts of the project
 
 The project is a workspace with multiple crates.
