@@ -37,3 +37,4 @@ __pycache__/
 # wasm-pack multithreaded out-dir (pkg/ self-ignores via its own .gitignore;
 # build-wasm.sh strips that from pkg-mt so the website copies stay tracked)
 crates/gtfs_validator_wasm/pkg-mt/
+crates/gtfs_validator_gui/gen/schemas/linux-schema.json
