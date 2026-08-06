@@ -17,37 +17,37 @@ Closely compatible with [MobilityData gtfs-validator](https://github.com/Mobilit
 
 ## Quick Start
 
-=== "Python"
+### Python
 
-    ```bash
-    pip install gtfs-guru
-    ```
+```bash
+pip install gtfs-guru
+```
 
-    ```python
-    import gtfs_guru
+```python
+import gtfs_guru
 
-    result = gtfs_guru.validate("/path/to/gtfs.zip")
-    print(f"Valid: {result.is_valid}, Errors: {result.error_count}")
-    ```
+result = gtfs_guru.validate("/path/to/gtfs.zip")
+print(f"Valid: {result.is_valid}, Errors: {result.error_count}")
+```
 
-=== "Command Line"
+### Command Line
 
-    ```bash
-    # Build
-    cargo build --release -p gtfs-guru
+```bash
+# Build
+cargo build --release -p gtfs-guru
 
-    # Run
-    ./target/release/gtfs-guru \
-        --input /path/to/gtfs.zip \
-        --output_base /tmp/report
-    ```
+# Run
+./target/release/gtfs-guru \
+    --input /path/to/gtfs.zip \
+    --output_base /tmp/report
+```
 
-=== "Web API"
+### Web API
 
-    ```bash
-    cargo run --release -p gtfs-guru-web
-    # API at http://localhost:3000
-    ```
+```bash
+cargo run --release -p gtfs-guru-web
+# API at http://localhost:3000
+```
 
 ## Features
 
