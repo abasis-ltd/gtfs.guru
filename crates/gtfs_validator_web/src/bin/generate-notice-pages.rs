@@ -75,80 +75,75 @@ fn generate(check: bool) -> anyhow::Result<()> {
     let related = build_related_notices(&schemas);
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let roots = [
-        manifest_dir.join("../../website"),
-        manifest_dir.join("website"),
-    ];
+    let root = manifest_dir.join("../../website");
     let mut changed = Vec::new();
 
-    for root in roots {
-        let notices_dir = root.join("notices");
+    let notices_dir = root.join("notices");
+    if !check {
+        fs::create_dir_all(&notices_dir)
+            .with_context(|| format!("create {}", notices_dir.display()))?;
+    }
+
+    check_or_write(
+        &notices_dir.join("notice.css"),
+        NOTICE_CSS,
+        check,
+        &mut changed,
+    )?;
+    check_or_write(
+        &notices_dir.join("notice.js"),
+        NOTICE_JS,
+        check,
+        &mut changed,
+    )?;
+    check_or_write(
+        &notices_dir.join("index.html"),
+        &render_index(&schemas),
+        check,
+        &mut changed,
+    )?;
+
+    for (code, schema) in &schemas {
+        let dir = notices_dir.join(code);
         if !check {
-            fs::create_dir_all(&notices_dir)
-                .with_context(|| format!("create {}", notices_dir.display()))?;
+            fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
         }
-
         check_or_write(
-            &notices_dir.join("notice.css"),
-            NOTICE_CSS,
-            check,
-            &mut changed,
-        )?;
-        check_or_write(
-            &notices_dir.join("notice.js"),
-            NOTICE_JS,
-            check,
-            &mut changed,
-        )?;
-        check_or_write(
-            &notices_dir.join("index.html"),
-            &render_index(&schemas),
-            check,
-            &mut changed,
-        )?;
-
-        for (code, schema) in &schemas {
-            let dir = notices_dir.join(code);
-            if !check {
-                fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
-            }
-            check_or_write(
-                &dir.join("index.html"),
-                &render_notice_page(
-                    schema,
-                    guides.get(code),
-                    related.get(code).map(Vec::as_slice).unwrap_or_default(),
-                    &schemas,
-                ),
-                check,
-                &mut changed,
-            )?;
-        }
-
-        let expected_codes: BTreeSet<&str> = schemas.keys().map(String::as_str).collect();
-        if notices_dir.is_dir() {
-            for entry in fs::read_dir(&notices_dir)
-                .with_context(|| format!("read {}", notices_dir.display()))?
-            {
-                let entry = entry?;
-                if !entry.file_type()?.is_dir() {
-                    continue;
-                }
-                let name = entry.file_name();
-                let name = name.to_string_lossy();
-                if !expected_codes.contains(name.as_ref()) {
-                    changed.push(entry.path());
-                }
-            }
-        }
-
-        check_or_write(
-            &root.join("sitemap.xml"),
-            &render_sitemap(&root, &schemas)?,
+            &dir.join("index.html"),
+            &render_notice_page(
+                schema,
+                guides.get(code),
+                related.get(code).map(Vec::as_slice).unwrap_or_default(),
+                &schemas,
+            ),
             check,
             &mut changed,
         )?;
     }
+
+    let expected_codes: BTreeSet<&str> = schemas.keys().map(String::as_str).collect();
+    if notices_dir.is_dir() {
+        for entry in
+            fs::read_dir(&notices_dir).with_context(|| format!("read {}", notices_dir.display()))?
+        {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !expected_codes.contains(name.as_ref()) {
+                changed.push(entry.path());
+            }
+        }
+    }
+
+    check_or_write(
+        &root.join("sitemap.xml"),
+        &render_sitemap(&root, &schemas)?,
+        check,
+        &mut changed,
+    )?;
 
     check_or_write(
         &manifest_dir.join("../../docs/rules.md"),
@@ -170,10 +165,7 @@ fn generate(check: bool) -> anyhow::Result<()> {
     }
 
     if !check {
-        println!(
-            "Generated {} notice pages in both website roots",
-            schemas.len()
-        );
+        println!("Generated {} notice pages in website/", schemas.len());
     }
     Ok(())
 }

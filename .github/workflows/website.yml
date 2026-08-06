@@ -5,7 +5,6 @@ on:
     branches: [ "main" ]
     paths:
       - 'website/**'
-      - 'crates/gtfs_validator_web/website/**'
       - 'scripts/build_demo_feed.py'
       - 'scripts/check_website_links.py'
       - '.github/workflows/website.yml'
@@ -13,7 +12,6 @@ on:
     branches: [ "main" ]
     paths:
       - 'website/**'
-      - 'crates/gtfs_validator_web/website/**'
       - 'scripts/build_demo_feed.py'
       - 'scripts/check_website_links.py'
       - '.github/workflows/website.yml'
@@ -24,18 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      # The site lives in the repo twice: website/ is what gets deployed, and
-      # crates/gtfs_validator_web/website/ is embedded into the axum binary.
-      # Editing one and forgetting the other ships a stale page to half the
-      # traffic, and nothing else catches it.
-      - name: The two website copies are identical
-        run: |
-          if ! diff -r --exclude='.DS_Store' website crates/gtfs_validator_web/website; then
-            echo "::error::website/ and crates/gtfs_validator_web/website/ have drifted apart."
-            echo "Copy the changed files across; see docs/MAINTENANCE.md."
-            exit 1
-          fi
 
       - name: The demo feed matches its generator
         run: python3 scripts/build_demo_feed.py --check

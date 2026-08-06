@@ -6,6 +6,9 @@ license = "Apache-2.0"
 description = "Web API for GTFS Guru validator"
 repository = "https://github.com/abasis-ltd/gtfs.guru"
 homepage = "https://github.com/abasis-ltd/gtfs.guru"
+# Not published: this is the deployed server binary, not a library, and it
+# embeds the repo-root website/ which lives outside the crate root.
+publish = false
 [dependencies]
 anyhow = { workspace = true }
 axum = { workspace = true }

@@ -25,12 +25,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# The website lives in the repo twice: the root copy is what gets deployed, and
-# the crate copy is embedded into the axum binary. Both need the demo feed.
-OUTPUT_PATHS = (
-    REPO_ROOT / "website" / "demo" / "gtfs-guru-demo.zip",
-    REPO_ROOT / "crates" / "gtfs_validator_web" / "website" / "demo" / "gtfs-guru-demo.zip",
-)
+# website/ is the single source of truth: it is deployed as static files and is
+# also embedded into the axum binary from there.
+OUTPUT_PATHS = (REPO_ROOT / "website" / "demo" / "gtfs-guru-demo.zip",)
 
 # Fixed DOS timestamp (1980-01-01 00:00:00), the earliest a zip can represent.
 FIXED_DATE_TIME = (1980, 1, 1, 0, 0, 0)

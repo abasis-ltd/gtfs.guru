@@ -80,21 +80,18 @@ The live site **does not run on GitHub Pages**, and **merging to `main` does NOT
 **Deploy path:**
 
 ```bash
-# 1. Rebuild the WASM validator (needs wasm-pack + binaryen)
+# 1. Rebuild the WASM validator (needs wasm-pack + binaryen).
+#    This refreshes website/pkg/ and website/pkg-mt/ in place.
 ./scripts/build-wasm.sh
 
-# 2. Copy the fresh pkg/ into BOTH website copies
-#    - website/pkg/                          (what nginx actually serves)
-#    - crates/gtfs_validator_web/website/    (embedded in the axum Docker binary)
-
-# 3. Push static files to the server (needs SSH access)
+# 2. Push static files to the server (needs SSH access)
 ./scripts/deploy-website.sh <server-ip-or-hostname>
 ```
 
 Notes:
 
-* There are **two copies** of the website in the repo. The repo-root `website/` is what's live; keep `crates/gtfs_validator_web/website/` in sync. The `Website` workflow fails the build when they drift apart.
-* The example feed behind the "Try an example feed" button is generated, not hand-edited. Change `scripts/build_demo_feed.py` and re-run it (`python3 scripts/build_demo_feed.py`) to refresh both copies; `--check` is what CI runs.
+* The repo-root `website/` is the **single copy** of the site. nginx serves it directly, and `gtfs-guru-web` embeds it via `include_dir!("$CARGO_MANIFEST_DIR/../../website")`. That embed is why `gtfs-guru-web` is `publish = false`: `cargo package` cannot carry a directory from outside the crate root, and the crate is a deployed binary rather than a library anyone depends on.
+* The example feed behind the "Try an example feed" button is generated, not hand-edited. Change `scripts/build_demo_feed.py` and re-run it (`python3 scripts/build_demo_feed.py`); `--check` is what CI runs.
 * Notice documentation is generated from the Rust schema and `src/notice_guides.json`. Run `cargo run -p gtfs-guru-web --bin generate-notice-pages` after changing a notice or guide. Refresh the bundled MobilityData snapshot with `python3 scripts/update_notice_metadata.py`; normal builds never require network access.
 * `deploy/update.sh` rebuilds the Docker (axum) stack — that is **not** what serves the live domain.
 * Server-level config (headers, TLS, caching) lives in `Caddyfile` and `website/nginx.conf` — since we control the server, custom headers (e.g. COOP/COEP for multithreaded WASM) can be set there.
