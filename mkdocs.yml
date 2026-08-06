@@ -1,6 +1,6 @@
 site_name: GTFS.Guru
 site_description: High-performance GTFS feed validator written in Rust
-site_url: https://gtfs.guru
+site_url: https://abasis-ltd.github.io/gtfs.guru/
 repo_url: https://github.com/abasis-ltd/gtfs.guru
 repo_name: abasis-ltd/gtfs.guru
 
@@ -37,8 +37,13 @@ markdown_extensions:
   - pymdownx.superfences
   - admonition
   - pymdownx.details
-  - pymdownx.tabbed:
-      alternate_style: true
+
+# Repo-facing notes: release steps, per-crate agent briefs, and the golden
+# suite's local instructions. They stay in the repo and out of the site.
+exclude_docs: |
+  MAINTENANCE.md
+  golden.md
+  agents/
 
 nav:
   - Home: index.md
@@ -47,3 +52,4 @@ nav:
   - LLM Guide: llm.md
   - Python API: python_api.md
   - Validation Rules: rules.md
+  - Browser (WASM): wasm.md
