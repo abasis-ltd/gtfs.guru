@@ -164,10 +164,6 @@ pub struct ValidationContextState {
     pub notice_group_limit: Option<usize>,
 }
 
-// Ensure it is Send + Sync (NaiveDate is Copy/Send/Sync, String is Send/Sync)
-unsafe impl Send for ValidationContextState {}
-unsafe impl Sync for ValidationContextState {}
-
 impl ValidationContextState {
     pub fn capture() -> Self {
         Self {

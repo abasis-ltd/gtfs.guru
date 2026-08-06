@@ -58,15 +58,15 @@ let nextMsgId = 1;
 
 // Lazily import + init the WASM module on the main thread (fallback path only,
 // always the single-threaded module — the main thread has no rayon pool).
-let mainThreadValidatePromise = null;
-function getMainThreadValidate() {
-    if (!mainThreadValidatePromise) {
-        mainThreadValidatePromise = import('./pkg/gtfs_guru_wasm.js').then(async (mod) => {
+let mainThreadApiPromise = null;
+function getMainThreadApi() {
+    if (!mainThreadApiPromise) {
+        mainThreadApiPromise = import('./pkg/gtfs_guru_wasm.js').then(async (mod) => {
             await mod.default(); // init()
-            return mod.validate_gtfs;
+            return mod;
         });
     }
-    return mainThreadValidatePromise;
+    return mainThreadApiPromise;
 }
 
 function getValidatorWorker() {
@@ -97,6 +97,12 @@ function getValidatorWorker() {
                 warning_count: payload.warningCount,
                 info_count: payload.infoCount,
                 truncated: payload.truncated === true,
+            });
+        } else if (type === 'diff-result') {
+            p.resolve({
+                json: payload.json,
+                comparison_time_ms: payload.comparisonTimeMs,
+                runtime: payload.runtime,
             });
         } else {
             p.reject(new Error(typeof payload === 'string' ? payload : 'Validation failed'));
@@ -541,7 +547,7 @@ async function validateInWorker(arrayBuffer, dateStr) {
 }
 
 async function validateOnMainThread(arrayBuffer, dateStr) {
-    const validate_gtfs = await getMainThreadValidate();
+    const { validate_gtfs } = await getMainThreadApi();
     // Yield once so the processing spinner paints before the synchronous,
     // UI-blocking WASM call.
     await new Promise((r) => setTimeout(r, 30));
@@ -554,6 +560,58 @@ async function validateOnMainThread(arrayBuffer, dateStr) {
         info_count: res.info_count,
         truncated: res.truncated === true,
     };
+}
+
+async function diffInWorker(oldArrayBuffer, newArrayBuffer, dateStr) {
+    getValidatorWorker();
+    await Promise.race([
+        workerReadyPromise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('__WORKER_UNAVAILABLE__')), 10000)),
+    ]);
+    return new Promise((resolve, reject) => {
+        const id = nextMsgId++;
+        pendingValidation = { id, resolve, reject };
+        validatorWorker.postMessage(
+            {
+                type: 'diff',
+                id,
+                payload: {
+                    oldZipBytes: oldArrayBuffer,
+                    newZipBytes: newArrayBuffer,
+                    date: dateStr,
+                },
+            },
+            [oldArrayBuffer, newArrayBuffer],
+        );
+    });
+}
+
+async function diffOnMainThread(oldArrayBuffer, newArrayBuffer, dateStr) {
+    const { diff_gtfs } = await getMainThreadApi();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const startedAt = performance.now();
+    return {
+        json: diff_gtfs(
+            new Uint8Array(oldArrayBuffer),
+            new Uint8Array(newArrayBuffer),
+            null,
+            dateStr,
+        ),
+        comparison_time_ms: performance.now() - startedAt,
+        runtime: 'single-threaded',
+    };
+}
+
+async function diffFeeds(oldArrayBuffer, newArrayBuffer, dateStr) {
+    if (workerUsable) {
+        try {
+            return await diffInWorker(oldArrayBuffer, newArrayBuffer, dateStr);
+        } catch (err) {
+            if (!err || err.message !== '__WORKER_UNAVAILABLE__') throw err;
+        }
+    }
+    return diffOnMainThread(oldArrayBuffer, newArrayBuffer, dateStr);
 }
 
 // Validate via the worker, transparently falling back to the main thread if the
@@ -717,8 +775,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const uploadState = document.getElementById('upload-state');
+    const validateInputs = document.getElementById('validate-inputs');
+    const diffInputs = document.getElementById('diff-inputs');
+    const validateModeBtn = document.getElementById('validate-mode-btn');
+    const diffModeBtn = document.getElementById('diff-mode-btn');
+    const oldFileInput = document.getElementById('old-file-input');
+    const newFileInput = document.getElementById('new-file-input');
+    const oldFeedPicker = document.getElementById('old-feed-picker');
+    const newFeedPicker = document.getElementById('new-feed-picker');
+    const oldFeedName = document.getElementById('old-feed-name');
+    const newFeedName = document.getElementById('new-feed-name');
+    const diffAnalyzeBtn = document.getElementById('diff-analyze-btn');
     const processingState = document.getElementById('processing-state');
+    const processingTitle = document.getElementById('processing-title');
+    const processingDetail = document.getElementById('processing-detail');
     const resultState = document.getElementById('result-state');
+    const diffResultState = document.getElementById('diff-result-state');
+    const diffReport = document.getElementById('diff-report');
+    const diffTime = document.getElementById('diff-time');
+    const downloadDiffJsonBtn = document.getElementById('download-diff-json-btn');
+    const diffResetBtn = document.getElementById('diff-reset-btn');
     const resetBtn = document.getElementById('reset-btn');
     const urlInput = document.getElementById('url-input');
     const urlAnalyzeBtn = document.getElementById('url-analyze-btn');
@@ -728,13 +804,86 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharedBanner = document.getElementById('shared-banner');
     const sharedBannerText = document.getElementById('shared-banner-text');
     const sharedNewScanBtn = document.getElementById('shared-new-scan-btn');
+    const mcpPreview = document.getElementById('mcp-preview');
+    const mcpPreviewBody = document.getElementById('mcp-preview-body');
 
-    // The three ways in are shown and hidden together: drop zone, URL box, and
-    // the example feed.
+    let currentValidatorMode = 'validate';
+    let oldDiffFile = null;
+    let newDiffFile = null;
+    let lastDiffResult = null;
+
     function setUploadUiVisible(visible) {
-        if (uploadState) uploadState.classList.toggle('hidden', !visible);
-        if (urlInputContainer) urlInputContainer.classList.toggle('hidden', !visible);
-        if (demoRow) demoRow.classList.toggle('hidden', !visible);
+        if (validateInputs) {
+            validateInputs.classList.toggle(
+                'hidden',
+                !visible || currentValidatorMode !== 'validate'
+            );
+        }
+        if (diffInputs) {
+            diffInputs.classList.toggle(
+                'hidden',
+                !visible || currentValidatorMode !== 'diff'
+            );
+        }
+    }
+
+    function setValidatorMode(mode) {
+        currentValidatorMode = mode;
+        validateModeBtn?.classList.toggle('active', mode === 'validate');
+        diffModeBtn?.classList.toggle('active', mode === 'diff');
+        validateModeBtn?.setAttribute('aria-selected', String(mode === 'validate'));
+        diffModeBtn?.setAttribute('aria-selected', String(mode === 'diff'));
+        processingState?.classList.add('hidden');
+        resultState?.classList.add('hidden');
+        diffResultState?.classList.add('hidden');
+        document.getElementById('error-container')?.classList.add('hidden');
+        if (processingTitle) {
+            processingTitle.textContent = mode === 'diff'
+                ? 'Comparing feeds locally (WASM)…'
+                : 'Validating locally (WASM)…';
+        }
+        if (processingDetail) {
+            processingDetail.textContent = mode === 'diff'
+                ? 'Validating both releases, then comparing semantic changes'
+                : 'Large feeds (50 MB+) can take a minute or two';
+        }
+        setUploadUiVisible(true);
+    }
+
+    function updateDiffSelection(slot, file) {
+        if (!file || !file.name.toLowerCase().endsWith('.zip')) {
+            showValidationError('Please choose a GTFS ZIP file.');
+            return;
+        }
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            showTooLarge(file.size);
+            return;
+        }
+        if (slot === 'old') {
+            oldDiffFile = file;
+            oldFeedName.textContent = file.name;
+            oldFeedPicker.classList.add('ready');
+        } else {
+            newDiffFile = file;
+            newFeedName.textContent = file.name;
+            newFeedPicker.classList.add('ready');
+        }
+        diffAnalyzeBtn.disabled = !(oldDiffFile && newDiffFile);
+    }
+
+    function resetDiffSelection() {
+        oldDiffFile = null;
+        newDiffFile = null;
+        lastDiffResult = null;
+        if (oldFileInput) oldFileInput.value = '';
+        if (newFileInput) newFileInput.value = '';
+        if (oldFeedName) oldFeedName.textContent = 'Choose GTFS.zip';
+        if (newFeedName) newFeedName.textContent = 'Choose GTFS.zip';
+        oldFeedPicker?.classList.remove('ready');
+        newFeedPicker?.classList.remove('ready');
+        if (diffAnalyzeBtn) diffAnalyzeBtn.disabled = true;
+        diffResultState?.classList.add('hidden');
+        setUploadUiVisible(true);
     }
 
     // UI Elements for results
@@ -758,6 +907,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastFileName = 'gtfs_validation';
 
     if (dropZone && fileInput) {
+        validateModeBtn?.addEventListener('click', () => setValidatorMode('validate'));
+        diffModeBtn?.addEventListener('click', () => setValidatorMode('diff'));
+
         // Drag & Drop
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -773,7 +925,19 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             dropZone.style.transform = 'scale(1)';
             if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
+                const files = Array.from(e.dataTransfer.files);
+                if (currentValidatorMode === 'diff') {
+                    if (files[1]) {
+                        updateDiffSelection('old', files[0]);
+                        updateDiffSelection('new', files[1]);
+                    } else if (!oldDiffFile) {
+                        updateDiffSelection('old', files[0]);
+                    } else {
+                        updateDiffSelection('new', files[0]);
+                    }
+                } else {
+                    handleFile(files[0]);
+                }
             }
         });
 
@@ -785,6 +949,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleFile(e.target.files[0]);
             }
         });
+
+        oldFeedPicker?.addEventListener('click', () => oldFileInput?.click());
+        newFeedPicker?.addEventListener('click', () => newFileInput?.click());
+        oldFileInput?.addEventListener('change', (e) => {
+            if (e.target.files[0]) updateDiffSelection('old', e.target.files[0]);
+        });
+        newFileInput?.addEventListener('change', (e) => {
+            if (e.target.files[0]) updateDiffSelection('new', e.target.files[0]);
+        });
+        diffAnalyzeBtn?.addEventListener('click', runDiffComparison);
+        diffResetBtn?.addEventListener('click', resetDiffSelection);
+        downloadDiffJsonBtn?.addEventListener('click', downloadDiffJSON);
 
         // URL Analysis
         if (urlAnalyzeBtn && urlInput) {
@@ -813,10 +989,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset
         function resetValidator() {
             resultState.classList.add('hidden');
+            diffResultState?.classList.add('hidden');
             setUploadUiVisible(true);
             fileInput.value = '';
             urlInput.value = '';
             lastValidationResult = null;
+            lastDiffResult = null;
             setSharedBanner(null);
             // A stale #report= would otherwise reopen the shared report on reload.
             if (location.hash.startsWith('#' + SHARE_FRAGMENT_KEY)) {
@@ -1036,6 +1214,178 @@ Download the .zip and drop it here instead; validation still runs locally in you
         }
     }
 
+    async function runDiffComparison() {
+        if (!oldDiffFile || !newDiffFile) return;
+        getValidatorWorker();
+        document.getElementById('error-container')?.classList.add('hidden');
+        setUploadUiVisible(false);
+        resultState?.classList.add('hidden');
+        diffResultState?.classList.add('hidden');
+        if (processingTitle) processingTitle.textContent = 'Comparing feeds locally (WASM)…';
+        if (processingDetail) {
+            processingDetail.textContent =
+                'Validating both releases, then comparing routes, stops, trips, and notices';
+        }
+        processingState.classList.remove('hidden');
+
+        try {
+            const [oldBuffer, newBuffer] = await Promise.all([
+                oldDiffFile.arrayBuffer(),
+                newDiffFile.arrayBuffer(),
+            ]);
+            const combinedZipBytes = oldBuffer.byteLength + newBuffer.byteLength;
+            if (combinedZipBytes > MAX_FILE_SIZE_BYTES) {
+                showValidationError(
+                    `The two feeds total ${(combinedZipBytes / (1024 * 1024)).toFixed(1)} MB. ` +
+                    `Browser comparison is limited to ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB combined. ` +
+                    'Use the desktop app or CLI for larger comparisons.'
+                );
+                return;
+            }
+            const oldRawBytes = sumUncompressedBytes(oldBuffer);
+            const newRawBytes = sumUncompressedBytes(newBuffer);
+            if (oldRawBytes !== null && newRawBytes !== null &&
+                oldRawBytes + newRawBytes > MAX_UNCOMPRESSED_BYTES) {
+                showValidationError(
+                    `The two feeds unpack to ${Math.round((oldRawBytes + newRawBytes) / (1024 * 1024))} MB. ` +
+                    `Browser comparison is limited to ${MAX_UNCOMPRESSED_BYTES / (1024 * 1024)} MB combined. ` +
+                    'Use the desktop app or CLI for larger comparisons.'
+                );
+                return;
+            }
+
+            const dateStr = new Date().toISOString().split('T')[0];
+            const result = await diffFeeds(oldBuffer, newBuffer, dateStr);
+            result.report = JSON.parse(result.json);
+            lastDiffResult = result;
+            showDiffResults(result);
+        } catch (err) {
+            console.error('Feed comparison error:', err);
+            const message = err?.message === '__OOM__'
+                ? 'These feeds were too large to compare in this browser. Use the desktop app or CLI.'
+                : (err?.message || 'Could not compare these feeds.');
+            showValidationError(message);
+        }
+    }
+
+    function diffSection(title, rows) {
+        if (!rows.length) return '';
+        const visibleRows = rows.slice(0, 200);
+        const items = visibleRows.map(([label, value]) => `
+            <li><code>${escapeHtml(String(label))}</code><span>${escapeHtml(String(value))}</span></li>
+        `).join('');
+        const remaining = rows.length - visibleRows.length;
+        return `
+            <details class="diff-section">
+                <summary>${escapeHtml(title)} <span>${rows.length.toLocaleString()} changes</span></summary>
+                <ul class="diff-list">
+                    ${items}
+                    ${remaining > 0 ? `<li><span>And ${remaining.toLocaleString()} more</span><span>JSON</span></li>` : ''}
+                </ul>
+            </details>
+        `;
+    }
+
+    function entityRows(entity) {
+        return [
+            ...(entity.added || []).map((id) => [id, 'Added']),
+            ...(entity.removed || []).map((id) => [id, 'Removed']),
+            ...(entity.changed || []).map((id) => [id, 'Changed']),
+        ];
+    }
+
+    function renderDiffReport(report) {
+        const routeAdds = report.routes?.added?.length || 0;
+        const routeRemoves = report.routes?.removed?.length || 0;
+        const stopAdds = report.stops?.added?.length || 0;
+        const stopRemoves = report.stops?.removed?.length || 0;
+        const movedStops = report.stops?.moved?.length || 0;
+        const tripChanges = report.tripsByRoute?.length || 0;
+
+        const stopRows = [
+            ...entityRows(report.stops || {}),
+            ...(report.stops?.renamed || []).map((id) => [id, 'Renamed']),
+            ...(report.stops?.moved || []).map((move) => [
+                move.stopId,
+                `Moved ${Number(move.distanceMeters).toFixed(0)} m`,
+            ]),
+        ];
+        const tripRows = (report.tripsByRoute || []).map((change) => [
+            change.routeId,
+            `${change.oldCount.toLocaleString()} → ${change.newCount.toLocaleString()} trips`,
+        ]);
+        const frequencyRows = (report.frequenciesByRoute || []).map((change) => [
+            change.routeId,
+            `${change.oldWindows.length} → ${change.newWindows.length} windows`,
+        ]);
+        const noticeRows = (report.notices?.changes || []).map((change) => [
+            change.code,
+            `${change.severity} · ${change.oldCount.toLocaleString()} → ${change.newCount.toLocaleString()}`,
+        ]);
+        const fileRows = [
+            ...(report.files?.added || []).map((name) => [name, 'Added']),
+            ...(report.files?.removed || []).map((name) => [name, 'Removed']),
+        ];
+
+        const sections = [
+            diffSection('Routes', entityRows(report.routes || {})),
+            diffSection('Stops', stopRows),
+            diffSection('Trips by route', tripRows),
+            diffSection('Frequencies', frequencyRows),
+            diffSection('Validation notices', noticeRows),
+            diffSection('Agencies', entityRows(report.agencies || {})),
+            diffSection('Files', fileRows),
+        ].join('');
+        const hasChanges = sections.length > 0 || report.feedInfo?.changed;
+
+        return `
+            <div class="diff-headline">
+                <div class="introduced"><strong>${(report.notices?.newErrors || 0).toLocaleString()}</strong><span>New errors</span></div>
+                <div class="resolved"><strong>${(report.notices?.resolvedErrors || 0).toLocaleString()}</strong><span>Resolved errors</span></div>
+            </div>
+            <div class="diff-metrics">
+                <div class="diff-metric"><strong>+${routeAdds} / −${routeRemoves}</strong><span>Routes</span></div>
+                <div class="diff-metric"><strong>+${stopAdds} / −${stopRemoves}</strong><span>Stops</span></div>
+                <div class="diff-metric"><strong>${movedStops}</strong><span>Stops moved</span></div>
+                <div class="diff-metric"><strong>${tripChanges}</strong><span>Trip count changes</span></div>
+                <div class="diff-metric"><strong>${frequencyRows.length}</strong><span>Frequency changes</span></div>
+                <div class="diff-metric"><strong>${noticeRows.length}</strong><span>Issue groups changed</span></div>
+            </div>
+            ${report.feedInfo?.changed ? diffSection('Feed information', [[
+                report.feedInfo.oldVersion || 'Previous',
+                report.feedInfo.newVersion || 'New version',
+            ]]) : ''}
+            ${sections}
+            ${hasChanges ? '' : '<p class="sub-text">No semantic changes found.</p>'}
+        `;
+    }
+
+    function showDiffResults(result) {
+        processingState.classList.add('hidden');
+        diffResultState.classList.remove('hidden');
+        if (diffTime) {
+            diffTime.textContent = `${(result.comparison_time_ms / 1000).toFixed(1)} s · ${result.runtime || 'WASM'}`;
+        }
+        diffReport.innerHTML = renderDiffReport(result.report);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function downloadDiffJSON() {
+        if (!lastDiffResult) return;
+        const blob = new Blob(
+            [JSON.stringify(lastDiffResult.report, null, 2)],
+            { type: 'application/json' }
+        );
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${oldDiffFile?.name || 'old'}_to_${newDiffFile?.name || 'new'}_diff.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+    }
+
     /* --- Sharing --- */
 
     let toastTimer = null;
@@ -1232,6 +1582,122 @@ Download the .zip and drop it here instead; validation still runs locally in you
         });
     }
 
+    function countLabel(count, singular, plural = `${singular}s`) {
+        return `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
+    }
+
+    function noticeContextValue(notice, key) {
+        const value = notice?.context?.[key];
+        return value === null || value === undefined || value === '' ? null : value;
+    }
+
+    function renderMcpPreview(result) {
+        if (!mcpPreview || !mcpPreviewBody) return;
+
+        let notices = [];
+        try {
+            notices = JSON.parse(result.json) || [];
+        } catch (error) {
+            console.warn('MCP preview: could not parse notices', error);
+        }
+
+        const groups = new Map();
+        notices
+            .filter((notice) => notice.severity === 'ERROR' || notice.severity === 'WARNING')
+            .forEach((notice) => {
+                const key = `${notice.severity}:${notice.code}`;
+                let group = groups.get(key);
+                if (!group) {
+                    group = {
+                        code: notice.code,
+                        severity: notice.severity,
+                        examples: [],
+                        stored: 0,
+                        total: 0,
+                    };
+                    groups.set(key, group);
+                }
+                group.stored += 1;
+                if (group.examples.length < 3) group.examples.push(notice);
+                const exactTotal = Number(
+                    notice.totalNotices ?? result.totalsByCode?.[notice.code] ?? group.stored
+                );
+                group.total = Math.max(group.total, Number.isFinite(exactTotal) ? exactTotal : group.stored);
+            });
+
+        const priority = { ERROR: 0, WARNING: 1 };
+        const featuredGroups = [...groups.values()]
+            .sort((left, right) =>
+                priority[left.severity] - priority[right.severity]
+                || right.total - left.total
+                || left.code.localeCompare(right.code)
+            )
+            .slice(0, 3);
+
+        const errors = Number(result.error_count) || 0;
+        const warnings = Number(result.warning_count) || 0;
+        const feedName = lastFileName || 'this feed';
+        const verdict = errors > 0
+            ? `I checked ${feedName}. It has ${countLabel(errors, 'validation error')} and ${countLabel(warnings, 'warning')}. Fix the errors before publication.`
+            : warnings > 0
+                ? `I checked ${feedName}. It has no validation errors and ${countLabel(warnings, 'warning')} to review.`
+                : `I checked ${feedName}. The validator found no errors or warnings.`;
+
+        const identifierKeys = [
+            'stopId',
+            'routeId',
+            'tripId',
+            'serviceId',
+            'shapeId',
+            'agencyId',
+            'parentStation',
+            'locationId',
+        ];
+        const issuesHtml = featuredGroups.map((group) => {
+            const notice = group.examples[0];
+            const file = notice.file || noticeContextValue(notice, 'filename');
+            const row = notice.row ?? noticeContextValue(notice, 'csvRowNumber');
+            const field = notice.field || noticeContextValue(notice, 'fieldName');
+            const location = [];
+            if (file) location.push(String(file));
+            if (row !== null && row !== undefined) location.push(`row ${row}`);
+            if (field) location.push(String(field));
+            for (const key of identifierKeys) {
+                const value = noticeContextValue(notice, key);
+                if (value !== null && location.length < 5) location.push(`${key}=${value}`);
+            }
+            const locationHtml = location.length
+                ? `<div class="mcp-example-location">${location.map((part) =>
+                    `<code>${escapeHtml(String(part))}</code>`).join('')}</div>`
+                : '';
+            const fix = notice.fix?.description
+                ? `<p class="mcp-example-fix"><strong>Suggested fix:</strong> ${escapeHtml(notice.fix.description)}</p>`
+                : '';
+
+            return `
+                <li class="mcp-example ${group.severity.toLowerCase()}">
+                    <div class="mcp-example-topline">
+                        <code>${escapeHtml(group.code)}</code>
+                        <span>${escapeHtml(group.severity)} · ${escapeHtml(countLabel(group.total, 'occurrence'))}</span>
+                    </div>
+                    <p>${escapeHtml(notice.message || group.code.replaceAll('_', ' '))}</p>
+                    ${locationHtml}
+                    ${fix}
+                </li>
+            `;
+        }).join('');
+
+        mcpPreviewBody.innerHTML = `
+            <p class="mcp-verdict">${escapeHtml(verdict)}</p>
+            ${issuesHtml
+                ? `<ol class="mcp-examples">${issuesHtml}</ol>
+                   <p class="mcp-sample-note">Compact preview: MCP can return up to three examples for every issue type.</p>`
+                : '<p class="mcp-clean-note"><i data-lucide="circle-check"></i> There are no error or warning examples to send.</p>'}
+        `;
+        mcpPreview.classList.remove('is-ready');
+        requestAnimationFrame(() => mcpPreview.classList.add('is-ready'));
+    }
+
     function showResults(result) {
         processingState.classList.add('hidden');
         resultState.classList.remove('hidden');
@@ -1241,6 +1707,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
 
         errorCountEl.innerText = errors;
         warningCountEl.innerText = warnings;
+        renderMcpPreview(result);
 
         // A shared report has no feed behind it, so there is no HTML report to
         // hand out — hide the button rather than let it fail on click.
@@ -1324,7 +1791,21 @@ Download the .zip and drop it here instead; validation still runs locally in you
             });
         });
 
-        // Map pins: open the stop location map
+        reportModalBody.querySelectorAll('.geometry-map-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                try {
+                    openNoticeMap(
+                        JSON.parse(btn.getAttribute('data-geometry')),
+                        btn.getAttribute('data-title')
+                    );
+                } catch (err) {
+                    console.error('Invalid notice geometry:', err);
+                }
+            });
+        });
+
+        // Stop references without notice geometry still use the stops.txt index.
         reportModalBody.querySelectorAll('.map-pin-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1338,71 +1819,241 @@ Download the .zip and drop it here instead; validation still runs locally in you
         }
     }
 
-    /* --- Stop location map (Leaflet, lazy-loaded) --- */
-    let leafletLoading = null;
-    let stopMap = null;
-    let stopMapMarkers = null;
+    /* --- Geographic notice map (MapLibre, lazy-loaded) --- */
+    let mapLibreLoading = null;
+    let noticeMap = null;
+    let noticeMapReady = false;
+    let pendingNoticeGeometry = null;
+    let noticeMapMarkers = [];
 
-    function ensureLeaflet() {
-        if (window.L) return Promise.resolve();
-        if (leafletLoading) return leafletLoading;
-        leafletLoading = new Promise((resolve, reject) => {
+    function ensureMapLibre() {
+        if (window.maplibregl) return Promise.resolve();
+        if (mapLibreLoading) return mapLibreLoading;
+        mapLibreLoading = new Promise((resolve, reject) => {
             const css = document.createElement('link');
             css.rel = 'stylesheet';
-            css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            css.href = 'https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css';
             document.head.appendChild(css);
             const script = document.createElement('script');
-            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.src = 'https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js';
             script.onload = resolve;
-            script.onerror = () => { leafletLoading = null; reject(new Error('Failed to load the map library')); };
+            script.onerror = () => {
+                mapLibreLoading = null;
+                reject(new Error('Failed to load MapLibre'));
+            };
             document.head.appendChild(script);
         });
-        return leafletLoading;
+        return mapLibreLoading;
     }
 
-    async function openStopMap(stopId, code) {
-        const info = stopsIndex && stopsIndex.get(stopId);
-        if (!info) return;
-        try {
-            await ensureLeaflet();
-        } catch (err) {
-            console.error(err);
+    function emptyGeoJson() {
+        return { type: 'FeatureCollection', features: [] };
+    }
+
+    function mapCoordinate(point) {
+        if (!point || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) {
+            return null;
+        }
+        return [point.longitude, point.latitude];
+    }
+
+    function lineGeoJson(points) {
+        const coordinates = (points || []).map(mapCoordinate).filter(Boolean);
+        if (coordinates.length < 2) return emptyGeoJson();
+        return {
+            type: 'FeatureCollection',
+            features: [{
+                type: 'Feature',
+                properties: {},
+                geometry: { type: 'LineString', coordinates }
+            }]
+        };
+    }
+
+    function setNoticeMapData(sourceId, data) {
+        const source = noticeMap && noticeMap.getSource(sourceId);
+        if (source) source.setData(data);
+    }
+
+    function clearNoticeMapMarkers() {
+        noticeMapMarkers.forEach(marker => marker.remove());
+        noticeMapMarkers = [];
+    }
+
+    function addNoticeMapMarker(point, kind, label) {
+        const position = mapCoordinate(point);
+        if (!position) return;
+        const element = document.createElement('div');
+        element.className = `notice-map-marker notice-map-marker--${kind}`;
+        element.setAttribute('aria-label', label);
+        const popupText = document.createElement('strong');
+        popupText.textContent = label;
+        const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
+            .setDOMContent(popupText);
+        noticeMapMarkers.push(
+            new maplibregl.Marker({ element, anchor: 'center' })
+                .setLngLat(position)
+                .setPopup(popup)
+                .addTo(noticeMap)
+        );
+    }
+
+    function renderNoticeMapGeometry(geometry) {
+        if (!noticeMapReady || !geometry) {
+            pendingNoticeGeometry = geometry;
             return;
         }
 
+        pendingNoticeGeometry = null;
+        clearNoticeMapMarkers();
+        setNoticeMapData('notice-shape', emptyGeoJson());
+        setNoticeMapData('notice-connector', emptyGeoJson());
+        setNoticeMapData('notice-bounds', emptyGeoJson());
+
+        let positions = [];
+        if (geometry.type === 'point') {
+            addNoticeMapMarker(geometry.point, 'point', 'Affected location');
+            const point = mapCoordinate(geometry.point);
+            if (point) positions.push(point);
+        } else if (geometry.type === 'line') {
+            setNoticeMapData('notice-shape', lineGeoJson(geometry.points));
+            positions = (geometry.points || []).map(mapCoordinate).filter(Boolean);
+        } else if (geometry.type === 'pointAndLine') {
+            setNoticeMapData('notice-shape', lineGeoJson(geometry.line));
+            addNoticeMapMarker(geometry.point, 'point', 'Affected stop');
+            addNoticeMapMarker(geometry.nearestPoint, 'nearest', 'Closest point on shape');
+            const point = mapCoordinate(geometry.point);
+            const nearest = mapCoordinate(geometry.nearestPoint);
+            if (point && nearest) {
+                setNoticeMapData(
+                    'notice-connector',
+                    lineGeoJson([geometry.point, geometry.nearestPoint])
+                );
+            }
+            positions = (geometry.line || []).map(mapCoordinate).filter(Boolean);
+            if (point) positions.push(point);
+            if (nearest) positions.push(nearest);
+        } else if (geometry.type === 'boundingBox') {
+            const southWest = mapCoordinate(geometry.southWest);
+            const northEast = mapCoordinate(geometry.northEast);
+            if (southWest && northEast) {
+                const northWest = [southWest[0], northEast[1]];
+                const southEast = [northEast[0], southWest[1]];
+                setNoticeMapData('notice-bounds', {
+                    type: 'FeatureCollection',
+                    features: [{
+                        type: 'Feature',
+                        properties: {},
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[southWest, northWest, northEast, southEast, southWest]]
+                        }
+                    }]
+                });
+                positions = [southWest, northEast];
+            }
+        }
+
+        noticeMap.resize();
+        if (positions.length === 1) {
+            noticeMap.flyTo({ center: positions[0], zoom: 16, duration: 650 });
+        } else if (positions.length > 1) {
+            const bounds = positions.reduce(
+                (result, point) => result.extend(point),
+                new maplibregl.LngLatBounds(positions[0], positions[0])
+            );
+            noticeMap.fitBounds(bounds, { padding: 72, maxZoom: 17, duration: 700 });
+        }
+    }
+
+    function createNoticeMap() {
+        if (noticeMap) return;
+        noticeMap = new maplibregl.Map({
+            container: 'stop-map',
+            center: [0, 20],
+            zoom: 1.5,
+            attributionControl: false,
+            style: {
+                version: 8,
+                sources: {
+                    basemap: {
+                        type: 'raster',
+                        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+                    }
+                },
+                layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }]
+            }
+        });
+        noticeMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+        noticeMap.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+        noticeMap.on('load', () => {
+            noticeMap.addSource('notice-shape', { type: 'geojson', data: emptyGeoJson() });
+            noticeMap.addSource('notice-connector', { type: 'geojson', data: emptyGeoJson() });
+            noticeMap.addSource('notice-bounds', { type: 'geojson', data: emptyGeoJson() });
+            noticeMap.addLayer({
+                id: 'notice-bounds-fill',
+                type: 'fill',
+                source: 'notice-bounds',
+                paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.2 }
+            });
+            noticeMap.addLayer({
+                id: 'notice-bounds-line',
+                type: 'line',
+                source: 'notice-bounds',
+                paint: { 'line-color': '#a78bfa', 'line-width': 3 }
+            });
+            noticeMap.addLayer({
+                id: 'notice-shape',
+                type: 'line',
+                source: 'notice-shape',
+                layout: { 'line-cap': 'round', 'line-join': 'round' },
+                paint: { 'line-color': '#22d3ee', 'line-width': 5, 'line-opacity': 0.95 }
+            });
+            noticeMap.addLayer({
+                id: 'notice-connector',
+                type: 'line',
+                source: 'notice-connector',
+                paint: {
+                    'line-color': '#fb7185',
+                    'line-width': 3,
+                    'line-dasharray': [1.5, 1.5]
+                }
+            });
+            noticeMapReady = true;
+            if (pendingNoticeGeometry) renderNoticeMapGeometry(pendingNoticeGeometry);
+        });
+    }
+
+    async function openNoticeMap(geometry, title) {
         const mapModal = document.getElementById('map-modal');
         const mapTitle = document.getElementById('map-modal-title');
-        if (!mapModal) return;
-
-        if (mapTitle) {
-            mapTitle.textContent = info.name ? `${info.name} (${stopId})` : stopId;
-        }
+        if (!mapModal || !geometry) return;
+        if (mapTitle) mapTitle.textContent = title || 'Geographic notice';
         mapModal.classList.remove('hidden');
-
-        if (!stopMap) {
-            stopMap = L.map('stop-map');
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(stopMap);
-            stopMapMarkers = L.layerGroup().addTo(stopMap);
+        try {
+            await ensureMapLibre();
+            createNoticeMap();
+            renderNoticeMapGeometry(geometry);
+            setTimeout(() => noticeMap.resize(), 50);
+        } catch (err) {
+            console.error(err);
+            if (mapTitle) mapTitle.textContent = 'Map could not be loaded';
         }
+    }
 
-        stopMapMarkers.clearLayers();
-        const marker = L.marker([info.lat, info.lon]).addTo(stopMapMarkers);
-        const popupHtml =
-            `<b>${escapeHtml(info.name || stopId)}</b><br>` +
-            `<code>${escapeHtml(stopId)}</code>` +
-            (code ? `<br><code>${escapeHtml(code)}</code>` : '');
-        marker.bindPopup(popupHtml);
-
-        stopMap.setView([info.lat, info.lon], 16);
-        // The map container was hidden when Leaflet measured it.
-        setTimeout(() => {
-            stopMap.invalidateSize();
-            stopMap.setView([info.lat, info.lon], 16);
-            marker.openPopup();
-        }, 50);
+    function openStopMap(stopId, code) {
+        const info = stopsIndex && stopsIndex.get(stopId);
+        if (!info) return;
+        const title = info.name ? `${info.name} (${stopId})` : stopId;
+        openNoticeMap(
+            {
+                type: 'point',
+                point: { latitude: info.lat, longitude: info.lon }
+            },
+            code ? `${title} · ${code}` : title
+        );
     }
 
     function closeStopMap() {
@@ -1474,7 +2125,15 @@ Download the .zip and drop it here instead; validation still runs locally in you
             });
 
             // Extract dynamic keys for table headers (exclude standard and internal ones)
-            const excludeKeys = ['message', 'code', 'severity', 'totalNotices', 'field_order', 'context'];
+            const excludeKeys = [
+                'message',
+                'code',
+                'severity',
+                'totalNotices',
+                'field_order',
+                'context',
+                'geometry'
+            ];
             const allKeys = new Set();
             displayNotices.forEach(n => {
                 Object.keys(n).forEach(k => {
@@ -1497,6 +2156,8 @@ Download the .zip and drop it here instead; validation still runs locally in you
 
             // Generate table headers
             const thHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+            const hasNoticeGeometry = displayNotices.some(notice => notice.geometry);
+            const mapHeaderHtml = hasNoticeGeometry ? '<th>Map</th>' : '';
 
             // Generate table rows
             const stopKeyRe = /^(stopId\d*|childStopId|parentStopId|parentStation|locationId)$/;
@@ -1518,7 +2179,15 @@ Download the .zip and drop it here instead; validation still runs locally in you
                     }
                     return `<td><code>${escapeHtml(valStr)}</code></td>`;
                 }).join('');
-                return `<tr>${tdHtml}</tr>`;
+                const geometryTitle = notice.stopName
+                    ? `${notice.stopName} · ${code}`
+                    : code;
+                const mapCellHtml = hasNoticeGeometry
+                    ? (notice.geometry
+                        ? `<td><button class="geometry-map-btn" data-geometry="${escapeAttr(JSON.stringify(notice.geometry))}" data-title="${escapeAttr(geometryTitle)}" title="View affected geometry"><i data-lucide="map"></i><span>View</span></button></td>`
+                        : '<td></td>')
+                    : '';
+                return `<tr>${tdHtml}${mapCellHtml}</tr>`;
             }).join('');
 
             const moreCount = Math.max(0, count - displayNotices.length);
@@ -1547,6 +2216,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
                                 <thead>
                                     <tr style="text-align: left; background: rgba(255,255,255,0.05); color: var(--text-secondary);">
                                         ${thHtml}
+                                        ${mapHeaderHtml}
                                     </tr>
                                 </thead>
                                 <tbody>

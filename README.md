@@ -188,6 +188,68 @@ Validate from a URL (with an optional download cache):
 gtfs-guru -u https://example.com/gtfs.zip -s /tmp/gtfs -o ./output_report
 ```
 
+Compare a feed update, including routes, stops, trip/frequency aggregates, and
+validation regressions:
+
+```bash
+gtfs-guru diff old.zip new.zip
+gtfs-guru diff old.zip new.zip --json diff.json --markdown diff.md --fail-on-new-errors
+```
+
+The diff command exits with status `2` under `--fail-on-new-errors` when the new
+feed adds error occurrences. Use `--no-validation` for a faster structural-only
+comparison.
+
+Generate deterministic facts or a human-readable explanation:
+
+```bash
+gtfs-guru profile -i feed.zip --date 2026-07-27 --pretty
+gtfs-guru explain -i feed.zip --date 2026-07-27
+gtfs-guru explain -i feed.zip --json --pretty
+```
+
+The profile includes entity counts, route types, completeness facts, seven
+actual service dates with calendar exceptions applied, and grouped validation
+issues. The explanation is derived from the same profile, so every statement
+can be checked without sending the feed to an LLM provider.
+
+### MCP server
+
+Build the read-only MCP server. The default stdio transport is suitable for a
+local Claude/ChatGPT-compatible MCP host:
+
+```bash
+cargo build --release -p gtfs-guru-mcp
+./target/release/gtfs-guru-mcp --allow-dir /path/to/feeds
+```
+
+It exposes `validate_gtfs`, `explain_gtfs`, and `get_notice_details`. Validation
+responses include exact grouped totals plus up to three concrete examples per
+code/severity group with available file, row, field, context, and suggested
+fixes. Local file access is restricted to configured roots. Public URL
+downloads are disabled by default and can be explicitly enabled with
+`--allow-url`.
+
+After an in-browser validation, gtfs.guru also renders a local “What ChatGPT
+receives” preview from the same report. It demonstrates the MCP payload without
+uploading the feed or calling an AI provider.
+
+For a remote MCP client, start authenticated stateless Streamable HTTP:
+
+```bash
+export GTFS_GURU_MCP_BEARER_TOKEN="$(openssl rand -hex 32)"
+./target/release/gtfs-guru-mcp \
+  --transport http \
+  --bind 127.0.0.1:3000 \
+  --allow-dir /path/to/feeds \
+  --allow-url
+```
+
+The MCP endpoint is `/mcp`; `/healthz` is unauthenticated. Put public
+deployments behind TLS and pass each externally visible hostname with
+`--allowed-host`. HTTP defaults to 60 authenticated requests per rolling minute,
+four concurrent validations, and 64 KiB request bodies.
+
 Default outputs in the report directory:
 * `report.json`
 * `report.html`
@@ -213,7 +275,9 @@ Optional outputs:
 * `--fail-on <none|error|warning>`: Exit with status 2 when the report reaches that severity. Reports are still written.
 * `--badge <FILE>` / `--badge-svg <FILE>`: Write a status badge. See [Status badges](docs/usage.md#status-badges).
 
-`--fix-dry-run` lists suggested edits without touching anything. `--fix` applies the safe ones and `--fix-unsafe` applies all of them, writing a repaired copy to `--fix-output` (default: `<input>.fixed.<ext>` beside the input). The input is never modified, an existing output path is refused, and only the CSV rows that carry an edit are rewritten — every other byte is copied through. Most fix-carrying rules run only under `--thorough`.
+`--fix-dry-run` lists suggested edits without touching anything. `--fix` applies the safe ones and `--fix-unsafe` applies all of them, writing a repaired copy to `--fix-output` (default: `<input>.fixed.<ext>` beside the input). The input is never modified and an existing output path is refused. Field repairs rewrite only their CSV records; sorting moves the original raw records, and every untouched file is copied byte for byte.
+
+Safe fixes cover whitespace, colors (`#FF0000`, `0F0`), dates written with separators, times missing their seconds, URLs missing a scheme, `mailto:`-wrapped emails, and canonical `stop_times.txt` ordering. Decimal commas need confirmation; deleting rows whose foreign key points at a missing parent is available only under `--fix-unsafe`. Syntactic replacements are re-validated before they are offered, ambiguous values (`01-05-2026`, `1,500`) get no suggestion, and the repaired feed is automatically validated again with resolved/remaining/introduced totals.
 
 Exit codes: `0` validation completed, `1` the run failed, `2` the feed did not meet `--fail-on`.
 

@@ -1,22 +1,30 @@
+// `deny` rather than `forbid`: reading peak RSS needs a getrusage(2) call, and
+// that one function carries an explicit opt-out. Every other unsafe block in
+// this binary is a compile error.
+#![deny(unsafe_code)]
+
+use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::{bail, Context};
-use chrono::NaiveDate;
-use clap::{Parser, ValueEnum};
+use chrono::{NaiveDate, Utc};
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use reqwest::blocking::Client;
 use tracing::info;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+use gtfs_guru_core::FixOperation;
 use gtfs_guru_core::{
-    apply_fixes, build_notice_schema_map, collect_input_notices, default_runner,
-    set_validation_country_code, set_validation_date, FixPlan, FixSafety, GtfsFeed, GtfsInput,
-    GtfsInputError, GtfsInputSource, NoticeContainer, NoticeSeverity, PlannedEdit,
+    apply_fixes, build_notice_schema_map, collect_input_notices, default_runner, diff_feeds,
+    set_validation_country_code, set_validation_date, FeedDiff, FixPlan, FixSafety, GtfsFeed,
+    GtfsInput, GtfsInputError, GtfsInputSource, NoticeContainer, NoticeSeverity, PlannedEdit,
     ValidationNotice, ValidatorRunner,
 };
+use gtfs_guru_profile::{FeedExplanation, FeedProfile, ValidationOverview};
 use gtfs_guru_report::{
     write_html_report, Badge, HtmlReportContext, MemoryUsageRecord, ReportSummary,
     ReportSummaryContext, SarifReport, ValidationReport,
@@ -37,8 +45,12 @@ enum FailOn {
 #[command(name = "gtfs-guru")]
 #[command(about = "GTFS Guru validator (Rust rewrite)")]
 #[command(version)]
+#[command(subcommand_negates_reqs = true, args_conflicts_with_subcommands = true)]
 #[command(group = clap::ArgGroup::new("fix_mode").args(["fix", "fix_unsafe"]).multiple(true))]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Path to a GTFS zip file or unpacked feed directory.
     #[arg(short = 'i', long = "input")]
     input: Option<PathBuf>,
@@ -181,8 +193,119 @@ struct Args {
     pub timing_json: bool,
 }
 
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Compare two GTFS feeds and their validation results.
+    Diff(DiffArgs),
+    /// Emit deterministic, model-friendly facts about a GTFS feed as JSON.
+    Profile(ProfileArgs),
+    /// Explain a GTFS feed using deterministic facts and validation results.
+    Explain(ExplainArgs),
+}
+
+#[derive(Debug, ClapArgs)]
+struct DiffArgs {
+    /// Previous GTFS zip file or unpacked feed directory.
+    old: PathBuf,
+
+    /// New GTFS zip file or unpacked feed directory.
+    new: PathBuf,
+
+    /// Write the machine-readable report to PATH, or use - for stdout.
+    #[arg(long, value_name = "PATH")]
+    json: Option<PathBuf>,
+
+    /// Write a Markdown report to PATH, or use - for stdout.
+    #[arg(long, value_name = "PATH")]
+    markdown: Option<PathBuf>,
+
+    /// Exit 2 if the new feed introduces additional validation errors.
+    #[arg(long)]
+    fail_on_new_errors: bool,
+
+    /// Compare feed contents without running validation rules.
+    #[arg(long)]
+    no_validation: bool,
+
+    /// ISO country code used by region-specific validation rules.
+    #[arg(short = 'c', long = "country-code")]
+    country_code: Option<String>,
+
+    /// Date against which both feeds are validated, in YYYY-MM-DD format.
+    #[arg(short = 'd', long = "date")]
+    date_for_validation: Option<String>,
+
+    /// Enable additional rules used by Google's GTFS ingestion.
+    #[arg(long = "google-rules")]
+    google_rules: bool,
+
+    /// Enable thorough validation for both feeds.
+    #[arg(long)]
+    thorough: bool,
+}
+
+#[derive(Debug, ClapArgs)]
+struct ProfileArgs {
+    #[command(flatten)]
+    source: AnalysisSourceArgs,
+
+    /// Pretty-print the profile JSON.
+    #[arg(long)]
+    pretty: bool,
+}
+
+#[derive(Debug, ClapArgs)]
+struct ExplainArgs {
+    #[command(flatten)]
+    source: AnalysisSourceArgs,
+
+    /// Emit a structured JSON explanation instead of Markdown.
+    #[arg(long)]
+    json: bool,
+
+    /// Pretty-print JSON output.
+    #[arg(long, requires = "json")]
+    pretty: bool,
+}
+
+#[derive(Debug, ClapArgs)]
+#[command(group = clap::ArgGroup::new("analysis_source").required(true).args(["input", "url"]))]
+struct AnalysisSourceArgs {
+    /// Path to a GTFS ZIP file or unpacked feed directory.
+    #[arg(short = 'i', long, conflicts_with = "url")]
+    input: Option<PathBuf>,
+
+    /// URL of a remote GTFS ZIP file.
+    #[arg(short = 'u', long, conflicts_with = "input")]
+    url: Option<String>,
+
+    /// Analysis start date in YYYY-MM-DD. Defaults to the current UTC date.
+    #[arg(short = 'd', long = "date")]
+    analysis_date: Option<String>,
+
+    /// ISO country code used by region-specific validation rules.
+    #[arg(short = 'c', long = "country-code")]
+    country_code: Option<String>,
+
+    /// Enable additional rules used by Google's GTFS ingestion.
+    #[arg(long = "google-rules")]
+    google_rules: bool,
+
+    /// Enable recommended-field and other thorough validation rules.
+    #[arg(long)]
+    thorough: bool,
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    if let Some(command) = args.command.as_ref() {
+        tracing_subscriber::fmt().with_target(false).init();
+        return match command {
+            Command::Diff(diff_args) => run_diff(diff_args),
+            Command::Profile(profile_args) => run_profile(profile_args),
+            Command::Explain(explain_args) => run_explain(explain_args),
+        };
+    }
     if args.stdout {
         gtfs_guru_core::set_performance_logs_enabled(false);
     }
@@ -274,6 +397,10 @@ fn main() -> anyhow::Result<()> {
         .with_validator_version(env!("CARGO_PKG_VERSION"))
         .with_memory_usage_records(memory_usage_records)
         .with_threads(args.threads);
+    // Report what the archive holds, not what the parser understood.
+    if let Ok(files) = input.reader().list_files() {
+        summary_context = summary_context.with_files(files);
+    }
     if let Some(output) = output {
         summary_context = summary_context.with_output_directory(output);
     }
@@ -373,13 +500,412 @@ fn main() -> anyhow::Result<()> {
 
     // Handle auto-fix options
     if args.fix_dry_run || args.fix || args.fix_unsafe {
-        handle_fixes(&validation_notices, &args, &input)?;
+        handle_fixes(&validation_notices, &args, &input, &runner)?;
     }
 
     // Reports are already written: status 2 describes feed quality, not a run failure.
     exit_if_threshold_reached(args.fail_on, stdout_report_container);
 
     Ok(())
+}
+
+fn run_profile(args: &ProfileArgs) -> anyhow::Result<()> {
+    let analysis = analyze_feed(&args.source)?;
+    let profile = analysis.profile.ok_or_else(|| {
+        anyhow::anyhow!(
+            "the feed could not be parsed ({} validation errors)",
+            analysis.validation.errors
+        )
+    })?;
+    let json = if args.pretty {
+        serde_json::to_string_pretty(&profile)
+    } else {
+        serde_json::to_string(&profile)
+    }
+    .context("serialize feed profile")?;
+    println!("{json}");
+    Ok(())
+}
+
+fn run_explain(args: &ExplainArgs) -> anyhow::Result<()> {
+    let analysis = analyze_feed(&args.source)?;
+    let explanation = analysis
+        .profile
+        .as_ref()
+        .map(FeedExplanation::from_profile)
+        .unwrap_or_else(|| {
+            FeedExplanation::for_unreadable_feed(
+                analysis.validation.clone(),
+                analysis.analysis_date,
+            )
+        });
+    if args.json {
+        let json = if args.pretty {
+            serde_json::to_string_pretty(&explanation)
+        } else {
+            serde_json::to_string(&explanation)
+        }
+        .context("serialize feed explanation")?;
+        println!("{json}");
+    } else {
+        print!("{}", explanation.render_markdown());
+    }
+    Ok(())
+}
+
+struct CliFeedAnalysis {
+    analysis_date: NaiveDate,
+    profile: Option<FeedProfile>,
+    validation: ValidationOverview,
+}
+
+fn analyze_feed(args: &AnalysisSourceArgs) -> anyhow::Result<CliFeedAnalysis> {
+    let analysis_date = match args.analysis_date.as_deref() {
+        Some(value) => parse_validation_date(value)?,
+        None => Utc::now().date_naive(),
+    };
+    let _validation_date_guard = set_validation_date(Some(analysis_date));
+    let _validation_country_guard = match args.country_code.as_deref() {
+        Some(value) if !value.trim().is_empty() && !value.trim().eq_ignore_ascii_case("ZZ") => {
+            Some(set_validation_country_code(Some(value.trim().to_string())))
+        }
+        _ => None,
+    };
+    let _google_rules_guard = args
+        .google_rules
+        .then(|| gtfs_guru_core::set_google_rules_enabled(true));
+    let _thorough_guard = args
+        .thorough
+        .then(|| gtfs_guru_core::set_thorough_mode_enabled(true));
+
+    let resolved = resolve_analysis_input(args)?;
+    let runner = default_runner();
+    let outcome = gtfs_guru_core::engine::validate_input(&resolved.input, &runner);
+    if args.url.is_some() {
+        std::fs::remove_file(resolved.input.path()).ok();
+    }
+    let validation = ValidationOverview::from_notices(&outcome.notices);
+    let profile = outcome
+        .feed
+        .as_ref()
+        .map(|feed| FeedProfile::build(feed, &outcome.notices, analysis_date));
+    Ok(CliFeedAnalysis {
+        analysis_date,
+        profile,
+        validation,
+    })
+}
+
+fn resolve_analysis_input(args: &AnalysisSourceArgs) -> anyhow::Result<ResolvedInput> {
+    match (&args.input, &args.url) {
+        (Some(path), None) => {
+            let input = GtfsInput::from_path(path)
+                .with_context(|| format!("load input {}", path.display()))?;
+            Ok(ResolvedInput {
+                input,
+                gtfs_input_uri: None,
+                gtfs_source_label: path.display().to_string(),
+            })
+        }
+        (None, Some(url)) => {
+            if url.trim().is_empty() {
+                bail!("--url must not be empty");
+            }
+            let download_path = std::env::temp_dir().join(format!(
+                "gtfs_profile_{}_{}.zip",
+                std::process::id(),
+                unique_suffix()
+            ));
+            download_url_to_path(url, &download_path)?;
+            let input = GtfsInput::from_path(&download_path)
+                .with_context(|| format!("load input {}", download_path.display()))?;
+            Ok(ResolvedInput {
+                input,
+                gtfs_input_uri: Some(url.clone()),
+                gtfs_source_label: url.clone(),
+            })
+        }
+        _ => bail!("exactly one of --input or --url is required"),
+    }
+}
+
+fn run_diff(args: &DiffArgs) -> anyhow::Result<()> {
+    if args.json.as_deref() == Some(Path::new("-"))
+        && args.markdown.as_deref() == Some(Path::new("-"))
+    {
+        bail!("--json - and --markdown - cannot both write to stdout");
+    }
+    let _validation_date_guard = match args.date_for_validation.as_deref() {
+        Some(value) => Some(set_validation_date(Some(parse_validation_date(value)?))),
+        None => None,
+    };
+    let _validation_country_guard = match args.country_code.as_deref() {
+        Some(value) if !value.trim().is_empty() && !value.trim().eq_ignore_ascii_case("ZZ") => {
+            Some(set_validation_country_code(Some(value.trim().to_string())))
+        }
+        _ => None,
+    };
+    let _google_rules_guard = args
+        .google_rules
+        .then(|| gtfs_guru_core::set_google_rules_enabled(true));
+    let _thorough_guard = args
+        .thorough
+        .then(|| gtfs_guru_core::set_thorough_mode_enabled(true));
+
+    let (old_feed, old_notices) = load_feed_for_diff(&args.old, !args.no_validation)
+        .with_context(|| format!("load old feed {}", args.old.display()))?;
+    let (new_feed, new_notices) = load_feed_for_diff(&args.new, !args.no_validation)
+        .with_context(|| format!("load new feed {}", args.new.display()))?;
+    let report = diff_feeds(&old_feed, &new_feed, &old_notices, &new_notices);
+
+    if args.json.is_none() && args.markdown.is_none() {
+        print!("{}", render_diff_text(&report));
+    }
+    if let Some(path) = args.json.as_deref() {
+        let json = serde_json::to_string_pretty(&report).context("serialize diff report")?;
+        write_diff_output(path, &(json + "\n"))?;
+    }
+    if let Some(path) = args.markdown.as_deref() {
+        write_diff_output(path, &render_diff_markdown(&report))?;
+    }
+
+    if args.fail_on_new_errors && report.new_error_count() > 0 {
+        std::process::exit(2);
+    }
+    Ok(())
+}
+
+fn load_feed_for_diff(path: &Path, validate: bool) -> anyhow::Result<(GtfsFeed, NoticeContainer)> {
+    let input = GtfsInput::from_path(path)
+        .with_context(|| format!("open GTFS input {}", path.display()))?;
+    if validate {
+        let outcome = gtfs_guru_core::validate_input(&input, &default_runner());
+        let feed = outcome
+            .feed
+            .with_context(|| format!("could not parse {}", path.display()))?;
+        Ok((feed, outcome.notices))
+    } else {
+        let mut parse_notices = NoticeContainer::new();
+        let feed = GtfsFeed::from_input_with_notices(&input, &mut parse_notices)
+            .with_context(|| format!("parse {}", path.display()))?;
+        // This mode is intentionally structural-only, including no comparison
+        // of loader notices.
+        Ok((feed, NoticeContainer::new()))
+    }
+}
+
+fn write_diff_output(path: &Path, content: &str) -> anyhow::Result<()> {
+    if path == Path::new("-") {
+        print!("{content}");
+        return Ok(());
+    }
+    std::fs::write(path, content).with_context(|| format!("write {}", path.display()))
+}
+
+fn render_diff_text(report: &FeedDiff) -> String {
+    use std::fmt::Write;
+
+    if !report.has_changes() {
+        return "No changes.\n".to_string();
+    }
+    let mut output = String::new();
+    writeln!(
+        output,
+        "GTFS diff: {} new error(s), {} resolved error(s)",
+        report.notices.new_errors, report.notices.resolved_errors
+    )
+    .unwrap();
+    append_entity_text(&mut output, "Agencies", &report.agencies);
+    append_entity_text(&mut output, "Routes", &report.routes);
+    if report.stops.has_changes() {
+        writeln!(
+            output,
+            "Stops: +{} -{} renamed {} moved {} changed {}",
+            report.stops.added.len(),
+            report.stops.removed.len(),
+            report.stops.renamed.len(),
+            report.stops.moved.len(),
+            report.stops.changed.len()
+        )
+        .unwrap();
+        append_ids(&mut output, "  added", &report.stops.added);
+        append_ids(&mut output, "  removed", &report.stops.removed);
+        append_ids(&mut output, "  renamed", &report.stops.renamed);
+        if !report.stops.moved.is_empty() {
+            let moved = report
+                .stops
+                .moved
+                .iter()
+                .map(|item| format!("{} ({:.1} m)", item.stop_id, item.distance_meters))
+                .collect::<Vec<_>>();
+            append_ids(&mut output, "  moved", &moved);
+        }
+    }
+    if !report.trips_by_route.is_empty() {
+        writeln!(output, "Trips by route:").unwrap();
+        for change in &report.trips_by_route {
+            writeln!(
+                output,
+                "  {}: {} -> {}",
+                change.route_id, change.old_count, change.new_count
+            )
+            .unwrap();
+        }
+    }
+    if !report.frequencies_by_route.is_empty() {
+        writeln!(
+            output,
+            "Frequency windows changed: {} route(s)",
+            report.frequencies_by_route.len()
+        )
+        .unwrap();
+        for change in &report.frequencies_by_route {
+            writeln!(output, "  {}", change.route_id).unwrap();
+        }
+    }
+    if !report.files.added.is_empty() || !report.files.removed.is_empty() {
+        writeln!(
+            output,
+            "Files: +{} -{}",
+            report.files.added.len(),
+            report.files.removed.len()
+        )
+        .unwrap();
+        append_ids(&mut output, "  added", &report.files.added);
+        append_ids(&mut output, "  removed", &report.files.removed);
+    }
+    if report.feed_info.changed {
+        writeln!(
+            output,
+            "Feed version: {} -> {}",
+            report.feed_info.old_version.as_deref().unwrap_or("n/a"),
+            report.feed_info.new_version.as_deref().unwrap_or("n/a")
+        )
+        .unwrap();
+    }
+    if !report.notices.changes.is_empty() {
+        writeln!(output, "Validation notices:").unwrap();
+        for change in &report.notices.changes {
+            writeln!(
+                output,
+                "  {:?} {}: {} -> {}",
+                change.severity, change.code, change.old_count, change.new_count
+            )
+            .unwrap();
+        }
+    }
+    output
+}
+
+fn append_entity_text(output: &mut String, label: &str, diff: &gtfs_guru_core::diff::EntityDiff) {
+    use std::fmt::Write;
+    if !diff.has_changes() {
+        return;
+    }
+    writeln!(
+        output,
+        "{label}: +{} -{} changed {}",
+        diff.added.len(),
+        diff.removed.len(),
+        diff.changed.len()
+    )
+    .unwrap();
+    append_ids(output, "  added", &diff.added);
+    append_ids(output, "  removed", &diff.removed);
+    append_ids(output, "  changed", &diff.changed);
+}
+
+fn append_ids(output: &mut String, label: &str, ids: &[String]) {
+    use std::fmt::Write;
+    if !ids.is_empty() {
+        writeln!(output, "{label}: {}", ids.join(", ")).unwrap();
+    }
+}
+
+fn render_diff_markdown(report: &FeedDiff) -> String {
+    use std::fmt::Write;
+
+    let mut output = String::from("# GTFS feed diff\n\n");
+    writeln!(
+        output,
+        "**New errors:** {} · **Resolved errors:** {}\n",
+        report.notices.new_errors, report.notices.resolved_errors
+    )
+    .unwrap();
+    output.push_str("| Area | Added | Removed | Changed |\n");
+    output.push_str("|---|---:|---:|---:|\n");
+    writeln!(
+        output,
+        "| Agencies | {} | {} | {} |",
+        report.agencies.added.len(),
+        report.agencies.removed.len(),
+        report.agencies.changed.len()
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "| Routes | {} | {} | {} |",
+        report.routes.added.len(),
+        report.routes.removed.len(),
+        report.routes.changed.len()
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "| Stops | {} | {} | {} renamed, {} moved, {} other |",
+        report.stops.added.len(),
+        report.stops.removed.len(),
+        report.stops.renamed.len(),
+        report.stops.moved.len(),
+        report.stops.changed.len()
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "| Files | {} | {} | — |",
+        report.files.added.len(),
+        report.files.removed.len()
+    )
+    .unwrap();
+
+    if !report.trips_by_route.is_empty() {
+        output.push_str("\n## Trips by route\n\n| Route | Old | New |\n|---|---:|---:|\n");
+        for change in &report.trips_by_route {
+            writeln!(
+                output,
+                "| `{}` | {} | {} |",
+                change.route_id, change.old_count, change.new_count
+            )
+            .unwrap();
+        }
+    }
+    if !report.frequencies_by_route.is_empty() {
+        output.push_str("\n## Frequency windows\n\n| Route | Old | New |\n|---|---|---|\n");
+        for change in &report.frequencies_by_route {
+            let old_windows = change.old_windows.join("<br>");
+            let new_windows = change.new_windows.join("<br>");
+            writeln!(
+                output,
+                "| `{}` | {} | {} |",
+                change.route_id, old_windows, new_windows
+            )
+            .unwrap();
+        }
+    }
+    if !report.notices.changes.is_empty() {
+        output.push_str(
+            "\n## Validation notices\n\n| Severity | Code | Old | New |\n|---|---|---:|---:|\n",
+        );
+        for change in &report.notices.changes {
+            writeln!(
+                output,
+                "| {:?} | `{}` | {} | {} |",
+                change.severity, change.code, change.old_count, change.new_count
+            )
+            .unwrap();
+        }
+    }
+    output
 }
 
 fn perf_logging_enabled() -> bool {
@@ -435,7 +961,12 @@ fn exit_if_threshold_reached(fail_on: FailOn, notices: &NoticeContainer) {
     std::process::exit(2);
 }
 
-fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> anyhow::Result<()> {
+fn handle_fixes(
+    notices: &NoticeContainer,
+    args: &Args,
+    input: &GtfsInput,
+    runner: &ValidatorRunner,
+) -> anyhow::Result<()> {
     let max_safety = if args.fix_unsafe {
         FixSafety::Unsafe
     } else {
@@ -447,10 +978,10 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> an
     if counts.total() == 0 {
         info!("No auto-fixes available");
         if !args.thorough {
-            // Most fix-carrying rules are gated behind thorough mode, so an
-            // empty plan usually means they never ran.
+            // A few fix-carrying rules are gated behind thorough mode, so an
+            // empty plan may just mean they never ran.
             eprintln!(
-                "No fixable issues found. Several rules that suggest fixes only run under --thorough."
+                "No fixable issues found. Some rules that suggest fixes only run under --thorough."
             );
         }
         return Ok(());
@@ -500,11 +1031,9 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> an
 
     for conflict in &outcome.conflicts {
         eprintln!(
-            "skipped {} at {} row {}, field '{}': {}",
+            "skipped {} at {}: {}",
             conflict.edit.notice_code,
-            conflict.edit.file,
-            conflict.edit.row,
-            conflict.edit.field,
+            edit_target(&conflict.edit),
             conflict.reason
         );
     }
@@ -528,24 +1057,136 @@ fn handle_fixes(notices: &NoticeContainer, args: &Args, input: &GtfsInput) -> an
             outcome.conflicts.len()
         );
     }
-    println!("Re-run validation on the output to confirm the result.");
+    let repaired_input = GtfsInput::from_path(&outcome.output)
+        .with_context(|| format!("open repaired feed {}", outcome.output.display()))?;
+    let repaired = gtfs_guru_core::engine::validate_input(&repaired_input, runner);
+    if repaired.feed.is_none() {
+        bail!(
+            "the repaired feed was written but could not be loaded again; inspect {}",
+            outcome.output.display()
+        );
+    }
+    let delta = validation_delta(notices, &repaired.notices);
+    let (errors, warnings, infos) = repaired.notices.severity_counts();
+    println!(
+        "Revalidation: {} resolved, {} remaining, {} introduced \
+         ({} errors, {} warnings, {} infos).",
+        delta.resolved, delta.remaining, delta.introduced, errors, warnings, infos
+    );
+    for ((code, severity), increase) in &delta.introduced_groups {
+        println!(
+            "  new: +{} {} [{}]",
+            increase,
+            code,
+            notice_severity_label(*severity)
+        );
+    }
 
     Ok(())
 }
 
 fn print_edits(edits: &[PlannedEdit]) {
     for edit in edits {
-        println!(
-            "[{}] {} row {}, field '{}': {}",
-            edit.safety.label(),
-            edit.file,
-            edit.row,
-            edit.field,
-            edit.description
-        );
-        println!("  - {}", edit.original);
-        println!("  + {}", edit.replacement);
+        match &edit.operation {
+            FixOperation::ReplaceField { .. } => {
+                println!(
+                    "[{}] {}: {}",
+                    edit.safety.label(),
+                    edit_target(edit),
+                    edit.description
+                );
+                println!("  - {}", edit.original);
+                println!("  + {}", edit.replacement);
+            }
+            FixOperation::DeleteRow {
+                field, expected, ..
+            } => {
+                println!(
+                    "[{}] {}: {}",
+                    edit.safety.label(),
+                    edit_target(edit),
+                    edit.description
+                );
+                println!("  delete when {field} = {expected:?}");
+            }
+            FixOperation::SortStopTimes { .. } => {
+                println!(
+                    "[{}] {}: {}",
+                    edit.safety.label(),
+                    edit.file,
+                    edit.description
+                );
+            }
+        }
         println!();
+    }
+}
+
+fn edit_target(edit: &PlannedEdit) -> String {
+    match &edit.operation {
+        FixOperation::ReplaceField { .. } => {
+            format!("{} row {}, field '{}'", edit.file, edit.row, edit.field)
+        }
+        FixOperation::DeleteRow { .. } => format!("{} row {}", edit.file, edit.row),
+        FixOperation::SortStopTimes { .. } => edit.file.clone(),
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ValidationDelta {
+    resolved: usize,
+    remaining: usize,
+    introduced: usize,
+    introduced_groups: Vec<((String, NoticeSeverity), usize)>,
+}
+
+fn validation_delta(before: &NoticeContainer, after: &NoticeContainer) -> ValidationDelta {
+    fn group_counts(notices: &NoticeContainer) -> HashMap<(String, NoticeSeverity), usize> {
+        let groups: HashSet<(String, NoticeSeverity)> = notices
+            .iter()
+            .map(|notice| (notice.code.clone(), notice.severity))
+            .collect();
+        groups
+            .into_iter()
+            .map(|(code, severity)| {
+                let count = notices.group_total(&code, severity);
+                ((code, severity), count)
+            })
+            .collect()
+    }
+
+    let before = group_counts(before);
+    let after = group_counts(after);
+    let keys: HashSet<_> = before.keys().chain(after.keys()).cloned().collect();
+    let mut delta = ValidationDelta {
+        remaining: after.values().sum(),
+        ..ValidationDelta::default()
+    };
+    for key in keys {
+        let old_count = before.get(&key).copied().unwrap_or(0);
+        let new_count = after.get(&key).copied().unwrap_or(0);
+        delta.resolved += old_count.saturating_sub(new_count);
+        let increase = new_count.saturating_sub(old_count);
+        delta.introduced += increase;
+        if increase > 0 {
+            delta.introduced_groups.push((key, increase));
+        }
+    }
+    delta.introduced_groups.sort_by(
+        |((left_code, left_severity), _), ((right_code, right_severity), _)| {
+            left_code
+                .cmp(right_code)
+                .then(left_severity.cmp(right_severity))
+        },
+    );
+    delta
+}
+
+fn notice_severity_label(severity: NoticeSeverity) -> &'static str {
+    match severity {
+        NoticeSeverity::Error => "ERROR",
+        NoticeSeverity::Warning => "WARNING",
+        NoticeSeverity::Info => "INFO",
     }
 }
 
@@ -956,6 +1597,9 @@ fn record_memory_usage(
     });
 }
 
+// The only unsafe in this binary: `getrusage` is the portable way to read peak
+// RSS for the timing breakdown, and it has no safe equivalent in std.
+#[allow(unsafe_code)]
 fn current_rss_bytes() -> Option<u64> {
     #[cfg(unix)]
     {
@@ -1051,6 +1695,85 @@ mod tests {
     }
 
     #[test]
+    fn diff_subcommand_does_not_require_legacy_output_flags() {
+        let args = Args::try_parse_from([
+            "gtfs-guru",
+            "diff",
+            "old.zip",
+            "new.zip",
+            "--json",
+            "-",
+            "--fail-on-new-errors",
+        ])
+        .unwrap();
+
+        let Some(Command::Diff(diff)) = args.command else {
+            panic!("expected diff subcommand");
+        };
+        assert_eq!(diff.old, PathBuf::from("old.zip"));
+        assert_eq!(diff.new, PathBuf::from("new.zip"));
+        assert_eq!(diff.json, Some(PathBuf::from("-")));
+        assert!(diff.fail_on_new_errors);
+    }
+
+    #[test]
+    fn profile_and_explain_subcommands_have_independent_sources() {
+        let profile = Args::try_parse_from([
+            "gtfs-guru",
+            "profile",
+            "--input",
+            "feed.zip",
+            "--date",
+            "2026-07-27",
+            "--pretty",
+        ])
+        .unwrap();
+        let Some(Command::Profile(profile)) = profile.command else {
+            panic!("expected profile subcommand");
+        };
+        assert_eq!(profile.source.input, Some(PathBuf::from("feed.zip")));
+        assert_eq!(profile.source.analysis_date.as_deref(), Some("2026-07-27"));
+        assert!(profile.pretty);
+
+        let explain = Args::try_parse_from([
+            "gtfs-guru",
+            "explain",
+            "--url",
+            "https://example.com/feed.zip",
+            "--json",
+            "--pretty",
+        ])
+        .unwrap();
+        let Some(Command::Explain(explain)) = explain.command else {
+            panic!("expected explain subcommand");
+        };
+        assert_eq!(
+            explain.source.url.as_deref(),
+            Some("https://example.com/feed.zip")
+        );
+        assert!(explain.json);
+        assert!(explain.pretty);
+    }
+
+    #[test]
+    fn profile_requires_exactly_one_source() {
+        let missing = Args::try_parse_from(["gtfs-guru", "profile", "--pretty"])
+            .expect_err("profile needs a source");
+        assert_eq!(missing.kind(), ErrorKind::MissingRequiredArgument);
+
+        let conflicting = Args::try_parse_from([
+            "gtfs-guru",
+            "profile",
+            "--input",
+            "feed.zip",
+            "--url",
+            "https://example.com/feed.zip",
+        ])
+        .expect_err("profile sources conflict");
+        assert_eq!(conflicting.kind(), ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
     fn badge_flags_are_written_to_the_paths_given() {
         let dir = std::env::temp_dir().join(format!("gtfs-guru-badge-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -1089,6 +1812,44 @@ mod tests {
     fn badges_are_skipped_when_neither_flag_is_given() {
         let args = Args::parse_from(["gtfs-guru", "--stdout"]);
         write_badges(&args, &NoticeContainer::new()).unwrap();
+    }
+
+    #[test]
+    fn validation_delta_compares_notice_groups_without_row_noise() {
+        let mut before = NoticeContainer::new();
+        for _ in 0..3 {
+            before.push(ValidationNotice::new(
+                "invalid_color",
+                NoticeSeverity::Error,
+                "bad color",
+            ));
+        }
+        before.push(ValidationNotice::new(
+            "old_warning",
+            NoticeSeverity::Warning,
+            "old",
+        ));
+
+        let mut after = NoticeContainer::new();
+        after.push(ValidationNotice::new(
+            "invalid_color",
+            NoticeSeverity::Error,
+            "bad color",
+        ));
+        after.push(ValidationNotice::new(
+            "new_warning",
+            NoticeSeverity::Warning,
+            "new",
+        ));
+
+        let delta = validation_delta(&before, &after);
+        assert_eq!(delta.resolved, 3);
+        assert_eq!(delta.remaining, 2);
+        assert_eq!(delta.introduced, 1);
+        assert_eq!(
+            delta.introduced_groups,
+            vec![(("new_warning".into(), NoticeSeverity::Warning), 1)]
+        );
     }
 
     #[test]

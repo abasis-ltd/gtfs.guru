@@ -6,6 +6,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::unnecessary_lazy_evaluations)]
 #![allow(clippy::manual_pattern_char_comparison)]
+#![forbid(unsafe_code)]
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
@@ -226,7 +227,14 @@ impl ReportSummary {
             .map(|path| path.to_string_lossy().to_string());
         let feed_info = context.feed.map(build_feed_info);
         let agencies = context.feed.map(build_agencies);
-        let files = context.feed.map(build_files);
+        let files = context
+            .files
+            .map(|mut names| {
+                names.sort();
+                names.dedup();
+                names
+            })
+            .or_else(|| context.feed.map(build_files));
         let counts = context.feed.map(build_counts);
         let gtfs_features = context.feed.map(build_gtfs_features);
         let memory_usage_records = context.memory_usage_records.or_else(|| Some(Vec::new()));
@@ -330,6 +338,10 @@ pub struct ReportCounts {
 
 pub struct ReportSummaryContext<'a> {
     pub feed: Option<&'a GtfsFeed>,
+    /// Every file the input actually contains. The canonical validator reports
+    /// the archive's listing verbatim, including files it has no schema for, so
+    /// deriving the list from the parsed feed silently drops extensions.
+    pub files: Option<Vec<String>>,
     pub gtfs_input: Option<&'a Path>,
     pub gtfs_input_uri: Option<String>,
     pub output_directory: Option<&'a Path>,
@@ -349,6 +361,7 @@ impl<'a> ReportSummaryContext<'a> {
     pub fn new() -> Self {
         Self {
             feed: None,
+            files: None,
             gtfs_input: None,
             gtfs_input_uri: None,
             output_directory: None,
@@ -363,6 +376,11 @@ impl<'a> ReportSummaryContext<'a> {
             date_for_validation: None,
             threads: 1,
         }
+    }
+
+    pub fn with_files(mut self, files: Vec<String>) -> Self {
+        self.files = Some(files);
+        self
     }
 
     pub fn with_feed(mut self, feed: &'a GtfsFeed) -> Self {
@@ -487,6 +505,7 @@ fn notice_context(notice: &ValidationNotice) -> NoticeContext {
             }
             fields.push((key.clone(), value.clone()));
         }
+        append_notice_geometry(notice, &mut fields);
         return NoticeContext { fields };
     }
 
@@ -544,7 +563,19 @@ fn notice_context(notice: &ValidationNotice) -> NoticeContext {
         }
     }
 
+    append_notice_geometry(notice, &mut fields);
     NoticeContext { fields }
+}
+
+fn append_notice_geometry(notice: &ValidationNotice, fields: &mut Vec<(String, Value)>) {
+    if fields.iter().any(|(key, _)| key == "geometry") {
+        return;
+    }
+    if let Some(geometry) = &notice.geometry {
+        if let Ok(value) = serde_json::to_value(geometry) {
+            fields.push(("geometry".to_string(), value));
+        }
+    }
 }
 
 fn severity_ordinal(severity: NoticeSeverity) -> u8 {
@@ -1432,7 +1463,9 @@ fn path_to_file_url(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtfs_guru_core::{NoticeContainer, NoticeSeverity, ValidationNotice};
+    use gtfs_guru_core::{
+        NoticeContainer, NoticeGeometry, NoticeGeometryPoint, NoticeSeverity, ValidationNotice,
+    };
     use std::collections::HashMap;
 
     #[test]
@@ -1481,6 +1514,29 @@ mod tests {
             sample_map.get("fieldName").and_then(|value| value.as_str()),
             Some("stop_id")
         );
+    }
+
+    #[test]
+    fn includes_notice_geometry_in_json_samples() {
+        let mut container = NoticeContainer::new();
+        let notice = ValidationNotice::new("geo", NoticeSeverity::Warning, "geographic notice")
+            .with_geometry(NoticeGeometry::Point {
+                point: NoticeGeometryPoint::new(35.1856, 33.3823),
+            });
+        container.push(notice);
+
+        let report = ValidationReport::from_container(&container);
+        let sample = &report.notices[0].sample_notices[0];
+        let geometry = sample
+            .fields
+            .iter()
+            .find(|(key, _)| key == "geometry")
+            .map(|(_, value)| value)
+            .expect("geometry field");
+
+        assert_eq!(geometry["type"], "point");
+        assert_eq!(geometry["point"]["latitude"], 35.1856);
+        assert_eq!(geometry["point"]["longitude"], 33.3823);
     }
 
     #[test]
