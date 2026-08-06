@@ -7,7 +7,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-07-26
+## [1.0.0] - 2026-07-28
 
 First stable release. The CLI, core, model, report, profile, MCP, web, WASM,
 Python, and desktop crates share the 1.0.0 version and their public APIs are
@@ -73,6 +73,12 @@ now covered by semantic versioning.
   confined to the roots passed with `--allow-dir`; downloading a public URL is
   off until `--allow-url` is given. HTTP defaults to 60 authenticated requests
   per rolling minute, four concurrent validations, and 64 KiB request bodies.
+  Validation and explanation responses include bounded concrete notice examples
+  with available file, row, field, context, and suggested-fix details, so an MCP
+  host can show actionable errors instead of only grouped counts.
+- The browser validator now renders a local “What ChatGPT receives” preview
+  from the real validation report, with exact totals and concrete error
+  examples. It does not call an AI provider or upload the feed.
 - `gtfs-guru --version`.
 - `service_never_active`, which flags calendar.txt rows with no active weekday
   and no added dates in calendar_dates.txt.
@@ -92,6 +98,23 @@ now covered by semantic versioning.
 
 ### Changed
 
+- Every crate now sets `#![forbid(unsafe_code)]`, except the CLI, which uses
+  `#![deny(unsafe_code)]` with a single documented opt-out for the `getrusage`
+  call behind its peak-memory reporting. Three hand-written `unsafe impl Send`
+  / `Sync` blocks were removed: the types derived both automatically, so the
+  impls only suppressed the compiler's check on data shared across rayon
+  workers.
+- The embedded website no longer serves dotfiles. `include_dir!` bakes in
+  whatever is on disk at build time, so an untracked `.DS_Store` or editor swap
+  file in `website/` could otherwise be fetched from a locally built server.
+- `gtfs-guru-web` is no longer published to crates.io. It is the deployed server
+  binary rather than a library, and it now embeds the repo-root `website/`
+  directly, which `cargo package` cannot carry. The previously published 0.9.x
+  versions stay available; anyone running the server should build it from this
+  repository or use the Docker image.
+- The website is stored once. `website/` is served by nginx and embedded into
+  `gtfs-guru-web` from the same path, replacing the second copy under
+  `crates/gtfs_validator_web/` that had to be kept in sync by hand.
 - `sitemap.xml` no longer carries a `<lastmod>`. It was stamped with the time
   of the request, so every crawl saw the whole site as freshly modified —
   worse than omitting the field, which is what search engines fall back to.
@@ -131,6 +154,11 @@ now covered by semantic versioning.
   (`cargo build --profile profiling`) when a flamegraph needs them.
 
 ### Fixed
+
+- Per-validator timings are measured in the browser again. The parallel run
+  path hardcoded a zero duration on `wasm32` even though the crate's `Instant`
+  is `web_time::Instant`, which is backed by `performance.now()` there, so the
+  multithreaded browser build reported every rule as taking no time at all.
 
 - The browser's remote-feed fallback now uses the guarded Rust
   `/cors-proxy?url=...` endpoint instead of an unrestricted nginx forward
