@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use compact_str::CompactString;
 use std::fmt;
 

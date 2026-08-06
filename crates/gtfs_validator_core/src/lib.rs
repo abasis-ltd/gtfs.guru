@@ -18,6 +18,11 @@
 #![allow(clippy::manual_range_patterns)]
 #![allow(clippy::bind_instead_of_map)]
 #![allow(clippy::field_reassign_with_default)]
+// The validation engine shares borrowed feed data across rayon workers. Auto
+// traits already prove those types thread-safe; a hand-written `unsafe impl`
+// would silently keep compiling if a field later became non-Send.
+#![forbid(unsafe_code)]
+
 pub mod csv_reader;
 mod csv_schema;
 mod csv_validation;

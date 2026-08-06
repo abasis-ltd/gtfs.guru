@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;

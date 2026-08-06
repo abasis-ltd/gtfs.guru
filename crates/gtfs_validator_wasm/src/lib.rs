@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 

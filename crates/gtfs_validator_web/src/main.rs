@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};

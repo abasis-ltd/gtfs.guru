@@ -95,9 +95,6 @@ struct ValidationContext<'a> {
     stops_by_id: HashMap<gtfs_guru_model::StringId, &'a gtfs_guru_model::Stop>,
 }
 
-unsafe impl<'a> Sync for ValidationContext<'a> {}
-unsafe impl<'a> Send for ValidationContext<'a> {}
-
 fn check_trip(
     trip: &gtfs_guru_model::Trip,
     feed: &GtfsFeed,

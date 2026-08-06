@@ -1,6 +1,7 @@
 //! GTFS Validator Desktop GUI - Tauri Library
 //!
 //! This module provides Tauri commands for GTFS validation.
+#![forbid(unsafe_code)]
 
 use std::path::PathBuf;
 use std::sync::Mutex;

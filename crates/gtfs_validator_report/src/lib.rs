@@ -6,6 +6,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::unnecessary_lazy_evaluations)]
 #![allow(clippy::manual_pattern_char_comparison)]
+#![forbid(unsafe_code)]
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
