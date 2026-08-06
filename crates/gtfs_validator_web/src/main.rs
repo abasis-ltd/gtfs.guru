@@ -315,10 +315,17 @@ async fn static_file(AxumPath(path): AxumPath<String>) -> Response {
 }
 
 fn is_sensitive_static_path(path: &str) -> bool {
+    // `include_dir!` embeds whatever sits in website/ at compile time, including
+    // files Git never sees: a developer's `.DS_Store`, an editor swap file, a
+    // stray `.env`. The site tracks no dotfiles, so refusing every dotted
+    // segment costs nothing and does not depend on remembering to extend the
+    // list below.
+    if path.split('/').any(|segment| segment.starts_with('.')) {
+        return true;
+    }
     let name = path.rsplit('/').next().unwrap_or(path);
     name.eq_ignore_ascii_case("nginx.conf")
         || name.eq_ignore_ascii_case("dockerfile")
-        || name.eq_ignore_ascii_case(".env")
         || name.eq_ignore_ascii_case("docker-compose.yml")
         || name.eq_ignore_ascii_case("docker-compose.yaml")
 }
@@ -1469,10 +1476,17 @@ mod tests {
             "docker-compose.yml",
             "docker-compose.yaml",
             "nested/NGINX.CONF",
+            // Untracked files that include_dir! would still embed.
+            ".DS_Store",
+            "pkg/.DS_Store",
+            ".git/config",
+            "notices/.index.html.swp",
         ] {
             assert!(is_sensitive_static_path(path), "{path} must be blocked");
         }
         assert!(!is_sensitive_static_path("index.html"));
+        assert!(!is_sensitive_static_path("notices/unknown_file/index.html"));
+        assert!(!is_sensitive_static_path("pkg/gtfs_guru_wasm_bg.wasm"));
     }
 
     #[test]
