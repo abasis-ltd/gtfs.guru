@@ -75,6 +75,9 @@ try {
     errorMessage: document.querySelector('#error-message')?.textContent?.trim() || '',
     errorCount: document.querySelector('#error-count')?.textContent?.trim() || '',
     warningCount: document.querySelector('#warning-count')?.textContent?.trim() || '',
+    mcpPreviewVisible: document.querySelector('#mcp-preview')?.classList.contains('is-ready') || false,
+    mcpExampleCount: document.querySelectorAll('.mcp-example').length,
+    mcpVerdict: document.querySelector('.mcp-verdict')?.textContent?.trim() || '',
   }));
 
   assert.equal(
@@ -85,6 +88,9 @@ try {
   assert.equal(state.resultVisible, true, 'example-feed validation produced no result');
   assert.match(state.errorCount, /^\d+$/, 'the result has no numeric error count');
   assert.match(state.warningCount, /^\d+$/, 'the result has no numeric warning count');
+  assert.equal(state.mcpPreviewVisible, true, 'the MCP preview did not become visible');
+  assert.equal(state.mcpExampleCount > 0, true, 'the demo feed produced no MCP error examples');
+  assert.match(state.mcpVerdict, /I checked gtfs-guru-demo/);
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join('; ')}`);
 
   console.log(JSON.stringify({

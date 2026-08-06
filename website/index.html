@@ -74,6 +74,7 @@
           "Command-line binary with SARIF, JSON and HTML reports",
           "Native Python package (pip install gtfs-guru)",
           "GitHub Action with a --fail-on quality gate",
+          "MCP server for evidence-backed GTFS explanations in ChatGPT-compatible clients",
           "Optional Google-specific rules and a thorough mode",
           "Automatic fixes for a subset of findings"
         ],
@@ -350,6 +351,26 @@
                                 <div class="stat"><span class="red" id="error-count">0</span> Errors</div>
                                 <div class="stat"><span class="yellow" id="warning-count">0</span> Warnings</div>
                             </div>
+                            <section class="mcp-preview" id="mcp-preview" aria-labelledby="mcp-preview-title"
+                                aria-live="polite">
+                                <div class="mcp-preview-header">
+                                    <div class="mcp-preview-heading">
+                                        <i data-lucide="sparkles"></i>
+                                        <div>
+                                            <span class="mcp-preview-kicker">MCP preview</span>
+                                            <h3 id="mcp-preview-title">What ChatGPT receives</h3>
+                                        </div>
+                                    </div>
+                                    <span class="mcp-local-label"><i data-lucide="lock"></i> Local</span>
+                                </div>
+                                <div id="mcp-preview-body"></div>
+                                <div class="mcp-preview-footer">
+                                    <span>Built from validator facts. No AI request was made.</span>
+                                    <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server"
+                                        target="_blank" rel="noopener">Connect via MCP <i
+                                            data-lucide="arrow-up-right"></i></a>
+                                </div>
+                            </section>
                             <div class="result-actions">
                                 <button class="btn btn-primary" id="view-report-btn">
                                     <i data-lucide="file-text"></i> See More
@@ -577,6 +598,17 @@ if not report.is_valid:
 gtfs-guru --stdout -i feed.zip | jq .</code></pre>
                     </div>
                 </div>
+            </div>
+            <div class="mcp-developer-strip fade-up">
+                <div>
+                    <span class="mcp-preview-kicker">ChatGPT + MCP</span>
+                    <h3>Ask questions about a checked feed</h3>
+                    <p>GTFS Guru returns exact totals and concrete examples with available file, row, field, and
+                        context, so the answer stays grounded in the validator report.</p>
+                </div>
+                <a class="btn btn-secondary"
+                    href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server" target="_blank"
+                    rel="noopener">MCP setup guide <i data-lucide="arrow-up-right"></i></a>
             </div>
         </div>
     </section>

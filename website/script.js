@@ -804,6 +804,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharedBanner = document.getElementById('shared-banner');
     const sharedBannerText = document.getElementById('shared-banner-text');
     const sharedNewScanBtn = document.getElementById('shared-new-scan-btn');
+    const mcpPreview = document.getElementById('mcp-preview');
+    const mcpPreviewBody = document.getElementById('mcp-preview-body');
 
     let currentValidatorMode = 'validate';
     let oldDiffFile = null;
@@ -1580,6 +1582,122 @@ Download the .zip and drop it here instead; validation still runs locally in you
         });
     }
 
+    function countLabel(count, singular, plural = `${singular}s`) {
+        return `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
+    }
+
+    function noticeContextValue(notice, key) {
+        const value = notice?.context?.[key];
+        return value === null || value === undefined || value === '' ? null : value;
+    }
+
+    function renderMcpPreview(result) {
+        if (!mcpPreview || !mcpPreviewBody) return;
+
+        let notices = [];
+        try {
+            notices = JSON.parse(result.json) || [];
+        } catch (error) {
+            console.warn('MCP preview: could not parse notices', error);
+        }
+
+        const groups = new Map();
+        notices
+            .filter((notice) => notice.severity === 'ERROR' || notice.severity === 'WARNING')
+            .forEach((notice) => {
+                const key = `${notice.severity}:${notice.code}`;
+                let group = groups.get(key);
+                if (!group) {
+                    group = {
+                        code: notice.code,
+                        severity: notice.severity,
+                        examples: [],
+                        stored: 0,
+                        total: 0,
+                    };
+                    groups.set(key, group);
+                }
+                group.stored += 1;
+                if (group.examples.length < 3) group.examples.push(notice);
+                const exactTotal = Number(
+                    notice.totalNotices ?? result.totalsByCode?.[notice.code] ?? group.stored
+                );
+                group.total = Math.max(group.total, Number.isFinite(exactTotal) ? exactTotal : group.stored);
+            });
+
+        const priority = { ERROR: 0, WARNING: 1 };
+        const featuredGroups = [...groups.values()]
+            .sort((left, right) =>
+                priority[left.severity] - priority[right.severity]
+                || right.total - left.total
+                || left.code.localeCompare(right.code)
+            )
+            .slice(0, 3);
+
+        const errors = Number(result.error_count) || 0;
+        const warnings = Number(result.warning_count) || 0;
+        const feedName = lastFileName || 'this feed';
+        const verdict = errors > 0
+            ? `I checked ${feedName}. It has ${countLabel(errors, 'validation error')} and ${countLabel(warnings, 'warning')}. Fix the errors before publication.`
+            : warnings > 0
+                ? `I checked ${feedName}. It has no validation errors and ${countLabel(warnings, 'warning')} to review.`
+                : `I checked ${feedName}. The validator found no errors or warnings.`;
+
+        const identifierKeys = [
+            'stopId',
+            'routeId',
+            'tripId',
+            'serviceId',
+            'shapeId',
+            'agencyId',
+            'parentStation',
+            'locationId',
+        ];
+        const issuesHtml = featuredGroups.map((group) => {
+            const notice = group.examples[0];
+            const file = notice.file || noticeContextValue(notice, 'filename');
+            const row = notice.row ?? noticeContextValue(notice, 'csvRowNumber');
+            const field = notice.field || noticeContextValue(notice, 'fieldName');
+            const location = [];
+            if (file) location.push(String(file));
+            if (row !== null && row !== undefined) location.push(`row ${row}`);
+            if (field) location.push(String(field));
+            for (const key of identifierKeys) {
+                const value = noticeContextValue(notice, key);
+                if (value !== null && location.length < 5) location.push(`${key}=${value}`);
+            }
+            const locationHtml = location.length
+                ? `<div class="mcp-example-location">${location.map((part) =>
+                    `<code>${escapeHtml(String(part))}</code>`).join('')}</div>`
+                : '';
+            const fix = notice.fix?.description
+                ? `<p class="mcp-example-fix"><strong>Suggested fix:</strong> ${escapeHtml(notice.fix.description)}</p>`
+                : '';
+
+            return `
+                <li class="mcp-example ${group.severity.toLowerCase()}">
+                    <div class="mcp-example-topline">
+                        <code>${escapeHtml(group.code)}</code>
+                        <span>${escapeHtml(group.severity)} · ${escapeHtml(countLabel(group.total, 'occurrence'))}</span>
+                    </div>
+                    <p>${escapeHtml(notice.message || group.code.replaceAll('_', ' '))}</p>
+                    ${locationHtml}
+                    ${fix}
+                </li>
+            `;
+        }).join('');
+
+        mcpPreviewBody.innerHTML = `
+            <p class="mcp-verdict">${escapeHtml(verdict)}</p>
+            ${issuesHtml
+                ? `<ol class="mcp-examples">${issuesHtml}</ol>
+                   <p class="mcp-sample-note">Compact preview: MCP can return up to three examples for every issue type.</p>`
+                : '<p class="mcp-clean-note"><i data-lucide="circle-check"></i> There are no error or warning examples to send.</p>'}
+        `;
+        mcpPreview.classList.remove('is-ready');
+        requestAnimationFrame(() => mcpPreview.classList.add('is-ready'));
+    }
+
     function showResults(result) {
         processingState.classList.add('hidden');
         resultState.classList.remove('hidden');
@@ -1589,6 +1707,7 @@ Download the .zip and drop it here instead; validation still runs locally in you
 
         errorCountEl.innerText = errors;
         warningCountEl.innerText = warnings;
+        renderMcpPreview(result);
 
         // A shared report has no feed behind it, so there is no HTML report to
         // hand out — hide the button rather than let it fail on click.

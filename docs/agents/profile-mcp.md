@@ -22,9 +22,14 @@
 
 ## MCP Tools
 
-- `validate_gtfs`: profile plus grouped validation results.
-- `explain_gtfs`: the same profile plus a deterministic explanation.
+- `validate_gtfs`: profile, exact grouped validation results, and up to three
+  concrete examples per code/severity group. Examples carry the available
+  file, row, field, message, context values, and suggested fix when one exists.
+- `explain_gtfs`: the same validation payload plus a deterministic explanation.
 - `get_notice_details`: canonical notice metadata and references.
+
+The default is three returned examples per group. Operators can change it with
+`--notice-examples-per-group`; `0` keeps only the exact grouped totals.
 
 The stdio server never writes logs to stdout because that would corrupt MCP
 JSON-RPC. Local paths are confined to roots configured with `--allow-dir`.

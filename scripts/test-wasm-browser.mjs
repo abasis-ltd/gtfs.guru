@@ -295,6 +295,10 @@ async function testSharedReportBoundary(page, baseUrl) {
   assert.equal(await page.locator('.notice-group-count').textContent(), '3');
   assert.match(await page.locator('#shared-banner-text').textContent(), /<b>sample feed<\/b>/);
   assert.equal(await page.locator('#shared-banner-text b').count(), 0);
+  assert.match(await page.locator('.mcp-verdict').textContent(), /3 validation errors/);
+  assert.equal(await page.locator('.mcp-example').count(), 1);
+  assert.match(await page.locator('.mcp-example-location').textContent(), /stops\.txt/);
+  assert.equal(await page.locator('.mcp-verdict b').count(), 0);
 
   await page.goto(sharedReportUrl(baseUrl, legitimate, 'z'));
   await page.locator('#report-modal:not(.hidden)').waitFor();

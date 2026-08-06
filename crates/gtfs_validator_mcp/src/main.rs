@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -57,6 +58,10 @@ struct Args {
     #[arg(long, default_value_t = 100)]
     notice_samples_per_group: usize,
 
+    /// Maximum concrete notice examples returned per code/severity group.
+    #[arg(long, default_value_t = 3)]
+    notice_examples_per_group: usize,
+
     /// Address for Streamable HTTP transport.
     #[arg(long, default_value = "127.0.0.1:3000")]
     bind: SocketAddr,
@@ -108,6 +113,7 @@ async fn main() -> anyhow::Result<()> {
     }
     config.max_concurrent_validations = args.max_concurrent_validations;
     config.notice_samples_per_group = args.notice_samples_per_group;
+    config.notice_examples_per_group = args.notice_examples_per_group;
 
     match args.transport {
         Transport::Stdio => run_stdio(config).await,

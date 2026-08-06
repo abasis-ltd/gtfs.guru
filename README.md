@@ -223,9 +223,16 @@ cargo build --release -p gtfs-guru-mcp
 ./target/release/gtfs-guru-mcp --allow-dir /path/to/feeds
 ```
 
-It exposes `validate_gtfs`, `explain_gtfs`, and `get_notice_details`. Local file
-access is restricted to configured roots. Public URL downloads are disabled by
-default and can be explicitly enabled with `--allow-url`.
+It exposes `validate_gtfs`, `explain_gtfs`, and `get_notice_details`. Validation
+responses include exact grouped totals plus up to three concrete examples per
+code/severity group with available file, row, field, context, and suggested
+fixes. Local file access is restricted to configured roots. Public URL
+downloads are disabled by default and can be explicitly enabled with
+`--allow-url`.
+
+After an in-browser validation, gtfs.guru also renders a local “What ChatGPT
+receives” preview from the same report. It demonstrates the MCP payload without
+uploading the feed or calling an AI provider.
 
 For a remote MCP client, start authenticated stateless Streamable HTTP:
 
