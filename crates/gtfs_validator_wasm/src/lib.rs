@@ -1,9 +1,11 @@
+#![forbid(unsafe_code)]
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use gtfs_guru_core::{
-    default_runner, set_notice_group_limit, set_thorough_mode_enabled, set_validation_country_code,
-    set_validation_date, validate_bytes_reader_with_timing, GtfsBytesReader, TimingCollector,
+    default_runner, diff_feeds, set_notice_group_limit, set_thorough_mode_enabled,
+    set_validation_country_code, set_validation_date, validate_bytes_reader,
+    validate_bytes_reader_with_timing, GtfsBytesReader, TimingCollector,
 };
 use gtfs_guru_report::{
     generate_html_report_string, HtmlReportContext, ReportSummary, ReportSummaryContext,
@@ -141,15 +143,7 @@ fn feed_size_error(zip_bytes: &[u8]) -> Option<String> {
         ));
     }
 
-    let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes)) else {
-        return None;
-    };
-    let mut uncompressed: u64 = 0;
-    for index in 0..archive.len() {
-        if let Ok(entry) = archive.by_index_raw(index) {
-            uncompressed = uncompressed.saturating_add(entry.size());
-        }
-    }
+    let uncompressed = uncompressed_size(zip_bytes)?;
     if uncompressed > MAX_UNCOMPRESSED_BYTES {
         let raw_mb = uncompressed as f64 / (1024.0 * 1024.0);
         return Some(format!(
@@ -160,6 +154,53 @@ fn feed_size_error(zip_bytes: &[u8]) -> Option<String> {
             MAX_UNCOMPRESSED_BYTES / (1024 * 1024),
         ));
     }
+    None
+}
+
+fn uncompressed_size(zip_bytes: &[u8]) -> Option<u64> {
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes)).ok()?;
+    let mut total = 0_u64;
+    for index in 0..archive.len() {
+        if let Ok(entry) = archive.by_index_raw(index) {
+            total = total.saturating_add(entry.size());
+        }
+    }
+    Some(total)
+}
+
+fn diff_size_error(old_zip_bytes: &[u8], new_zip_bytes: &[u8]) -> Option<String> {
+    if let Some(message) = feed_size_error(old_zip_bytes) {
+        return Some(format!("Previous feed: {message}"));
+    }
+    if let Some(message) = feed_size_error(new_zip_bytes) {
+        return Some(format!("New feed: {message}"));
+    }
+
+    let combined_zip_size = old_zip_bytes.len().saturating_add(new_zip_bytes.len());
+    if combined_zip_size > MAX_FILE_SIZE_BYTES {
+        return Some(format!(
+            "The two feeds total {:.1} MB. Browser comparison is limited to {} MB combined. \
+             Please use the desktop application or CLI for larger comparisons.",
+            combined_zip_size as f64 / (1024.0 * 1024.0),
+            MAX_FILE_SIZE_BYTES / (1024 * 1024),
+        ));
+    }
+
+    if let (Some(old_size), Some(new_size)) = (
+        uncompressed_size(old_zip_bytes),
+        uncompressed_size(new_zip_bytes),
+    ) {
+        let combined_size = old_size.saturating_add(new_size);
+        if combined_size > MAX_UNCOMPRESSED_BYTES {
+            return Some(format!(
+                "The two feeds unpack to {:.0} MB of data. Browser comparison is limited to \
+                 {} MB combined. Please use the desktop application or CLI for larger comparisons.",
+                combined_size as f64 / (1024.0 * 1024.0),
+                MAX_UNCOMPRESSED_BYTES / (1024 * 1024),
+            ));
+        }
+    }
+
     None
 }
 
@@ -276,6 +317,48 @@ pub fn validate_gtfs_json(
     Ok(result.take_json())
 }
 
+/// Validate and compare two GTFS ZIP files, returning a semantic diff as JSON.
+#[wasm_bindgen]
+pub fn diff_gtfs(
+    old_zip_bytes: &[u8],
+    new_zip_bytes: &[u8],
+    country_code: Option<String>,
+    date: Option<String>,
+) -> Result<String, JsValue> {
+    if let Some(message) = diff_size_error(old_zip_bytes, new_zip_bytes) {
+        return Err(JsValue::from_str(&message));
+    }
+
+    let _country_guard = set_validation_country_code(country_code);
+    let naive_date = date.and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
+    let _date_guard = set_validation_date(naive_date);
+    let _thorough_guard = set_thorough_mode_enabled(false);
+    let _notice_limit_guard = set_notice_group_limit(Some(MAX_NOTICES_PER_CODE_AND_SEVERITY));
+
+    let runner = default_runner();
+    let old_reader = GtfsBytesReader::from_slice(old_zip_bytes);
+    let new_reader = GtfsBytesReader::from_slice(new_zip_bytes);
+    let old_outcome = validate_bytes_reader(&old_reader, &runner);
+    let new_outcome = validate_bytes_reader(&new_reader, &runner);
+
+    let old_feed = old_outcome.feed.as_ref().ok_or_else(|| {
+        JsValue::from_str("The previous archive could not be parsed as a GTFS feed.")
+    })?;
+    let new_feed = new_outcome
+        .feed
+        .as_ref()
+        .ok_or_else(|| JsValue::from_str("The new archive could not be parsed as a GTFS feed."))?;
+
+    let report = diff_feeds(
+        old_feed,
+        new_feed,
+        &old_outcome.notices,
+        &new_outcome.notices,
+    );
+    serde_json::to_string(&report)
+        .map_err(|error| JsValue::from_str(&format!("Could not serialize comparison: {error}")))
+}
+
 #[derive(Serialize)]
 struct WasmNotice<'a> {
     #[serde(flatten)]
@@ -324,5 +407,12 @@ mod tests {
     #[test]
     fn non_zip_bytes_pass_gate_for_downstream_error() {
         assert_eq!(feed_size_error(b"not a zip at all"), None);
+    }
+
+    #[test]
+    fn comparison_gate_accepts_two_small_feeds() {
+        let old_bytes = zip_with_stored_entry("stops.txt", b"stop_id,stop_name\n1,Old\n");
+        let new_bytes = zip_with_stored_entry("stops.txt", b"stop_id,stop_name\n1,New\n");
+        assert_eq!(diff_size_error(&old_bytes, &new_bytes), None);
     }
 }

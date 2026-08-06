@@ -1,0 +1,34 @@
+[package]
+name = "gtfs-guru-mcp"
+version = "1.0.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Validation-focused MCP server for GTFS Guru"
+repository = "https://github.com/abasis-ltd/gtfs.guru"
+homepage = "https://github.com/abasis-ltd/gtfs.guru"
+
+[[bin]]
+name = "gtfs-guru-mcp"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+reqwest = { workspace = true }
+rmcp = { version = "2.2.0", features = ["server", "transport-io", "transport-streamable-http-server"] }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["io-std", "net"] }
+tower-http = { version = "0.6", features = ["limit"] }
+url = { workspace = true }
+
+[dependencies.gtfs-guru-core]
+path = "../gtfs_validator_core"
+version = "1.0.0"
+
+[dependencies.gtfs-guru-profile]
+path = "../gtfs_validator_profile"
+version = "1.0.0"

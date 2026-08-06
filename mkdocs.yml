@@ -48,6 +48,7 @@ exclude_docs: |
 nav:
   - Home: index.md
   - Installation: installation.md
+  - System Dependencies: system-dependencies.md
   - Usage: usage.md
   - LLM Guide: llm.md
   - Python API: python_api.md

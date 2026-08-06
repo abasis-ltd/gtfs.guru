@@ -8,7 +8,8 @@
 ## Prerequisites
 
 - Rust (stable)
-- Tauri CLI (see https://tauri.app/v1/guides/getting-started/prerequisites)
+- Tauri CLI (`cargo install tauri-cli`)
+- On Linux, GTK/WebKit system packages – see `docs/system-dependencies.md`
 - Node.js only if frontend tooling is needed
 
 ## Development and Build
@@ -22,3 +23,21 @@ cargo tauri build
 ```
 
 Release artifacts are written under `target/release/bundle/`.
+
+## Running inside a Wayland session
+
+On a Linux host with Wayland, WebKitGTK's hardware-accelerated
+compositing may fail on startup, and the app exits immediately with:
+
+```text
+Gdk-Message: Error 71 (Protocol error) dispatching to Wayland display.
+```
+
+Work around it by disabling the DMA-BUF renderer, which falls back to
+software compositing:
+
+```bash
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./target/debug/gtfs-guru-desktop
+```
+
+This also applies to `cargo tauri dev` (set the variable before the command).

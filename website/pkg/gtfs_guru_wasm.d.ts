@@ -53,6 +53,11 @@ export class ValidationResult {
 }
 
 /**
+ * Validate and compare two GTFS ZIP files, returning a semantic diff as JSON.
+ */
+export function diff_gtfs(old_zip_bytes: Uint8Array, new_zip_bytes: Uint8Array, country_code?: string | null, date?: string | null): string;
+
+/**
  * Initialize the WASM module (call once on page load)
  */
 export function init(): void;
@@ -89,6 +94,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_validationresult_free: (a: number, b: number) => void;
+  readonly diff_gtfs: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
   readonly validate_gtfs: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
   readonly validate_gtfs_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
   readonly validationresult_error_count: (a: number) => number;

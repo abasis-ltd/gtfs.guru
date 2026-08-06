@@ -6,6 +6,8 @@ use url::Url;
 
 use crate::csv_schema::schema_for_file;
 use crate::feed::FARE_PRODUCTS_FILE;
+use crate::fix_suggest;
+use crate::notice::FixSafety;
 use crate::validation_context::{thorough_mode_enabled, validation_country_code};
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
 use gtfs_guru_model::{GtfsColor, GtfsDate, GtfsTime};
@@ -335,6 +337,26 @@ impl RowValidator {
                 ));
             }
             let trimmed = trim_java_whitespace(value);
+
+            // The canonical validator trims every declared field and warns when
+            // trimming changed it, so the notice has to be raised before the
+            // empty check below: a field of only spaces trims down to nothing
+            // and still counts.
+            //
+            // It only ever sees whitespace that sat *inside* quotes, because its
+            // CSV parser strips whitespace around unquoted fields before
+            // validation runs. Telling the two apart needs the raw record bytes,
+            // which no reader hands us yet, so for now this stays behind
+            // --thorough: reporting every stray space would be right, but it is
+            // not what the reference emits.
+            if thorough_mode_enabled() && is_schema_field && trimmed.len() < value.len() {
+                notices.push(leading_or_trailing_whitespaces_notice(
+                    &self.file_name,
+                    header_name,
+                    row_number,
+                    value,
+                ));
+            }
 
             if trimmed.is_empty() {
                 continue;
@@ -908,6 +930,40 @@ fn new_line_notice(file: &str, field_name: &str, row_number: u64, value: &str) -
     notice
 }
 
+fn leading_or_trailing_whitespaces_notice(
+    file: &str,
+    field_name: &str,
+    row_number: u64,
+    value: &str,
+) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        "leading_or_trailing_whitespaces",
+        NoticeSeverity::Warning,
+        "value has leading or trailing whitespaces",
+    );
+    notice.insert_context_field("filename", file);
+    notice.insert_context_field("csvRowNumber", row_number);
+    notice.insert_context_field("fieldName", field_name);
+    notice.insert_context_field("fieldValue", value);
+    notice.field_order = vec![
+        "filename".into(),
+        "csvRowNumber".into(),
+        "fieldName".into(),
+        "fieldValue".into(),
+    ];
+    fix_suggest::attach_fix(
+        &mut notice,
+        "Trim leading and trailing whitespace",
+        FixSafety::Safe,
+        file,
+        row_number,
+        field_name,
+        value,
+        trim_java_whitespace(value).to_string(),
+    );
+    notice
+}
+
 #[allow(dead_code)]
 fn invalid_character_notice(
     file: &str,
@@ -981,6 +1037,15 @@ fn invalid_integer_notice(
         "field cannot be parsed as integer",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    if let Some(replacement) = fix_suggest::whole_number(value) {
+        fix_suggest::attach_field_fix(
+            &mut notice,
+            "Drop the redundant fractional part",
+            FixSafety::RequiresConfirmation,
+            value,
+            replacement,
+        );
+    }
     notice
 }
 
@@ -996,6 +1061,15 @@ fn invalid_float_notice(
         "field cannot be parsed as float",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    if let Some(replacement) = fix_suggest::decimal_comma(value) {
+        fix_suggest::attach_field_fix(
+            &mut notice,
+            "Use a decimal point instead of a comma",
+            FixSafety::RequiresConfirmation,
+            value,
+            replacement,
+        );
+    }
     notice
 }
 
@@ -1065,6 +1139,15 @@ fn invalid_date_notice(
         "field cannot be parsed as date",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    if let Some(replacement) = fix_suggest::date(value) {
+        fix_suggest::attach_field_fix(
+            &mut notice,
+            "Rewrite the date as YYYYMMDD",
+            FixSafety::Safe,
+            value,
+            replacement,
+        );
+    }
     notice
 }
 
@@ -1080,6 +1163,15 @@ fn invalid_time_notice(
         "field cannot be parsed as time",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    if let Some(replacement) = fix_suggest::time(value) {
+        fix_suggest::attach_field_fix(
+            &mut notice,
+            "Complete the time as HH:MM:SS",
+            FixSafety::Safe,
+            value,
+            replacement,
+        );
+    }
     notice
 }
 
@@ -1095,6 +1187,15 @@ fn invalid_color_notice(
         "field cannot be parsed as color",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    if let Some(replacement) = fix_suggest::color(value) {
+        fix_suggest::attach_field_fix(
+            &mut notice,
+            "Normalize the color to six hex digits",
+            FixSafety::Safe,
+            value,
+            replacement,
+        );
+    }
     notice
 }
 
@@ -1155,6 +1256,15 @@ fn invalid_url_notice(
         "field contains invalid url",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    if let Some(replacement) = fix_suggest::url(value) {
+        fix_suggest::attach_field_fix(
+            &mut notice,
+            "Add the https:// scheme",
+            FixSafety::Safe,
+            value,
+            replacement,
+        );
+    }
     notice
 }
 
@@ -1170,6 +1280,15 @@ fn invalid_email_notice(
         "field contains invalid email",
     );
     populate_field_notice(&mut notice, file, field_name, row_number, value);
+    if let Some(replacement) = fix_suggest::email(value) {
+        fix_suggest::attach_field_fix(
+            &mut notice,
+            "Strip the mailto: prefix or angle brackets",
+            FixSafety::Safe,
+            value,
+            replacement,
+        );
+    }
     notice
 }
 
@@ -1629,7 +1748,7 @@ fn is_valid_url(value: &str) -> bool {
     Url::parse(value).is_ok()
 }
 
-fn is_valid_email(value: &str) -> bool {
+pub(crate) fn is_valid_email(value: &str) -> bool {
     let mut parts = value.split('@');
     let local = parts.next().unwrap_or("");
     let domain = parts.next().unwrap_or("");

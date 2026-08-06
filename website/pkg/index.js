@@ -25,6 +25,7 @@
 /**
  * @typedef {Object} ValidationOptions
  * @property {string} [countryCode] - ISO 3166-1 alpha-2 country code (e.g., "US", "DE")
+ * @property {string} [date] - Validation date in YYYY-MM-DD format
  */
 
 /**
@@ -116,7 +117,33 @@ export class GtfsValidator {
     return this._send('validate', {
       zipBytes,
       countryCode: options.countryCode,
+      date: options.date,
     });
+  }
+
+  /**
+   * Validate and compare two GTFS ZIP files
+   * @param {File|Blob|ArrayBuffer|Uint8Array} oldInput - Previous feed
+   * @param {File|Blob|ArrayBuffer|Uint8Array} newInput - New feed
+   * @param {ValidationOptions} [options] - Validation options
+   * @returns {Promise<Object>} Semantic feed diff
+   */
+  async diff(oldInput, newInput, options = {}) {
+    await this.readyPromise;
+    const [oldZipBytes, newZipBytes] = await Promise.all([
+      this._toArrayBuffer(oldInput),
+      this._toArrayBuffer(newInput),
+    ]);
+    const result = await this._send('diff', {
+      oldZipBytes,
+      newZipBytes,
+      countryCode: options.countryCode,
+      date: options.date,
+    });
+    return {
+      ...result,
+      diff: JSON.parse(result.json),
+    };
   }
 
   /**
@@ -140,6 +167,19 @@ export class GtfsValidator {
     }
   }
 
+  async _toArrayBuffer(input) {
+    if (input instanceof Uint8Array) {
+      return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
+    }
+    if (input instanceof ArrayBuffer) {
+      return input;
+    }
+    if (input instanceof Blob || input instanceof File) {
+      return input.arrayBuffer();
+    }
+    throw new Error('Input must be a File, Blob, ArrayBuffer, or Uint8Array');
+  }
+
   /**
    * Send a message to the worker and return a promise
    * @private
@@ -154,4 +194,10 @@ export class GtfsValidator {
 }
 
 // Re-export direct WASM functions for synchronous usage
-export { default as init, validate_gtfs, validate_gtfs_json, version } from './gtfs_guru_wasm.js';
+export {
+  default as init,
+  diff_gtfs,
+  validate_gtfs,
+  validate_gtfs_json,
+  version,
+} from './gtfs_guru_wasm.js';
