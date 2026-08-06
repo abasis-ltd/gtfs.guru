@@ -3,6 +3,7 @@
 //! The types in this crate deliberately contain no generated prose or
 //! provider-specific LLM calls. CLI, MCP, web, and hosted products can share
 //! the same facts and explanations without risking different calculations.
+#![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 

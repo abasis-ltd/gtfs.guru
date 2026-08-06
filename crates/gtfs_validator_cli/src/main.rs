@@ -1,3 +1,8 @@
+// `deny` rather than `forbid`: reading peak RSS needs a getrusage(2) call, and
+// that one function carries an explicit opt-out. Every other unsafe block in
+// this binary is a compile error.
+#![deny(unsafe_code)]
+
 use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
@@ -1592,6 +1597,9 @@ fn record_memory_usage(
     });
 }
 
+// The only unsafe in this binary: `getrusage` is the portable way to read peak
+// RSS for the timing breakdown, and it has no safe equivalent in std.
+#[allow(unsafe_code)]
 fn current_rss_bytes() -> Option<u64> {
     #[cfg(unix)]
     {
