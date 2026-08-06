@@ -1,0 +1,4 @@
+# Documentation site build. Kept out of docs/ because mkdocs copies every file
+# under docs/ into the published site.
+mkdocs==1.6.1
+mkdocs-material==9.7.7

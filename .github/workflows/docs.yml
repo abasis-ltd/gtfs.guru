@@ -1,0 +1,68 @@
+name: Docs
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'docs-requirements.txt'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'docs-requirements.txt'
+      - '.github/workflows/docs.yml'
+
+permissions:
+  contents: read
+
+# One deployment at a time, and never cancel one midway: a half-published site
+# is worse than a slightly stale one.
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: docs-requirements.txt
+
+      - name: Install MkDocs
+        run: pip install -r docs-requirements.txt
+
+      # --strict turns broken links, missing nav targets, and unrecognised
+      # config into build failures, so a page that only renders on someone's
+      # laptop cannot reach the site.
+      - name: Build the site
+        run: mkdocs build --strict
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: Publish
+    # Pull requests build the site to prove it still compiles; only main ships.
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

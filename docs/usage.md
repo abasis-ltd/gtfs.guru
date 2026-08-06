@@ -119,7 +119,8 @@ uploads SARIF to code scanning, and fails the job on a bad feed:
     fail-on: error
 ```
 
-See [`action/README.md`](../action/README.md) for every input, the outputs it
+See [`action/README.md`](https://github.com/abasis-ltd/gtfs.guru/blob/main/action/README.md)
+for every input, the outputs it
 sets, and the badge-publishing recipe.
 
 ## Web API
