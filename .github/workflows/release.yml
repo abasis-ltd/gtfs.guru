@@ -429,7 +429,6 @@ jobs:
           publish_or_skip gtfs-guru-report
           publish_or_skip gtfs-guru-profile
           publish_or_skip gtfs-guru
-          publish_or_skip gtfs-guru-web
           publish_or_skip gtfs-guru-mcp
 
   build-wheels:

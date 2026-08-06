@@ -30,7 +30,11 @@ use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
 
-static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/website");
+// The repo-root website/ is the single source of truth: it is what the static
+// deployment serves, and it is embedded here so the axum binary serves the same
+// bytes. This crate is `publish = false` precisely because `cargo package` would
+// not carry a directory from outside the crate root.
+static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../website");
 
 /// Default cap on an uploaded/downloaded GTFS archive (bytes). Overridable via
 /// `GTFS_VALIDATOR_WEB_MAX_UPLOAD_BYTES`. Large public feeds run 200+ MB.
