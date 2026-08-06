@@ -3,11 +3,13 @@
 //! The server supports local stdio and authenticated Streamable HTTP
 //! transports. Local file access is restricted to configured roots. URL
 //! fetching is opt-in because an agent-controlled URL is a security boundary.
+#![forbid(unsafe_code)]
 
+use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context};
@@ -16,7 +18,7 @@ use gtfs_guru_core::notice_schema::NoticeSchemaSeverity;
 use gtfs_guru_core::{
     build_notice_schema_map, default_runner, set_google_rules_enabled, set_notice_group_limit,
     set_thorough_mode_enabled, set_validation_country_code, set_validation_date, validate_bytes,
-    validate_input, GtfsInput,
+    validate_input, GtfsInput, NoticeContainer, NoticeSeverity, ValidationNotice,
 };
 use gtfs_guru_profile::{FeedExplanation, FeedProfile, ValidationOverview};
 use rmcp::{
@@ -26,12 +28,14 @@ use rmcp::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use url::{Host, Url};
 
 const DEFAULT_MAX_DOWNLOAD_BYTES: usize = 512 * 1024 * 1024;
 const DEFAULT_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(90);
 const DEFAULT_MAX_CONCURRENT_VALIDATIONS: usize = 4;
 const DEFAULT_NOTICE_SAMPLES_PER_GROUP: usize = 100;
+const DEFAULT_NOTICE_EXAMPLES_PER_GROUP: usize = 3;
 
 #[derive(Debug, Clone)]
 pub struct McpConfig {
@@ -40,6 +44,7 @@ pub struct McpConfig {
     pub max_download_bytes: usize,
     pub max_concurrent_validations: usize,
     pub notice_samples_per_group: usize,
+    pub notice_examples_per_group: usize,
 }
 
 impl McpConfig {
@@ -60,6 +65,7 @@ impl McpConfig {
             max_download_bytes: DEFAULT_MAX_DOWNLOAD_BYTES,
             max_concurrent_validations: DEFAULT_MAX_CONCURRENT_VALIDATIONS,
             notice_samples_per_group: DEFAULT_NOTICE_SAMPLES_PER_GROUP,
+            notice_examples_per_group: DEFAULT_NOTICE_EXAMPLES_PER_GROUP,
         })
     }
 }
@@ -107,8 +113,11 @@ impl GtfsGuruMcp {
             .map(|country| set_validation_country_code(Some(country.trim().to_uppercase())));
         let _google_guard = params.google_rules.then(|| set_google_rules_enabled(true));
         let _thorough_guard = params.thorough.then(|| set_thorough_mode_enabled(true));
-        let _notice_limit_guard =
-            set_notice_group_limit(Some(self.config.notice_samples_per_group));
+        let stored_notice_limit = self
+            .config
+            .notice_samples_per_group
+            .max(self.config.notice_examples_per_group);
+        let _notice_limit_guard = set_notice_group_limit(Some(stored_notice_limit));
         let runner = default_runner();
 
         let outcome = if looks_like_url(&params.source) {
@@ -131,6 +140,8 @@ impl GtfsGuruMcp {
         };
 
         let validation = ValidationOverview::from_notices(&outcome.notices);
+        let notice_examples =
+            build_notice_examples(&outcome.notices, self.config.notice_examples_per_group);
         let profile = outcome
             .feed
             .as_ref()
@@ -140,6 +151,7 @@ impl GtfsGuruMcp {
             analysis_date,
             profile,
             validation,
+            notice_examples,
         })
     }
 
@@ -166,7 +178,7 @@ impl GtfsGuruMcp {
 #[tool_router(router = tool_router)]
 impl GtfsGuruMcp {
     #[tool(
-        description = "Validate a local GTFS ZIP/directory or an explicitly enabled public URL. Returns deterministic feed facts and grouped validation issues. This tool is read-only.",
+        description = "Validate a local GTFS ZIP/directory or an explicitly enabled public URL. Returns deterministic feed facts, exact grouped validation totals, and bounded concrete notice examples with file/row/field context. This tool is read-only.",
         annotations(
             title = "Validate GTFS",
             read_only_hint = true,
@@ -184,7 +196,7 @@ impl GtfsGuruMcp {
     }
 
     #[tool(
-        description = "Explain a GTFS feed in human-readable, evidence-backed terms. Returns the same deterministic profile used for the explanation so claims can be checked. This tool is read-only.",
+        description = "Explain a GTFS feed in human-readable, evidence-backed terms. Returns the same deterministic profile plus bounded concrete notice examples with file/row/field context so claims can be checked. This tool is read-only.",
         annotations(
             title = "Explain GTFS",
             read_only_hint = true,
@@ -212,6 +224,7 @@ impl GtfsGuruMcp {
             source: analyzed.source,
             profile: analyzed.profile,
             validation: analyzed.validation,
+            notice_examples: analyzed.notice_examples,
             explanation,
         }))
     }
@@ -230,8 +243,7 @@ impl GtfsGuruMcp {
         &self,
         Parameters(params): Parameters<NoticeDetailsParams>,
     ) -> Result<Json<NoticeDetailsResponse>, String> {
-        let schemas = build_notice_schema_map();
-        let schema = schemas
+        let schema = notice_schemas()
             .get(params.code.trim())
             .ok_or_else(|| format!("unknown GTFS Guru notice code: {}", params.code))?;
         let references = schema.references.as_ref();
@@ -276,7 +288,7 @@ impl ServerHandler for GtfsGuruMcp {
                     .with_website_url("https://gtfs.guru"),
             )
             .with_instructions(
-                "Use validate_gtfs for structured validation, explain_gtfs for a concise evidence-backed explanation, and get_notice_details before making claims about a notice. Do not claim that a feed is guaranteed to be accepted by a downstream trip planner."
+                "Use validate_gtfs for structured validation, explain_gtfs for a concise evidence-backed explanation, and get_notice_details before making claims about a notice. After summarizing the exact grouped totals, present concrete ERROR noticeExamples with their file, row, field, and context, then WARNING examples; omit INFO examples unless the user asks. Do not claim that a feed is guaranteed to be accepted by a downstream trip planner."
             )
     }
 }
@@ -308,6 +320,7 @@ pub struct ValidateGtfsResponse {
     pub source: String,
     pub profile: Option<FeedProfile>,
     pub validation: ValidationOverview,
+    pub notice_examples: Vec<NoticeExample>,
 }
 
 impl From<AnalyzedFeed> for ValidateGtfsResponse {
@@ -316,6 +329,7 @@ impl From<AnalyzedFeed> for ValidateGtfsResponse {
             source: value.source,
             profile: value.profile,
             validation: value.validation,
+            notice_examples: value.notice_examples,
         }
     }
 }
@@ -326,7 +340,23 @@ pub struct ExplainGtfsResponse {
     pub source: String,
     pub profile: Option<FeedProfile>,
     pub validation: ValidationOverview,
+    pub notice_examples: Vec<NoticeExample>,
     pub explanation: FeedExplanation,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NoticeExample {
+    pub code: String,
+    pub severity: String,
+    pub total_occurrences: usize,
+    pub message: String,
+    pub file: Option<String>,
+    pub row: Option<u64>,
+    pub field: Option<String>,
+    pub context: BTreeMap<String, Value>,
+    pub fix_available: bool,
+    pub suggested_fix: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -359,6 +389,150 @@ struct AnalyzedFeed {
     analysis_date: NaiveDate,
     profile: Option<FeedProfile>,
     validation: ValidationOverview,
+    notice_examples: Vec<NoticeExample>,
+}
+
+fn build_notice_examples(
+    notices: &NoticeContainer,
+    examples_per_group: usize,
+) -> Vec<NoticeExample> {
+    if examples_per_group == 0 {
+        return Vec::new();
+    }
+
+    // Decorate before sorting: the ordering key costs a schema lookup and up to
+    // two String clones, and a comparator would pay that on every comparison.
+    let schemas = notice_schemas();
+    let mut stored = notices
+        .iter()
+        .map(|notice| {
+            let inferred_file = inferred_notice_file(notice, schemas);
+            let location = normalized_notice_location(notice, inferred_file);
+            (notice, inferred_file, location)
+        })
+        .collect::<Vec<_>>();
+    stored.sort_by(|(left, _, left_location), (right, _, right_location)| {
+        left.severity
+            .cmp(&right.severity)
+            .then_with(|| left.code.cmp(&right.code))
+            .then_with(|| left_location.cmp(right_location))
+            .then_with(|| left.message.cmp(&right.message))
+    });
+
+    let mut emitted = HashMap::<(&str, NoticeSeverity), usize>::new();
+    let mut examples = Vec::new();
+    for (notice, inferred_file, _) in stored {
+        let count = emitted
+            .entry((notice.code.as_str(), notice.severity))
+            .or_default();
+        if *count >= examples_per_group {
+            continue;
+        }
+        *count += 1;
+        examples.push(NoticeExample::from_notice(
+            notice,
+            notices.group_total(&notice.code, notice.severity),
+            inferred_file,
+        ));
+    }
+    examples
+}
+
+/// The notice schema map is derived from static tables and never changes for a
+/// build, but assembling it allocates a String per field. Every MCP request
+/// touches it, so build it once.
+fn notice_schemas() -> &'static BTreeMap<String, gtfs_guru_core::notice_schema::NoticeSchema> {
+    static SCHEMAS: OnceLock<BTreeMap<String, gtfs_guru_core::notice_schema::NoticeSchema>> =
+        OnceLock::new();
+    SCHEMAS.get_or_init(build_notice_schema_map)
+}
+
+impl NoticeExample {
+    fn from_notice(
+        notice: &ValidationNotice,
+        total_occurrences: usize,
+        inferred_file: Option<&str>,
+    ) -> Self {
+        let (file, row, field) = normalized_notice_location(notice, inferred_file);
+        let mut context = notice.context.clone();
+        if file.is_some() {
+            context.remove("filename");
+        }
+        if row.is_some() {
+            context.remove("csvRowNumber");
+        }
+        if field.is_some() {
+            context.remove("fieldName");
+        }
+        Self {
+            code: notice.code.clone(),
+            severity: validation_notice_severity(notice.severity).to_string(),
+            total_occurrences,
+            message: notice.message.clone(),
+            file,
+            row,
+            field,
+            context,
+            fix_available: notice.fix.is_some(),
+            suggested_fix: notice.fix.as_ref().map(|fix| fix.description.clone()),
+        }
+    }
+}
+
+fn inferred_notice_file<'a>(
+    notice: &ValidationNotice,
+    schemas: &'a BTreeMap<String, gtfs_guru_core::notice_schema::NoticeSchema>,
+) -> Option<&'a str> {
+    let files = schemas
+        .get(&notice.code)?
+        .references
+        .as_ref()?
+        .file_references
+        .as_slice();
+    match files {
+        [file] => Some(file.as_str()),
+        _ => None,
+    }
+}
+
+fn normalized_notice_location(
+    notice: &ValidationNotice,
+    inferred_file: Option<&str>,
+) -> (Option<String>, Option<u64>, Option<String>) {
+    let file = notice
+        .file
+        .clone()
+        .or_else(|| context_string(notice, "filename"))
+        .or_else(|| inferred_file.map(str::to_string));
+    let row = notice.row.or_else(|| context_u64(notice, "csvRowNumber"));
+    let field = notice
+        .field
+        .clone()
+        .or_else(|| context_string(notice, "fieldName"));
+    (file, row, field)
+}
+
+fn context_string(notice: &ValidationNotice, key: &str) -> Option<String> {
+    notice
+        .context
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn context_u64(notice: &ValidationNotice, key: &str) -> Option<u64> {
+    let value = notice.context.get(key)?;
+    value
+        .as_u64()
+        .or_else(|| value.as_str().and_then(|value| value.parse().ok()))
+}
+
+fn validation_notice_severity(severity: NoticeSeverity) -> &'static str {
+    match severity {
+        NoticeSeverity::Error => "ERROR",
+        NoticeSeverity::Warning => "WARNING",
+        NoticeSeverity::Info => "INFO",
+    }
 }
 
 fn parse_analysis_date(value: Option<&str>) -> anyhow::Result<NaiveDate> {
@@ -377,8 +551,15 @@ fn notice_schema_severity(severity: NoticeSchemaSeverity) -> &'static str {
     }
 }
 
+/// URL schemes are case-insensitive. Matching only lowercase sends
+/// `HTTPS://host/feed.zip` down the local-path branch, where it fails with a
+/// confusing "resolve GTFS path" error instead of the URL-access-disabled one.
 fn looks_like_url(source: &str) -> bool {
-    source.starts_with("https://") || source.starts_with("http://")
+    ["https://", "http://"].iter().any(|scheme| {
+        source
+            .get(..scheme.len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
+    })
 }
 
 fn download_public_feed(
@@ -540,6 +721,15 @@ mod tests {
     }
 
     #[test]
+    fn url_detection_ignores_scheme_case() {
+        assert!(looks_like_url("https://example.com/feed.zip"));
+        assert!(looks_like_url("HTTPS://example.com/feed.zip"));
+        assert!(looks_like_url("Http://example.com/feed.zip"));
+        assert!(!looks_like_url("/srv/feeds/feed.zip"));
+        assert!(!looks_like_url("http"));
+    }
+
+    #[test]
     fn private_and_credentialed_urls_are_rejected() {
         assert!(
             resolve_public_http_url(&Url::parse("http://127.0.0.1/feed.zip").unwrap()).is_err()
@@ -568,6 +758,57 @@ mod tests {
         fs::remove_dir_all(root).ok();
     }
 
+    #[test]
+    fn notice_examples_are_bounded_and_include_locations() {
+        let mut notices = NoticeContainer::with_group_limit(None);
+        for row in [9, 3, 6] {
+            let mut notice = ValidationNotice::new(
+                "missing_required_field",
+                NoticeSeverity::Error,
+                "Missing required stop_name",
+            )
+            .with_location("stops.txt", "stop_name", row);
+            notice.insert_context_field("stopId", format!("stop-{row}"));
+            notices.push(notice);
+        }
+        notices.push(
+            ValidationNotice::new(
+                "route_color_contrast",
+                NoticeSeverity::Warning,
+                "Route colors do not have enough contrast",
+            )
+            .with_location("routes.txt", "route_color", 4),
+        );
+        let mut contextual_notice = ValidationNotice::new(
+            "missing_stop_name",
+            NoticeSeverity::Error,
+            "stop_name is required for stop locations",
+        );
+        contextual_notice.insert_context_field("csvRowNumber", 11_u64);
+        contextual_notice.insert_context_field("stopId", "contextual-stop");
+        notices.push(contextual_notice);
+
+        let examples = build_notice_examples(&notices, 2);
+
+        assert_eq!(examples.len(), 4);
+        assert_eq!(examples[0].severity, "ERROR");
+        assert_eq!(examples[0].row, Some(3));
+        assert_eq!(examples[0].total_occurrences, 3);
+        assert_eq!(examples[0].context["stopId"], "stop-3");
+        assert_eq!(examples[1].row, Some(6));
+        assert_eq!(examples[2].file.as_deref(), Some("stops.txt"));
+        assert_eq!(examples[2].row, Some(11));
+        assert_eq!(examples[2].field, None);
+        assert!(!examples[2].context.contains_key("csvRowNumber"));
+        assert_eq!(examples[2].context["stopId"], "contextual-stop");
+        assert_eq!(examples[3].severity, "WARNING");
+        assert_eq!(examples[3].file.as_deref(), Some("routes.txt"));
+        let json = serde_json::to_value(&examples[0]).unwrap();
+        assert_eq!(json["totalOccurrences"], 3);
+        assert_eq!(json["file"], "stops.txt");
+        assert_eq!(json["field"], "stop_name");
+    }
+
     #[tokio::test]
     async fn validates_a_minimal_feed_end_to_end() {
         let root = temp_dir("feed");
@@ -589,6 +830,42 @@ mod tests {
         assert_eq!(profile.counts.routes, 1);
         assert_eq!(profile.counts.trips, 1);
         assert_eq!(profile.service.days[0].trips, 1);
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[tokio::test]
+    async fn returns_actionable_notice_examples_end_to_end() {
+        let root = temp_dir("notice-examples");
+        write_minimal_feed(&root);
+        fs::write(
+            root.join("stops.txt"),
+            "stop_id,stop_name,stop_lat,stop_lon\nstop,,35.0,33.0\n",
+        )
+        .unwrap();
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+
+        let response = service
+            .validate_gtfs(Parameters(AnalyzeGtfsParams {
+                source: root.display().to_string(),
+                analysis_date: Some("2026-07-27".to_string()),
+                country_code: Some("CY".to_string()),
+                google_rules: false,
+                thorough: false,
+            }))
+            .await
+            .unwrap()
+            .0;
+
+        let example = response
+            .notice_examples
+            .iter()
+            .find(|example| example.code == "missing_stop_name")
+            .expect("missing_stop_name example");
+        assert_eq!(example.severity, "ERROR");
+        assert_eq!(example.total_occurrences, 1);
+        assert_eq!(example.file.as_deref(), Some("stops.txt"));
+        assert_eq!(example.row, Some(2));
+        assert_eq!(example.context["stopId"], "stop");
         fs::remove_dir_all(root).ok();
     }
 

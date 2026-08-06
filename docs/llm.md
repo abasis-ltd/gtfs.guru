@@ -68,6 +68,13 @@ Tools:
 - `explain_gtfs`
 - `get_notice_details`
 
+Validation and explanation responses include exact grouped totals plus up to
+three concrete examples per code/severity group, including available file,
+row, field, message, context values, and a suggested fix when available. This
+lets the MCP host show actionable feed errors instead of only their counts.
+The server default is three examples per group; operators can adjust it with
+`--notice-examples-per-group`.
+
 Public URL fetching is opt-in with `--allow-url`.
 
 For a remote client, use authenticated stateless Streamable HTTP:

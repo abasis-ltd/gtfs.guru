@@ -20,6 +20,7 @@ reqwest = { workspace = true }
 rmcp = { version = "2.2.0", features = ["server", "transport-io", "transport-streamable-http-server"] }
 schemars = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true, features = ["io-std", "net"] }
 tower-http = { version = "0.6", features = ["limit"] }
 url = { workspace = true }
@@ -31,6 +32,3 @@ version = "1.0.0"
 [dependencies.gtfs-guru-profile]
 path = "../gtfs_validator_profile"
 version = "1.0.0"
-
-[dev-dependencies]
-serde_json = { workspace = true }
