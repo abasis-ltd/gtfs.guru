@@ -346,7 +346,8 @@ We welcome contributions! Whether it's adding new rules, fixing bugs, or improvi
 
 1. Clone the repo: `git clone https://github.com/abasis-ltd/gtfs.guru`
 2. Install Rust: [rustup.rs](https://rustup.rs)
-3. Run tests: `cargo test --workspace`
+3. On Linux, install the system dependencies: see [`docs/system-dependencies.md`](docs/system-dependencies.md)
+4. Run tests: `cargo test --workspace`
 
 ## 📄 License
 

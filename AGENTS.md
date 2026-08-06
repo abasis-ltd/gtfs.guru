@@ -7,6 +7,10 @@
 - Workspace crates live in `crates/`; core logic is in `gtfs_validator_core`, deterministic feed facts live in `gtfs_validator_profile`, and CLI, MCP, web, WASM, Python, and GUI are adapters.
 - Benchmark inputs and the Java baseline live in `benchmark-feeds/` (`gtfs-validator.jar`).
 
+## System Dependencies (Linux)
+
+See `docs/system-dependencies.md` for the package list.
+
 ## Essential Commands
 
 - `cargo build` (workspace build)
