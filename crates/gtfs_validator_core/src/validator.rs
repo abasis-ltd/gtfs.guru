@@ -135,10 +135,7 @@ impl ValidatorRunner {
                 // so this path keeps real timings in the browser under `parallel`.
                 let start = Instant::now();
                 let res = self.run_single_validator(validator.as_ref(), feed);
-                #[cfg(not(target_arch = "wasm32"))]
                 let elapsed = start.elapsed();
-                #[cfg(target_arch = "wasm32")]
-                let elapsed = std::time::Duration::from_secs(0);
 
                 if let Some(t) = timing {
                     t.record(
