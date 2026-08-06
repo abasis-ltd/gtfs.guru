@@ -5,15 +5,15 @@ on:
     branches: [ "main" ]
     paths:
       - 'website/**'
-      - 'crates/gtfs_validator_web/website/**'
       - 'scripts/build_demo_feed.py'
+      - 'scripts/check_website_links.py'
       - '.github/workflows/website.yml'
   pull_request:
     branches: [ "main" ]
     paths:
       - 'website/**'
-      - 'crates/gtfs_validator_web/website/**'
       - 'scripts/build_demo_feed.py'
+      - 'scripts/check_website_links.py'
       - '.github/workflows/website.yml'
 
 jobs:
@@ -23,20 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The site lives in the repo twice: website/ is what gets deployed, and
-      # crates/gtfs_validator_web/website/ is embedded into the axum binary.
-      # Editing one and forgetting the other ships a stale page to half the
-      # traffic, and nothing else catches it.
-      - name: The two website copies are identical
-        run: |
-          if ! diff -r --exclude='.DS_Store' website crates/gtfs_validator_web/website; then
-            echo "::error::website/ and crates/gtfs_validator_web/website/ have drifted apart."
-            echo "Copy the changed files across; see docs/MAINTENANCE.md."
-            exit 1
-          fi
-
       - name: The demo feed matches its generator
         run: python3 scripts/build_demo_feed.py --check
+
+      - name: Local website links resolve
+        run: python3 scripts/check_website_links.py
 
       - name: Structured data parses
         run: |
@@ -44,7 +35,7 @@ jobs:
           import json, pathlib, re, sys
 
           failures = []
-          for page in sorted(pathlib.Path("website").glob("*.html")):
+          for page in sorted(pathlib.Path("website").rglob("*.html")):
               html = page.read_text(encoding="utf-8")
               blocks = re.findall(
                   r'<script type="application/ld\+json">(.*?)</script>', html, re.S

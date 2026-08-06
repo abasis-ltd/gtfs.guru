@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_validationresult_free: (a: number, b: number) => void;
+export const diff_gtfs: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
 export const validate_gtfs: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const validate_gtfs_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const validationresult_error_count: (a: number) => number;

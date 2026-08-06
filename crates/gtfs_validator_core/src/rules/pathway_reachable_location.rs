@@ -251,6 +251,89 @@ mod tests {
     use crate::CsvTable;
     use gtfs_guru_model::{Bidirectional, LocationType, Pathway, Stop};
 
+    /// Topology taken from the MBTA feed: an entrance reaches a platform
+    /// through a generic node, and every hop is spelled out as a pair of
+    /// one-way pathways rather than one bidirectional pathway. Reachable both
+    /// ways, so nothing is reported.
+    ///
+    /// The negative stair count mirrors MBTA's downward stairways. It must not
+    /// make the pathway row disappear during deserialization, because dropping
+    /// those edges produced false one-way reachability failures.
+    #[test]
+    fn paired_one_way_pathways_reach_the_platform() {
+        let mut feed = GtfsFeed::default();
+        feed.stops = CsvTable {
+            headers: vec![
+                "stop_id".into(),
+                "location_type".into(),
+                "parent_station".into(),
+            ],
+            rows: vec![
+                Stop {
+                    stop_id: feed.pool.intern("ST1"),
+                    location_type: Some(LocationType::Station),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: feed.pool.intern("E1"),
+                    location_type: Some(LocationType::EntranceOrExit),
+                    parent_station: Some(feed.pool.intern("ST1")),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: feed.pool.intern("N1"),
+                    location_type: Some(LocationType::GenericNode),
+                    parent_station: Some(feed.pool.intern("ST1")),
+                    ..Default::default()
+                },
+                Stop {
+                    stop_id: feed.pool.intern("P1"),
+                    location_type: Some(LocationType::StopOrPlatform),
+                    parent_station: Some(feed.pool.intern("ST1")),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3, 4, 5],
+        };
+        let hop = |from: &str, to: &str, feed: &mut GtfsFeed| Pathway {
+            pathway_id: feed.pool.intern(&format!("{from}-{to}")),
+            from_stop_id: feed.pool.intern(from),
+            to_stop_id: feed.pool.intern(to),
+            is_bidirectional: Bidirectional::Unidirectional,
+            ..Default::default()
+        };
+        let rows = vec![
+            Pathway {
+                stair_count: Some(-34),
+                ..hop("E1", "N1", &mut feed)
+            },
+            hop("N1", "E1", &mut feed),
+            hop("N1", "P1", &mut feed),
+            hop("P1", "N1", &mut feed),
+        ];
+        feed.pathways = Some(CsvTable {
+            headers: vec![
+                "pathway_id".into(),
+                "from_stop_id".into(),
+                "to_stop_id".into(),
+                "is_bidirectional".into(),
+            ],
+            row_numbers: (2..2 + rows.len() as u64).collect(),
+            rows,
+        });
+
+        let mut notices = NoticeContainer::new();
+        PathwayReachableLocationValidator.validate(&feed, &mut notices);
+        let reported: Vec<_> = notices
+            .iter()
+            .filter(|n| n.code == CODE_PATHWAY_UNREACHABLE_LOCATION)
+            .collect();
+        assert!(
+            reported.is_empty(),
+            "platform is reachable both ways, got {reported:?}"
+        );
+    }
+
     #[test]
     fn detects_unreachable_location() {
         let mut feed = GtfsFeed::default();

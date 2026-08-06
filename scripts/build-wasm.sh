@@ -101,6 +101,7 @@ fi
 echo "Copying additional files..."
 cp "$WASM_CRATE/js/"*.js "$WASM_CRATE/pkg/" 2>/dev/null || true
 cp "$WASM_CRATE/types/"*.d.ts "$WASM_CRATE/pkg/" 2>/dev/null || true
+cp "$WASM_CRATE/js/worker-mt.js" "$WASM_CRATE/pkg-mt/worker-mt.js"
 
 # Apply package.json template if exists
 if [ -f "$WASM_CRATE/package.json.template" ]; then
@@ -111,16 +112,18 @@ if [ -f "$WASM_CRATE/package.json.template" ]; then
     mv "$WASM_CRATE/pkg/package.json.new" "$WASM_CRATE/pkg/package.json"
 fi
 
-# Keep both checked-in website copies aligned with the generated browser
-# packages. The Node.js package remains a library artifact only.
-echo "Syncing browser packages to website copies..."
-for WEBSITE_ROOT in "$PROJECT_ROOT/website" "$PROJECT_ROOT/crates/gtfs_validator_web/website"; do
-    mkdir -p "$WEBSITE_ROOT/pkg" "$WEBSITE_ROOT/pkg-mt"
-    cp -R "$WASM_CRATE/pkg/." "$WEBSITE_ROOT/pkg/"
-    # Deliberately exclude wasm-pack's generated .gitignore: these static-site
-    # artifacts must be visible to Git.
-    cp -R "$WASM_CRATE/pkg-mt/"* "$WEBSITE_ROOT/pkg-mt/"
-done
+# Keep the checked-in website aligned with the generated browser packages. The
+# Node.js package remains a library artifact only.
+echo "Syncing browser packages to website/..."
+WEBSITE_ROOT="$PROJECT_ROOT/website"
+mkdir -p "$WEBSITE_ROOT/pkg" "$WEBSITE_ROOT/pkg-mt"
+cp -R "$WASM_CRATE/pkg/." "$WEBSITE_ROOT/pkg/"
+# Deliberately exclude wasm-pack's generated .gitignore: these static-site
+# artifacts must be visible to Git.
+cp -R "$WASM_CRATE/pkg-mt/"* "$WEBSITE_ROOT/pkg-mt/"
+
+echo "Generating notice documentation..."
+cargo run --quiet -p gtfs-guru-web --bin generate-notice-pages
 
 echo ""
 echo "Build complete!"

@@ -9,14 +9,14 @@
 //! * **The input is never modified.** `apply_fixes` writes to a separate zip or
 //!   directory and refuses to run when the output resolves to the input path or
 //!   to something that already exists.
-//! * **The rewrite is byte-surgical.** Only CSV records that carry an edit are
-//!   re-serialized; every other byte of every other file is copied verbatim.
-//!   Line endings, quoting, column order, and a UTF-8 BOM all survive, so the
-//!   diff stays proportional to the number of fixes. Untouched fields *inside*
-//!   an edited row may lose redundant quoting, since that row is re-serialized
-//!   as a whole.
+//! * **The rewrite is byte-surgical.** Field fixes re-serialize only their CSV
+//!   records, row deletes remove only the guarded record, and sorting moves the
+//!   original raw records. Every other byte of every other file is copied
+//!   verbatim. Line endings, quoting, column order, and a UTF-8 BOM survive.
+//!   Untouched fields *inside* a field-edited row may lose redundant quoting,
+//!   since that row is re-serialized as a whole.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -42,6 +42,9 @@ pub struct PlannedEdit {
     pub field: String,
     pub original: String,
     pub replacement: String,
+    /// The concrete operation. The scalar fields above remain available for
+    /// callers that render the long-standing field-replacement plan shape.
+    pub operation: FixOperation,
 }
 
 /// How many fixes each safety level contributes, across the whole notice set.
@@ -73,34 +76,76 @@ impl FixPlan {
         for notice in notices.iter() {
             plan.push_notice(notice, max_safety);
         }
+        normalize_edits(&mut plan.edits);
+        normalize_edits(&mut plan.skipped);
         // Deterministic order so dry-run output and applied output agree.
-        let sort_key = |edit: &PlannedEdit| (edit.file.clone(), edit.row, edit.field.clone());
+        let sort_key = |edit: &PlannedEdit| {
+            (
+                edit.file.clone(),
+                edit.row,
+                operation_rank(&edit.operation),
+                edit.field.clone(),
+            )
+        };
         plan.edits.sort_by_key(sort_key);
         plan.skipped.sort_by_key(sort_key);
         plan
     }
 
     fn push_notice(&mut self, notice: &ValidationNotice, max_safety: FixSafety) {
-        let Some(fix) = &notice.fix else {
+        let Some(fix) = notice
+            .fix
+            .clone()
+            .or_else(|| crate::fix_suggest::structural_fix(notice))
+        else {
             return;
         };
-        let FixOperation::ReplaceField {
+
+        let (file, row, field, original, replacement) = match &fix.operation {
+            FixOperation::ReplaceField {
+                file,
+                row,
+                field,
+                original,
+                replacement,
+            } => (
+                file.clone(),
+                *row,
+                field.clone(),
+                original.clone(),
+                replacement.clone(),
+            ),
+            FixOperation::DeleteRow {
+                file,
+                row,
+                field,
+                expected,
+            } => (
+                file.clone(),
+                *row,
+                field.clone(),
+                expected.clone(),
+                String::new(),
+            ),
+            FixOperation::SortStopTimes { file } => (
+                file.clone(),
+                0,
+                "trip_id, stop_sequence".into(),
+                String::new(),
+                String::new(),
+            ),
+        };
+
+        let edit = PlannedEdit {
+            notice_code: notice.code.clone(),
+            description: fix.description,
+            safety: fix.safety,
             file,
             row,
             field,
             original,
             replacement,
-        } = &fix.operation;
-
-        let edit = PlannedEdit {
-            notice_code: notice.code.clone(),
-            description: fix.description.clone(),
-            safety: fix.safety,
-            file: file.clone(),
-            row: *row,
-            field: field.clone(),
-            original: original.clone(),
-            replacement: replacement.clone(),
+            operation: fix.operation,
         };
 
         if fix.safety.allowed_by(max_safety) {
@@ -147,6 +192,42 @@ impl FixPlan {
     }
 }
 
+fn operation_rank(operation: &FixOperation) -> u8 {
+    match operation {
+        FixOperation::SortStopTimes { .. } => 0,
+        FixOperation::DeleteRow { .. } => 1,
+        FixOperation::ReplaceField { .. } => 2,
+    }
+}
+
+/// Collapse repeated whole-file and row-delete suggestions. When a selected
+/// plan deletes a row, field replacements for that same row are redundant and
+/// are omitted from both the preview and the applied count.
+fn normalize_edits(edits: &mut Vec<PlannedEdit>) {
+    let deleted_rows: HashSet<(String, u64)> = edits
+        .iter()
+        .filter_map(|edit| match &edit.operation {
+            FixOperation::DeleteRow { file, row, .. } => Some((file.clone(), *row)),
+            _ => None,
+        })
+        .collect();
+
+    edits.retain(|edit| match &edit.operation {
+        FixOperation::ReplaceField { file, row, .. } => {
+            !deleted_rows.contains(&(file.clone(), *row))
+        }
+        _ => true,
+    });
+
+    let mut seen_sorts = HashSet::new();
+    let mut seen_deletes = HashSet::new();
+    edits.retain(|edit| match &edit.operation {
+        FixOperation::SortStopTimes { file } => seen_sorts.insert(file.clone()),
+        FixOperation::DeleteRow { file, row, .. } => seen_deletes.insert((file.clone(), *row)),
+        FixOperation::ReplaceField { .. } => true,
+    });
+}
+
 /// Why a planned edit could not be applied to the file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConflictReason {
@@ -160,6 +241,8 @@ pub enum ConflictReason {
     ValueMismatch { found: String },
     /// Two fixes target the same field with different replacements.
     ConflictingEdits { other: String },
+    /// The file cannot be safely reordered without guessing.
+    CannotSort { message: String },
 }
 
 impl std::fmt::Display for ConflictReason {
@@ -177,6 +260,7 @@ impl std::fmt::Display for ConflictReason {
             ConflictReason::ConflictingEdits { other } => {
                 write!(f, "another fix wants to write {other:?} to the same field")
             }
+            ConflictReason::CannotSort { message } => write!(f, "cannot sort rows: {message}"),
         }
     }
 }
@@ -486,7 +570,7 @@ struct RewriteResult {
     conflicts: Vec<FixConflict>,
 }
 
-/// Splice `edits` into `data`, re-serializing only the affected records.
+/// Apply field replacements, row deletions, and an optional canonical sort.
 fn rewrite_csv(file: &str, data: &[u8], edits: &[&PlannedEdit]) -> Result<RewriteResult, FixError> {
     let bom_len = if data.starts_with(&UTF8_BOM) {
         UTF8_BOM.len()
@@ -518,16 +602,14 @@ fn rewrite_csv(file: &str, data: &[u8], edits: &[&PlannedEdit]) -> Result<Rewrit
         exact.entry(name).or_insert(index);
     }
 
-    // Record start offsets for *every* record, including malformed ones, so the
-    // span of a preceding record is never widened across a row we skipped.
+    // Record start offsets for every record, including malformed ones, so a
+    // preceding record can never absorb bytes from a row we could not parse.
     let mut starts: Vec<(u64, usize)> = Vec::new();
     let mut records: HashMap<u64, csv::ByteRecord> = HashMap::new();
     for result in reader.into_byte_records() {
         match result {
             Ok(record) => {
                 if let Some(position) = record.position() {
-                    // Must match the loader's numbering (see csv_reader):
-                    // `record()` is terminator-independent, `line()` is not.
                     let row = position.record() + 1;
                     starts.push((row, position.byte() as usize));
                     records.insert(row, record.clone());
@@ -542,15 +624,42 @@ fn rewrite_csv(file: &str, data: &[u8], edits: &[&PlannedEdit]) -> Result<Rewrit
     }
     starts.sort_by_key(|(_, byte)| *byte);
 
+    // A chunk owns one record plus the exact terminators and blank lines after
+    // it. Reordering chunks therefore preserves raw CSV bytes.
+    let mut content_starts = Vec::with_capacity(starts.len());
+    let mut content_ends = Vec::with_capacity(starts.len());
+    for (index, (_, raw_start)) in starts.iter().enumerate() {
+        let raw_end = starts
+            .get(index + 1)
+            .map(|(_, byte)| *byte)
+            .unwrap_or(body.len());
+        let (start, end) = content_span(body, *raw_start, raw_end);
+        content_starts.push(start);
+        content_ends.push(end);
+    }
+    let mut bounds: HashMap<u64, (usize, usize, usize)> = HashMap::new();
+    for (index, (row, _)) in starts.iter().enumerate() {
+        let chunk_end = content_starts.get(index + 1).copied().unwrap_or(body.len());
+        bounds.insert(
+            *row,
+            (content_starts[index], content_ends[index], chunk_end),
+        );
+    }
+
     let mut edits_by_row: BTreeMap<u64, Vec<&PlannedEdit>> = BTreeMap::new();
+    let mut sort_edits = Vec::new();
     for edit in edits {
-        edits_by_row.entry(edit.row).or_default().push(edit);
+        if matches!(edit.operation, FixOperation::SortStopTimes { .. }) {
+            sort_edits.push(*edit);
+        } else {
+            edits_by_row.entry(edit.row).or_default().push(edit);
+        }
     }
 
     let mut applied = Vec::new();
     let mut conflicts = Vec::new();
-    // (start, end, replacement bytes), in file order.
-    let mut splices: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+    let mut replacements: HashMap<u64, Vec<u8>> = HashMap::new();
+    let mut deleted_rows = HashSet::new();
 
     for (row, row_edits) in edits_by_row {
         let Some(record) = records.get(&row) else {
@@ -567,74 +676,147 @@ fn rewrite_csv(file: &str, data: &[u8], edits: &[&PlannedEdit]) -> Result<Rewrit
             .collect();
         let mut written: HashMap<usize, String> = HashMap::new();
         let mut row_applied = Vec::new();
+        let mut delete_row = false;
 
         for edit in row_edits {
-            let Some(&index) = exact
-                .get(&edit.field)
-                .or_else(|| lowercase.get(&edit.field.to_ascii_lowercase()))
-            else {
-                conflicts.push(FixConflict {
-                    edit: edit.clone(),
-                    reason: ConflictReason::FieldNotFound,
-                });
-                continue;
-            };
-
-            if let Some(previous) = written.get(&index) {
-                if previous != &edit.replacement {
-                    conflicts.push(FixConflict {
-                        edit: edit.clone(),
-                        reason: ConflictReason::ConflictingEdits {
-                            other: previous.clone(),
-                        },
-                    });
+            match &edit.operation {
+                FixOperation::DeleteRow {
+                    field, expected, ..
+                } => {
+                    let Some(&index) = exact
+                        .get(field)
+                        .or_else(|| lowercase.get(&field.to_ascii_lowercase()))
+                    else {
+                        conflicts.push(FixConflict {
+                            edit: edit.clone(),
+                            reason: ConflictReason::FieldNotFound,
+                        });
+                        continue;
+                    };
+                    let current = fields.get(index).map(String::as_str).unwrap_or("");
+                    if !field_matches(current, expected) {
+                        conflicts.push(FixConflict {
+                            edit: edit.clone(),
+                            reason: ConflictReason::ValueMismatch {
+                                found: current.to_string(),
+                            },
+                        });
+                        continue;
+                    }
+                    delete_row = true;
+                    row_applied.push(edit.clone());
                 }
-                continue;
-            }
+                FixOperation::ReplaceField {
+                    field,
+                    original,
+                    replacement,
+                    ..
+                } => {
+                    let Some(&index) = exact
+                        .get(field)
+                        .or_else(|| lowercase.get(&field.to_ascii_lowercase()))
+                    else {
+                        conflicts.push(FixConflict {
+                            edit: edit.clone(),
+                            reason: ConflictReason::FieldNotFound,
+                        });
+                        continue;
+                    };
 
-            let current = fields.get(index).map(String::as_str).unwrap_or("");
-            // Fixes carry the trimmed value they were computed from; a field
-            // whose meaningful content changed is no longer safe to overwrite.
-            if current.trim() != edit.original {
-                conflicts.push(FixConflict {
-                    edit: edit.clone(),
-                    reason: ConflictReason::ValueMismatch {
-                        found: current.to_string(),
-                    },
-                });
-                continue;
-            }
+                    if let Some(previous) = written.get(&index) {
+                        if previous != replacement {
+                            conflicts.push(FixConflict {
+                                edit: edit.clone(),
+                                reason: ConflictReason::ConflictingEdits {
+                                    other: previous.clone(),
+                                },
+                            });
+                        }
+                        continue;
+                    }
 
-            if index >= fields.len() {
-                fields.resize(index + 1, String::new());
+                    let current = fields.get(index).map(String::as_str).unwrap_or("");
+                    if !field_matches(current, original) {
+                        conflicts.push(FixConflict {
+                            edit: edit.clone(),
+                            reason: ConflictReason::ValueMismatch {
+                                found: current.to_string(),
+                            },
+                        });
+                        continue;
+                    }
+                    if index >= fields.len() {
+                        fields.resize(index + 1, String::new());
+                    }
+                    fields[index] = replacement.clone();
+                    written.insert(index, replacement.clone());
+                    row_applied.push(edit.clone());
+                }
+                FixOperation::SortStopTimes { .. } => unreachable!("partitioned above"),
             }
-            fields[index] = edit.replacement.clone();
-            written.insert(index, edit.replacement.clone());
-            row_applied.push(edit.clone());
         }
 
         if row_applied.is_empty() {
             continue;
         }
-
-        let Ok(position) = starts.binary_search_by_key(&row, |(line, _)| *line) else {
+        if !bounds.contains_key(&row) {
             conflicts.extend(row_applied.into_iter().map(|edit| FixConflict {
                 edit,
                 reason: ConflictReason::RowNotFound,
             }));
             continue;
-        };
-        let raw_start = starts[position].1;
-        let raw_end = starts
-            .get(position + 1)
-            .map(|(_, byte)| *byte)
-            .unwrap_or(body.len());
-        let (start, end) = content_span(body, raw_start, raw_end);
-
-        splices.push((start, end, serialize_record(&fields)?));
+        }
+        if delete_row {
+            deleted_rows.insert(row);
+        } else {
+            replacements.insert(row, serialize_record(&fields)?);
+        }
         applied.extend(row_applied);
     }
 
+    // Sorting composes with replacements and unsafe deletions. If a malformed
+    // record or ambiguous sequence makes it unsafe, keep the other edits and
+    // report only the sort as a conflict.
+    if let Some(sort_edit) = sort_edits.first().copied() {
+        match sort_stop_time_chunks(
+            body,
+            &headers,
+            &starts,
+            &records,
+            &bounds,
+            &replacements,
+            &deleted_rows,
+        ) {
+            Ok(sorted_body) => {
+                applied.push(sort_edit.clone());
+                let mut out = Vec::with_capacity(data.len() + 64);
+                out.extend_from_slice(&data[..bom_len]);
+                out.extend_from_slice(&sorted_body);
+                return Ok(RewriteResult {
+                    bytes: out,
+                    applied,
+                    conflicts,
+                });
+            }
+            Err(message) => conflicts.push(FixConflict {
+                edit: sort_edit.clone(),
+                reason: ConflictReason::CannotSort { message },
+            }),
+        }
+    }
+
+    // No sort, or a safely refused sort: splice only the selected rows.
+    let mut splices: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+    for row in &deleted_rows {
+        if let Some((start, _, chunk_end)) = bounds.get(row) {
+            splices.push((*start, *chunk_end, Vec::new()));
+        }
+    }
+    for (row, replacement) in replacements {
+        if let Some((start, end, _)) = bounds.get(&row) {
+            splices.push((*start, *end, replacement));
+        }
+    }
     splices.sort_by_key(|(start, _, _)| *start);
 
     let mut out = Vec::with_capacity(data.len() + 64);
@@ -652,6 +834,126 @@ fn rewrite_csv(file: &str, data: &[u8], edits: &[&PlannedEdit]) -> Result<Rewrit
         applied,
         conflicts,
     })
+}
+
+fn sort_stop_time_chunks(
+    body: &[u8],
+    headers: &csv::ByteRecord,
+    starts: &[(u64, usize)],
+    records: &HashMap<u64, csv::ByteRecord>,
+    bounds: &HashMap<u64, (usize, usize, usize)>,
+    replacements: &HashMap<u64, Vec<u8>>,
+    deleted_rows: &HashSet<u64>,
+) -> Result<Vec<u8>, String> {
+    if starts.len() != records.len() {
+        return Err("the file contains a malformed CSV record".into());
+    }
+
+    let mut header_index = HashMap::new();
+    for (index, header) in headers.iter().enumerate() {
+        header_index
+            .entry(String::from_utf8_lossy(header).trim().to_ascii_lowercase())
+            .or_insert(index);
+    }
+    let trip_index = header_index
+        .get("trip_id")
+        .copied()
+        .ok_or_else(|| "trip_id column is missing".to_string())?;
+    let sequence_index = header_index
+        .get("stop_sequence")
+        .copied()
+        .ok_or_else(|| "stop_sequence column is missing".to_string())?;
+
+    struct SortableRow {
+        row: u64,
+        trip_order: usize,
+        sequence: u64,
+        source_order: usize,
+    }
+
+    let mut first_trip_order: HashMap<String, usize> = HashMap::new();
+    let mut seen_sequences: HashSet<(String, u64)> = HashSet::new();
+    let mut sortable = Vec::new();
+    for (source_order, (row, _)) in starts.iter().enumerate() {
+        if deleted_rows.contains(row) {
+            continue;
+        }
+        let record = records
+            .get(row)
+            .ok_or_else(|| format!("row {row} could not be parsed"))?;
+        let trip_id = record
+            .get(trip_index)
+            .map(|value| String::from_utf8_lossy(value).trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| format!("row {row} has no trip_id"))?;
+        let sequence_text = record
+            .get(sequence_index)
+            .map(|value| String::from_utf8_lossy(value).trim().to_string())
+            .ok_or_else(|| format!("row {row} has no stop_sequence"))?;
+        let sequence = sequence_text
+            .parse::<u64>()
+            .map_err(|_| format!("row {row} has invalid stop_sequence {sequence_text:?}"))?;
+        if !seen_sequences.insert((trip_id.clone(), sequence)) {
+            return Err(format!(
+                "trip {trip_id:?} has duplicate stop_sequence {sequence}"
+            ));
+        }
+        let next_order = first_trip_order.len();
+        let trip_order = *first_trip_order.entry(trip_id).or_insert(next_order);
+        sortable.push(SortableRow {
+            row: *row,
+            trip_order,
+            sequence,
+            source_order,
+        });
+    }
+    if sortable.is_empty() {
+        return Err("no sortable rows remain".into());
+    }
+
+    let original_order: Vec<u64> = sortable.iter().map(|entry| entry.row).collect();
+    sortable.sort_by_key(|entry| (entry.trip_order, entry.sequence, entry.source_order));
+    if sortable
+        .iter()
+        .map(|entry| entry.row)
+        .eq(original_order.iter().copied())
+    {
+        return Err("rows are already in canonical order".into());
+    }
+
+    let first_start = starts
+        .first()
+        .and_then(|(row, _)| bounds.get(row))
+        .map(|(start, _, _)| *start)
+        .ok_or_else(|| "cannot locate the first data row".to_string())?;
+    let mut out = Vec::with_capacity(body.len() + 64);
+    out.extend_from_slice(&body[..first_start]);
+    for entry in sortable {
+        let (start, end, chunk_end) = bounds
+            .get(&entry.row)
+            .copied()
+            .ok_or_else(|| format!("cannot locate row {}", entry.row))?;
+        if let Some(replacement) = replacements.get(&entry.row) {
+            out.extend_from_slice(replacement);
+        } else {
+            out.extend_from_slice(&body[start..end]);
+        }
+        out.extend_from_slice(&body[end..chunk_end]);
+    }
+    Ok(out)
+}
+
+/// Whether the field on disk still holds the value a fix was computed from.
+///
+/// Rules hand the loader's already-trimmed value to the fix, and the loader
+/// trims two different ways: Rust's Unicode-aware `trim` in some paths, and the
+/// Java-compatible "strip anything at or below space" in the row validator.
+/// Accepting either keeps a fix from being rejected over whitespace it was
+/// never going to write anyway.
+fn field_matches(current: &str, original: &str) -> bool {
+    current == original
+        || current.trim() == original
+        || current.trim_matches(|ch: char| ch <= ' ') == original
 }
 
 /// Narrow a reported record span down to the record's own bytes.
@@ -700,7 +1002,7 @@ fn serialize_record(fields: &[String]) -> Result<Vec<u8>, FixError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::notice::{Fix, NoticeSeverity};
+    use crate::notice::{Fix, FixOperation, NoticeSeverity};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn edit(row: u64, field: &str, original: &str, replacement: &str) -> PlannedEdit {
@@ -713,6 +1015,48 @@ mod tests {
             field: field.into(),
             original: original.into(),
             replacement: replacement.into(),
+            operation: FixOperation::ReplaceField {
+                file: "agency.txt".into(),
+                row,
+                field: field.into(),
+                original: original.into(),
+                replacement: replacement.into(),
+            },
+        }
+    }
+
+    fn delete_edit(file: &str, row: u64, field: &str, expected: &str) -> PlannedEdit {
+        PlannedEdit {
+            notice_code: "foreign_key_violation".into(),
+            description: "Delete orphan".into(),
+            safety: FixSafety::Unsafe,
+            file: file.into(),
+            row,
+            field: field.into(),
+            original: expected.into(),
+            replacement: String::new(),
+            operation: FixOperation::DeleteRow {
+                file: file.into(),
+                row,
+                field: field.into(),
+                expected: expected.into(),
+            },
+        }
+    }
+
+    fn sort_edit() -> PlannedEdit {
+        PlannedEdit {
+            notice_code: "unsorted_stop_times".into(),
+            description: "Sort stop times".into(),
+            safety: FixSafety::Safe,
+            file: "stop_times.txt".into(),
+            row: 0,
+            field: "trip_id, stop_sequence".into(),
+            original: String::new(),
+            replacement: String::new(),
+            operation: FixOperation::SortStopTimes {
+                file: "stop_times.txt".into(),
+            },
         }
     }
 
@@ -845,6 +1189,13 @@ mod tests {
                     field: "stop_name".into(),
                     original: if *row == expected[0] { "A" } else { "B" }.into(),
                     replacement: "fixed".into(),
+                    operation: FixOperation::ReplaceField {
+                        file: "stops.txt".into(),
+                        row: *row,
+                        field: "stop_name".into(),
+                        original: if *row == expected[0] { "A" } else { "B" }.into(),
+                        replacement: "fixed".into(),
+                    },
                     ..edit(*row, "stop_name", "", "")
                 })
                 .collect();
@@ -922,6 +1273,76 @@ mod tests {
 
         assert!(result.applied.is_empty());
         assert_eq!(result.conflicts[0].reason, ConflictReason::RowNotFound);
+    }
+
+    #[test]
+    fn deletes_an_orphan_row_and_its_terminator() {
+        let data = b"trip_id,stop_id\r\nT1,missing\r\nT2,S2\r\n";
+        let planned = delete_edit("stop_times.txt", 2, "stop_id", "missing");
+        let refs = [&planned];
+        let result = rewrite_csv("stop_times.txt", data, &refs).expect("rewrite");
+
+        assert_eq!(result.bytes, b"trip_id,stop_id\r\nT2,S2\r\n");
+        assert_eq!(result.applied, vec![planned]);
+        assert!(result.conflicts.is_empty());
+    }
+
+    #[test]
+    fn refuses_to_delete_a_row_that_changed() {
+        let data = b"trip_id,stop_id\nT1,S1\n";
+        let planned = delete_edit("stop_times.txt", 2, "stop_id", "missing");
+        let refs = [&planned];
+        let result = rewrite_csv("stop_times.txt", data, &refs).expect("rewrite");
+
+        assert_eq!(result.bytes, data);
+        assert!(result.applied.is_empty());
+        assert!(matches!(
+            result.conflicts[0].reason,
+            ConflictReason::ValueMismatch { .. }
+        ));
+    }
+
+    #[test]
+    fn sorts_stop_times_stably_and_preserves_raw_rows() {
+        let data = concat!(
+            "trip_id,stop_sequence,stop_headsign\r\n",
+            "T2,2,\"Second, quoted\"\r\n",
+            "T1,2,second\r\n",
+            "T2,1,first\r\n",
+            "T1,1,first\r\n",
+        )
+        .as_bytes();
+        let planned = sort_edit();
+        let refs = [&planned];
+        let result = rewrite_csv("stop_times.txt", data, &refs).expect("rewrite");
+
+        assert_eq!(
+            String::from_utf8(result.bytes).unwrap(),
+            concat!(
+                "trip_id,stop_sequence,stop_headsign\r\n",
+                "T2,1,first\r\n",
+                "T2,2,\"Second, quoted\"\r\n",
+                "T1,1,first\r\n",
+                "T1,2,second\r\n",
+            )
+        );
+        assert_eq!(result.applied, vec![planned]);
+        assert!(result.conflicts.is_empty());
+    }
+
+    #[test]
+    fn refuses_to_sort_duplicate_sequences() {
+        let data = b"trip_id,stop_sequence\nT1,2\nT1,2\nT1,1\n";
+        let planned = sort_edit();
+        let refs = [&planned];
+        let result = rewrite_csv("stop_times.txt", data, &refs).expect("rewrite");
+
+        assert_eq!(result.bytes, data);
+        assert!(result.applied.is_empty());
+        assert!(matches!(
+            result.conflicts[0].reason,
+            ConflictReason::CannotSort { .. }
+        ));
     }
 
     #[test]

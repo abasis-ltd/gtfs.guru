@@ -726,6 +726,16 @@ mod tests {
             stops.rows[0].stop_access,
             Some(gtfs_guru_model::StopAccess::AccessibleViaPathways)
         );
+
+        let pathways = read_csv_from_reader::<gtfs_guru_model::Pathway, _>(
+            b"pathway_id,from_stop_id,to_stop_id,pathway_mode,is_bidirectional,stair_count\n\
+              P,E,N,2,0,-34\n"
+                .as_slice(),
+            "pathways.txt",
+        )
+        .unwrap();
+        assert_eq!(pathways.rows.len(), 1);
+        assert_eq!(pathways.rows[0].stair_count, Some(-34));
     }
     #[test]
     #[cfg(feature = "parallel")]

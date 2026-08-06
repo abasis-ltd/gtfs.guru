@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
@@ -29,7 +30,11 @@ use gtfs_guru_report::{
     write_html_report, HtmlReportContext, ReportSummary, ReportSummaryContext, ValidationReport,
 };
 
-static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/website");
+// The repo-root website/ is the single source of truth: it is what the static
+// deployment serves, and it is embedded here so the axum binary serves the same
+// bytes. This crate is `publish = false` precisely because `cargo package` would
+// not carry a directory from outside the crate root.
+static WEBSITE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../website");
 
 /// Default cap on an uploaded/downloaded GTFS archive (bytes). Overridable via
 /// `GTFS_VALIDATOR_WEB_MAX_UPLOAD_BYTES`. Large public feeds run 200+ MB.
@@ -296,50 +301,8 @@ async fn index_html() -> Response {
     serve_static_path("index.html")
 }
 
-/// Sitemap of the embedded website.
-///
-/// No `<lastmod>`: the pages are baked into the binary with no edit history to
-/// read, and stamping every URL with the current date told crawlers the whole
-/// site changed on every fetch. A sitemap whose timestamps are always "now" is
-/// worse than one with none — search engines learn to distrust the field and
-/// throttle recrawls. Restore it only with a per-page date sourced from git.
 async fn sitemap_xml() -> Response {
-    let base_url = "https://gtfs.guru";
-
-    let mut paths: Vec<String> = WEBSITE_DIR
-        .files()
-        .filter_map(|file| {
-            let path = file.path();
-            if path.extension().and_then(|ext| ext.to_str()) != Some("html") {
-                return None;
-            }
-            let path_str = path.to_string_lossy().to_string();
-            if path_str == "index.html" {
-                return None;
-            }
-            Some(path_str)
-        })
-        .collect();
-    paths.sort();
-
-    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-    xml.push_str("  <url>\n");
-    xml.push_str(&format!("    <loc>{}/</loc>\n", base_url));
-    xml.push_str("  </url>\n");
-    for path in paths {
-        xml.push_str("  <url>\n");
-        xml.push_str(&format!("    <loc>{}/{}</loc>\n", base_url, path));
-        xml.push_str("  </url>\n");
-    }
-    xml.push_str("</urlset>");
-
-    let mut response = Response::new(Body::from(xml));
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        header::HeaderValue::from_static("application/xml; charset=utf-8"),
-    );
-    response
+    serve_static_path("sitemap.xml")
 }
 
 async fn static_file(AxumPath(path): AxumPath<String>) -> Response {
@@ -356,10 +319,17 @@ async fn static_file(AxumPath(path): AxumPath<String>) -> Response {
 }
 
 fn is_sensitive_static_path(path: &str) -> bool {
+    // `include_dir!` embeds whatever sits in website/ at compile time, including
+    // files Git never sees: a developer's `.DS_Store`, an editor swap file, a
+    // stray `.env`. The site tracks no dotfiles, so refusing every dotted
+    // segment costs nothing and does not depend on remembering to extend the
+    // list below.
+    if path.split('/').any(|segment| segment.starts_with('.')) {
+        return true;
+    }
     let name = path.rsplit('/').next().unwrap_or(path);
     name.eq_ignore_ascii_case("nginx.conf")
         || name.eq_ignore_ascii_case("dockerfile")
-        || name.eq_ignore_ascii_case(".env")
         || name.eq_ignore_ascii_case("docker-compose.yml")
         || name.eq_ignore_ascii_case("docker-compose.yaml")
 }
@@ -383,10 +353,15 @@ fn sanitize_path(path: &str) -> Option<String> {
 }
 
 fn serve_static_path(path: &str) -> Response {
-    let Some(file) = WEBSITE_DIR.get_file(path) else {
+    let directory_index = format!("{}/index.html", path.trim_end_matches('/'));
+    let (file, served_path) = if let Some(file) = WEBSITE_DIR.get_file(path) {
+        (file, path)
+    } else if let Some(file) = WEBSITE_DIR.get_file(&directory_index) {
+        (file, directory_index.as_str())
+    } else {
         return not_found();
     };
-    let mime = MimeGuess::from_path(path).first_or_octet_stream();
+    let mime = MimeGuess::from_path(served_path).first_or_octet_stream();
     let mut response = Response::new(Body::from(file.contents().to_owned()));
     response.headers_mut().insert(
         header::CONTENT_TYPE,
@@ -1505,10 +1480,17 @@ mod tests {
             "docker-compose.yml",
             "docker-compose.yaml",
             "nested/NGINX.CONF",
+            // Untracked files that include_dir! would still embed.
+            ".DS_Store",
+            "pkg/.DS_Store",
+            ".git/config",
+            "notices/.index.html.swp",
         ] {
             assert!(is_sensitive_static_path(path), "{path} must be blocked");
         }
         assert!(!is_sensitive_static_path("index.html"));
+        assert!(!is_sensitive_static_path("notices/unknown_file/index.html"));
+        assert!(!is_sensitive_static_path("pkg/gtfs_guru_wasm_bg.wasm"));
     }
 
     #[test]
@@ -1526,5 +1508,16 @@ mod tests {
         assert!(!is_cross_site_browser_request(&headers));
         headers.remove("sec-fetch-site");
         assert!(!is_cross_site_browser_request(&headers));
+    }
+
+    #[test]
+    fn static_directories_serve_their_index_page() {
+        let response = serve_static_path("notices/missing_required_field/");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE),
+            Some(&header::HeaderValue::from_static("text/html"))
+        );
     }
 }

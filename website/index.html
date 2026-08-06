@@ -74,6 +74,7 @@
           "Command-line binary with SARIF, JSON and HTML reports",
           "Native Python package (pip install gtfs-guru)",
           "GitHub Action with a --fail-on quality gate",
+          "MCP server for evidence-backed GTFS explanations in ChatGPT-compatible clients",
           "Optional Google-specific rules and a thorough mode",
           "Automatic fixes for a subset of findings"
         ],
@@ -270,35 +271,66 @@
                             <span id="error-message"></span>
                             <button id="close-error-btn" class="close-error"><i data-lucide="x"></i></button>
                         </div>
-                        <div class="upload-state" id="upload-state">
-                            <i data-lucide="upload-cloud" class="upload-icon"></i>
-                            <h3>Drop GTFS.zip here</h3>
-                            <p class="sub-text">or click to browse</p>
-                            <input type="file" id="file-input" accept=".zip" hidden>
+                        <div class="validator-mode-switch" role="tablist" aria-label="Validator mode">
+                            <button type="button" class="validator-mode active" id="validate-mode-btn"
+                                role="tab" aria-selected="true">Validate</button>
+                            <button type="button" class="validator-mode" id="diff-mode-btn"
+                                role="tab" aria-selected="false">Compare feeds</button>
                         </div>
 
-                        <div class="url-input-container" id="url-input-container" style="margin-top: 1rem;">
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" id="url-input" placeholder="Enter URL or path..."
-                                    style="flex-grow: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; color: #fff; font-family: var(--font-body); font-size: 0.9rem;">
-                                <button id="url-analyze-btn" class="btn btn-primary"
-                                    style="padding: 0.6rem 1rem; white-space: nowrap;">
-                                    Analyze
+                        <div id="validate-inputs">
+                            <div class="upload-state" id="upload-state">
+                                <i data-lucide="upload-cloud" class="upload-icon"></i>
+                                <h3>Drop GTFS.zip here</h3>
+                                <p class="sub-text">or click to browse</p>
+                                <input type="file" id="file-input" accept=".zip" hidden>
+                            </div>
+
+                            <div class="url-input-container" id="url-input-container" style="margin-top: 1rem;">
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" id="url-input" placeholder="Enter URL or path..."
+                                        style="flex-grow: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; color: #fff; font-family: var(--font-body); font-size: 0.9rem;">
+                                    <button id="url-analyze-btn" class="btn btn-primary"
+                                        style="padding: 0.6rem 1rem; white-space: nowrap;">
+                                        Analyze
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="demo-row" id="demo-row">
+                                <span class="sub-text">No feed to hand?</span>
+                                <button type="button" class="btn btn-ghost btn-sm" id="try-demo-btn">
+                                    <i data-lucide="play-circle"></i> Try an example feed
                                 </button>
                             </div>
                         </div>
 
-                        <div class="demo-row" id="demo-row">
-                            <span class="sub-text">No feed to hand?</span>
-                            <button type="button" class="btn btn-ghost btn-sm" id="try-demo-btn">
-                                <i data-lucide="play-circle"></i> Try an example feed
+                        <div class="diff-inputs hidden" id="diff-inputs">
+                            <p class="diff-intro">Compare two GTFS releases locally. Both feeds are validated first.</p>
+                            <div class="diff-source-grid">
+                                <button type="button" class="diff-source-picker" id="old-feed-picker">
+                                    <span class="diff-source-label">Previous</span>
+                                    <strong id="old-feed-name">Choose GTFS.zip</strong>
+                                    <span>Baseline release</span>
+                                </button>
+                                <button type="button" class="diff-source-picker" id="new-feed-picker">
+                                    <span class="diff-source-label">New</span>
+                                    <strong id="new-feed-name">Choose GTFS.zip</strong>
+                                    <span>Release to review</span>
+                                </button>
+                            </div>
+                            <input type="file" id="old-file-input" accept=".zip" hidden>
+                            <input type="file" id="new-file-input" accept=".zip" hidden>
+                            <button type="button" class="btn btn-primary diff-run-btn" id="diff-analyze-btn" disabled>
+                                <i data-lucide="git-compare-arrows"></i> Compare feeds
                             </button>
+                            <p class="sub-text diff-limit-note">Up to 150 MB zipped / 700 MB unpacked combined</p>
                         </div>
 
                         <div class="processing-state hidden" id="processing-state">
                             <div class="spinner"></div>
-                            <p>Validating locally (WASM)...</p>
-                            <p class="sub-text">Large feeds (50&nbsp;MB+) can take a minute or two</p>
+                            <p id="processing-title">Validating locally (WASM)...</p>
+                            <p class="sub-text" id="processing-detail">Large feeds (50&nbsp;MB+) can take a minute or two</p>
                         </div>
 
                         <div class="result-state hidden" id="result-state">
@@ -319,6 +351,26 @@
                                 <div class="stat"><span class="red" id="error-count">0</span> Errors</div>
                                 <div class="stat"><span class="yellow" id="warning-count">0</span> Warnings</div>
                             </div>
+                            <section class="mcp-preview" id="mcp-preview" aria-labelledby="mcp-preview-title"
+                                aria-live="polite">
+                                <div class="mcp-preview-header">
+                                    <div class="mcp-preview-heading">
+                                        <i data-lucide="sparkles"></i>
+                                        <div>
+                                            <span class="mcp-preview-kicker">MCP preview</span>
+                                            <h3 id="mcp-preview-title">What ChatGPT receives</h3>
+                                        </div>
+                                    </div>
+                                    <span class="mcp-local-label"><i data-lucide="lock"></i> Local</span>
+                                </div>
+                                <div id="mcp-preview-body"></div>
+                                <div class="mcp-preview-footer">
+                                    <span>Built from validator facts. No AI request was made.</span>
+                                    <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server"
+                                        target="_blank" rel="noopener">Connect via MCP <i
+                                            data-lucide="arrow-up-right"></i></a>
+                                </div>
+                            </section>
                             <div class="result-actions">
                                 <button class="btn btn-primary" id="view-report-btn">
                                     <i data-lucide="file-text"></i> See More
@@ -334,6 +386,25 @@
                                 </button>
                                 <button class="btn btn-ghost" id="reset-btn">
                                     <i data-lucide="rotate-ccw"></i> New Scan
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="diff-result-state hidden" id="diff-result-state">
+                            <div class="diff-result-heading">
+                                <div>
+                                    <span class="diff-eyebrow">Comparison complete</span>
+                                    <h3>What changed</h3>
+                                </div>
+                                <span class="diff-time" id="diff-time"></span>
+                            </div>
+                            <div id="diff-report"></div>
+                            <div class="result-actions">
+                                <button class="btn btn-outline" id="download-diff-json-btn">
+                                    <i data-lucide="download"></i> JSON
+                                </button>
+                                <button class="btn btn-ghost" id="diff-reset-btn">
+                                    <i data-lucide="rotate-ccw"></i> New comparison
                                 </button>
                             </div>
                         </div>
@@ -363,14 +434,24 @@
                 </div>
             </div>
 
-            <!-- Stop Location Map Modal -->
-            <div class="map-modal hidden" id="map-modal">
+            <!-- Geographic Notice Map Modal -->
+            <div class="map-modal hidden" id="map-modal" role="dialog" aria-modal="true" aria-labelledby="map-modal-title">
                 <div class="map-modal-content glass-card">
                     <div class="map-modal-header">
-                        <h3 id="map-modal-title">Stop location</h3>
-                        <button class="close-btn" id="close-map-btn"><i data-lucide="x"></i></button>
+                        <div>
+                            <span class="map-modal-kicker">Affected geometry</span>
+                            <h3 id="map-modal-title">Geographic notice</h3>
+                        </div>
+                        <button class="close-btn" id="close-map-btn" aria-label="Close map"><i data-lucide="x"></i></button>
                     </div>
-                    <div id="stop-map"></div>
+                    <div class="map-stage">
+                        <div id="stop-map"></div>
+                        <div class="map-legend" aria-hidden="true">
+                            <span><i class="map-legend-dot affected"></i>Affected stop</span>
+                            <span><i class="map-legend-dot nearest"></i>Closest point</span>
+                            <span><i class="map-legend-line"></i>Shape</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -508,15 +589,26 @@ if not report.is_valid:
                     </div>
                     <div class="code-block glass-card">
                         <div class="install-cmd-row">
-                            <code>cargo install gtfs-guru-cli</code>
-                            <button class="copy-tiny" data-text="cargo install gtfs-guru-cli">Copy</button>
+                            <code>cargo install gtfs-guru</code>
+                            <button class="copy-tiny" data-text="cargo install gtfs-guru">Copy</button>
                         </div>
                         <pre><code>gtfs-guru -i ./feed.zip -o ./dist
 
 # Output JSON for CI/CD
-gtfs-guru --json -i feed.zip | jq .</code></pre>
+gtfs-guru --stdout -i feed.zip | jq .</code></pre>
                     </div>
                 </div>
+            </div>
+            <div class="mcp-developer-strip fade-up">
+                <div>
+                    <span class="mcp-preview-kicker">ChatGPT + MCP</span>
+                    <h3>Ask questions about a checked feed</h3>
+                    <p>GTFS Guru returns exact totals and concrete examples with available file, row, field, and
+                        context, so the answer stays grounded in the validator report.</p>
+                </div>
+                <a class="btn btn-secondary"
+                    href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server" target="_blank"
+                    rel="noopener">MCP setup guide <i data-lucide="arrow-up-right"></i></a>
             </div>
         </div>
     </section>

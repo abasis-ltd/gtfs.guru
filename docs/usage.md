@@ -45,6 +45,12 @@ gtfs-guru --url https://example.com/gtfs.zip --output_base ./report
 | `--thorough` | | Enable thorough validation (recommended fields) |
 | `--timing` | | Print timing breakdown |
 | `--timing-json` | | Print timing report as JSON |
+
+`--fix` writes a new feed and never changes the input. It safely normalizes
+supported field values, trims declared GTFS fields, and sorts `stop_times.txt`
+by trip and `stop_sequence`. `--fix-unsafe` can additionally delete rows whose
+foreign key references a missing parent. After writing the copy, the CLI
+validates it again and reports resolved, remaining, and introduced notices.
 | `--version` | | Print the validator version |
 
 ### Parallelism

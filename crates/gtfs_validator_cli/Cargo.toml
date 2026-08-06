@@ -28,3 +28,7 @@ version = "1.0.0"
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
 version = "1.0.0"
+
+[dependencies.gtfs-guru-profile]
+path = "../gtfs_validator_profile"
+version = "1.0.0"

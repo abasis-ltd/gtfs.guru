@@ -127,6 +127,57 @@ async function validate(page, forceSingleThreaded = false) {
   }, { forceSingleThreaded });
 }
 
+async function compare(page, forceSingleThreaded = false) {
+  return page.evaluate(async ({ forceSingleThreaded }) => {
+    const [oldZipBytes, newZipBytes] = await Promise.all([
+      fetch('/fixture.zip').then((response) => response.arrayBuffer()),
+      fetch('/fixture.zip').then((response) => response.arrayBuffer()),
+    ]);
+    const workerUrl = `/pkg/worker.js${forceSingleThreaded ? '?threads=off' : ''}`;
+
+    return new Promise((resolveResult, reject) => {
+      const worker = new Worker(workerUrl, { type: 'module' });
+      const timeout = setTimeout(() => {
+        worker.terminate();
+        reject(new Error(`Timed out waiting for comparison from ${workerUrl}`));
+      }, 120_000);
+
+      const finish = (callback, value) => {
+        clearTimeout(timeout);
+        worker.terminate();
+        callback(value);
+      };
+      worker.onerror = (event) => {
+        finish(reject, new Error(event.message || `Worker failed: ${workerUrl}`));
+      };
+      worker.onmessage = ({ data }) => {
+        if (data.type === 'ready') {
+          worker.postMessage({
+            id: 2,
+            type: 'diff',
+            payload: {
+              oldZipBytes,
+              newZipBytes,
+              date: '2026-07-22',
+            },
+          }, [oldZipBytes, newZipBytes]);
+          return;
+        }
+        if (data.type === 'error') {
+          finish(reject, new Error(data.payload));
+          return;
+        }
+        if (data.type === 'diff-result') {
+          finish(resolveResult, {
+            runtime: data.payload.runtime,
+            report: JSON.parse(data.payload.json),
+          });
+        }
+      };
+    });
+  }, { forceSingleThreaded });
+}
+
 async function validateOversizedArchive(page, forceSingleThreaded = false) {
   return page.evaluate(async ({ forceSingleThreaded, maxFileSizeMb }) => {
     const zipBytes = new ArrayBuffer(maxFileSizeMb * 1024 * 1024 + 1);
@@ -171,6 +222,29 @@ async function validateOversizedArchive(page, forceSingleThreaded = false) {
       };
     });
   }, { forceSingleThreaded, maxFileSizeMb });
+}
+
+async function testResponsiveLayout(page, baseUrl) {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(baseUrl);
+  await page.locator('footer').scrollIntoViewIfNeeded();
+
+  const layout = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    installCommands: [...document.querySelectorAll('.install-cmd-row code')]
+      .map((element) => element.textContent?.trim()),
+    navToggleVisible: getComputedStyle(document.querySelector('#nav-toggle')).display !== 'none',
+  }));
+  assert.equal(
+    layout.scrollWidth,
+    layout.clientWidth,
+    `mobile page overflows by ${layout.scrollWidth - layout.clientWidth}px`,
+  );
+  assert.equal(layout.installCommands.includes('cargo install gtfs-guru'), true);
+  assert.equal(layout.navToggleVisible, true);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
 }
 
 let sharedNavigationId = 0;
@@ -221,6 +295,10 @@ async function testSharedReportBoundary(page, baseUrl) {
   assert.equal(await page.locator('.notice-group-count').textContent(), '3');
   assert.match(await page.locator('#shared-banner-text').textContent(), /<b>sample feed<\/b>/);
   assert.equal(await page.locator('#shared-banner-text b').count(), 0);
+  assert.match(await page.locator('.mcp-verdict').textContent(), /3 validation errors/);
+  assert.equal(await page.locator('.mcp-example').count(), 1);
+  assert.match(await page.locator('.mcp-example-location').textContent(), /stops\.txt/);
+  assert.equal(await page.locator('.mcp-verdict b').count(), 0);
 
   await page.goto(sharedReportUrl(baseUrl, legitimate, 'z'));
   await page.locator('#report-modal:not(.hidden)').waitFor();
@@ -275,8 +353,15 @@ try {
   assert.equal(await page.evaluate(() => globalThis.crossOriginIsolated), true);
   const threaded = await validate(page);
   const forcedSingle = await validate(page, true);
+  const threadedDiff = await compare(page);
+  const forcedSingleDiff = await compare(page, true);
   assert.equal(threaded.runtime, 'multi-threaded');
   assert.equal(forcedSingle.runtime, 'single-threaded');
+  assert.equal(threadedDiff.runtime, 'multi-threaded');
+  assert.equal(forcedSingleDiff.runtime, 'single-threaded');
+  assert.deepEqual(threadedDiff.report, forcedSingleDiff.report);
+  assert.equal(threadedDiff.report.notices.newErrors, 0);
+  assert.equal(threadedDiff.report.routes.added.length, 0);
   assert.deepEqual(threaded.noticeCounts, forcedSingle.noticeCounts);
   assert.deepEqual(
     [threaded.errorCount, threaded.warningCount, threaded.infoCount],
@@ -294,12 +379,33 @@ try {
   await page.goto(portable.url);
   assert.equal(await page.evaluate(() => globalThis.crossOriginIsolated), false);
   const fallback = await validate(page);
+  const fallbackDiff = await compare(page);
   assert.equal(fallback.runtime, 'single-threaded');
+  assert.equal(fallbackDiff.runtime, 'single-threaded');
   assert.deepEqual(fallback.noticeCounts, forcedSingle.noticeCounts);
+  assert.deepEqual(fallbackDiff.report, forcedSingleDiff.report);
 
+  await page.goto(portable.url);
+  await page.locator('#diff-mode-btn').click();
+  await page.locator('#old-file-input').setInputFiles(fixturePath);
+  await page.locator('#new-file-input').setInputFiles(fixturePath);
+  await page.locator('#diff-analyze-btn').click();
+  await page.locator('#diff-result-state:not(.hidden)').waitFor({ timeout: 120_000 });
+  assert.equal(await page.locator('.diff-headline .introduced strong').textContent(), '0');
+
+  await testResponsiveLayout(page, portable.url);
   await testSharedReportBoundary(page, portable.url);
 
-  console.log(JSON.stringify({ threaded, forcedSingle, fallback }, null, 2));
+  console.log(JSON.stringify({
+    threaded,
+    forcedSingle,
+    fallback,
+    diffRuntime: {
+      threaded: threadedDiff.runtime,
+      forcedSingle: forcedSingleDiff.runtime,
+      fallback: fallbackDiff.runtime,
+    },
+  }, null, 2));
 } finally {
   await browser.close();
   await Promise.all([closeServer(isolated.server), closeServer(portable.server)]);
