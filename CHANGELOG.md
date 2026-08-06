@@ -7,14 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-07-25
+## [1.0.0] - 2026-07-28
 
-First stable release. The CLI, report, core, model, Python, WASM, and web
-crates share the 1.0.0 version and their public APIs are now covered by
-semantic versioning.
+First stable release. The CLI, core, model, report, profile, MCP, web, WASM,
+Python, and desktop crates share the 1.0.0 version and their public APIs are
+now covered by semantic versioning.
 
 ### Added
 
+- `gtfs-guru diff old.zip new.zip` compares files, feed metadata, agencies,
+  routes, stops (including moves over 10 m), trip counts and frequency windows
+  by route, and exact validation notice counts. It can emit JSON or Markdown
+  and fail CI with `--fail-on-new-errors`.
 - `--fail-on <none|error|warning>` for CI quality gates. Reports are written
   before the process exits with status `2`.
 - `--badge` and `--badge-svg` write a feed status badge: a shields.io endpoint
@@ -41,7 +45,40 @@ semantic versioning.
   UTF-8 BOM, and every untouched file survive byte for byte. A fix whose target
   field no longer holds the expected value is reported and skipped rather than
   applied.
+- Auto-fix suggestions for the defects with exactly one reading:
+  `invalid_color` (`#FF0000` and the `0F0` shorthand), `invalid_date`
+  (separator forms of `YYYYMMDD`), `invalid_time` (a missing `:SS`, an all-zero
+  fraction), `invalid_url` (a missing scheme), and `invalid_email` (a `mailto:`
+  prefix or angle brackets) are safe; a decimal comma in `invalid_float` and a
+  redundant fraction in `invalid_integer` need `--fix-unsafe`. Every suggestion
+  is re-checked against the validator that rejected the value, so applying one
+  cannot introduce a new notice. Ambiguous input gets no suggestion: `01-05-2026`
+  could be either day-first or month-first, and `1,500` could be 1.5 or 1500.
+- Safe auto-fixes now trim declared GTFS fields and canonically order
+  `stop_times.txt` by trip and `stop_sequence` while preserving each raw record.
+  `--fix-unsafe` can delete child rows with missing foreign-key parents, with an
+  expected-value guard that refuses stale plans. Every repaired feed is
+  automatically validated again and reports resolved, remaining, and introduced
+  notice totals.
 - `gtfs_validator_core::fix` exposing `FixPlan` and `apply_fixes` for embedders.
+- `gtfs-guru profile` and `gtfs-guru explain`, backed by the new
+  `gtfs-guru-profile` crate. The profile is deterministic: entity counts, route
+  types, completeness facts, seven actual service dates with calendar
+  exceptions applied, and grouped validation issues. The explanation is derived
+  from that same profile, so every statement can be checked without sending the
+  feed to an LLM provider.
+- `gtfs-guru-mcp`, a read-only MCP server exposing `validate_gtfs`,
+  `explain_gtfs`, and `get_notice_details`. It speaks stdio for a local host and
+  authenticated stateless Streamable HTTP for a remote one. Local reads are
+  confined to the roots passed with `--allow-dir`; downloading a public URL is
+  off until `--allow-url` is given. HTTP defaults to 60 authenticated requests
+  per rolling minute, four concurrent validations, and 64 KiB request bodies.
+  Validation and explanation responses include bounded concrete notice examples
+  with available file, row, field, context, and suggested-fix details, so an MCP
+  host can show actionable errors instead of only grouped counts.
+- The browser validator now renders a local “What ChatGPT receives” preview
+  from the real validation report, with exact totals and concrete error
+  examples. It does not call an AI provider or upload the feed.
 - `gtfs-guru --version`.
 - `service_never_active`, which flags calendar.txt rows with no active weekday
   and no added dates in calendar_dates.txt.
@@ -61,6 +98,23 @@ semantic versioning.
 
 ### Changed
 
+- Every crate now sets `#![forbid(unsafe_code)]`, except the CLI, which uses
+  `#![deny(unsafe_code)]` with a single documented opt-out for the `getrusage`
+  call behind its peak-memory reporting. Three hand-written `unsafe impl Send`
+  / `Sync` blocks were removed: the types derived both automatically, so the
+  impls only suppressed the compiler's check on data shared across rayon
+  workers.
+- The embedded website no longer serves dotfiles. `include_dir!` bakes in
+  whatever is on disk at build time, so an untracked `.DS_Store` or editor swap
+  file in `website/` could otherwise be fetched from a locally built server.
+- `gtfs-guru-web` is no longer published to crates.io. It is the deployed server
+  binary rather than a library, and it now embeds the repo-root `website/`
+  directly, which `cargo package` cannot carry. The previously published 0.9.x
+  versions stay available; anyone running the server should build it from this
+  repository or use the Docker image.
+- The website is stored once. `website/` is served by nginx and embedded into
+  `gtfs-guru-web` from the same path, replacing the second copy under
+  `crates/gtfs_validator_web/` that had to be kept in sync by hand.
 - `sitemap.xml` no longer carries a `<lastmod>`. It was stamped with the time
   of the request, so every crawl saw the whole site as freshly modified —
   worse than omitting the field, which is what search engines fall back to.
@@ -79,8 +133,16 @@ semantic versioning.
   retaining a second 0.11 TLS stack.
 - `[PERF]` diagnostics require `GTFS_PERF_DEBUG`.
 - SARIF output identifies the tool and repository as GTFS Guru.
-- Documentation reports the current 110 validators and 190 notice codes, and
+- Documentation reports the current 110 validators and 191 notice codes, and
   uses the measured 4.6–6.7x benchmark results.
+- `docs/rules.md` is generated from the notice schema instead of being edited by
+  hand, and the generator's `--check` mode fails CI when it drifts. That is what
+  moved the documented total from 190 to 191: `leading_or_trailing_whitespaces`
+  was already emitted but had never been listed.
+- `inconsistent_route_type_for_block_id` and
+  `inconsistent_route_type_for_in_seat_transfer` no longer compare extended
+  route types. MobilityData's canonical typed route table rejects extended HVT
+  values, so the validators that read that table never see them.
 - `--threads` is documented as report metadata; actual parallelism is
   controlled with `RAYON_NUM_THREADS`.
 - Parallel CSV loading is faster, and the hottest rules were optimized.
@@ -93,6 +155,11 @@ semantic versioning.
 
 ### Fixed
 
+- Per-validator timings are measured in the browser again. The parallel run
+  path hardcoded a zero duration on `wasm32` even though the crate's `Instant`
+  is `web_time::Instant`, which is backed by `performance.now()` there, so the
+  multithreaded browser build reported every rule as taking no time at all.
+
 - The browser's remote-feed fallback now uses the guarded Rust
   `/cors-proxy?url=...` endpoint instead of an unrestricted nginx forward
   proxy. It rejects private and reserved addresses on every redirect and
@@ -100,6 +167,15 @@ semantic versioning.
 - IPv6 URL literals are classified directly, so public IPv6 hosts work while
   private and loopback literals remain blocked.
 - Zip decompression is capped per member and across the archive.
+- Negative `pathways.txt` stair counts are loaded as valid downward stairs
+  instead of silently dropping the pathway and producing false reachability
+  errors.
+- The home page advertised `cargo install gtfs-guru-cli` and a `--json` flag.
+  The crate is `gtfs-guru` and the flag is `--stdout`, so both copied commands
+  failed for anyone who followed them.
+- The home page no longer overflows horizontally on a 375 px viewport; the
+  stats row, install commands, and footer links wrap instead. A Chromium check
+  asserts the mobile page has no horizontal scroll.
 - tzdb backward-compatibility link names (for example `Europe/Nicosia`,
   `US/Eastern`) are accepted, matching Java's `ZoneId`.
 - Translation foreign-key lookups are indexed instead of scanned, which fixed a

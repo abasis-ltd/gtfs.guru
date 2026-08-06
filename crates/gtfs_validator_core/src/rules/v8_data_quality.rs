@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::feed::STOP_TIMES_FILE;
 use crate::validation_context::thorough_mode_enabled;
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
 use gtfs_guru_model::{ServiceAvailability, StringId};
@@ -55,6 +56,13 @@ impl Validator for UnsortedStopTimesValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        // Invalid rows are omitted from the typed table. Treating those gaps as
+        // physical disorder creates a false `unsorted_stop_times` notice and a
+        // sort cannot repair the underlying parse error.
+        if feed.table_has_errors(STOP_TIMES_FILE) {
+            return;
+        }
+
         #[derive(Default)]
         struct Stats {
             count: u64,

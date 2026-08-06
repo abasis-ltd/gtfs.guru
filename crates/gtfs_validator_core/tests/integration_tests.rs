@@ -1,4 +1,8 @@
-use gtfs_guru_core::{input::GtfsInput, NoticeSeverity};
+use gtfs_guru_core::{
+    input::GtfsInput, rules::PathwayReachableLocationValidator, GtfsFeed, NoticeContainer,
+    NoticeSeverity, StringPool, Validator,
+};
+use gtfs_guru_model::{Pathway, Stop};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -45,6 +49,57 @@ fn test_base_valid() {
         unexpected_notices.is_empty(),
         "Expected no errors in base-valid, found: {:#?}",
         unexpected_notices
+    );
+}
+
+#[test]
+fn test_mbta_pathways_are_fully_loaded_and_reachable() {
+    let feed_path = test_feeds_root().join("real-world/boston_mbta.zip");
+    assert!(
+        feed_path.exists(),
+        "Frozen MBTA feed not found at {:?}",
+        feed_path
+    );
+
+    let input = GtfsInput::from_path(&feed_path).expect("Failed to create MBTA input");
+    let reader = input.reader();
+    let pool = StringPool::new();
+    let mut load_notices = NoticeContainer::new();
+    let stops = reader
+        .read_csv_with_notices::<Stop>("stops.txt", &mut load_notices, &pool)
+        .expect("Failed to read MBTA stops.txt");
+    let pathways = reader
+        .read_csv_with_notices::<Pathway>("pathways.txt", &mut load_notices, &pool)
+        .expect("Failed to read MBTA pathways.txt");
+
+    assert_eq!(
+        pathways.rows.len(),
+        9_293,
+        "every MBTA pathway row, including negative stair_count values, must deserialize"
+    );
+    assert!(
+        !load_notices
+            .iter()
+            .any(|notice| notice.code == "csv_parsing_failed"),
+        "MBTA stops/pathways must load without CSV parse failures: {load_notices:#?}"
+    );
+
+    let feed = GtfsFeed {
+        stops,
+        pathways: Some(pathways),
+        pool,
+        ..Default::default()
+    };
+    let mut notices = NoticeContainer::new();
+    PathwayReachableLocationValidator.validate(&feed, &mut notices);
+    let unreachable: Vec<_> = notices
+        .iter()
+        .filter(|notice| notice.code == "pathway_unreachable_location")
+        .collect();
+
+    assert!(
+        unreachable.is_empty(),
+        "MBTA has no canonical pathway reachability errors: {unreachable:#?}"
     );
 }
 

@@ -1,4 +1,5 @@
 #![allow(clippy::useless_conversion)]
+#![forbid(unsafe_code)]
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;

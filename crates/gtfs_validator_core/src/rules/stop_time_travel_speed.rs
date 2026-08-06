@@ -138,12 +138,6 @@ struct ValidationContext<'a> {
     trips_by_id: HashMap<gtfs_guru_model::StringId, (usize, &'a gtfs_guru_model::Trip)>,
 }
 
-// Sync implementation is required for sharing across threads,
-// but HashMap with &str keys and &T values is Send + Sync if T is Sync.
-// gtfs_guru_model types are Sync.
-unsafe impl<'a> Sync for ValidationContext<'a> {}
-unsafe impl<'a> Send for ValidationContext<'a> {}
-
 impl StopTimeTravelSpeedValidator {
     fn check_pattern_group(
         feed: &GtfsFeed,

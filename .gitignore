@@ -38,5 +38,8 @@ __pycache__/
 # build-wasm.sh strips that from pkg-mt so the website copies stay tracked)
 crates/gtfs_validator_wasm/pkg-mt/
 
+# Tauri regenerates this on every Linux build
+crates/gtfs_validator_gui/gen/schemas/linux-schema.json
+
 # mkdocs build output
 /site/

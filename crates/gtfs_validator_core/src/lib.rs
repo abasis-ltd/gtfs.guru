@@ -18,12 +18,19 @@
 #![allow(clippy::manual_range_patterns)]
 #![allow(clippy::bind_instead_of_map)]
 #![allow(clippy::field_reassign_with_default)]
+// The validation engine shares borrowed feed data across rayon workers. Auto
+// traits already prove those types thread-safe; a hand-written `unsafe impl`
+// would silently keep compiling if a field later became non-Send.
+#![forbid(unsafe_code)]
+
 pub mod csv_reader;
 mod csv_schema;
 mod csv_validation;
+pub mod diff;
 pub mod engine;
 pub mod feed;
 pub mod fix;
+mod fix_suggest;
 pub mod geojson;
 pub mod input;
 pub mod notice;
@@ -37,6 +44,7 @@ mod validation_context;
 pub mod validator;
 
 pub use csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
+pub use diff::{diff_feeds, FeedDiff};
 pub use engine::{
     validate_bytes, validate_bytes_reader, validate_bytes_reader_and_progress,
     validate_bytes_reader_and_progress_and_timing, validate_bytes_reader_with_timing,
@@ -50,7 +58,10 @@ pub use input::{
     collect_input_notices, GtfsBytesReader, GtfsInput, GtfsInputError, GtfsInputReader,
     GtfsInputSource,
 };
-pub use notice::{Fix, FixOperation, FixSafety, NoticeContainer, NoticeSeverity, ValidationNotice};
+pub use notice::{
+    Fix, FixOperation, FixSafety, NoticeContainer, NoticeGeometry, NoticeGeometryPoint,
+    NoticeSeverity, ValidationNotice,
+};
 pub use notice_schema::build_notice_schema_map;
 pub use progress::{NoOpProgressHandler, ProgressHandler};
 pub use rules::default_runner;

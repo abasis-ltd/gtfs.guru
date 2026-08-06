@@ -139,7 +139,17 @@ scripts/golden.py single "feed path.zip" "expected dir" "actual dir"
 
 # CI (the committed manifest is mandatory)
 scripts/ci_golden.sh
+
+# Locally, point it at a release binary you already built
+cargo build --release -p gtfs-guru
+GTFS_VALIDATOR_BIN=./target/release/gtfs-guru scripts/ci_golden.sh
 ```
+
+Always set `GTFS_VALIDATOR_BIN` for local runs. Without it the suite falls back
+to `cargo run`, which builds the debug tree -- 13-16 GB for this workspace with
+all features, against roughly 3 GB for release. On a full disk that build fails
+and the suite reports `validator failed for <case>`, which reads like a
+validator bug rather than a build that never ran.
 
 ## CI (GitHub Actions)
 The workflow at `.github/workflows/golden.yml` runs when validator, report,

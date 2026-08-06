@@ -10,12 +10,60 @@ pub const NOTICE_CODE_MISSING_FILE: &str = "missing_required_file";
 pub const NOTICE_CODE_MISSING_RECOMMENDED_FILE: &str = "missing_recommended_file";
 pub const NOTICE_CODE_EMPTY_TABLE: &str = "empty_file";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoticeSeverity {
     Error,
     Warning,
     Info,
+}
+
+/// A latitude/longitude pair attached to a validation notice.
+///
+/// Named coordinates avoid the latitude/longitude ordering ambiguity of raw
+/// JSON arrays and give every frontend the same map contract.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoticeGeometryPoint {
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
+impl NoticeGeometryPoint {
+    pub const fn new(latitude: f64, longitude: f64) -> Self {
+        Self {
+            latitude,
+            longitude,
+        }
+    }
+}
+
+/// Renderer-neutral geometry for notices that have a geographic location.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum NoticeGeometry {
+    Point {
+        point: NoticeGeometryPoint,
+    },
+    Line {
+        points: Vec<NoticeGeometryPoint>,
+    },
+    PointAndLine {
+        point: NoticeGeometryPoint,
+        line: Vec<NoticeGeometryPoint>,
+        #[serde(
+            default,
+            rename = "nearestPoint",
+            skip_serializing_if = "Option::is_none"
+        )]
+        nearest_point: Option<NoticeGeometryPoint>,
+    },
+    BoundingBox {
+        #[serde(rename = "southWest")]
+        south_west: NoticeGeometryPoint,
+        #[serde(rename = "northEast")]
+        north_east: NoticeGeometryPoint,
+    },
 }
 
 /// Safety level for auto-fixes
@@ -67,6 +115,15 @@ pub enum FixOperation {
         original: String,
         replacement: String,
     },
+    /// Delete a row whose identifying field still has the expected value.
+    DeleteRow {
+        file: String,
+        row: u64,
+        field: String,
+        expected: String,
+    },
+    /// Canonicalize `stop_times.txt` without changing any row values.
+    SortStopTimes { file: String },
 }
 
 /// A suggested fix for a validation issue
@@ -93,6 +150,8 @@ pub struct ValidationNotice {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub field_order: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<NoticeGeometry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fix: Option<Fix>,
 }
 
@@ -111,6 +170,7 @@ impl ValidationNotice {
             field: None,
             context: BTreeMap::new(),
             field_order: Vec::new(),
+            geometry: None,
             fix: None,
         }
     }
@@ -188,6 +248,11 @@ impl ValidationNotice {
 
     pub fn with_context_field<V: Serialize>(mut self, name: impl Into<String>, value: V) -> Self {
         self.insert_context_field(name, value);
+        self
+    }
+
+    pub fn with_geometry(mut self, geometry: NoticeGeometry) -> Self {
+        self.geometry = Some(geometry);
         self
     }
 
@@ -323,6 +388,34 @@ impl NoticeContainer {
         )
     }
 
+    /// Exact totals keyed by notice code and severity.
+    ///
+    /// This is primarily useful for comparing validation runs. Counts include
+    /// notices omitted from storage by the per-group cap.
+    pub fn group_counts(&self) -> Vec<((String, NoticeSeverity), usize)> {
+        let mut counts = Vec::new();
+        for (code, tallies) in &self.group_tallies {
+            for severity in [
+                NoticeSeverity::Error,
+                NoticeSeverity::Warning,
+                NoticeSeverity::Info,
+            ] {
+                let total = tallies[severity_index(severity)].total;
+                if total > 0 {
+                    counts.push(((code.clone(), severity), total));
+                }
+            }
+        }
+        counts.sort_by(
+            |((left_code, left_severity), _), ((right_code, right_severity), _)| {
+                left_code.cmp(right_code).then_with(|| {
+                    severity_index(*left_severity).cmp(&severity_index(*right_severity))
+                })
+            },
+        );
+        counts
+    }
+
     /// Exact total for one (code, severity) group, including dropped notices.
     pub fn group_total(&self, code: &str, severity: NoticeSeverity) -> usize {
         self.group_tallies
@@ -393,6 +486,31 @@ mod tests {
 
     fn notice(code: &str, severity: NoticeSeverity) -> ValidationNotice {
         ValidationNotice::new(code, severity, "test message")
+    }
+
+    #[test]
+    fn notice_geometry_has_a_stable_tagged_json_shape() {
+        let geometry = NoticeGeometry::PointAndLine {
+            point: NoticeGeometryPoint::new(35.1856, 33.3823),
+            line: vec![
+                NoticeGeometryPoint::new(35.184, 33.38),
+                NoticeGeometryPoint::new(35.186, 33.384),
+            ],
+            nearest_point: Some(NoticeGeometryPoint::new(35.185, 33.382)),
+        };
+
+        assert_eq!(
+            serde_json::to_value(geometry).unwrap(),
+            serde_json::json!({
+                "type": "pointAndLine",
+                "point": { "latitude": 35.1856, "longitude": 33.3823 },
+                "line": [
+                    { "latitude": 35.184, "longitude": 33.38 },
+                    { "latitude": 35.186, "longitude": 33.384 }
+                ],
+                "nearestPoint": { "latitude": 35.185, "longitude": 33.382 }
+            })
+        );
     }
 
     #[test]

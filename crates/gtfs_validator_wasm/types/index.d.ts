@@ -7,6 +7,26 @@
  */
 export type NoticeSeverity = 'ERROR' | 'WARNING' | 'INFO';
 
+export interface NoticeGeometryPoint {
+  latitude: number;
+  longitude: number;
+}
+
+export type NoticeGeometry =
+  | { type: 'point'; point: NoticeGeometryPoint }
+  | { type: 'line'; points: NoticeGeometryPoint[] }
+  | {
+      type: 'pointAndLine';
+      point: NoticeGeometryPoint;
+      line: NoticeGeometryPoint[];
+      nearestPoint?: NoticeGeometryPoint;
+    }
+  | {
+      type: 'boundingBox';
+      southWest: NoticeGeometryPoint;
+      northEast: NoticeGeometryPoint;
+    };
+
 /**
  * A validation notice (error, warning, or info)
  */
@@ -23,6 +43,8 @@ export interface ValidationNotice {
   csvRowNumber?: number;
   /** Affected field name */
   fieldName?: string;
+  /** Renderer-neutral geographic context for map-capable notices */
+  geometry?: NoticeGeometry;
   /** Additional context as key-value pairs */
   [key: string]: unknown;
 }
@@ -91,6 +113,54 @@ export interface ParsedValidationResult {
 export interface ValidationOptions {
   /** ISO 3166-1 alpha-2 country code (e.g., "US", "DE", "RU") */
   countryCode?: string;
+  /** Validation date in YYYY-MM-DD format */
+  date?: string;
+}
+
+export interface EntityDiff {
+  added: string[];
+  removed: string[];
+  changed: string[];
+}
+
+export interface FeedDiff {
+  files: { added: string[]; removed: string[] };
+  feedInfo: {
+    changed: boolean;
+    oldVersion?: string;
+    newVersion?: string;
+    oldServiceRange?: string;
+    newServiceRange?: string;
+  };
+  agencies: EntityDiff;
+  routes: EntityDiff;
+  stops: EntityDiff & {
+    renamed: string[];
+    moved: Array<{ stopId: string; distanceMeters: number }>;
+  };
+  tripsByRoute: Array<{ routeId: string; oldCount: number; newCount: number }>;
+  frequenciesByRoute: Array<{
+    routeId: string;
+    oldWindows: string[];
+    newWindows: string[];
+  }>;
+  notices: {
+    newErrors: number;
+    resolvedErrors: number;
+    changes: Array<{
+      code: string;
+      severity: NoticeSeverity;
+      oldCount: number;
+      newCount: number;
+    }>;
+  };
+}
+
+export interface ParsedDiffResult {
+  json: string;
+  diff: FeedDiff;
+  comparisonTimeMs: number;
+  runtime: 'single-threaded' | 'multi-threaded';
 }
 
 /**
@@ -120,7 +190,8 @@ export function version(): string;
  */
 export function validate_gtfs(
   zipBytes: Uint8Array,
-  countryCode?: string | null
+  countryCode?: string | null,
+  date?: string | null
 ): ValidationResult;
 
 /**
@@ -132,7 +203,16 @@ export function validate_gtfs(
  */
 export function validate_gtfs_json(
   zipBytes: Uint8Array,
-  countryCode?: string | null
+  countryCode?: string | null,
+  date?: string | null
+): string;
+
+/** Validate and compare a previous and new GTFS ZIP file. */
+export function diff_gtfs(
+  oldZipBytes: Uint8Array,
+  newZipBytes: Uint8Array,
+  countryCode?: string | null,
+  date?: string | null
 ): string;
 
 /**
@@ -171,6 +251,13 @@ export class GtfsValidator {
     input: File | Blob | ArrayBuffer | Uint8Array,
     options?: ValidationOptions
   ): Promise<ParsedValidationResult>;
+
+  /** Validate both feeds and return their semantic comparison. */
+  diff(
+    oldInput: File | Blob | ArrayBuffer | Uint8Array,
+    newInput: File | Blob | ArrayBuffer | Uint8Array,
+    options?: ValidationOptions
+  ): Promise<ParsedDiffResult>;
 
   /**
    * Get the validator version

@@ -3,7 +3,10 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::validation_context::thorough_mode_enabled;
-use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, ValidationNotice, Validator};
+use crate::{
+    GtfsFeed, NoticeContainer, NoticeGeometry, NoticeGeometryPoint, NoticeSeverity,
+    ValidationNotice, Validator,
+};
 use gtfs_guru_model::RouteType;
 use gtfs_guru_model::StringId;
 use rstar::{RTree, RTreeObject, AABB};
@@ -557,8 +560,9 @@ fn populate_stop_too_far_notice(
         "stopName",
         stop_name_by_id(stops_by_id, problem.stop_time.stop_id),
     );
-    // Include the actual stop location for map visualization
-    if let Some(stop_location) = stop_location_by_id(stops_by_id, problem.stop_time.stop_id) {
+    let stop_location = stop_location_by_id(stops_by_id, problem.stop_time.stop_id);
+    // Keep the legacy context fields while clients migrate to `geometry`.
+    if let Some(stop_location) = stop_location {
         notice.insert_context_field("stopLocation", lat_lng_array(stop_location));
     }
     notice.insert_context_field("match", lat_lng_array(problem.match_result.location));
@@ -570,8 +574,19 @@ fn populate_stop_too_far_notice(
     // Extract shape path segment around the error for visualization
     let shape_path = extract_shape_path_segment(shape_points, problem.match_result.index);
     if !shape_path.is_empty() {
-        notice.insert_context_field("shapePath", shape_path);
+        notice.insert_context_field("shapePath", &shape_path);
         notice.insert_context_field("matchIndex", problem.match_result.index);
+    }
+
+    if let Some(stop_location) = stop_location {
+        notice.geometry = Some(NoticeGeometry::PointAndLine {
+            point: notice_geometry_point(stop_location),
+            line: shape_path
+                .iter()
+                .map(|point| NoticeGeometryPoint::new(point[0], point[1]))
+                .collect(),
+            nearest_point: Some(notice_geometry_point(problem.match_result.location)),
+        });
     }
 
     notice.field_order = vec![
@@ -625,6 +640,16 @@ fn extract_shape_path_segment(shape_points: &ShapePoints, match_index: usize) ->
         end_index = i;
     }
 
+    // A line renderer needs at least two coordinates. At sparse shape edges,
+    // the nearest adjacent point can be more than 500 m away.
+    if start_index == end_index && shape_points.points.len() > 1 {
+        if end_index + 1 < shape_points.points.len() {
+            end_index += 1;
+        } else {
+            start_index = start_index.saturating_sub(1);
+        }
+    }
+
     // Extract coordinates
     shape_points.points[start_index..=end_index]
         .iter()
@@ -655,6 +680,10 @@ fn trip_hash(stop_times: &[&gtfs_guru_model::StopTime]) -> u64 {
 
 fn lat_lng_array(lat_lng: LatLng) -> [f64; 2] {
     [lat_lng.lat, lat_lng.lon]
+}
+
+fn notice_geometry_point(lat_lng: LatLng) -> NoticeGeometryPoint {
+    NoticeGeometryPoint::new(lat_lng.lat, lat_lng.lon)
 }
 
 fn stop_name_by_id<'a>(
@@ -1900,9 +1929,22 @@ mod tests {
         let mut notices = NoticeContainer::new();
         ShapeToStopMatchingValidator.validate(&feed, &mut notices);
 
-        assert!(notices
+        let notice = notices
             .iter()
-            .any(|n| n.code == CODE_STOP_TOO_FAR_FROM_SHAPE));
+            .find(|notice| notice.code == CODE_STOP_TOO_FAR_FROM_SHAPE)
+            .expect("stop-too-far notice");
+        match notice.geometry.as_ref().expect("notice geometry") {
+            NoticeGeometry::PointAndLine {
+                point,
+                line,
+                nearest_point,
+            } => {
+                assert_eq!(*point, NoticeGeometryPoint::new(38.0, -122.0));
+                assert!(line.len() >= 2);
+                assert!(nearest_point.is_some());
+            }
+            other => panic!("unexpected geometry: {other:?}"),
+        }
     }
 
     #[test]

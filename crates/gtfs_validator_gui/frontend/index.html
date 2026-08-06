@@ -580,6 +580,185 @@
             display: none;
         }
 
+        .hidden {
+            display: none !important;
+        }
+
+        .mode-switch {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            padding: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        .mode-btn {
+            border: 0;
+            border-radius: 7px;
+            padding: 0.55rem;
+            background: transparent;
+            color: #64748b;
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .mode-btn.active {
+            background: #fff;
+            color: #1e293b;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+        }
+
+        .diff-source-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .diff-source {
+            min-width: 0;
+            padding: 0.85rem;
+            border: 1px dashed #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .diff-source:hover,
+        .diff-source.has-file {
+            border-color: #4f46e5;
+            background: #eef2ff;
+        }
+
+        .diff-source span,
+        .diff-source strong {
+            display: block;
+        }
+
+        .diff-source span {
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .diff-source strong {
+            margin: 0.3rem 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.9rem;
+        }
+
+        .diff-results {
+            display: none;
+        }
+
+        .diff-results.active {
+            display: block;
+        }
+
+        .diff-headline,
+        .diff-metrics {
+            display: grid;
+            gap: 0.65rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .diff-headline {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .diff-metrics {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .diff-headline > div,
+        .diff-metric {
+            padding: 0.7rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .diff-headline strong,
+        .diff-metric strong {
+            display: block;
+            font-size: 1.2rem;
+        }
+
+        .diff-headline span,
+        .diff-metric span {
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .diff-headline .new-errors strong {
+            color: #dc2626;
+        }
+
+        .diff-headline .resolved-errors strong {
+            color: #16a34a;
+        }
+
+        .diff-details {
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .diff-details summary {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.7rem 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            list-style: none;
+        }
+
+        .diff-details summary span {
+            color: #64748b;
+            font-weight: 400;
+        }
+
+        .diff-list {
+            max-height: 180px;
+            overflow: auto;
+            list-style: none;
+            margin-bottom: 0.75rem;
+        }
+
+        .diff-list li {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.4rem 0.55rem;
+            margin-bottom: 0.25rem;
+            border-radius: 6px;
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 0.78rem;
+        }
+
+        .diff-list code {
+            color: #1e293b;
+            overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 560px) {
+            .diff-source-grid,
+            .diff-headline {
+                grid-template-columns: 1fr;
+            }
+
+            .diff-metrics {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
     </style>
 </head>
 
@@ -595,22 +774,47 @@
             <button class="btn btn-primary btn-small" id="updateBtn">Download update</button>
         </div>
         <div class="card" id="uploadCard">
-            <div class="form-group">
-                <div class="form-label" id="filePickerLabel">Select a GTFS ZIP file</div>
-                <div class="drop-zone" id="dropZone" role="button" tabindex="0"
-                    aria-labelledby="filePickerLabel dropZoneText">
-                    <div class="drop-zone-icon">📁</div>
-                    <div class="drop-zone-text" id="dropZoneText">
-                        Drop a file here or click to browse
-                    </div>
-                </div>
-                <input type="file" id="fileInput" accept=".zip" style="display: none;">
+            <div class="mode-switch" role="tablist" aria-label="Tool mode">
+                <button type="button" class="mode-btn active" id="validateModeBtn"
+                    role="tab" aria-selected="true">Validate</button>
+                <button type="button" class="mode-btn" id="diffModeBtn"
+                    role="tab" aria-selected="false">Compare feeds</button>
             </div>
 
-            <div class="form-group">
-                <label class="form-label" for="urlInput">Or load from a URL</label>
-                <input type="url" class="select-input" id="urlInput" placeholder="https://example.com/feed.zip"
-                    style="background-image: none; cursor: text;">
+            <div id="validateSourceInputs">
+                <div class="form-group">
+                    <div class="form-label" id="filePickerLabel">Select a GTFS ZIP file</div>
+                    <div class="drop-zone" id="dropZone" role="button" tabindex="0"
+                        aria-labelledby="filePickerLabel dropZoneText">
+                        <div class="drop-zone-icon">📁</div>
+                        <div class="drop-zone-text" id="dropZoneText">
+                            Drop a file here or click to browse
+                        </div>
+                    </div>
+                    <input type="file" id="fileInput" accept=".zip" style="display: none;">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="urlInput">Or load from a URL</label>
+                    <input type="url" class="select-input" id="urlInput" placeholder="https://example.com/feed.zip"
+                        style="background-image: none; cursor: text;">
+                </div>
+            </div>
+
+            <div class="hidden" id="diffSourceInputs">
+                <div class="form-label">Choose the previous and new GTFS releases</div>
+                <div class="diff-source-grid">
+                    <button type="button" class="diff-source" id="oldSourceBtn">
+                        <span>Previous</span>
+                        <strong id="oldSourceName">Choose GTFS.zip</strong>
+                        <span>Baseline release</span>
+                    </button>
+                    <button type="button" class="diff-source" id="newSourceBtn">
+                        <span>New</span>
+                        <strong id="newSourceName">Choose GTFS.zip</strong>
+                        <span>Release to review</span>
+                    </button>
+                </div>
             </div>
 
             <div class="form-group">
@@ -935,6 +1139,20 @@
             </div>
         </div>
 
+        <div class="card diff-results" id="diffResultsSection" aria-live="polite">
+            <div class="results-header">
+                <div class="results-title">Comparison Complete</div>
+                <div class="results-time" id="diffResultsTime"></div>
+            </div>
+            <div id="diffReport"></div>
+            <div class="report-links">
+                <button class="report-link" id="openDiffJsonBtn">📋 Open JSON Diff</button>
+            </div>
+            <div class="btn-group" style="margin-top: 1rem;">
+                <button class="btn btn-secondary" id="resetDiffBtn">New Comparison</button>
+            </div>
+        </div>
+
         <footer>
             <div class="footer-text">
                 <span id="versionText"></span>
@@ -981,12 +1199,25 @@
 
         // New elements
         const urlInput = document.getElementById('urlInput');
+        const validateSourceInputs = document.getElementById('validateSourceInputs');
+        const diffSourceInputs = document.getElementById('diffSourceInputs');
+        const validateModeBtn = document.getElementById('validateModeBtn');
+        const diffModeBtn = document.getElementById('diffModeBtn');
+        const oldSourceBtn = document.getElementById('oldSourceBtn');
+        const newSourceBtn = document.getElementById('newSourceBtn');
+        const oldSourceName = document.getElementById('oldSourceName');
+        const newSourceName = document.getElementById('newSourceName');
 
         const regionSelect = document.getElementById('regionSelect');
         const validateBtn = document.getElementById('validateBtn');
         const uploadCard = document.getElementById('uploadCard');
         const progressSection = document.getElementById('progressSection');
         const resultsSection = document.getElementById('resultsSection');
+        const diffResultsSection = document.getElementById('diffResultsSection');
+        const diffReport = document.getElementById('diffReport');
+        const diffResultsTime = document.getElementById('diffResultsTime');
+        const openDiffJsonBtn = document.getElementById('openDiffJsonBtn');
+        const resetDiffBtn = document.getElementById('resetDiffBtn');
         const errorMessage = document.getElementById('errorMessage');
         const resetBtn = document.getElementById('resetBtn');
         const htmlReportBtn = document.getElementById('htmlReportBtn');
@@ -998,7 +1229,11 @@
         const updateBtn = document.getElementById('updateBtn');
 
         let selectedFilePath = null;
+        let selectedOldPath = null;
+        let selectedNewPath = null;
+        let currentMode = 'validate';
         let lastResult = null;
+        let lastDiffResult = null;
         let unlistenProgress = null;
         let unlistenDragDrop = null;
         let updateDownloadUrl = null;
@@ -1025,6 +1260,28 @@
         }
 
         init();
+
+        function setMode(mode) {
+            currentMode = mode;
+            validateModeBtn.classList.toggle('active', mode === 'validate');
+            diffModeBtn.classList.toggle('active', mode === 'diff');
+            validateModeBtn.setAttribute('aria-selected', String(mode === 'validate'));
+            diffModeBtn.setAttribute('aria-selected', String(mode === 'diff'));
+            validateSourceInputs.classList.toggle('hidden', mode !== 'validate');
+            diffSourceInputs.classList.toggle('hidden', mode !== 'diff');
+            validateBtn.textContent = mode === 'diff' ? 'Compare feeds' : 'Validate';
+            validateBtn.disabled = mode === 'diff'
+                ? !(selectedOldPath && selectedNewPath)
+                : !(selectedFilePath || urlInput.value.trim());
+            resultsSection.classList.remove('active');
+            diffResultsSection.classList.remove('active');
+            progressSection.classList.remove('active');
+            uploadCard.style.display = 'block';
+            hideError();
+        }
+
+        validateModeBtn.addEventListener('click', () => setMode('validate'));
+        diffModeBtn.addEventListener('click', () => setMode('diff'));
 
         async function checkForUpdates() {
             if (!invoke || !updateBanner || !updateText || !updateBtn) return;
@@ -1073,6 +1330,25 @@
             }
         });
 
+        async function chooseDiffSource(slot) {
+            if (!dialog) {
+                alert("Dialog plugin not initialized. Check terminal/console for errors.");
+                return;
+            }
+            try {
+                const selected = await dialog.open({
+                    multiple: false,
+                    filters: [{ name: 'GTFS', extensions: ['zip'] }]
+                });
+                if (selected) handleDiffFileSelect(slot, selected);
+            } catch (e) {
+                console.error('File dialog error:', e);
+            }
+        }
+
+        oldSourceBtn.addEventListener('click', () => chooseDiffSource('old'));
+        newSourceBtn.addEventListener('click', () => chooseDiffSource('new'));
+
         dropZone.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
@@ -1108,12 +1384,23 @@
                         return;
                     }
 
-                    const zipPath = (payload.paths || []).find((path) =>
+                    const zipPaths = (payload.paths || []).filter((path) =>
                         path.toLowerCase().endsWith('.zip')
                     );
 
-                    if (zipPath) {
-                        handleFileSelect(zipPath);
+                    if (zipPaths.length) {
+                        if (currentMode === 'diff') {
+                            if (zipPaths[1]) {
+                                handleDiffFileSelect('old', zipPaths[0]);
+                                handleDiffFileSelect('new', zipPaths[1]);
+                            } else if (!selectedOldPath) {
+                                handleDiffFileSelect('old', zipPaths[0]);
+                            } else {
+                                handleDiffFileSelect('new', zipPaths[0]);
+                            }
+                        } else {
+                            handleFileSelect(zipPaths[0]);
+                        }
                     } else {
                         showError('Please drop a GTFS ZIP file.');
                     }
@@ -1147,13 +1434,32 @@
             hideError();
         }
 
+        function handleDiffFileSelect(slot, path) {
+            const fileName = path.split(/[/\\]/).pop();
+            if (slot === 'old') {
+                selectedOldPath = path;
+                oldSourceName.textContent = fileName;
+                oldSourceBtn.classList.add('has-file');
+            } else {
+                selectedNewPath = path;
+                newSourceName.textContent = fileName;
+                newSourceBtn.classList.add('has-file');
+            }
+            validateBtn.disabled = !(selectedOldPath && selectedNewPath);
+            hideError();
+        }
+
         function setDropZoneText(text, isFile = false) {
             dropZoneText.textContent = text;
             dropZoneText.classList.toggle('drop-zone-file', isFile);
         }
 
-        validateBtn.addEventListener('click', startValidation);
+        validateBtn.addEventListener('click', () => {
+            if (currentMode === 'diff') startDiff();
+            else startValidation();
+        });
         resetBtn.addEventListener('click', () => resetUI());
+        resetDiffBtn.addEventListener('click', resetDiffUI);
 
         htmlReportBtn.addEventListener('click', async () => {
             if (lastResult && lastResult.htmlReportPath) {
@@ -1181,6 +1487,15 @@
             }
         });
 
+        openDiffJsonBtn.addEventListener('click', async () => {
+            if (!lastDiffResult?.jsonReportPath) return;
+            try {
+                await invoke('open_path', { path: lastDiffResult.jsonReportPath });
+            } catch (e) {
+                alert("Failed to open diff report:\n" + e);
+            }
+        });
+
         async function startValidation() {
             if (!selectedFilePath && !urlInput.value.trim()) {
                 showError('Please select a file or enter a URL');
@@ -1194,7 +1509,7 @@
             }
 
             hideError();
-            showProgress();
+            showProgress('Validating your GTFS feed...');
 
             // Set up listener
             if (listen) {
@@ -1236,14 +1551,58 @@
             }
         }
 
-        function showProgress() {
+        async function startDiff() {
+            if (!selectedOldPath || !selectedNewPath) {
+                showError('Select both the previous and new GTFS feeds.');
+                return;
+            }
+
+            hideError();
+            showProgress('Comparing GTFS releases...');
+
+            if (listen) {
+                if (unlistenProgress) {
+                    unlistenProgress();
+                    unlistenProgress = null;
+                }
+                try {
+                    unlistenProgress = await listen('diff-progress', (event) => {
+                        updateProgress(event.payload);
+                    });
+                } catch (e) {
+                    console.error("Failed to setup diff progress listener:", e);
+                }
+            }
+
+            try {
+                const result = await invoke('diff_gtfs', {
+                    oldPath: selectedOldPath,
+                    newPath: selectedNewPath,
+                    countryCode: regionSelect.value || null
+                });
+                lastDiffResult = result;
+                showDiffResults(result);
+            } catch (error) {
+                resetDiffUI();
+                showError(error.toString());
+            } finally {
+                if (unlistenProgress) {
+                    unlistenProgress();
+                    unlistenProgress = null;
+                }
+            }
+        }
+
+        function showProgress(title) {
             uploadCard.style.display = 'none';
             progressSection.classList.add('active');
             resultsSection.classList.remove('active');
+            diffResultsSection.classList.remove('active');
 
             // Reset state
             progressFill.style.width = '0%';
             progressStatus.textContent = 'Initializing...';
+            document.querySelector('.progress-title').textContent = title;
         }
 
         function updateProgress(payload) {
@@ -1281,6 +1640,99 @@
             } else {
                 document.getElementById('mapSection').classList.remove('active');
             }
+        }
+
+        function escapeHtml(value) {
+            const element = document.createElement('span');
+            element.textContent = String(value ?? '');
+            return element.innerHTML;
+        }
+
+        function entityRows(entity) {
+            return [
+                ...(entity?.added || []).map((id) => [id, 'Added']),
+                ...(entity?.removed || []).map((id) => [id, 'Removed']),
+                ...(entity?.changed || []).map((id) => [id, 'Changed'])
+            ];
+        }
+
+        function diffDetails(title, rows) {
+            if (!rows.length) return '';
+            const visible = rows.slice(0, 200);
+            return `
+                <details class="diff-details">
+                    <summary>${escapeHtml(title)} <span>${rows.length.toLocaleString()} changes</span></summary>
+                    <ul class="diff-list">
+                        ${visible.map(([label, value]) =>
+                            `<li><code>${escapeHtml(label)}</code><span>${escapeHtml(value)}</span></li>`
+                        ).join('')}
+                        ${rows.length > visible.length
+                            ? `<li><span>And ${(rows.length - visible.length).toLocaleString()} more</span><span>JSON</span></li>`
+                            : ''}
+                    </ul>
+                </details>
+            `;
+        }
+
+        function renderDiff(report) {
+            const stopRows = [
+                ...entityRows(report.stops),
+                ...(report.stops?.renamed || []).map((id) => [id, 'Renamed']),
+                ...(report.stops?.moved || []).map((move) => [
+                    move.stopId,
+                    `Moved ${Number(move.distanceMeters).toFixed(0)} m`
+                ])
+            ];
+            const tripRows = (report.tripsByRoute || []).map((change) => [
+                change.routeId,
+                `${change.oldCount.toLocaleString()} → ${change.newCount.toLocaleString()} trips`
+            ]);
+            const frequencyRows = (report.frequenciesByRoute || []).map((change) => [
+                change.routeId,
+                `${change.oldWindows.length} → ${change.newWindows.length} windows`
+            ]);
+            const noticeRows = (report.notices?.changes || []).map((change) => [
+                change.code,
+                `${change.severity} · ${change.oldCount.toLocaleString()} → ${change.newCount.toLocaleString()}`
+            ]);
+            const fileRows = [
+                ...(report.files?.added || []).map((name) => [name, 'Added']),
+                ...(report.files?.removed || []).map((name) => [name, 'Removed'])
+            ];
+            const routeAdds = report.routes?.added?.length || 0;
+            const routeRemoves = report.routes?.removed?.length || 0;
+            const stopAdds = report.stops?.added?.length || 0;
+            const stopRemoves = report.stops?.removed?.length || 0;
+
+            return `
+                <div class="diff-headline">
+                    <div class="new-errors"><strong>${report.notices?.newErrors || 0}</strong><span>New errors</span></div>
+                    <div class="resolved-errors"><strong>${report.notices?.resolvedErrors || 0}</strong><span>Resolved errors</span></div>
+                </div>
+                <div class="diff-metrics">
+                    <div class="diff-metric"><strong>+${routeAdds} / −${routeRemoves}</strong><span>Routes</span></div>
+                    <div class="diff-metric"><strong>+${stopAdds} / −${stopRemoves}</strong><span>Stops</span></div>
+                    <div class="diff-metric"><strong>${report.stops?.moved?.length || 0}</strong><span>Stops moved</span></div>
+                    <div class="diff-metric"><strong>${tripRows.length}</strong><span>Trip changes</span></div>
+                    <div class="diff-metric"><strong>${frequencyRows.length}</strong><span>Frequency changes</span></div>
+                    <div class="diff-metric"><strong>${noticeRows.length}</strong><span>Issue groups</span></div>
+                </div>
+                ${diffDetails('Routes', entityRows(report.routes))}
+                ${diffDetails('Stops', stopRows)}
+                ${diffDetails('Trips by route', tripRows)}
+                ${diffDetails('Frequencies', frequencyRows)}
+                ${diffDetails('Validation notices', noticeRows)}
+                ${diffDetails('Agencies', entityRows(report.agencies))}
+                ${diffDetails('Files', fileRows)}
+            `;
+        }
+
+        function showDiffResults(result) {
+            diffReport.innerHTML = renderDiff(result.report);
+            diffResultsTime.textContent = `Completed in ${result.comparisonTimeSecs.toFixed(2)}s`;
+            progressSection.classList.remove('active');
+            resultsSection.classList.remove('active');
+            diffResultsSection.classList.add('active');
         }
 
         // Map functionality
@@ -1371,6 +1823,22 @@
             progressSection.classList.remove('active');
             resultsSection.classList.remove('active');
             document.getElementById('mapSection').classList.remove('active');
+            hideError();
+        }
+
+        function resetDiffUI() {
+            selectedOldPath = null;
+            selectedNewPath = null;
+            lastDiffResult = null;
+            oldSourceName.textContent = 'Choose GTFS.zip';
+            newSourceName.textContent = 'Choose GTFS.zip';
+            oldSourceBtn.classList.remove('has-file');
+            newSourceBtn.classList.remove('has-file');
+            validateBtn.disabled = true;
+            uploadCard.style.display = 'block';
+            progressSection.classList.remove('active');
+            resultsSection.classList.remove('active');
+            diffResultsSection.classList.remove('active');
             hideError();
         }
 

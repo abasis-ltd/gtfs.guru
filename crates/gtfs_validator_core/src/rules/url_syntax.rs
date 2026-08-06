@@ -1,6 +1,6 @@
 use crate::{
-    validation_context::thorough_mode_enabled, Fix, FixOperation, FixSafety, GtfsFeed,
-    NoticeContainer, NoticeSeverity, ValidationNotice, Validator,
+    validation_context::thorough_mode_enabled, FixSafety, GtfsFeed, NoticeContainer,
+    NoticeSeverity, ValidationNotice, Validator,
 };
 use url::Url;
 
@@ -119,22 +119,18 @@ fn validate_url(
             "fieldValue".into(),
         ];
 
-        // Try to suggest a fix if the URL is just missing a scheme
-        if !trimmed.contains("://") && (trimmed.contains('.') || trimmed.starts_with("www.")) {
-            let suggested = format!("https://{}", trimmed);
-            if Url::parse(&suggested).is_ok() {
-                notice.fix = Some(Fix {
-                    description: "Add https:// scheme".into(),
-                    safety: FixSafety::Safe,
-                    operation: FixOperation::ReplaceField {
-                        file: filename.to_string(),
-                        row: row_number,
-                        field: field_name.to_string(),
-                        original: trimmed.to_string(),
-                        replacement: suggested,
-                    },
-                });
-            }
+        // The location lives in context fields here, so it has to be passed in.
+        if let Some(replacement) = crate::fix_suggest::url(trimmed) {
+            crate::fix_suggest::attach_fix(
+                &mut notice,
+                "Add the https:// scheme",
+                FixSafety::Safe,
+                filename,
+                row_number,
+                field_name,
+                trimmed,
+                replacement,
+            );
         }
 
         notices.push(notice);
@@ -144,7 +140,7 @@ fn validate_url(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CsvTable;
+    use crate::{CsvTable, FixOperation};
     use gtfs_guru_model::Agency;
 
     #[test]
@@ -222,7 +218,10 @@ mod tests {
             original,
             replacement,
             ..
-        } = &fix.operation;
+        } = &fix.operation
+        else {
+            panic!("expected field replacement");
+        };
 
         assert_eq!(original, "www.example.com");
         assert_eq!(replacement, "https://www.example.com");
