@@ -6,6 +6,9 @@ license = "Apache-2.0"
 description = "Reporting structures for GTFS Guru validator"
 repository = "https://github.com/abasis-ltd/gtfs.guru"
 homepage = "https://github.com/abasis-ltd/gtfs.guru"
+readme = "README.md"
+keywords = ["gtfs", "transit", "validator", "report"]
+categories = ["encoding"]
 [dependencies]
 anyhow = { workspace = true }
 chrono = { workspace = true }

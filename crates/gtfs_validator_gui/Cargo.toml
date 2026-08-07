@@ -1,6 +1,9 @@
 [package]
 name = "gtfs-guru-gui"
 version = "1.0.0"
+# Not published: this is the Tauri desktop app, distributed via GitHub
+# releases, not something anyone `cargo add`s.
+publish = false
 edition = "2021"
 license = "Apache-2.0"
 description = "Desktop GUI for GTFS Validator"
