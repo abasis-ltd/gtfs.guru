@@ -2,8 +2,7 @@
 
 ## Overview
 
-- Rust implementation of the Java validator at `../gtfs-validator-java`
-  (`/Users/akimov/Documents/GitHub/gtfs-validator-java`).
+- A Rust implementation of the canonical Java `MobilityData/gtfs-validator`.
 - Workspace crates live in `crates/`; core logic is in `gtfs_validator_core`, deterministic feed facts live in `gtfs_validator_profile`, and CLI, MCP, web, WASM, Python, and GUI are adapters.
 - Benchmark inputs and the Java baseline live in `benchmark-feeds/` (`gtfs-validator.jar`).
 
