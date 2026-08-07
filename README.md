@@ -329,7 +329,20 @@ GTFSVTOR_OPTS=-Xmx6G gtfsvtor \
 
 ## 📂 Project Structure
 
-This monorepo houses the entire ecosystem:
+This monorepo houses the entire ecosystem. `gtfs_validator_core` is the
+validation engine; every front-end (CLI, web, GUI, WASM, Python) is a thin
+wrapper around it and `gtfs_validator_report`:
+
+```mermaid
+graph LR
+    model["gtfs_model<br/>shared GTFS types"] --> core["gtfs_validator_core<br/>110 validators"]
+    core --> report["gtfs_validator_report<br/>JSON · HTML · SARIF"]
+    report --> cli["gtfs_validator_cli<br/>gtfs-guru binary"]
+    report --> web["gtfs_validator_web<br/>Axum API server"]
+    report --> gui["gtfs_validator_gui<br/>Tauri desktop app"]
+    report --> wasm["gtfs_validator_wasm<br/>browser bindings"]
+    report --> python["gtfs_validator_python<br/>PyO3 bindings"]
+```
 
 * **`crates/gtfs_model`**: Shared GTFS data model types.
 * **`crates/gtfs_validator_core`**: The validation engine (110 validators).
