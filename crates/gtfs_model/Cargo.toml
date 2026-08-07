@@ -6,6 +6,9 @@ license = "Apache-2.0"
 description = "Data models for GTFS (General Transit Feed Specification)"
 repository = "https://github.com/abasis-ltd/gtfs.guru"
 homepage = "https://github.com/abasis-ltd/gtfs.guru"
+readme = "README.md"
+keywords = ["gtfs", "transit", "gis", "public-transport"]
+categories = ["data-structures", "science"]
 [dependencies]
 chrono = { workspace = true }
 compact_str = { version = "0.9.0", features = ["serde"] }
