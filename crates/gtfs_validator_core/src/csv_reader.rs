@@ -441,12 +441,17 @@ where
                 if trimmed.is_empty() {
                     return gtfs_guru_model::StringId(0);
                 }
-                let key = compact_str::CompactString::new(trimmed);
-                if let Some(id) = local_intern_cache.borrow().get(&key) {
+                // `CompactString: Borrow<str>`, so the hit path hashes the
+                // borrowed field directly. Building an owned key first cost an
+                // allocation per field for every id longer than the inline
+                // capacity — on the hot path that is once per cell.
+                if let Some(id) = local_intern_cache.borrow().get(trimmed) {
                     return *id;
                 }
                 let id = chunk_pool.intern(trimmed);
-                local_intern_cache.borrow_mut().insert(key, id);
+                local_intern_cache
+                    .borrow_mut()
+                    .insert(compact_str::CompactString::new(trimmed), id);
                 id
             });
             let _ctx_guards = ctx.apply();
