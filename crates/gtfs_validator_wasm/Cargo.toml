@@ -1,6 +1,8 @@
 [package]
 name = "gtfs-guru-wasm"
 version = "1.0.0"
+# Not published: consumed via npm/wasm-bindgen, not crates.io.
+publish = false
 edition = "2021"
 license = "Apache-2.0"
 description = "GTFS validator compiled to WebAssembly for browser-based validation"
