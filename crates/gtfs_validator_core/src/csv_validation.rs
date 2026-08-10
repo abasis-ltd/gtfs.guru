@@ -208,15 +208,117 @@ enum EnumKind {
     RiderFareCategory,
 }
 
-use crate::csv_schema::CsvSchema;
+/// Which bounds-checked numeric interpretation a float column carries.
+///
+/// Resolved once per column so the per-cell path never re-derives it from the
+/// header name.
+#[derive(Debug, Clone, Copy)]
+enum FloatCheck {
+    Latitude,
+    Longitude,
+    Decimal(NumberBounds),
+    Float(NumberBounds),
+    Plain,
+}
+
+/// The single value check a column is subject to.
+///
+/// The variants mirror the order of the `is_*_field` chain the per-cell loop
+/// used to walk: a column matches at most one of those predicates, so resolving
+/// the first match up front is equivalent to re-testing them on every row.
+#[derive(Debug, Clone, Copy)]
+enum ValueCheck {
+    None,
+    Enum(EnumKind),
+    Integer(Option<NumberBounds>),
+    Float(FloatCheck),
+    Date,
+    Time,
+    Color,
+    Timezone,
+    Language,
+    Currency,
+    Url,
+    Email,
+    Phone,
+}
+
+/// Everything `validate_row` needs to know about one column, resolved once when
+/// the validator is built.
+///
+/// Deriving this per cell meant a linear scan of a dozen `&[&str]` tables for
+/// every field of every row — on a feed with millions of `stop_times` rows that
+/// dominated parsing. The plan turns it into an indexed lookup plus one match.
+struct ColumnPlan {
+    /// Trimmed header name, as it appears in notices.
+    header: Box<str>,
+    is_schema_field: bool,
+    /// `is_schema_field` and an id-shaped column: candidates for the ASCII check.
+    check_non_ascii: bool,
+    is_mixed_case: bool,
+    check: ValueCheck,
+}
+
+fn value_check_for(field: &str) -> ValueCheck {
+    if let Some(kind) = enum_kind(field) {
+        return ValueCheck::Enum(kind);
+    }
+    if is_integer_field(field) {
+        return ValueCheck::Integer(integer_bounds(field));
+    }
+    if is_float_field(field) {
+        let kind = if is_latitude_field(field) {
+            FloatCheck::Latitude
+        } else if is_longitude_field(field) {
+            FloatCheck::Longitude
+        } else if let Some(bounds) = decimal_bounds(field) {
+            FloatCheck::Decimal(bounds)
+        } else if let Some(bounds) = float_bounds(field) {
+            FloatCheck::Float(bounds)
+        } else {
+            FloatCheck::Plain
+        };
+        return ValueCheck::Float(kind);
+    }
+    if is_date_field(field) {
+        return ValueCheck::Date;
+    }
+    if is_time_field(field) {
+        return ValueCheck::Time;
+    }
+    if is_color_field(field) {
+        return ValueCheck::Color;
+    }
+    if is_timezone_field(field) {
+        return ValueCheck::Timezone;
+    }
+    if is_language_field(field) {
+        return ValueCheck::Language;
+    }
+    if is_currency_field(field) {
+        return ValueCheck::Currency;
+    }
+    if is_url_field(field) {
+        return ValueCheck::Url;
+    }
+    if is_email_field(field) {
+        return ValueCheck::Email;
+    }
+    if is_phone_field(field) {
+        return ValueCheck::Phone;
+    }
+    ValueCheck::None
+}
 
 pub struct RowValidator {
     pub file_name: String,
-    pub headers: Vec<String>,
-    pub normalized_headers: Vec<String>,
     pub header_index: HashMap<String, usize>,
-    pub schema: Option<&'static CsvSchema>,
     pub validate_phone_numbers: bool,
+    columns: Vec<ColumnPlan>,
+    /// Column indexes of the schema's required fields, in schema order.
+    required_columns: Vec<usize>,
+    is_fare_products: bool,
+    thorough: bool,
 }
 
 impl RowValidator {
@@ -233,19 +335,48 @@ impl RowValidator {
         let schema = schema_for_file(file_name);
         let validate_phone_numbers = validation_country_code().is_some();
 
+        let columns: Vec<ColumnPlan> = headers
+            .iter()
+            .zip(normalized_headers.iter())
+            .map(|(raw, normalized)| {
+                let normalized = normalized.as_str();
+                let is_schema_field = schema
+                    .map(|schema| schema.fields.contains(&normalized))
+                    .unwrap_or(false);
+                ColumnPlan {
+                    header: raw.trim().into(),
+                    is_schema_field,
+                    check_non_ascii: is_schema_field && is_id_field(normalized),
+                    is_mixed_case: is_mixed_case_field(normalized),
+                    check: value_check_for(normalized),
+                }
+            })
+            .collect();
+
+        let required_columns = schema
+            .map(|schema| {
+                schema
+                    .required_fields
+                    .iter()
+                    .filter_map(|required| header_index.get(*required).copied())
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Self {
             file_name: file_name.to_string(),
-            headers,
-            normalized_headers,
             header_index,
-            schema,
             validate_phone_numbers,
+            columns,
+            required_columns,
+            is_fare_products: file_name.eq_ignore_ascii_case(FARE_PRODUCTS_FILE),
+            thorough: thorough_mode_enabled(),
         }
     }
 
     pub fn validate_row(&self, record: &StringRecord, row_number: u64) -> Vec<ValidationNotice> {
         let mut notices = Vec::new();
-        let header_len = self.headers.len();
+        let header_len = self.columns.len();
 
         if row_number > MAX_ROW_NUMBER {
             notices.push(too_many_rows_notice(&self.file_name, row_number));
@@ -255,7 +386,7 @@ impl RowValidator {
         // In default mode, skip empty rows silently (matches Java)
         // In thorough mode, emit empty_row notice
         if record.iter().all(|value| value.trim().is_empty()) {
-            if thorough_mode_enabled() {
+            if self.thorough {
                 notices.push(empty_row_notice(&self.file_name, row_number));
             }
             return notices;
@@ -271,55 +402,32 @@ impl RowValidator {
             return notices;
         }
 
-        if let Some(schema) = self.schema {
-            for required in schema.required_fields {
-                let Some(&index) = self.header_index.get(*required) else {
-                    continue;
-                };
-                let raw = record.get(index).unwrap_or("");
-                let trimmed = trim_java_whitespace(raw);
-                if trimmed.is_empty() {
-                    let header_name = self
-                        .headers
-                        .get(index)
-                        .map(|value| value.trim())
-                        .unwrap_or(required);
-                    notices.push(missing_required_field_notice(
-                        &self.file_name,
-                        header_name,
-                        row_number,
-                    ));
-                }
+        for &index in &self.required_columns {
+            let raw = record.get(index).unwrap_or("");
+            if trim_java_whitespace(raw).is_empty() {
+                notices.push(missing_required_field_notice(
+                    &self.file_name,
+                    &self.columns[index].header,
+                    row_number,
+                ));
             }
         }
 
-        let mut temp_container = NoticeContainer::new();
-        if self.file_name.eq_ignore_ascii_case(FARE_PRODUCTS_FILE) {
+        if self.is_fare_products {
             validate_currency_amount(
                 &self.file_name,
                 record,
                 &self.header_index,
                 row_number,
-                &mut temp_container,
+                &mut notices,
             );
         }
-        notices.extend(temp_container.into_vec());
 
-        for (col_index, value) in record.iter().enumerate() {
-            let header_name = self
-                .headers
-                .get(col_index)
-                .map(|value| value.trim())
-                .unwrap_or("");
-            let normalized_header = self
-                .normalized_headers
-                .get(col_index)
-                .map(String::as_str)
-                .unwrap_or("");
-            let is_schema_field = self
-                .schema
-                .map(|schema| schema.fields.contains(&normalized_header))
-                .unwrap_or(false);
+        // `record.len() == self.columns.len()` was checked above, so the zip
+        // covers every field.
+        for (plan, value) in self.columns.iter().zip(record.iter()) {
+            let header_name: &str = &plan.header;
+            let is_schema_field = plan.is_schema_field;
             if is_schema_field && (value.contains('\n') || value.contains('\r')) {
                 notices.push(new_line_notice(
                     &self.file_name,
@@ -349,7 +457,7 @@ impl RowValidator {
             // which no reader hands us yet, so for now this stays behind
             // --thorough: reporting every stray space would be right, but it is
             // not what the reference emits.
-            if thorough_mode_enabled() && is_schema_field && trimmed.len() < value.len() {
+            if self.thorough && is_schema_field && trimmed.len() < value.len() {
                 notices.push(leading_or_trailing_whitespaces_notice(
                     &self.file_name,
                     header_name,
@@ -362,10 +470,7 @@ impl RowValidator {
                 continue;
             }
 
-            if is_schema_field
-                && is_id_field(normalized_header)
-                && !has_only_printable_ascii(trimmed)
-            {
+            if plan.check_non_ascii && !has_only_printable_ascii(trimmed) {
                 notices.push(non_ascii_notice(
                     &self.file_name,
                     header_name,
@@ -374,7 +479,7 @@ impl RowValidator {
                 ));
             }
 
-            if is_mixed_case_field(normalized_header) && is_mixed_case_violation(trimmed) {
+            if plan.is_mixed_case && is_mixed_case_violation(trimmed) {
                 notices.push(mixed_case_notice(
                     &self.file_name,
                     header_name,
@@ -383,24 +488,21 @@ impl RowValidator {
                 ));
             }
 
-            if let Some(kind) = enum_kind(normalized_header) {
-                let mut temp_container = NoticeContainer::new();
-                validate_enum_value(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                    kind,
-                    &mut temp_container,
-                );
-                notices.extend(temp_container.into_vec());
-                continue;
-            }
-
-            if is_integer_field(normalized_header) {
-                match trimmed.parse::<i64>() {
+            match plan.check {
+                ValueCheck::None => {}
+                ValueCheck::Enum(kind) => {
+                    validate_enum_value(
+                        &self.file_name,
+                        header_name,
+                        row_number,
+                        trimmed,
+                        kind,
+                        &mut notices,
+                    );
+                }
+                ValueCheck::Integer(bounds) => match trimmed.parse::<i64>() {
                     Ok(value) => {
-                        if let Some(bounds) = integer_bounds(normalized_header) {
+                        if let Some(bounds) = bounds {
                             if violates_bounds_i64(value, bounds) {
                                 notices.push(number_out_of_range_notice_int(
                                     &self.file_name,
@@ -420,52 +522,29 @@ impl RowValidator {
                             trimmed,
                         ));
                     }
-                }
-                continue;
-            }
-
-            if is_float_field(normalized_header) {
-                match trimmed.parse::<f64>() {
+                },
+                ValueCheck::Float(kind) => match trimmed.parse::<f64>() {
                     Ok(value) => {
-                        if is_latitude_field(normalized_header) && !(-90.0..=90.0).contains(&value)
-                        {
+                        let out_of_range =
+                            match kind {
+                                FloatCheck::Latitude => (!(-90.0..=90.0).contains(&value))
+                                    .then_some(LATITUDE_FIELD_TYPE),
+                                FloatCheck::Longitude => (!(-180.0..=180.0).contains(&value))
+                                    .then_some(LONGITUDE_FIELD_TYPE),
+                                FloatCheck::Decimal(bounds) => violates_bounds_f64(value, bounds)
+                                    .then(|| bounds_field_type(bounds, NumberKind::Decimal)),
+                                FloatCheck::Float(bounds) => violates_bounds_f64(value, bounds)
+                                    .then(|| bounds_field_type(bounds, NumberKind::Float)),
+                                FloatCheck::Plain => None,
+                            };
+                        if let Some(field_type) = out_of_range {
                             notices.push(number_out_of_range_notice(
                                 &self.file_name,
                                 header_name,
                                 row_number,
-                                LATITUDE_FIELD_TYPE,
+                                field_type,
                                 value,
                             ));
-                        } else if is_longitude_field(normalized_header)
-                            && !(-180.0..=180.0).contains(&value)
-                        {
-                            notices.push(number_out_of_range_notice(
-                                &self.file_name,
-                                header_name,
-                                row_number,
-                                LONGITUDE_FIELD_TYPE,
-                                value,
-                            ));
-                        } else if let Some(bounds) = decimal_bounds(normalized_header) {
-                            if violates_bounds_f64(value, bounds) {
-                                notices.push(number_out_of_range_notice(
-                                    &self.file_name,
-                                    header_name,
-                                    row_number,
-                                    bounds_field_type(bounds, NumberKind::Decimal),
-                                    value,
-                                ));
-                            }
-                        } else if let Some(bounds) = float_bounds(normalized_header) {
-                            if violates_bounds_f64(value, bounds) {
-                                notices.push(number_out_of_range_notice(
-                                    &self.file_name,
-                                    header_name,
-                                    row_number,
-                                    bounds_field_type(bounds, NumberKind::Float),
-                                    value,
-                                ));
-                            }
                         }
                     }
                     Err(_) => {
@@ -476,103 +555,97 @@ impl RowValidator {
                             trimmed,
                         ));
                     }
+                },
+                ValueCheck::Date => {
+                    if GtfsDate::parse(trimmed).is_err() {
+                        notices.push(invalid_date_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
                 }
-                continue;
-            }
-
-            if is_date_field(normalized_header) && GtfsDate::parse(trimmed).is_err() {
-                notices.push(invalid_date_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if is_time_field(normalized_header) && GtfsTime::parse(trimmed).is_err() {
-                notices.push(invalid_time_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if is_color_field(normalized_header) && GtfsColor::parse(trimmed).is_err() {
-                notices.push(invalid_color_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if is_timezone_field(normalized_header) && !is_valid_timezone(trimmed) {
-                notices.push(invalid_timezone_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if is_language_field(normalized_header)
-                && crate::validation_context::thorough_mode_enabled()
-                && !is_valid_language_code(trimmed)
-            {
-                notices.push(invalid_language_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if is_currency_field(normalized_header) && !is_valid_currency_code(trimmed) {
-                notices.push(invalid_currency_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if is_url_field(normalized_header) && !is_valid_url(trimmed) {
-                notices.push(invalid_url_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if is_email_field(normalized_header) && !is_valid_email(trimmed) {
-                notices.push(invalid_email_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
-                continue;
-            }
-
-            if self.validate_phone_numbers
-                && is_phone_field(normalized_header)
-                && !is_valid_phone_number(trimmed)
-            {
-                notices.push(invalid_phone_notice(
-                    &self.file_name,
-                    header_name,
-                    row_number,
-                    trimmed,
-                ));
+                ValueCheck::Time => {
+                    if GtfsTime::parse(trimmed).is_err() {
+                        notices.push(invalid_time_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
+                ValueCheck::Color => {
+                    if GtfsColor::parse(trimmed).is_err() {
+                        notices.push(invalid_color_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
+                ValueCheck::Timezone => {
+                    if !is_valid_timezone(trimmed) {
+                        notices.push(invalid_timezone_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
+                ValueCheck::Language => {
+                    if self.thorough && !is_valid_language_code(trimmed) {
+                        notices.push(invalid_language_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
+                ValueCheck::Currency => {
+                    if !is_valid_currency_code(trimmed) {
+                        notices.push(invalid_currency_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
+                ValueCheck::Url => {
+                    if !is_valid_url(trimmed) {
+                        notices.push(invalid_url_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
+                ValueCheck::Email => {
+                    if !is_valid_email(trimmed) {
+                        notices.push(invalid_email_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
+                ValueCheck::Phone => {
+                    if self.validate_phone_numbers && !is_valid_phone_number(trimmed) {
+                        notices.push(invalid_phone_notice(
+                            &self.file_name,
+                            header_name,
+                            row_number,
+                            trimmed,
+                        ));
+                    }
+                }
             }
         }
         notices
@@ -1411,7 +1484,7 @@ fn validate_currency_amount(
     record: &StringRecord,
     header_index: &HashMap<String, usize>,
     row_number: u64,
-    notices: &mut NoticeContainer,
+    notices: &mut Vec<ValidationNotice>,
 ) {
     let (Some(&amount_index), Some(&currency_index)) =
         (header_index.get("amount"), header_index.get("currency"))
@@ -1444,7 +1517,7 @@ fn validate_enum_value(
     row_number: u64,
     value: &str,
     kind: EnumKind,
-    notices: &mut NoticeContainer,
+    notices: &mut Vec<ValidationNotice>,
 ) {
     match value.parse::<i64>() {
         Ok(value) => {
