@@ -6,6 +6,9 @@ license = "Apache-2.0"
 description = "Deterministic feed profiles and explanations for GTFS Guru"
 repository = "https://github.com/abasis-ltd/gtfs.guru"
 homepage = "https://github.com/abasis-ltd/gtfs.guru"
+readme = "README.md"
+keywords = ["gtfs", "transit", "validator", "profile"]
+categories = ["parsing", "science"]
 
 [dependencies]
 chrono = { workspace = true }

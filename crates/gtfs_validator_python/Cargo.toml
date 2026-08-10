@@ -1,6 +1,8 @@
 [package]
 name = "gtfs-guru-python"
 version = "1.0.0"
+# Not published: distributed via PyPI as `gtfs-guru`, not crates.io.
+publish = false
 edition.workspace = true
 license.workspace = true
 description = "Fast GTFS validator written in Rust"
