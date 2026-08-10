@@ -16,7 +16,7 @@ See `docs/system-dependencies.md` for the package list.
 - `cargo build` (workspace build)
 - `cargo build --release -p gtfs-guru` (CLI binary)
 - `cargo run --release -p gtfs-guru-web` (local API server)
-- `cargo test` or `cargo test -p gtfs_validator_core`
+- `cargo test` or `cargo test -p gtfs-guru-core`
 - `cargo fmt` and `cargo clippy --all-targets --all-features -- -D warnings`
 - Golden suite: build the release CLI first and hand it to the runner, so it
   does not fall back to `cargo run` and build the 13-16 GB debug tree:
