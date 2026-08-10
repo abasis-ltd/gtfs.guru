@@ -70,6 +70,7 @@ impl Validator for StopTimeTravelSpeedValidator {
         let mut trips_by_pattern: HashMap<u64, Vec<gtfs_guru_model::StringId>> = HashMap::new();
         let mut pattern_insertion_order: Vec<u64> = Vec::new();
         let mut seen_patterns = HashSet::new();
+        let mut string_hashes: HashMap<gtfs_guru_model::StringId, u64> = HashMap::new();
         for trip_id in trip_ids_java_order {
             let indices = match feed.stop_times_by_trip.get(&trip_id) {
                 Some(indices) => indices,
@@ -83,7 +84,7 @@ impl Validator for StopTimeTravelSpeedValidator {
             if route_id.0 == 0 || !context.routes_by_id.contains_key(&route_id) {
                 continue;
             }
-            let fingerprint = Self::trip_fingerprint(trip, indices, feed);
+            let fingerprint = Self::trip_fingerprint(trip, indices, feed, &mut string_hashes);
             if seen_patterns.insert(fingerprint) {
                 pattern_insertion_order.push(fingerprint);
             }
@@ -249,13 +250,35 @@ impl StopTimeTravelSpeedValidator {
         notices
     }
 
-    fn trip_fingerprint(trip: &gtfs_guru_model::Trip, indices: &[usize], feed: &GtfsFeed) -> u64 {
+    /// Hash of the interned string behind `id`, cached per id. `StringId`
+    /// values are assigned by racing parallel CSV workers and differ between
+    /// runs, so fingerprints must hash the resolved strings instead — the
+    /// pattern iteration order (and thus the capped notice sample) depends on
+    /// these fingerprints.
+    fn string_id_hash(
+        id: gtfs_guru_model::StringId,
+        feed: &GtfsFeed,
+        cache: &mut HashMap<gtfs_guru_model::StringId, u64>,
+    ) -> u64 {
+        *cache.entry(id).or_insert_with(|| {
+            let mut hasher = DefaultHasher::new();
+            feed.pool.resolve(id).hash(&mut hasher);
+            hasher.finish()
+        })
+    }
+
+    fn trip_fingerprint(
+        trip: &gtfs_guru_model::Trip,
+        indices: &[usize],
+        feed: &GtfsFeed,
+        string_hashes: &mut HashMap<gtfs_guru_model::StringId, u64>,
+    ) -> u64 {
         let mut hasher = DefaultHasher::new();
-        trip.route_id.hash(&mut hasher);
+        Self::string_id_hash(trip.route_id, feed, string_hashes).hash(&mut hasher);
         indices.len().hash(&mut hasher);
         for &index in indices {
             let stop_time = &feed.stop_times.rows[index];
-            stop_time.stop_id.hash(&mut hasher);
+            Self::string_id_hash(stop_time.stop_id, feed, string_hashes).hash(&mut hasher);
             stop_time
                 .arrival_time
                 .map(|time| time.total_seconds())

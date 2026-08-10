@@ -147,6 +147,21 @@ impl GtfsFeed {
         self.stop_times_by_trip = Self::build_stop_times_index(&self.stop_times);
     }
 
+    /// Trip groups from `stop_times_by_trip` ordered by each trip's first
+    /// stop_times row. `HashMap` iteration order and `StringId` values both
+    /// vary between runs, so notice-emitting fan-ins must use this instead:
+    /// the per-group sample cap keeps the first N notices pushed, and a stable
+    /// order keeps that subset (and report bytes) identical across runs.
+    pub fn stop_times_by_trip_ordered(&self) -> Vec<(gtfs_guru_model::StringId, &[usize])> {
+        let mut groups: Vec<(gtfs_guru_model::StringId, &[usize])> = self
+            .stop_times_by_trip
+            .iter()
+            .map(|(trip_id, indices)| (*trip_id, indices.as_slice()))
+            .collect();
+        groups.sort_unstable_by_key(|(_, indices)| indices.iter().copied().min());
+        groups
+    }
+
     pub fn table_status(&self, file_name: &str) -> TableStatus {
         self.table_statuses
             .get(file_name)
