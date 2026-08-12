@@ -1933,6 +1933,30 @@ Download the .zip and drop it here instead; validation still runs locally in you
             ].join('\n'),
             docs: 'https://developers.openai.com/codex/mcp',
         },
+        {
+            id: 'opencode',
+            label: 'OpenCode',
+            // Not branched per platform: OpenCode documents one global path,
+            // ~/.config/opencode/, with no OS qualification, so it holds on
+            // Windows too. Resist "correcting" this to %APPDATA%\opencode —
+            // that path is a recurring misreading, not OpenCode's behaviour.
+            where: () => 'Merge this into <code>opencode.json</code> in your project root, or '
+                + '<code>~/.config/opencode/opencode.json</code> to enable it everywhere.',
+            // OpenCode takes the binary and its arguments as one command array and
+            // requires type: "local", so connectServerJson above does not fit. Still
+            // serialized, for the same reason it is: a Windows path written into JSON
+            // by hand loses its backslashes.
+            snippet: (ctx) => JSON.stringify({
+                mcp: {
+                    'gtfs-guru': {
+                        type: 'local',
+                        command: [ctx.command, '--allow-dir', ctx.dir],
+                        enabled: true,
+                    },
+                },
+            }, null, 2),
+            docs: 'https://opencode.ai/docs/mcp-servers/',
+        },
     ];
 
     const connectModal = document.getElementById('connect-modal');
