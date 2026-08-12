@@ -750,6 +750,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /* --- Smooth Scrolling for Navigation --- */
+    // A scripted scroll is not covered by the stylesheet: scroll-behavior only
+    // governs CSS-initiated scrolling, so window.scrollTo() has to read the
+    // preference itself. Queried per click rather than cached, so switching the
+    // system setting mid-session takes effect without a reload.
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
             e.preventDefault();
@@ -765,7 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 window.scrollTo({
                     top: offsetPosition,
-                    behavior: "smooth"
+                    behavior: reducedMotion.matches ? "auto" : "smooth"
                 });
             }
         });
