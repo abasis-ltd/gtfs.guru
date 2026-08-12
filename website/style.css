@@ -36,13 +36,20 @@ body {
 }
 
 /* Background Elements */
+/* These orbs are deliberately static. They previously drifted on a 20s loop,
+   which cost ~79% of a CPU core on every page of the site, forever, whether or
+   not anything was happening. The cause is z-index: -1: the orbs sit behind all
+   page content, so they cannot be composited on their own layer and every frame
+   of the animation repainted everything above them. Measured on an RTX 2060 /
+   Chromium: 78.9% of a core while drifting, 0.8% at rest. The blur is not the
+   problem and is measurably free once nothing moves — removing it saved nothing
+   (82.3%), and will-change: transform made it worse (108.9%). */
 .bg-gradient-orb {
     position: fixed;
     border-radius: 50%;
     filter: blur(100px);
     z-index: -1;
     opacity: 0.4;
-    animation: drift 20s infinite alternate;
 }
 
 .orb-1 {
@@ -59,17 +66,6 @@ body {
     background: radial-gradient(circle, var(--accent-primary), transparent 70%);
     bottom: -100px;
     right: -100px;
-    animation-delay: -5s;
-}
-
-@keyframes drift {
-    0% {
-        transform: translate(0, 0);
-    }
-
-    100% {
-        transform: translate(50px, 30px);
-    }
 }
 
 .grid-overlay {
@@ -2509,4 +2505,30 @@ input:focus-visible {
     outline: 2px solid var(--accent-primary);
     outline-offset: 2px;
     border-radius: 4px;
+}
+
+/* Motion preference, site-wide backstop.
+   The three blocks above neutralise specific components; this one covers
+   everything else, including animations added later — the entrance animations
+   (fadeScale, slideDown, mapModalEnter) and any CSS transition.
+
+   The loading spinner is deliberately exempt. It is progress feedback for a
+   WASM validation that can run for a minute on a large feed, and a spinner
+   frozen after one turn reads as a hung page. It is a 40px rotation at a fixed
+   point, not the large-area movement this preference exists to suppress. */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .spinner {
+        animation-duration: 1s !important;
+        animation-iteration-count: infinite !important;
+    }
 }
