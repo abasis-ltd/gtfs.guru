@@ -32,13 +32,14 @@ impl Validator for StopTimeIncreasingDistanceValidator {
 
         // Let's use `feed.stop_times_by_trip` which is efficient.
 
+        let trip_groups = feed.stop_times_by_trip_ordered();
+
         #[cfg(feature = "parallel")]
         {
-            #[cfg(feature = "parallel")]
             let results: Vec<NoticeContainer> = {
                 use rayon::prelude::*;
                 let ctx = crate::ValidationContextState::capture();
-                feed.stop_times_by_trip
+                trip_groups
                     .par_iter()
                     .map(|(trip_id, stop_time_indices)| {
                         let _guards = ctx.apply();
@@ -55,8 +56,8 @@ impl Validator for StopTimeIncreasingDistanceValidator {
 
         #[cfg(not(feature = "parallel"))]
         {
-            for (trip_id, indices) in &feed.stop_times_by_trip {
-                let result = check_trip(*trip_id, indices, feed);
+            for (trip_id, indices) in trip_groups {
+                let result = check_trip(trip_id, indices, feed);
                 notices.merge(result);
             }
         }

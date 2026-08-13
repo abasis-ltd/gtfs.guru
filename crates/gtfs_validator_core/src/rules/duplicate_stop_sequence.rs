@@ -14,12 +14,13 @@ impl Validator for DuplicateStopSequenceValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        let trip_groups = feed.stop_times_by_trip_ordered();
+
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
             let ctx = crate::ValidationContextState::capture();
-            let new_notices: Vec<ValidationNotice> = feed
-                .stop_times_by_trip
+            let new_notices: Vec<ValidationNotice> = trip_groups
                 .par_iter()
                 .flat_map(|(trip_id, indices)| {
                     let _guards = ctx.apply();
@@ -34,8 +35,8 @@ impl Validator for DuplicateStopSequenceValidator {
 
         #[cfg(not(feature = "parallel"))]
         {
-            for (trip_id, indices) in &feed.stop_times_by_trip {
-                let trip_notices = Self::check_trip(feed, *trip_id, indices);
+            for (trip_id, indices) in trip_groups {
+                let trip_notices = Self::check_trip(feed, trip_id, indices);
                 for notice in trip_notices {
                     notices.push(notice);
                 }

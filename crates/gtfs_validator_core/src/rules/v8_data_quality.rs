@@ -72,8 +72,12 @@ impl Validator for UnsortedStopTimesValidator {
             unsorted: bool,
         }
 
+        // `trip_order` keeps first-appearance order: iterating the HashMap
+        // would emit notices in a run-dependent order and the capped sample
+        // would keep a different subset each run.
         fn merge_group(
             stats_by_trip: &mut HashMap<StringId, Stats>,
+            trip_order: &mut Vec<StringId>,
             trip_id: StringId,
             group: Stats,
         ) {
@@ -83,17 +87,19 @@ impl Validator for UnsortedStopTimesValidator {
                 existing.max_row = existing.max_row.max(group.max_row);
                 existing.unsorted = true;
             } else {
+                trip_order.push(trip_id);
                 stats_by_trip.insert(trip_id, group);
             }
         }
 
         let mut stats_by_trip = HashMap::new();
+        let mut trip_order: Vec<StringId> = Vec::new();
         let mut current_trip = StringId(0);
         let mut current_stats = Stats::default();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             if stop_time.trip_id.0 == 0 {
                 if current_trip.0 != 0 {
-                    merge_group(&mut stats_by_trip, current_trip, current_stats);
+                    merge_group(&mut stats_by_trip, &mut trip_order, current_trip, current_stats);
                     current_trip = StringId(0);
                     current_stats = Stats::default();
                 }
@@ -101,7 +107,7 @@ impl Validator for UnsortedStopTimesValidator {
             }
             if stop_time.trip_id != current_trip {
                 if current_trip.0 != 0 {
-                    merge_group(&mut stats_by_trip, current_trip, current_stats);
+                    merge_group(&mut stats_by_trip, &mut trip_order, current_trip, current_stats);
                 }
                 current_trip = stop_time.trip_id;
                 current_stats = Stats::default();
@@ -124,9 +130,10 @@ impl Validator for UnsortedStopTimesValidator {
             current_stats.last_sequence = Some(stop_time.stop_sequence);
         }
         if current_trip.0 != 0 {
-            merge_group(&mut stats_by_trip, current_trip, current_stats);
+            merge_group(&mut stats_by_trip, &mut trip_order, current_trip, current_stats);
         }
-        for (trip_id, stats) in stats_by_trip {
+        for trip_id in trip_order {
+            let stats = &stats_by_trip[&trip_id];
             let span = stats.max_row.saturating_sub(stats.min_row) + 1;
             if !stats.unsorted && span <= stats.count {
                 continue;
@@ -263,12 +270,14 @@ impl Validator for TripWithShapeDistTraveledButNoShapeDistancesValidator {
             .enumerate()
             .map(|(index, trip)| (trip.trip_id, (index, trip)))
             .collect();
-        let mut first_distance_by_trip = HashMap::new();
+        // Vec of (trip, first row with a distance) in file order: iterating a
+        // HashMap here would emit notices in a run-dependent order and the
+        // capped sample would keep a different subset each run.
+        let mut seen_trips = std::collections::HashSet::new();
+        let mut first_distance_by_trip: Vec<(StringId, usize)> = Vec::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
-            if stop_time.shape_dist_traveled.is_some() {
-                first_distance_by_trip
-                    .entry(stop_time.trip_id)
-                    .or_insert(index);
+            if stop_time.shape_dist_traveled.is_some() && seen_trips.insert(stop_time.trip_id) {
+                first_distance_by_trip.push((stop_time.trip_id, index));
             }
         }
         for (trip_id, first_with_distance) in first_distance_by_trip {

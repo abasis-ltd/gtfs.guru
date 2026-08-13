@@ -61,10 +61,15 @@ impl Validator for ShapeUsageValidator {
                     },
                 );
 
-            // 3. Generate notices
-            let results: Vec<ValidationNotice> = shapes_map
-                .into_par_iter()
+            // 3. Generate notices, ordered by first row: HashMap iteration
+            // order varies between runs, and with it the capped notice sample.
+            let mut unused: Vec<(gtfs_guru_model::StringId, u64)> = shapes_map
+                .into_iter()
                 .filter(|(shape_id, _)| !used_shapes.contains(shape_id))
+                .collect();
+            unused.sort_unstable_by_key(|(_, row_number)| *row_number);
+            let results: Vec<ValidationNotice> = unused
+                .into_par_iter()
                 .map(|(shape_id, row_number)| {
                     let shape_id_value = feed.pool.resolve(shape_id);
                     let mut notice = ValidationNotice::new(

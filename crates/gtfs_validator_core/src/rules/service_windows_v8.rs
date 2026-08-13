@@ -94,11 +94,19 @@ fn validate_feed_window(
     active_dates: &BTreeMap<StringId, BTreeSet<NaiveDate>>,
     notices: &mut NoticeContainer,
 ) {
-    let service_ids: BTreeSet<_> = feed
+    // First-appearance order over trips.txt: `StringId` values are assigned by
+    // racing parallel CSV workers, so ordering by them (e.g. via a BTreeSet)
+    // varies between runs and the capped notice sample keeps a different
+    // subset each run.
+    let mut seen_service_ids = HashSet::new();
+    let service_ids: Vec<_> = feed
         .trips
         .rows
         .iter()
-        .filter_map(|trip| (trip.service_id.0 != 0).then_some(trip.service_id))
+        .filter_map(|trip| {
+            (trip.service_id.0 != 0 && seen_service_ids.insert(trip.service_id))
+                .then_some(trip.service_id)
+        })
         .collect();
     let service_windows: Vec<_> = service_ids
         .iter()

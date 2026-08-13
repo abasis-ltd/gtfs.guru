@@ -22,18 +22,27 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
         }
         let locations = feed.locations.as_ref();
 
-        // Collect stops by trip (sequential grouping is fine as O(N))
+        // Collect stops by trip (sequential grouping is fine as O(N)), keeping
+        // trip groups in first-appearance order: iterating the HashMap would
+        // emit notices in a run-dependent order and the capped sample would
+        // keep a different subset each run.
         let mut by_trip: HashMap<gtfs_guru_model::StringId, Vec<(u64, &StopTime)>> = HashMap::new();
+        let mut trip_order: Vec<gtfs_guru_model::StringId> = Vec::new();
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             let row_number = feed.stop_times.row_number(index);
             let trip_id = stop_time.trip_id;
             if trip_id.0 == 0 {
                 continue;
             }
-            by_trip
-                .entry(trip_id)
-                .or_default()
-                .push((row_number, stop_time));
+            match by_trip.entry(trip_id) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    entry.get_mut().push((row_number, stop_time))
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    trip_order.push(trip_id);
+                    entry.insert(vec![(row_number, stop_time)]);
+                }
+            }
         }
 
         // Parallelize validation of trips
@@ -41,11 +50,11 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
         let results: Vec<NoticeContainer> = {
             use rayon::prelude::*;
             let ctx = crate::ValidationContextState::capture();
-            by_trip
+            trip_order
                 .par_iter()
-                .map(|(_, stop_times)| {
+                .map(|trip_id| {
                     let _guards = ctx.apply();
-                    validate_trip(stop_times, locations, feed)
+                    validate_trip(&by_trip[trip_id], locations, feed)
                 })
                 .collect()
         };
@@ -59,8 +68,8 @@ impl Validator for OverlappingPickupDropOffZoneValidator {
 
         #[cfg(not(feature = "parallel"))]
         {
-            for stop_times in by_trip.values() {
-                let result = validate_trip(stop_times, locations, feed);
+            for trip_id in &trip_order {
+                let result = validate_trip(&by_trip[trip_id], locations, feed);
                 notices.merge(result);
             }
         }
