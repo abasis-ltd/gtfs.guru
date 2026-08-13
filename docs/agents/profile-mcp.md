@@ -23,7 +23,8 @@
 ## MCP Tools
 
 - `list_gtfs_feeds`: bounded, deterministic discovery of ZIP archives and
-  unzipped feeds under the configured allowed roots.
+  unzipped feeds under the configured allowed roots. Optional `nameContains`
+  filters by file or directory name, case-insensitively.
 - `validate_gtfs`: profile, exact grouped validation results, and up to three
   concrete examples per code/severity group. Examples carry the available
   file, row, field, message, context values, and suggested fix when one exists.
@@ -32,6 +33,14 @@
 
 The default is three returned examples per group. Operators can change it with
 `--notice-examples-per-group`; `0` keeps only the exact grouped totals.
+
+`list_gtfs_feeds` orders matches by path before applying its 200-entry cap, so
+the entries dropped are always the ones sorting last rather than whichever the
+filesystem happened to yield. `feedCount` is how many came back, `totalMatches`
+how many matched, and `truncated` is set when those differ or when the walk
+exhausted its entry budget before seeing the whole tree. Filtering narrows the
+set before the cap applies, so `nameContains` still reaches a feed that a bare
+listing would have dropped.
 
 The stdio server never writes logs to stdout because that would corrupt MCP
 JSON-RPC. Local paths are confined to roots configured with `--allow-dir`.

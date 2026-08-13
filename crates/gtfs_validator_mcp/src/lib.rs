@@ -177,27 +177,47 @@ impl GtfsGuruMcp {
     /// is bounded on depth, visited entries, and returned entries: an allowed
     /// root is chosen by an operator, but nothing stops it being a home
     /// directory with a million files under it.
-    fn scan_feeds(&self) -> ListFeedsResponse {
-        let mut feeds = Vec::new();
-        let mut visited = 0usize;
-        let mut truncated = false;
+    fn scan_feeds(&self, name_contains: Option<&str>) -> ListFeedsResponse {
+        let needle = name_contains
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_ascii_lowercase);
+        let matches_name = |name: &str| match needle.as_deref() {
+            Some(needle) => name.to_ascii_lowercase().contains(needle),
+            None => true,
+        };
 
-        for root in &self.config.allowed_roots {
-            let mut queue = vec![(root.clone(), 0usize)];
-            while let Some((dir, depth)) = queue.pop() {
+        // Paths only for now. Collecting every match before truncating is what
+        // makes the cut predictable, and holding paths rather than built entries
+        // keeps that affordable: metadata is read further down, once, for the
+        // entries that actually survive.
+        let mut candidates: Vec<(PathBuf, &'static str)> = Vec::new();
+        let mut visited = 0usize;
+        let mut scan_limit_hit = false;
+
+        'roots: for root in &self.config.allowed_roots {
+            let mut stack = vec![(root.clone(), 0usize)];
+            while let Some((dir, depth)) = stack.pop() {
                 let Ok(entries) = std::fs::read_dir(&dir) else {
                     continue;
                 };
-                // `read_dir` does not guarantee an order. Sort before applying
-                // the scan bounds so a truncated response contains the same
-                // feeds on every run, not merely the same final presentation.
+                // `read_dir` does not guarantee an order. Sorting here fixes the
+                // order the walk *visits* entries in, which the global sort
+                // below cannot: that one decides which matches survive the
+                // result cap, but by then the entry budget may already have
+                // stopped the walk. Together they make both cuts repeatable.
                 let mut entries = entries.flatten().collect::<Vec<_>>();
                 entries.sort_by_key(|entry| entry.file_name());
                 for entry in entries {
                     visited += 1;
-                    if visited > MAX_SCANNED_ENTRIES || feeds.len() >= MAX_LISTED_FEEDS {
-                        truncated = true;
-                        break;
+                    // This budget bounds the walk itself, so unlike the result
+                    // cap it cannot be applied over the full match set: hitting
+                    // it means part of the tree went unseen — the same part on
+                    // every run, thanks to the sort above, but unseen. Abandon
+                    // the remaining roots too; the budget is already spent.
+                    if visited > MAX_SCANNED_ENTRIES {
+                        scan_limit_hit = true;
+                        break 'roots;
                     }
                     let path = entry.path();
                     let name = entry.file_name().to_string_lossy().into_owned();
@@ -215,39 +235,53 @@ impl GtfsGuruMcp {
                     }
 
                     if file_type.is_file() {
-                        if !name.to_ascii_lowercase().ends_with(".zip") {
-                            continue;
+                        if name.to_ascii_lowercase().ends_with(".zip") && matches_name(&name) {
+                            candidates.push((path, "zip"));
                         }
-                        feeds.push(FeedEntry {
-                            path: path.to_string_lossy().into_owned(),
-                            name,
-                            kind: "zip".to_string(),
-                            size_bytes: entry.metadata().ok().map(|meta| meta.len()),
-                        });
                     } else if file_type.is_dir() {
                         // An unzipped feed is a leaf: descending into it would
-                        // report its own .txt files as if they were feeds.
+                        // report its own .txt files as if they were feeds. That
+                        // holds whether or not the filter kept it.
                         if is_gtfs_directory(&path) {
-                            feeds.push(FeedEntry {
-                                path: path.to_string_lossy().into_owned(),
-                                name,
-                                kind: "directory".to_string(),
-                                size_bytes: None,
-                            });
+                            if matches_name(&name) {
+                                candidates.push((path, "directory"));
+                            }
                         } else if depth < MAX_SCAN_DEPTH {
-                            queue.push((path, depth + 1));
+                            stack.push((path, depth + 1));
                         }
                     }
-                }
-                if truncated {
-                    break;
                 }
             }
         }
 
-        // Deterministic order: an agent re-running the tool should not see the
-        // list reshuffle because the filesystem handed back a different order.
-        feeds.sort_by(|left, right| left.path.cmp(&right.path));
+        // Order first, truncate second. The other way round returns an arbitrary
+        // subset in tidy order, which reads as a complete listing; this way the
+        // cut is always the alphabetically-last entries, and repeats.
+        candidates.sort_by(|left, right| left.0.cmp(&right.0));
+        let total_matches = candidates.len();
+        let truncated = scan_limit_hit || total_matches > MAX_LISTED_FEEDS;
+        candidates.truncate(MAX_LISTED_FEEDS);
+
+        let feeds: Vec<FeedEntry> = candidates
+            .into_iter()
+            .map(|(path, kind)| {
+                let name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let size_bytes = match kind {
+                    "zip" => std::fs::metadata(&path).ok().map(|meta| meta.len()),
+                    _ => None,
+                };
+                FeedEntry {
+                    path: path.to_string_lossy().into_owned(),
+                    name,
+                    kind: kind.to_string(),
+                    size_bytes,
+                }
+            })
+            .collect();
+
         ListFeedsResponse {
             roots: self
                 .config
@@ -256,6 +290,7 @@ impl GtfsGuruMcp {
                 .map(|root| root.to_string_lossy().into_owned())
                 .collect(),
             feed_count: feeds.len(),
+            total_matches,
             feeds,
             truncated,
         }
@@ -336,7 +371,7 @@ impl GtfsGuruMcp {
     }
 
     #[tool(
-        description = "List the GTFS feeds this server can read: every ZIP archive and unzipped feed directory under its allowed roots, with the absolute path to pass to validate_gtfs or explain_gtfs. Call this first when the user names a feed without giving its full path. This tool is read-only.",
+        description = "List the GTFS feeds this server can read: every ZIP archive and unzipped feed directory under its allowed roots, with the absolute path to pass to validate_gtfs or explain_gtfs. Call this first when the user names a feed without giving its full path, passing that name as nameContains. Results are ordered by path; when totalMatches exceeds the returned count, truncated is true and the entries omitted are the ones sorting last. This tool is read-only.",
         annotations(
             title = "List GTFS feeds",
             read_only_hint = true,
@@ -345,8 +380,11 @@ impl GtfsGuruMcp {
             open_world_hint = false
         )
     )]
-    pub fn list_gtfs_feeds(&self) -> Result<Json<ListFeedsResponse>, String> {
-        Ok(Json(self.scan_feeds()))
+    pub fn list_gtfs_feeds(
+        &self,
+        Parameters(params): Parameters<ListFeedsParams>,
+    ) -> Result<Json<ListFeedsResponse>, String> {
+        Ok(Json(self.scan_feeds(params.name_contains.as_deref())))
     }
 
     #[tool(
@@ -479,14 +517,29 @@ pub struct NoticeExample {
     pub suggested_fix: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListFeedsParams {
+    #[serde(default)]
+    #[schemars(
+        description = "Case-insensitive substring of the feed's file or directory name. Omit to list everything."
+    )]
+    pub name_contains: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListFeedsResponse {
     /// The directories this server may read. Paths outside them are rejected.
     pub roots: Vec<String>,
+    /// How many entries `feeds` actually contains.
     pub feed_count: usize,
+    /// How many entries matched before the result cap was applied. Greater than
+    /// `feed_count` means the difference sorts after the last entry returned.
+    pub total_matches: usize,
     pub feeds: Vec<FeedEntry>,
-    /// True when the walk hit its bounds, so `feeds` is a partial listing.
+    /// True when the listing is partial: either more matched than are returned,
+    /// or the walk ran out of its entry budget before seeing the whole tree.
     pub truncated: bool,
 }
 
@@ -881,7 +934,7 @@ mod tests {
         fs::write(nested.join("boston_mbta.zip"), b"not a zip").unwrap();
 
         let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
-        let listing = service.scan_feeds();
+        let listing = service.scan_feeds(None);
 
         let names: Vec<&str> = listing.feeds.iter().map(|f| f.name.as_str()).collect();
         assert!(names.contains(&"berlin_vbb.zip"));
@@ -915,7 +968,7 @@ mod tests {
         std::os::unix::fs::symlink(outside.join("escaped.zip"), root.join("link.zip")).unwrap();
 
         let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
-        let listing = service.scan_feeds();
+        let listing = service.scan_feeds(None);
 
         let names: Vec<&str> = listing.feeds.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(names, vec!["a.zip", "b.zip", "c.zip"]);
@@ -927,17 +980,79 @@ mod tests {
     #[test]
     fn truncated_feed_listing_selects_a_deterministic_prefix() {
         let root = temp_dir("listing-limit");
+        // Created in reverse so the filesystem is unlikely to hand entries back
+        // in the order asserted below.
         for index in (0..=MAX_LISTED_FEEDS).rev() {
             fs::write(root.join(format!("feed-{index:03}.zip")), b"not a zip").unwrap();
         }
 
         let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
-        let listing = service.scan_feeds();
+        let listing = service.scan_feeds(None);
 
         assert!(listing.truncated);
         assert_eq!(listing.feed_count, MAX_LISTED_FEEDS);
         assert_eq!(listing.feeds.first().unwrap().name, "feed-000.zip");
         assert_eq!(listing.feeds.last().unwrap().name, "feed-199.zip");
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn feed_listing_filters_by_name_case_insensitively() {
+        let root = temp_dir("listing-filter");
+        for name in ["berlin_vbb.zip", "boston_mbta.zip", "BERLIN_backup.zip"] {
+            fs::write(root.join(name), b"not a zip").unwrap();
+        }
+        let unzipped = root.join("berlin_unzipped");
+        fs::create_dir_all(&unzipped).unwrap();
+        fs::write(unzipped.join("agency.txt"), b"agency_id\n").unwrap();
+
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+
+        let hit = service.scan_feeds(Some("berlin"));
+        let names: Vec<&str> = hit.feeds.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["BERLIN_backup.zip", "berlin_unzipped", "berlin_vbb.zip"]
+        );
+        assert_eq!(hit.total_matches, 3);
+        assert!(!hit.truncated);
+
+        // An empty or whitespace-only filter is the same as no filter, so a
+        // client that always sends the field does not get an empty listing.
+        assert_eq!(service.scan_feeds(Some("   ")).feed_count, 4);
+        assert_eq!(service.scan_feeds(None).feed_count, 4);
+        assert_eq!(service.scan_feeds(Some("nothing-matches")).feed_count, 0);
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn feed_listing_truncates_the_entries_that_sort_last() {
+        let root = temp_dir("listing-truncate");
+        let extra = 5;
+        // Zero-padded so lexical order matches numeric order.
+        for index in 0..MAX_LISTED_FEEDS + extra {
+            fs::write(root.join(format!("feed_{index:04}.zip")), b"not a zip").unwrap();
+        }
+
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+        let listing = service.scan_feeds(None);
+
+        assert!(listing.truncated);
+        assert_eq!(listing.total_matches, MAX_LISTED_FEEDS + extra);
+        assert_eq!(listing.feed_count, MAX_LISTED_FEEDS);
+        // The cut is the tail of the sorted list, not an arbitrary subset: the
+        // walk order the filesystem chose must not decide who survives.
+        assert_eq!(listing.feeds.first().unwrap().name, "feed_0000.zip");
+        assert_eq!(listing.feeds.last().unwrap().name, "feed_0199.zip");
+
+        // The filter narrows before the cap, so a targeted lookup reaches an
+        // entry that a bare listing would have dropped.
+        let hit = service.scan_feeds(Some("feed_0203"));
+        assert!(!hit.truncated);
+        assert_eq!(hit.feed_count, 1);
+        assert_eq!(hit.feeds[0].name, "feed_0203.zip");
 
         fs::remove_dir_all(root).ok();
     }
