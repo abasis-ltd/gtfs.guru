@@ -2507,6 +2507,249 @@ input:focus-visible {
     border-radius: 4px;
 }
 
+/* --- Connect an MCP client --- */
+.connect-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.connect-modal.hidden {
+    display: none;
+}
+
+.connect-modal-content {
+    width: min(680px, 100%);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    box-shadow: 0 32px 90px rgba(0, 0, 0, 0.5);
+    /* The modal lives inside the hero <header>, which centers its text below
+       768px. Instructions and paths read as a left-aligned column. */
+    text-align: left;
+}
+
+.connect-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    flex-shrink: 0;
+}
+
+.connect-modal-header h3 {
+    font-size: 1.05rem;
+}
+
+.connect-modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.connect-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.connect-modal-footer a {
+    color: var(--accent-primary);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.connect-intro {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+}
+
+.connect-step {
+    margin-bottom: 1.5rem;
+}
+
+.connect-step:last-child {
+    margin-bottom: 0;
+}
+
+.connect-step h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.92rem;
+    margin-bottom: 0.65rem;
+}
+
+.connect-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.connect-tabs {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.65rem;
+}
+
+.connect-tab {
+    background: rgba(148, 163, 184, 0.1);
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.connect-tab:hover {
+    color: var(--text-primary);
+}
+
+.connect-tab.is-active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: var(--accent-primary);
+}
+
+.connect-snippet {
+    position: relative;
+    margin-bottom: 0.5rem;
+}
+
+.connect-snippet pre {
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 8px;
+    padding: 0.8rem 4.5rem 0.8rem 0.8rem;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.connect-snippet .copy-tiny {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.55rem;
+    /* Opaque, not the translucent default: install commands are long enough to
+       scroll horizontally underneath this button. */
+    background: #1e293b;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    box-shadow: 0 0 0 4px rgba(2, 6, 23, 0.7);
+}
+
+.connect-snippet .copy-tiny:hover {
+    background: #334155;
+}
+
+/* Snippets scroll rather than wrap so paths and commands stay copyable, but
+   the suggested prompt is prose and reads better wrapped. */
+#connect-prompt {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.connect-field input {
+    width: 100%;
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    padding: 0.55rem 0.7rem;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+.connect-hint {
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+    margin-top: 0.4rem;
+}
+
+.connect-hint code {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    background: rgba(148, 163, 184, 0.12);
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+}
+
+.connect-hint a {
+    color: var(--accent-primary);
+    text-decoration: none;
+}
+
+.connect-hint a i,
+.connect-hint a svg {
+    width: 0.7rem;
+    height: 0.7rem;
+    vertical-align: -1px;
+}
+
+.connect-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent-primary);
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.connect-link:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+    .connect-modal {
+        padding: 0.75rem;
+    }
+
+    .connect-modal-content {
+        max-height: 94vh;
+    }
+
+    .connect-snippet pre {
+        font-size: 0.7rem;
+    }
+}
 /* Motion preference, site-wide backstop.
    The three blocks above neutralise specific components; this one covers
    everything else, including animations added later — the entrance animations

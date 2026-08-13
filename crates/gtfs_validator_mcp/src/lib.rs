@@ -36,6 +36,21 @@ const DEFAULT_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(90);
 const DEFAULT_MAX_CONCURRENT_VALIDATIONS: usize = 4;
 const DEFAULT_NOTICE_SAMPLES_PER_GROUP: usize = 100;
 const DEFAULT_NOTICE_EXAMPLES_PER_GROUP: usize = 3;
+/// Bounds for the `list_gtfs_feeds` walk. An allowed root is operator-chosen
+/// but can still be a huge tree, and the result has to fit in a model's context.
+const MAX_SCAN_DEPTH: usize = 4;
+const MAX_SCANNED_ENTRIES: usize = 20_000;
+const MAX_LISTED_FEEDS: usize = 200;
+
+/// Files that mark a directory as an unzipped feed rather than a container of
+/// feeds. `agency.txt` and `stops.txt` are required by the GTFS specification.
+const GTFS_MARKER_FILES: [&str; 2] = ["agency.txt", "stops.txt"];
+
+fn is_gtfs_directory(path: &Path) -> bool {
+    GTFS_MARKER_FILES
+        .iter()
+        .any(|marker| path.join(marker).is_file())
+}
 
 #[derive(Debug, Clone)]
 pub struct McpConfig {
@@ -155,6 +170,97 @@ impl GtfsGuruMcp {
         })
     }
 
+    /// Walk the allowed roots for things `validate_gtfs` can accept.
+    ///
+    /// A client is told nothing about the roots otherwise, so without this it
+    /// can only reach a feed whose absolute path the user typed out. The walk
+    /// is bounded on depth, visited entries, and returned entries: an allowed
+    /// root is chosen by an operator, but nothing stops it being a home
+    /// directory with a million files under it.
+    fn scan_feeds(&self) -> ListFeedsResponse {
+        let mut feeds = Vec::new();
+        let mut visited = 0usize;
+        let mut truncated = false;
+
+        for root in &self.config.allowed_roots {
+            let mut queue = vec![(root.clone(), 0usize)];
+            while let Some((dir, depth)) = queue.pop() {
+                let Ok(entries) = std::fs::read_dir(&dir) else {
+                    continue;
+                };
+                // `read_dir` does not guarantee an order. Sort before applying
+                // the scan bounds so a truncated response contains the same
+                // feeds on every run, not merely the same final presentation.
+                let mut entries = entries.flatten().collect::<Vec<_>>();
+                entries.sort_by_key(|entry| entry.file_name());
+                for entry in entries {
+                    visited += 1;
+                    if visited > MAX_SCANNED_ENTRIES || feeds.len() >= MAX_LISTED_FEEDS {
+                        truncated = true;
+                        break;
+                    }
+                    let path = entry.path();
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    // Hidden entries are editor state and VCS metadata far more
+                    // often than feeds, and a symlink is the one way a walk
+                    // rooted inside the boundary can report a path outside it.
+                    if name.starts_with('.') {
+                        continue;
+                    }
+                    let Ok(file_type) = entry.file_type() else {
+                        continue;
+                    };
+                    if file_type.is_symlink() {
+                        continue;
+                    }
+
+                    if file_type.is_file() {
+                        if !name.to_ascii_lowercase().ends_with(".zip") {
+                            continue;
+                        }
+                        feeds.push(FeedEntry {
+                            path: path.to_string_lossy().into_owned(),
+                            name,
+                            kind: "zip".to_string(),
+                            size_bytes: entry.metadata().ok().map(|meta| meta.len()),
+                        });
+                    } else if file_type.is_dir() {
+                        // An unzipped feed is a leaf: descending into it would
+                        // report its own .txt files as if they were feeds.
+                        if is_gtfs_directory(&path) {
+                            feeds.push(FeedEntry {
+                                path: path.to_string_lossy().into_owned(),
+                                name,
+                                kind: "directory".to_string(),
+                                size_bytes: None,
+                            });
+                        } else if depth < MAX_SCAN_DEPTH {
+                            queue.push((path, depth + 1));
+                        }
+                    }
+                }
+                if truncated {
+                    break;
+                }
+            }
+        }
+
+        // Deterministic order: an agent re-running the tool should not see the
+        // list reshuffle because the filesystem handed back a different order.
+        feeds.sort_by(|left, right| left.path.cmp(&right.path));
+        ListFeedsResponse {
+            roots: self
+                .config
+                .allowed_roots
+                .iter()
+                .map(|root| root.to_string_lossy().into_owned())
+                .collect(),
+            feed_count: feeds.len(),
+            feeds,
+            truncated,
+        }
+    }
+
     fn resolve_allowed_path(&self, path: &Path) -> anyhow::Result<PathBuf> {
         let canonical = path
             .canonicalize()
@@ -230,6 +336,20 @@ impl GtfsGuruMcp {
     }
 
     #[tool(
+        description = "List the GTFS feeds this server can read: every ZIP archive and unzipped feed directory under its allowed roots, with the absolute path to pass to validate_gtfs or explain_gtfs. Call this first when the user names a feed without giving its full path. This tool is read-only.",
+        annotations(
+            title = "List GTFS feeds",
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    pub fn list_gtfs_feeds(&self) -> Result<Json<ListFeedsResponse>, String> {
+        Ok(Json(self.scan_feeds()))
+    }
+
+    #[tool(
         description = "Look up the canonical summary, detailed explanation, and specification references for a GTFS Guru validation notice code. This tool does not access a feed.",
         annotations(
             title = "Get GTFS notice details",
@@ -288,7 +408,7 @@ impl ServerHandler for GtfsGuruMcp {
                     .with_website_url("https://gtfs.guru"),
             )
             .with_instructions(
-                "Use validate_gtfs for structured validation, explain_gtfs for a concise evidence-backed explanation, and get_notice_details before making claims about a notice. After summarizing the exact grouped totals, present concrete ERROR noticeExamples with their file, row, field, and context, then WARNING examples; omit INFO examples unless the user asks. Do not claim that a feed is guaranteed to be accepted by a downstream trip planner."
+                "Use list_gtfs_feeds to discover which feeds this server can read and their absolute paths; call it before searching the filesystem yourself when the user names a feed without a full path. Use validate_gtfs for structured validation, explain_gtfs for a concise evidence-backed explanation, and get_notice_details before making claims about a notice. After summarizing the exact grouped totals, present concrete ERROR noticeExamples with their file, row, field, and context, then WARNING examples; omit INFO examples unless the user asks. Do not claim that a feed is guaranteed to be accepted by a downstream trip planner."
             )
     }
 }
@@ -357,6 +477,28 @@ pub struct NoticeExample {
     pub context: BTreeMap<String, Value>,
     pub fix_available: bool,
     pub suggested_fix: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListFeedsResponse {
+    /// The directories this server may read. Paths outside them are rejected.
+    pub roots: Vec<String>,
+    pub feed_count: usize,
+    pub feeds: Vec<FeedEntry>,
+    /// True when the walk hit its bounds, so `feeds` is a partial listing.
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedEntry {
+    /// Absolute path, ready to pass as `source` to validate_gtfs.
+    pub path: String,
+    pub name: String,
+    /// `zip` or `directory`.
+    pub kind: String,
+    pub size_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -721,6 +863,86 @@ mod tests {
     }
 
     #[test]
+    fn feed_listing_reports_archives_and_unzipped_feeds() {
+        let root = temp_dir("listing");
+        fs::write(root.join("berlin_vbb.zip"), b"not a zip").unwrap();
+        fs::write(root.join("notes.txt"), b"ignored").unwrap();
+        fs::write(root.join(".hidden.zip"), b"ignored").unwrap();
+
+        // An unzipped feed is one entry, not a directory to descend into.
+        let unzipped = root.join("unzipped");
+        fs::create_dir_all(&unzipped).unwrap();
+        fs::write(unzipped.join("agency.txt"), b"agency_id\n").unwrap();
+        fs::write(unzipped.join("stops.txt"), b"stop_id\n").unwrap();
+
+        // A plain directory is walked through to the feeds inside it.
+        let nested = root.join("archive").join("2026");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("boston_mbta.zip"), b"not a zip").unwrap();
+
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+        let listing = service.scan_feeds();
+
+        let names: Vec<&str> = listing.feeds.iter().map(|f| f.name.as_str()).collect();
+        assert!(names.contains(&"berlin_vbb.zip"));
+        assert!(names.contains(&"boston_mbta.zip"));
+        assert!(names.contains(&"unzipped"));
+        assert!(!names.contains(&"notes.txt"));
+        assert!(!names.contains(&".hidden.zip"));
+        assert!(!names.contains(&"agency.txt"));
+        assert_eq!(listing.feed_count, listing.feeds.len());
+        assert!(!listing.truncated);
+        assert_eq!(listing.roots.len(), 1);
+
+        // Every reported path has to be usable as a `source` straight away.
+        for feed in &listing.feeds {
+            assert!(service.resolve_allowed_path(Path::new(&feed.path)).is_ok());
+        }
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn feed_listing_is_ordered_and_skips_symlinks() {
+        let root = temp_dir("listing-order");
+        for name in ["c.zip", "a.zip", "b.zip"] {
+            fs::write(root.join(name), b"not a zip").unwrap();
+        }
+        let outside = temp_dir("listing-outside");
+        fs::write(outside.join("escaped.zip"), b"not a zip").unwrap();
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.join("escaped.zip"), root.join("link.zip")).unwrap();
+
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+        let listing = service.scan_feeds();
+
+        let names: Vec<&str> = listing.feeds.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["a.zip", "b.zip", "c.zip"]);
+
+        fs::remove_dir_all(root).ok();
+        fs::remove_dir_all(outside).ok();
+    }
+
+    #[test]
+    fn truncated_feed_listing_selects_a_deterministic_prefix() {
+        let root = temp_dir("listing-limit");
+        for index in (0..=MAX_LISTED_FEEDS).rev() {
+            fs::write(root.join(format!("feed-{index:03}.zip")), b"not a zip").unwrap();
+        }
+
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+        let listing = service.scan_feeds();
+
+        assert!(listing.truncated);
+        assert_eq!(listing.feed_count, MAX_LISTED_FEEDS);
+        assert_eq!(listing.feeds.first().unwrap().name, "feed-000.zip");
+        assert_eq!(listing.feeds.last().unwrap().name, "feed-199.zip");
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
     fn url_detection_ignores_scheme_case() {
         assert!(looks_like_url("https://example.com/feed.zip"));
         assert!(looks_like_url("HTTPS://example.com/feed.zip"));
@@ -753,7 +975,12 @@ mod tests {
 
         assert_eq!(
             names,
-            vec!["explain_gtfs", "get_notice_details", "validate_gtfs"]
+            vec![
+                "explain_gtfs",
+                "get_notice_details",
+                "list_gtfs_feeds",
+                "validate_gtfs"
+            ]
         );
         fs::remove_dir_all(root).ok();
     }

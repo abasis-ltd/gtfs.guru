@@ -42,11 +42,28 @@ does not promise acceptance by Google Maps or another consumer.
 
 ## MCP Server
 
-Build and run the local stdio server:
+An MCP client starts the server itself and talks to it over stdio, so the
+binary has to be on the same machine as the client. Every
+[release](https://github.com/abasis-ltd/gtfs.guru/releases) attaches one for
+Linux (x86_64, x86_64-musl, aarch64), macOS (x86_64, arm64, universal), and
+Windows (x64). Unpack it and put `gtfs-guru-mcp` on your `PATH`:
 
 ```bash
+tar -xzf gtfs-guru-mcp-linux-x86_64.tar.gz
+sudo install -m 755 gtfs-guru-mcp /usr/local/bin/
+```
+
+Or build it yourself, from crates.io or from a checkout of this repository:
+
+```bash
+cargo install gtfs-guru-mcp
 cargo build --release -p gtfs-guru-mcp
-./target/release/gtfs-guru-mcp --allow-dir /path/to/feeds
+```
+
+Run it against the directory that holds your feeds:
+
+```bash
+gtfs-guru-mcp --allow-dir /path/to/feeds
 ```
 
 Example MCP client configuration:
@@ -55,15 +72,21 @@ Example MCP client configuration:
 {
   "mcpServers": {
     "gtfs-guru": {
-      "command": "/absolute/path/to/gtfs.guru/target/release/gtfs-guru-mcp",
+      "command": "gtfs-guru-mcp",
       "args": ["--allow-dir", "/path/to/feeds"]
     }
   }
 }
 ```
 
+A client launched from a desktop icon rather than a terminal often does not
+inherit your shell's `PATH`. If the server fails to start, give `command` the
+absolute path to the binary.
+
 Tools:
 
+- `list_gtfs_feeds`: discover ZIP archives and unzipped feeds under the
+  configured `--allow-dir` roots
 - `validate_gtfs`
 - `explain_gtfs`
 - `get_notice_details`
@@ -81,7 +104,7 @@ For a remote client, use authenticated stateless Streamable HTTP:
 
 ```bash
 export GTFS_GURU_MCP_BEARER_TOKEN="$(openssl rand -hex 32)"
-./target/release/gtfs-guru-mcp \
+gtfs-guru-mcp \
   --transport http \
   --bind 127.0.0.1:3000 \
   --allow-dir /path/to/feeds \
