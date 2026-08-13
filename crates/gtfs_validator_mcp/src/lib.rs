@@ -188,7 +188,12 @@ impl GtfsGuruMcp {
                 let Ok(entries) = std::fs::read_dir(&dir) else {
                     continue;
                 };
-                for entry in entries.flatten() {
+                // `read_dir` does not guarantee an order. Sort before applying
+                // the scan bounds so a truncated response contains the same
+                // feeds on every run, not merely the same final presentation.
+                let mut entries = entries.flatten().collect::<Vec<_>>();
+                entries.sort_by_key(|entry| entry.file_name());
+                for entry in entries {
                     visited += 1;
                     if visited > MAX_SCANNED_ENTRIES || feeds.len() >= MAX_LISTED_FEEDS {
                         truncated = true;
@@ -917,6 +922,24 @@ mod tests {
 
         fs::remove_dir_all(root).ok();
         fs::remove_dir_all(outside).ok();
+    }
+
+    #[test]
+    fn truncated_feed_listing_selects_a_deterministic_prefix() {
+        let root = temp_dir("listing-limit");
+        for index in (0..=MAX_LISTED_FEEDS).rev() {
+            fs::write(root.join(format!("feed-{index:03}.zip")), b"not a zip").unwrap();
+        }
+
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+        let listing = service.scan_feeds();
+
+        assert!(listing.truncated);
+        assert_eq!(listing.feed_count, MAX_LISTED_FEEDS);
+        assert_eq!(listing.feeds.first().unwrap().name, "feed-000.zip");
+        assert_eq!(listing.feeds.last().unwrap().name, "feed-199.zip");
+
+        fs::remove_dir_all(root).ok();
     }
 
     #[test]
