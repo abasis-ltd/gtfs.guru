@@ -223,7 +223,10 @@ cargo build --release -p gtfs-guru-mcp
 ./target/release/gtfs-guru-mcp --allow-dir /path/to/feeds
 ```
 
-It exposes `validate_gtfs`, `explain_gtfs`, and `get_notice_details`. Validation
+It exposes `list_gtfs_feeds`, `validate_gtfs`, `explain_gtfs`, and
+`get_notice_details`. `list_gtfs_feeds` reports the feeds under the allowed
+roots with the absolute path the other tools take, so an assistant asked about
+a feed by name can find it without searching the filesystem. Validation
 responses include exact grouped totals plus up to three concrete examples per
 code/severity group with available file, row, field, context, and suggested
 fixes. Local file access is restricted to configured roots. Public URL
