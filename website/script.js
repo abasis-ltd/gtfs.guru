@@ -1824,6 +1824,288 @@ Download the .zip and drop it here instead; validation still runs locally in you
         }
     }
 
+    /* --- Connect an MCP client --- */
+    // This panel hands over a config snippet and nothing else. The server it
+    // describes is spawned by the reader's own assistant, on their machine,
+    // reading their local feed — gtfs.guru is not a party to that connection,
+    // which is why a static page can offer it at all.
+    const CONNECT_DOWNLOAD = 'https://github.com/abasis-ltd/gtfs.guru/releases/latest/download';
+
+    // `command` differs per platform because the Unix installs land the binary
+    // on PATH and the Windows one does not.
+    const CONNECT_PLATFORMS = [
+        {
+            id: 'macos',
+            label: 'macOS',
+            dir: '/Users/you/gtfs-feeds',
+            command: 'gtfs-guru-mcp',
+            shell: 'bash',
+            // curl rather than a browser download on purpose: files fetched by
+            // the browser carry a quarantine attribute that Gatekeeper blocks.
+            install: [
+                `curl -fsSL -o gtfs-guru-mcp.tar.gz \\`,
+                `  ${CONNECT_DOWNLOAD}/gtfs-guru-mcp-macos-universal.tar.gz`,
+                `tar -xzf gtfs-guru-mcp.tar.gz`,
+                `sudo install -m 755 gtfs-guru-mcp /usr/local/bin/`,
+            ],
+        },
+        {
+            id: 'linux',
+            label: 'Linux',
+            dir: '/home/you/gtfs-feeds',
+            command: 'gtfs-guru-mcp',
+            shell: 'bash',
+            install: [
+                `case "$(uname -m)" in`,
+                `  x86_64|amd64) MCP_ARCH=x86_64 ;;`,
+                `  aarch64|arm64) MCP_ARCH=aarch64 ;;`,
+                `  *) echo "Unsupported Linux architecture: $(uname -m)" >&2; exit 1 ;;`,
+                `esac`,
+                `curl -fsSL -o gtfs-guru-mcp.tar.gz \\`,
+                `  ${CONNECT_DOWNLOAD}/gtfs-guru-mcp-linux-\${MCP_ARCH}.tar.gz`,
+                `tar -xzf gtfs-guru-mcp.tar.gz`,
+                `sudo install -m 755 gtfs-guru-mcp /usr/local/bin/`,
+            ],
+        },
+        {
+            id: 'windows',
+            label: 'Windows',
+            dir: 'C:\\Users\\you\\gtfs-feeds',
+            command: 'C:\\Users\\you\\gtfs-guru\\gtfs-guru-mcp.exe',
+            shell: 'powershell',
+            install: [
+                `Invoke-WebRequest -Uri ${CONNECT_DOWNLOAD}/gtfs-guru-mcp-windows-x64.zip \``,
+                `  -OutFile gtfs-guru-mcp.zip`,
+                `Expand-Archive gtfs-guru-mcp.zip -DestinationPath C:\\Users\\you\\gtfs-guru`,
+            ],
+        },
+    ];
+
+    // Snippets are serialized rather than templated so path separators and
+    // quotes are escaped by the format's own rules — a Windows command path
+    // hand-written into JSON is a broken config.
+    function connectServerJson(ctx, key) {
+        return JSON.stringify({
+            [key]: {
+                'gtfs-guru': { command: ctx.command, args: ['--allow-dir', ctx.dir] },
+            },
+        }, null, 2);
+    }
+
+    const CONNECT_CLIENTS = [
+        {
+            id: 'claude-code',
+            label: 'Claude Code',
+            where: (ctx) => `Run this in your project, or write it to <code>.mcp.json</code> yourself (${ctx.osLabel}).`,
+            snippet: (ctx) => [
+                `claude mcp add gtfs-guru -- ${ctx.command} --allow-dir ${ctx.dir}`,
+                ``,
+                `# or, as .mcp.json in the project root:`,
+                connectServerJson(ctx, 'mcpServers'),
+            ].join('\n'),
+            docs: 'https://code.claude.com/docs/en/mcp',
+        },
+        {
+            id: 'claude-desktop',
+            label: 'Claude Desktop',
+            where: (ctx) => ctx.os === 'windows'
+                ? 'Settings → Developer → Edit Config, or <code>%APPDATA%\\Claude\\claude_desktop_config.json</code>.'
+                : ctx.os === 'macos'
+                    ? 'Settings → Developer → Edit Config, or <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>.'
+                    : 'Settings → Developer → Edit Config, or <code>~/.config/Claude/claude_desktop_config.json</code>.',
+            snippet: (ctx) => connectServerJson(ctx, 'mcpServers'),
+            docs: 'https://modelcontextprotocol.io/quickstart/user',
+        },
+        {
+            id: 'cursor',
+            label: 'Cursor',
+            where: () => 'Write this to <code>~/.cursor/mcp.json</code> for every project, or <code>.cursor/mcp.json</code> for one.',
+            snippet: (ctx) => connectServerJson(ctx, 'mcpServers'),
+            docs: 'https://cursor.com/docs/context/mcp',
+        },
+        {
+            id: 'vscode',
+            label: 'VS Code',
+            where: () => 'Write this to <code>.mcp.json</code> in your workspace. Note the key is <code>servers</code>, not <code>mcpServers</code>.',
+            snippet: (ctx) => connectServerJson(ctx, 'servers'),
+            docs: 'https://code.visualstudio.com/docs/copilot/customization/mcp-servers',
+        },
+        {
+            id: 'codex',
+            label: 'Codex CLI',
+            where: () => 'Append this to <code>~/.codex/config.toml</code>.',
+            // Single-quoted TOML strings are literal, so a Windows path needs
+            // no backslash doubling here the way it does in JSON.
+            snippet: (ctx) => [
+                `[mcp_servers.gtfs-guru]`,
+                `command = '${ctx.command}'`,
+                `args = ['--allow-dir', '${ctx.dir}']`,
+            ].join('\n'),
+            docs: 'https://developers.openai.com/codex/mcp',
+        },
+        {
+            id: 'opencode',
+            label: 'OpenCode',
+            // Not branched per platform: OpenCode documents one global path,
+            // ~/.config/opencode/, with no OS qualification, so it holds on
+            // Windows too. Resist "correcting" this to %APPDATA%\opencode —
+            // that path is a recurring misreading, not OpenCode's behaviour.
+            where: () => 'Merge this into <code>opencode.json</code> in your project root, or '
+                + '<code>~/.config/opencode/opencode.json</code> to enable it everywhere.',
+            // OpenCode takes the binary and its arguments as one command array and
+            // requires type: "local", so connectServerJson above does not fit. Still
+            // serialized, for the same reason it is: a Windows path written into JSON
+            // by hand loses its backslashes.
+            snippet: (ctx) => JSON.stringify({
+                mcp: {
+                    'gtfs-guru': {
+                        type: 'local',
+                        command: [ctx.command, '--allow-dir', ctx.dir],
+                        enabled: true,
+                    },
+                },
+            }, null, 2),
+            docs: 'https://opencode.ai/docs/mcp-servers/',
+        },
+    ];
+
+    const connectModal = document.getElementById('connect-modal');
+    if (connectModal) initConnectModal();
+
+    function initConnectModal() {
+        const osTabs = document.getElementById('connect-os-tabs');
+        const clientTabs = document.getElementById('connect-client-tabs');
+        const installBox = document.getElementById('connect-install');
+        const clientBox = document.getElementById('connect-client');
+        const promptBox = document.getElementById('connect-prompt');
+        const dirInput = document.getElementById('connect-dir');
+        const closeBtn = document.getElementById('close-connect-btn');
+
+        let osId = detectPlatform();
+        let clientId = CONNECT_CLIENTS[0].id;
+        // Null until the reader edits it, so switching platform keeps showing
+        // a sensible default path instead of another platform's leftovers.
+        let dirOverride = null;
+
+        function context() {
+            const platform = CONNECT_PLATFORMS.find((p) => p.id === osId) || CONNECT_PLATFORMS[0];
+            return {
+                os: platform.id,
+                osLabel: platform.label,
+                command: platform.command,
+                dir: dirOverride || platform.dir,
+                platform,
+            };
+        }
+
+        function renderTabs(host, items, activeId, onPick) {
+            host.innerHTML = items.map((item) => `
+                <button type="button" role="tab" class="connect-tab${item.id === activeId ? ' is-active' : ''}"
+                    aria-selected="${item.id === activeId}" data-tab-id="${escapeAttr(item.id)}">
+                    ${escapeHtml(item.label)}
+                </button>
+            `).join('');
+            host.querySelectorAll('[data-tab-id]').forEach((btn) => {
+                btn.addEventListener('click', () => onPick(btn.getAttribute('data-tab-id')));
+            });
+        }
+
+        function renderSnippet(id, text) {
+            return `
+                <div class="connect-snippet">
+                    <pre id="${escapeAttr(id)}">${escapeHtml(text)}</pre>
+                    <button class="copy-tiny" type="button" data-copy-target="${escapeAttr(id)}">Copy</button>
+                </div>
+            `;
+        }
+
+        function render() {
+            const ctx = context();
+
+            renderTabs(osTabs, CONNECT_PLATFORMS, osId, (id) => { osId = id; render(); });
+            renderTabs(clientTabs, CONNECT_CLIENTS, clientId, (id) => { clientId = id; render(); });
+
+            installBox.innerHTML = renderSnippet('connect-install-code', ctx.platform.install.join('\n'))
+                + `<p class="connect-hint">Prefer to build it? <code>cargo install gtfs-guru-mcp</code>.</p>`;
+
+            // Only ever write the platform default back into the field. Syncing
+            // on every render would fight the reader mid-keystroke: a trimmed
+            // value would clip their trailing space and clearing the field
+            // would instantly refill it.
+            if (dirOverride === null && document.activeElement !== dirInput) {
+                dirInput.value = ctx.dir;
+            }
+
+            const client = CONNECT_CLIENTS.find((c) => c.id === clientId) || CONNECT_CLIENTS[0];
+            clientBox.innerHTML = `<p class="connect-hint">${client.where(ctx)}</p>`
+                + renderSnippet('connect-client-code', client.snippet(ctx))
+                + `<p class="connect-hint"><a href="${escapeAttr(client.docs)}" target="_blank" rel="noopener">`
+                + `${escapeHtml(client.label)} MCP docs <i data-lucide="arrow-up-right"></i></a>`
+                + ` · Restart ${escapeHtml(client.label)} after saving.</p>`;
+
+            // Spell out the full path. A bare filename makes the assistant hunt
+            // for the file before it can call the tool, and the directory is
+            // right there in step 2.
+            const separator = ctx.os === 'windows' ? '\\' : '/';
+            const root = ctx.dir.replace(/[\\/]+$/, '');
+            const feed = lastValidationResult ? `${lastFileName}.zip` : 'your-feed.zip';
+            promptBox.textContent = `Validate ${root}${separator}${feed} and explain the errors `
+                + `and warnings. For each one give the file, row, and field, and tell me how to fix it.`;
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function detectPlatform() {
+            const ua = navigator.userAgent || '';
+            if (/Mac|iPhone|iPad/i.test(ua)) return 'macos';
+            if (/Win/i.test(ua)) return 'windows';
+            return 'linux';
+        }
+
+        dirInput.addEventListener('input', () => {
+            dirOverride = dirInput.value.trim() || null;
+            render();
+        });
+
+        // Delegated so the buttons inside re-rendered snippets keep working.
+        connectModal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-copy-target]');
+            if (!btn) return;
+            const source = document.getElementById(btn.getAttribute('data-copy-target'));
+            if (!source) return;
+            navigator.clipboard.writeText(source.textContent).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+            }).catch(() => {
+                btn.textContent = 'Press Ctrl+C';
+                setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+            });
+        });
+
+        connectModal.addEventListener('click', (event) => {
+            if (event.target === connectModal) closeConnectModal();
+        });
+        if (closeBtn) closeBtn.addEventListener('click', closeConnectModal);
+
+        document.querySelectorAll('[data-open-connect]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                render();
+                connectModal.classList.remove('hidden');
+            });
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !connectModal.classList.contains('hidden')) {
+                closeConnectModal();
+            }
+        });
+    }
+
+    function closeConnectModal() {
+        const modal = document.getElementById('connect-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
     /* --- Geographic notice map (MapLibre, lazy-loaded) --- */
     let mapLibreLoading = null;
     let noticeMap = null;

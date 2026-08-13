@@ -22,6 +22,8 @@
 
 ## MCP Tools
 
+- `list_gtfs_feeds`: bounded, deterministic discovery of ZIP archives and
+  unzipped feeds under the configured allowed roots.
 - `validate_gtfs`: profile, exact grouped validation results, and up to three
   concrete examples per code/severity group. Examples carry the available
   file, row, field, message, context values, and suggested fix when one exists.

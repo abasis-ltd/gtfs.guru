@@ -366,9 +366,8 @@
                                 <div id="mcp-preview-body"></div>
                                 <div class="mcp-preview-footer">
                                     <span>Built from validator facts. No AI request was made.</span>
-                                    <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server"
-                                        target="_blank" rel="noopener">Connect via MCP <i
-                                            data-lucide="arrow-up-right"></i></a>
+                                    <button type="button" class="connect-link" data-open-connect>Connect via MCP <i
+                                            data-lucide="arrow-right"></i></button>
                                 </div>
                             </section>
                             <div class="result-actions">
@@ -451,6 +450,66 @@
                             <span><i class="map-legend-dot nearest"></i>Closest point</span>
                             <span><i class="map-legend-line"></i>Shape</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connect an MCP client. Everything here is generated in the
+                 browser: the page hands over a config snippet, and the server
+                 it describes runs on the reader's own machine. No feed and no
+                 report leave the tab. -->
+            <div class="connect-modal hidden" id="connect-modal" role="dialog" aria-modal="true"
+                aria-labelledby="connect-modal-title">
+                <div class="connect-modal-content glass-card">
+                    <div class="connect-modal-header">
+                        <div>
+                            <span class="mcp-preview-kicker">MCP server</span>
+                            <h3 id="connect-modal-title">Connect your AI assistant</h3>
+                        </div>
+                        <button class="close-btn" id="close-connect-btn" aria-label="Close"><i
+                                data-lucide="x"></i></button>
+                    </div>
+                    <div class="connect-modal-body">
+                        <p class="connect-intro">Your assistant runs <code>gtfs-guru-mcp</code> on your own
+                            machine and reads your feed there. Nothing is uploaded and gtfs.guru is not
+                            involved in the connection.</p>
+
+                        <section class="connect-step">
+                            <h4><span class="connect-step-num">1</span> Install the server</h4>
+                            <div class="connect-tabs" role="tablist" aria-label="Operating system"
+                                id="connect-os-tabs"></div>
+                            <div id="connect-install"></div>
+                        </section>
+
+                        <section class="connect-step">
+                            <h4><span class="connect-step-num">2</span> Choose the folder holding your feeds</h4>
+                            <label class="connect-field">
+                                <span class="sr-only">Feed directory</span>
+                                <input type="text" id="connect-dir" spellcheck="false" autocomplete="off">
+                            </label>
+                            <p class="connect-hint">The server can only read files under this folder.</p>
+                        </section>
+
+                        <section class="connect-step">
+                            <h4><span class="connect-step-num">3</span> Add it to your assistant</h4>
+                            <div class="connect-tabs" role="tablist" aria-label="MCP client"
+                                id="connect-client-tabs"></div>
+                            <div id="connect-client"></div>
+                        </section>
+
+                        <section class="connect-step">
+                            <h4><span class="connect-step-num">4</span> Ask it about your feed</h4>
+                            <div class="connect-snippet">
+                                <pre id="connect-prompt"></pre>
+                                <button class="copy-tiny" type="button" data-copy-target="connect-prompt">Copy</button>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="connect-modal-footer">
+                        <span>Works with any MCP-capable client.</span>
+                        <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server"
+                            target="_blank" rel="noopener">Full setup guide <i
+                                data-lucide="arrow-up-right"></i></a>
                     </div>
                 </div>
             </div>
@@ -606,9 +665,8 @@ gtfs-guru --stdout -i feed.zip | jq .</code></pre>
                     <p>GTFS Guru returns exact totals and concrete examples with available file, row, field, and
                         context, so the answer stays grounded in the validator report.</p>
                 </div>
-                <a class="btn btn-secondary"
-                    href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server" target="_blank"
-                    rel="noopener">MCP setup guide <i data-lucide="arrow-up-right"></i></a>
+                <button type="button" class="btn btn-secondary" data-open-connect>Connect your AI assistant <i
+                        data-lucide="plug"></i></button>
             </div>
         </div>
     </section>

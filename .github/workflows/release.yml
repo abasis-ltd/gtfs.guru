@@ -75,7 +75,7 @@ jobs:
         with:
           workspaces: '. -> target'
 
-      - name: Build CLI (Linux)
+      - name: Build CLI and MCP server (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         env:
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
@@ -85,17 +85,30 @@ jobs:
           cargo build --release -p gtfs-guru --target x86_64-unknown-linux-musl
           cargo build --release -p gtfs-guru --target aarch64-unknown-linux-gnu
 
+          # An MCP client spawns gtfs-guru-mcp over stdio, so the server has to
+          # be on the user's machine. Shipping it here keeps a Rust toolchain
+          # from standing between someone and their first connection.
+          cargo build --release -p gtfs-guru-mcp
+          cargo build --release -p gtfs-guru-mcp --target x86_64-unknown-linux-musl
+          cargo build --release -p gtfs-guru-mcp --target aarch64-unknown-linux-gnu
+
           mkdir -p dist
           tar -C target/release -czf dist/gtfs-guru-linux-x86_64.tar.gz gtfs-guru
           tar -C target/x86_64-unknown-linux-musl/release -czf dist/gtfs-guru-linux-x86_64-musl.tar.gz gtfs-guru
           tar -C target/aarch64-unknown-linux-gnu/release -czf dist/gtfs-guru-linux-aarch64.tar.gz gtfs-guru
           cp dist/gtfs-guru-linux-x86_64-musl.tar.gz dist/gtfs-guru-linux-x86_64-static.tar.gz
 
-      - name: Build CLI (macOS)
+          tar -C target/release -czf dist/gtfs-guru-mcp-linux-x86_64.tar.gz gtfs-guru-mcp
+          tar -C target/x86_64-unknown-linux-musl/release -czf dist/gtfs-guru-mcp-linux-x86_64-musl.tar.gz gtfs-guru-mcp
+          tar -C target/aarch64-unknown-linux-gnu/release -czf dist/gtfs-guru-mcp-linux-aarch64.tar.gz gtfs-guru-mcp
+
+      - name: Build CLI and MCP server (macOS)
         if: matrix.platform == 'macos-latest'
         run: |
           cargo build --release -p gtfs-guru --target x86_64-apple-darwin
           cargo build --release -p gtfs-guru --target aarch64-apple-darwin
+          cargo build --release -p gtfs-guru-mcp --target x86_64-apple-darwin
+          cargo build --release -p gtfs-guru-mcp --target aarch64-apple-darwin
 
           mkdir -p dist
           tar -C target/x86_64-apple-darwin/release -czf dist/gtfs-guru-macos-x86_64.tar.gz gtfs-guru
@@ -106,15 +119,26 @@ jobs:
           tar -C dist -czf dist/gtfs-guru-macos-universal.tar.gz gtfs-guru
           rm -f dist/gtfs-guru
 
-      - name: Build CLI (Windows)
+          tar -C target/x86_64-apple-darwin/release -czf dist/gtfs-guru-mcp-macos-x86_64.tar.gz gtfs-guru-mcp
+          tar -C target/aarch64-apple-darwin/release -czf dist/gtfs-guru-mcp-macos-arm64.tar.gz gtfs-guru-mcp
+          lipo -create -output dist/gtfs-guru-mcp \
+            target/x86_64-apple-darwin/release/gtfs-guru-mcp \
+            target/aarch64-apple-darwin/release/gtfs-guru-mcp
+          tar -C dist -czf dist/gtfs-guru-mcp-macos-universal.tar.gz gtfs-guru-mcp
+          rm -f dist/gtfs-guru-mcp
+
+      - name: Build CLI and MCP server (Windows)
         if: matrix.platform == 'windows-latest'
         run: |
           cargo build --release -p gtfs-guru
+          cargo build --release -p gtfs-guru-mcp
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item -Path target\\release\\gtfs-guru.exe -Destination dist\\gtfs-guru.exe -Force
           Compress-Archive -Path dist\\gtfs-guru.exe -DestinationPath dist\\gtfs-guru-windows-x64.zip -Force
+          Copy-Item -Path target\\release\\gtfs-guru-mcp.exe -Destination dist\\gtfs-guru-mcp.exe -Force
+          Compress-Archive -Path dist\\gtfs-guru-mcp.exe -DestinationPath dist\\gtfs-guru-mcp-windows-x64.zip -Force
 
-      - name: Upload CLI artifacts (Linux)
+      - name: Upload CLI and MCP artifacts (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v7
         with:
@@ -122,7 +146,7 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
-      - name: Upload CLI artifacts (macOS)
+      - name: Upload CLI and MCP artifacts (macOS)
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v7
         with:
@@ -130,7 +154,7 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
-      - name: Upload CLI artifacts (Windows)
+      - name: Upload CLI and MCP artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
