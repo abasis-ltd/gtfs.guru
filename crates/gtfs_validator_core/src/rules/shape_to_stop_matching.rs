@@ -79,21 +79,38 @@ impl Validator for ShapeToStopMatchingValidator {
             trips_by_shape.entry(shape_id).or_default().push(trip);
         }
 
+        // Group shapes by id, keeping groups in first-appearance order of the
+        // shape_id in shapes.txt. Iterating the HashMap directly would make
+        // the notice order (and the capped sample subset) vary between runs.
         let mut shapes_by_id: HashMap<gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Shape>> =
             HashMap::new();
+        let mut shape_order: Vec<gtfs_guru_model::StringId> = Vec::new();
         for shape in &shapes.rows {
             let shape_id = shape.shape_id;
             if shape_id.0 == 0 {
                 continue;
             }
-            shapes_by_id.entry(shape_id).or_default().push(shape);
+            match shapes_by_id.entry(shape_id) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(shape)
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    shape_order.push(shape_id);
+                    entry.insert(vec![shape]);
+                }
+            }
         }
+        let shape_groups: Vec<(gtfs_guru_model::StringId, Vec<&gtfs_guru_model::Shape>)> =
+            shape_order
+                .into_iter()
+                .filter_map(|shape_id| Some((shape_id, shapes_by_id.remove(&shape_id)?)))
+                .collect();
 
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
             let ctx = crate::ValidationContextState::capture();
-            let results: Vec<NoticeContainer> = shapes_by_id
+            let results: Vec<NoticeContainer> = shape_groups
                 .into_par_iter()
                 .filter_map(|(shape_id, shape_points_raw)| {
                     let _guards = ctx.apply();
@@ -185,7 +202,7 @@ impl Validator for ShapeToStopMatchingValidator {
         #[cfg(not(feature = "parallel"))]
         {
             let matcher = StopToShapeMatcher::default();
-            for (shape_id, shape_points_raw) in shapes_by_id {
+            for (shape_id, shape_points_raw) in shape_groups {
                 let trips = match trips_by_shape.get(&shape_id) {
                     Some(trips) => trips,
                     None => continue,

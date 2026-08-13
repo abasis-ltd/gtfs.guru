@@ -11,13 +11,14 @@ impl Validator for MissingTripEdgeValidator {
     }
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
+        let trip_groups = feed.stop_times_by_trip_ordered();
+
         #[cfg(feature = "parallel")]
         {
-            #[cfg(feature = "parallel")]
             let results: Vec<NoticeContainer> = {
                 use rayon::prelude::*;
                 let ctx = crate::ValidationContextState::capture();
-                feed.stop_times_by_trip
+                trip_groups
                     .par_iter()
                     .map(|(trip_id, stop_time_indices)| {
                         let _guards = ctx.apply();
@@ -34,8 +35,8 @@ impl Validator for MissingTripEdgeValidator {
         #[cfg(not(feature = "parallel"))]
         {
             // Use pre-built index - indices are already sorted by stop_sequence
-            for (trip_id, indices) in &feed.stop_times_by_trip {
-                let result = Self::check_trip(feed, *trip_id, indices);
+            for (trip_id, indices) in trip_groups {
+                let result = Self::check_trip(feed, trip_id, indices);
                 notices.merge(result);
             }
         }
