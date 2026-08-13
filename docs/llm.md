@@ -86,7 +86,8 @@ absolute path to the binary.
 Tools:
 
 - `list_gtfs_feeds`: discover ZIP archives and unzipped feeds under the
-  configured `--allow-dir` roots
+  configured `--allow-dir` roots. Optional `nameContains` filters by name,
+  case-insensitively.
 - `validate_gtfs`
 - `explain_gtfs`
 - `get_notice_details`
