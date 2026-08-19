@@ -52,6 +52,25 @@
 - Service facts cover seven actual dates beginning with the analysis date and
   apply `calendar_dates.txt` additions and removals.
 
+## Spec Surface
+
+- `gtfs-guru spec-surface` emits the files, fields, required and recommended
+  fields, enum domains, and notice codes this build supports, as JSON.
+- `--output <PATH>` writes to a file instead of stdout; `--pretty` indents.
+- Derived from `csv_schema.rs`, the enum tables in `csv_validation.rs`, and the
+  notice schema, so it cannot disagree with what validation does. Never restate
+  the surface by hand.
+- `scripts/spec_watch.py` diffs it against the published GTFS reference and the
+  canonical validator's `rules.json`. See `docs/spec-watch.md`.
+
+## Report Summary Extensions
+
+- Every JSON report's `summary` carries `specRevision` and `canonicalBaseline`,
+  read from `crates/gtfs_validator_core/spec_baseline.json` at compile time, so a
+  stored report states which upstream state produced it.
+- They are gtfs.guru extensions to the canonical report schema; the golden suite
+  strips them under `--strip-runtime-fields`.
+
 ## Fix Flags
 
 - Suggestions are derived in `crates/gtfs_validator_core/src/fix_suggest.rs`; each one is
@@ -83,4 +102,7 @@
 
 # Compare a feed update and fail CI on newly introduced errors
 ./target/release/gtfs-guru diff old.zip new.zip --markdown - --fail-on-new-errors
+
+# Which files, fields, enums, and notices this build supports
+./target/release/gtfs-guru spec-surface --pretty | jq '.files["stops.txt"].enums'
 ```

@@ -1,0 +1,137 @@
+name: Spec Watch
+
+# Tracks the two upstreams gtfs.guru follows but does not release with: the GTFS
+# specification (`google/transit`) and the canonical validator
+# (`MobilityData/gtfs-validator`). See docs/spec-watch.md.
+
+on:
+  schedule:
+    # Mondays, early UTC: a week is short enough to catch a release before it
+    # ages and long enough that a quiet upstream costs one build.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      fail_on_drift:
+        description: "Fail the run when drift is found"
+        type: boolean
+        required: false
+        default: false
+      linear_dry_run:
+        description: "Print the Linear payload instead of sending it"
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/spec_watch.py"
+      - "scripts/spec_watch_test.py"
+      - "scripts/spec_watch_fixtures/**"
+      - "crates/gtfs_validator_core/spec_baseline.json"
+      - "crates/gtfs_validator_core/src/spec_baseline.rs"
+      - "crates/gtfs_validator_core/src/spec_surface.rs"
+      - ".github/workflows/spec-watch.yml"
+      - "docs/spec-watch.md"
+  pull_request:
+    paths:
+      - "scripts/spec_watch.py"
+      - "scripts/spec_watch_test.py"
+      - "scripts/spec_watch_fixtures/**"
+      - "crates/gtfs_validator_core/spec_baseline.json"
+      - "crates/gtfs_validator_core/src/spec_baseline.rs"
+      - "crates/gtfs_validator_core/src/spec_surface.rs"
+      - ".github/workflows/spec-watch.yml"
+      - "docs/spec-watch.md"
+
+permissions:
+  contents: read
+
+jobs:
+  detector-tests:
+    name: Detector tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # Offline: committed fixtures with an injected field, enum value, and rule,
+      # so a detector that stopped detecting fails here rather than silently
+      # going quiet in the weekly run.
+      - name: Watcher detection tests
+        run: python3 scripts/spec_watch_test.py
+
+  watch:
+    name: Upstream drift
+    # Only on a schedule or by hand. A pull request must not depend on
+    # api.github.com being reachable, or an unrelated outage turns it red; the
+    # offline detector tests above are what gates changes to the watcher.
+    # A scheduled build in a fork would rebuild the CLI to find no drift and
+    # report it nowhere, so the schedule is limited to the upstream repository.
+    if: >-
+      (github.event_name == 'schedule' && github.repository == 'abasis-ltd/gtfs.guru')
+      || github.event_name == 'workflow_dispatch'
+    needs: detector-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # The supported surface has to come from the build itself, not from a
+      # hand-kept list, or the comparison drifts from what the validator does.
+      - name: Build the CLI
+        run: cargo build --release -p gtfs-guru
+
+      - name: Check the specification and the canonical validator
+        env:
+          GTFS_VALIDATOR_BIN: ./target/release/gtfs-guru
+          # Raises the GitHub API rate limit; no write scope is used.
+          GITHUB_TOKEN: ${{ github.token }}
+          # Absent in forks and in pull requests: the run then reports to the log
+          # and the artifact only.
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_KEY: ${{ vars.LINEAR_TEAM_KEY || 'GTF' }}
+        run: |
+          extra=()
+          if [ "${{ inputs.fail_on_drift }}" = "true" ]; then
+            extra+=(--fail-on-drift)
+          fi
+          if [ "${{ inputs.linear_dry_run }}" = "true" ]; then
+            extra+=(--linear-dry-run)
+          fi
+          python3 scripts/spec_watch.py check \
+            --linear-team-key "$LINEAR_TEAM_KEY" \
+            "${extra[@]}"
+
+      - name: Add the drift report to the run summary
+        if: always()
+        run: |
+          if [ -f target/spec-watch/spec-drift.md ]; then
+            cat target/spec-watch/spec-drift.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No drift: the specification and the canonical validator match the baseline." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the drift report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spec-drift-report
+          path: target/spec-watch/
+          if-no-files-found: ignore

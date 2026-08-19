@@ -885,6 +885,74 @@ mod tests {
             .unwrap_or_default()
     }
 
+    /// The exported enum lists feed the spec watcher, so a value accepted per
+    /// cell but missing from the list would hide real drift, and vice versa.
+    #[test]
+    fn enum_allowed_values_agree_with_the_cell_check() {
+        const KINDS: &[EnumKind] = &[
+            EnumKind::LocationType,
+            EnumKind::WheelchairBoarding,
+            EnumKind::RouteType,
+            EnumKind::ContinuousPickupDropOff,
+            EnumKind::PickupDropOffType,
+            EnumKind::BookingType,
+            EnumKind::DirectionId,
+            EnumKind::WheelchairAccessible,
+            EnumKind::BikesAllowed,
+            EnumKind::CarsAllowed,
+            EnumKind::ContactlessEmvSupport,
+            EnumKind::StopAccess,
+            EnumKind::ServiceAvailability,
+            EnumKind::ExceptionType,
+            EnumKind::PaymentMethod,
+            EnumKind::Transfers,
+            EnumKind::ExactTimes,
+            EnumKind::TransferType,
+            EnumKind::PathwayMode,
+            EnumKind::Bidirectional,
+            EnumKind::YesNo,
+            EnumKind::Timepoint,
+            EnumKind::FareMediaType,
+            EnumKind::DurationLimitType,
+            EnumKind::FareTransferType,
+            EnumKind::RiderFareCategory,
+        ];
+
+        for kind in KINDS {
+            let allowed = enum_allowed_values(*kind);
+            assert!(
+                allowed.windows(2).all(|pair| pair[0] < pair[1]),
+                "{kind:?} values must be sorted and unique"
+            );
+            for value in -5..=2000 {
+                assert_eq!(
+                    enum_value_allowed(*kind, value),
+                    allowed.contains(&value),
+                    "{kind:?} disagrees about {value}"
+                );
+            }
+        }
+    }
+
+    /// Every enum column must be reachable through the exported lookup, or the
+    /// spec watcher would silently skip it.
+    #[test]
+    fn every_enum_column_exports_its_values() {
+        for file in crate::feed::GTFS_FILE_NAMES {
+            let Some(schema) = crate::csv_schema::schema_for_file(file) else {
+                continue;
+            };
+            for field in schema.fields {
+                if enum_kind(field).is_some() {
+                    assert!(
+                        enum_values_for_field(field).is_some_and(|values| !values.is_empty()),
+                        "{file}:{field} is an enum with no exported values"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn empty_row_notice_uses_csv_row_number() {
         let _guard = crate::validation_context::set_thorough_mode_enabled(true);
@@ -1565,6 +1633,49 @@ fn enum_kind(field: &str) -> Option<EnumKind> {
         "is_default_fare_category" => Some(EnumKind::RiderFareCategory),
         _ => None,
     }
+}
+
+/// The values every enum column accepts, spelled out.
+///
+/// `enum_value_allowed` stays a `matches!` chain because it runs once per cell;
+/// this list serves the machine-readable spec surface, which the spec watcher
+/// diffs against the published specification. The two are kept in agreement by
+/// `enum_allowed_values_agree_with_the_cell_check`.
+fn enum_allowed_values(kind: EnumKind) -> &'static [i64] {
+    match kind {
+        EnumKind::LocationType => &[0, 1, 2, 3, 4],
+        EnumKind::WheelchairBoarding => &[0, 1, 2],
+        EnumKind::RouteType => &[0, 1, 2, 3, 4, 5, 6, 7, 11, 12],
+        EnumKind::ContinuousPickupDropOff => &[0, 1, 2, 3],
+        EnumKind::PickupDropOffType => &[0, 1, 2, 3],
+        EnumKind::BookingType => &[0, 1, 2],
+        EnumKind::DirectionId => &[0, 1],
+        EnumKind::WheelchairAccessible => &[0, 1, 2],
+        EnumKind::BikesAllowed => &[0, 1, 2],
+        EnumKind::CarsAllowed => &[0, 1, 2],
+        EnumKind::ContactlessEmvSupport => &[0, 1, 2],
+        EnumKind::StopAccess => &[0, 1],
+        EnumKind::ServiceAvailability => &[0, 1],
+        EnumKind::ExceptionType => &[1, 2],
+        EnumKind::PaymentMethod => &[0, 1],
+        EnumKind::Transfers => &[0, 1, 2],
+        EnumKind::ExactTimes => &[0, 1],
+        EnumKind::TransferType => &[0, 1, 2, 3, 4, 5],
+        EnumKind::PathwayMode => &[1, 2, 3, 4, 5, 6, 7],
+        EnumKind::Bidirectional => &[0, 1],
+        EnumKind::YesNo => &[0, 1],
+        EnumKind::Timepoint => &[0, 1],
+        EnumKind::FareMediaType => &[0, 1, 2, 3, 4],
+        EnumKind::DurationLimitType => &[0, 1, 2, 3],
+        EnumKind::FareTransferType => &[0, 1, 2],
+        EnumKind::RiderFareCategory => &[0, 1],
+    }
+}
+
+/// The enum values this build accepts for `field`, or `None` when the column is
+/// not an enum.
+pub(crate) fn enum_values_for_field(field: &str) -> Option<&'static [i64]> {
+    enum_kind(field).map(enum_allowed_values)
 }
 
 fn enum_value_allowed(kind: EnumKind, value: i64) -> bool {

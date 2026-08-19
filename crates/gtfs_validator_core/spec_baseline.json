@@ -1,0 +1,68 @@
+{
+  "specRevision": {
+    "repository": "google/transit",
+    "ref": "master",
+    "commit": "3215f98f26615f1b925dca1bf2205311b747e308",
+    "committedAt": "2026-08-17T19:34:59Z",
+    "specPaths": [
+      "gtfs/spec/en/reference.md"
+    ]
+  },
+  "canonicalBaseline": {
+    "repository": "MobilityData/gtfs-validator",
+    "version": "v8.0.1",
+    "publishedAt": "2026-05-12T13:35:43Z",
+    "rulesAsset": "rules.json"
+  },
+  "acknowledged": {
+    "specFilesNotSupported": [],
+    "specFieldsNotSupported": {},
+    "fieldsNotInSpec": {
+      "fare_leg_join_rules.txt": [
+        "from_area_id",
+        "to_area_id"
+      ],
+      "location_groups.txt": [
+        "location_group_desc"
+      ],
+      "routes.txt": [
+        "route_branding_url"
+      ],
+      "trips.txt": [
+        "continuous_drop_off",
+        "continuous_pickup"
+      ]
+    },
+    "requiredMismatches": {
+      "fare_attributes.txt": [
+        "transfers"
+      ],
+      "timeframes.txt": [
+        "timeframe_group_id"
+      ],
+      "transfers.txt": [
+        "transfer_type"
+      ]
+    },
+    "enumValuesNotSupported": {},
+    "enumValuesNotInSpec": {},
+    "canonicalNoticesNotImplemented": [],
+    "noticesNotInCanonical": [
+      "agency_phone_invalid",
+      "duplicate_trip",
+      "google_ic_price_check",
+      "google_transfer_type_check",
+      "headway_too_large",
+      "missing_prior_day_booking_field_value",
+      "missing_recommended_column",
+      "service_never_active",
+      "stop_headsign_invalid_char",
+      "too_many_days_without_service",
+      "unused_agency",
+      "unused_parent_station",
+      "unused_route",
+      "unused_stop"
+    ]
+  },
+  "updatedAt": "2026-08-18T10:08:48Z"
+}
