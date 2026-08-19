@@ -26,6 +26,17 @@ See `docs/system-dependencies.md` for the package list.
   Omitting it on a near-full disk fails the build and the suite reports
   `validator failed for <case>`, which looks like a validator bug instead.
   See `docs/golden.md`.
+- Spec watcher (upstream spec and canonical validator drift):
+  ```
+  python3 scripts/spec_watch_test.py                      # offline, no cargo
+  GTFS_VALIDATOR_BIN=./target/release/gtfs-guru \
+    python3 scripts/spec_watch.py check                   # needs network
+  ```
+  The accepted upstream state lives in
+  `crates/gtfs_validator_core/spec_baseline.json` and is compiled into reports as
+  `summary.specRevision` / `summary.canonicalBaseline`. Never edit it by hand;
+  regenerate it with `scripts/spec_watch.py update-baseline` and follow the
+  protocol in `docs/spec-watch.md`.
 
 ## Detailed Guides
 
@@ -37,6 +48,7 @@ See `docs/system-dependencies.md` for the package list.
 - Python bindings: `docs/agents/python.md`
 - Desktop GUI (Tauri): `docs/agents/gui.md`
 - Benchmarks and profiling: `docs/agents/benchmarks.md`
+- Upstream spec/validator watcher and the baseline protocol: `docs/spec-watch.md`
 
 ## Contribution Basics
 

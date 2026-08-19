@@ -1,0 +1,136 @@
+{
+  "missing_required_field": {
+    "code": "missing_required_field",
+    "deprecated": false,
+    "description": "The given field has no value in some input row, even though values are required.",
+    "properties": {
+      "csvRowNumber": {
+        "description": "The row of the faulty record.",
+        "fieldName": "csvRowNumber",
+        "type": "integer"
+      },
+      "fieldName": {
+        "description": "The name of the missing field.",
+        "fieldName": "fieldName",
+        "type": "string"
+      },
+      "filename": {
+        "description": "The name of the faulty file.",
+        "fieldName": "filename",
+        "type": "string"
+      }
+    },
+    "references": {
+      "bestPracticesFileReferences": [],
+      "fileReferences": [],
+      "sectionReferences": [
+        "term-definitions"
+      ],
+      "urlReferences": []
+    },
+    "severityLevel": "ERROR",
+    "shortSummary": "A required field is missing.",
+    "type": "object"
+  },
+  "unexpected_enum_value": {
+    "code": "unexpected_enum_value",
+    "deprecated": false,
+    "properties": {
+      "csvRowNumber": {
+        "description": "The row number of the faulty record.",
+        "fieldName": "csvRowNumber",
+        "type": "integer"
+      },
+      "fieldName": {
+        "description": "The name of the field where the error occurred.",
+        "fieldName": "fieldName",
+        "type": "string"
+      },
+      "fieldValue": {
+        "description": "Faulty value.",
+        "fieldName": "fieldValue",
+        "type": "integer"
+      },
+      "filename": {
+        "description": "The name of the faulty file.",
+        "fieldName": "filename",
+        "type": "string"
+      }
+    },
+    "references": {
+      "bestPracticesFileReferences": [],
+      "fileReferences": [],
+      "sectionReferences": [
+        "field-definitions"
+      ],
+      "urlReferences": []
+    },
+    "severityLevel": "WARNING",
+    "shortSummary": "An enum has an unexpected value.",
+    "type": "object"
+  },
+  "wrong_parent_location_type": {
+    "code": "wrong_parent_location_type",
+    "deprecated": false,
+    "description": "Value of field `location_type` of parent found in field `parent_station` is invalid.\n\nAccording to spec\n\n- _Stop/platform_ can only have _Station_ as parent\n- _Station_ can NOT have a parent\n- _Entrance/exit_ or _generic node_ can only have _Station_ as parent\n- _Boarding Area_ can only have _Platform_ as parent\n\nAny other combination raise this error.",
+    "properties": {
+      "csvRowNumber": {
+        "description": "The row number of the faulty record.",
+        "fieldName": "csvRowNumber",
+        "type": "integer"
+      },
+      "expectedLocationType": {
+        "description": "The expected location type of the faulty record.",
+        "fieldName": "expectedLocationType",
+        "type": "integer"
+      },
+      "locationType": {
+        "description": "The faulty record's `stops.location_type`.",
+        "fieldName": "locationType",
+        "type": "integer"
+      },
+      "parentCsvRowNumber": {
+        "description": "The row number of the faulty record's parent.",
+        "fieldName": "parentCsvRowNumber",
+        "type": "integer"
+      },
+      "parentLocationType": {
+        "description": "The location type of the faulty record's parent.",
+        "fieldName": "parentLocationType",
+        "type": "integer"
+      },
+      "parentStation": {
+        "description": "The id of the faulty record's parent station.",
+        "fieldName": "parentStation",
+        "type": "string"
+      },
+      "parentStopName": {
+        "description": "The stop name of the faulty record's parent.",
+        "fieldName": "parentStopName",
+        "type": "string"
+      },
+      "stopId": {
+        "description": "The id of the faulty record.",
+        "fieldName": "stopId",
+        "type": "string"
+      },
+      "stopName": {
+        "description": "The faulty record's `stops.stop_name`.",
+        "fieldName": "stopName",
+        "type": "string"
+      }
+    },
+    "references": {
+      "bestPracticesFileReferences": [],
+      "fileReferences": [
+        "stops.txt",
+        "stop_times.txt"
+      ],
+      "sectionReferences": [],
+      "urlReferences": []
+    },
+    "severityLevel": "ERROR",
+    "shortSummary": "Incorrect type of the parent location.",
+    "type": "object"
+  }
+}

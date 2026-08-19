@@ -213,6 +213,15 @@ actual service dates with calendar exceptions applied, and grouped validation
 issues. The explanation is derived from the same profile, so every statement
 can be checked without sending the feed to an LLM provider.
 
+See exactly which standard a build answers for — the files, fields, enum values,
+and notice codes it supports, and the specification revision and canonical
+validator release it was checked against:
+
+```bash
+gtfs-guru spec-surface --pretty
+gtfs-guru -i feed.zip --stdout | jq '.summary | {specRevision, canonicalBaseline}'
+```
+
 ### MCP server
 
 Build the read-only MCP server. The default stdio transport is suitable for a

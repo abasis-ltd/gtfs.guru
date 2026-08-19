@@ -230,7 +230,8 @@ def main() -> int:
         action="store_true",
         help=(
             "Ignore validatedAt, validationTimeSeconds, memoryUsageRecords, "
-            "outputDirectory, and gtfs.guru report extensions (feedInfo.feedVersion)."
+            "outputDirectory, and gtfs.guru report extensions (specRevision, "
+            "canonicalBaseline, feedInfo.feedVersion)."
         ),
     )
     parser.add_argument(
@@ -288,6 +289,7 @@ def main() -> int:
             ]
         )
         # gtfs.guru extends the canonical schema; drop extensions for parity checks.
+        ignore_summary_fields.extend(["specRevision", "canonicalBaseline"])
         ignore_feed_info_fields.append("feedVersion")
     if args.ignore_input:
         ignore_summary_fields.append("gtfsInput")

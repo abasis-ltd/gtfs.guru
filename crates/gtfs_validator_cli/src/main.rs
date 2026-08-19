@@ -201,6 +201,8 @@ enum Command {
     Profile(ProfileArgs),
     /// Explain a GTFS feed using deterministic facts and validation results.
     Explain(ExplainArgs),
+    /// Emit the files, fields, enum values, and notices this build supports.
+    SpecSurface(SpecSurfaceArgs),
 }
 
 #[derive(Debug, ClapArgs)]
@@ -269,6 +271,17 @@ struct ExplainArgs {
 }
 
 #[derive(Debug, ClapArgs)]
+struct SpecSurfaceArgs {
+    /// Write the surface JSON to PATH instead of stdout.
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
+
+    /// Pretty-print the surface JSON.
+    #[arg(long)]
+    pretty: bool,
+}
+
+#[derive(Debug, ClapArgs)]
 #[command(group = clap::ArgGroup::new("analysis_source").required(true).args(["input", "url"]))]
 struct AnalysisSourceArgs {
     /// Path to a GTFS ZIP file or unpacked feed directory.
@@ -304,6 +317,7 @@ fn main() -> anyhow::Result<()> {
             Command::Diff(diff_args) => run_diff(diff_args),
             Command::Profile(profile_args) => run_profile(profile_args),
             Command::Explain(explain_args) => run_explain(explain_args),
+            Command::SpecSurface(surface_args) => run_spec_surface(surface_args),
         };
     }
     if args.stdout {
@@ -524,6 +538,31 @@ fn run_profile(args: &ProfileArgs) -> anyhow::Result<()> {
     }
     .context("serialize feed profile")?;
     println!("{json}");
+    Ok(())
+}
+
+fn run_spec_surface(args: &SpecSurfaceArgs) -> anyhow::Result<()> {
+    let surface = gtfs_guru_core::spec_surface();
+    let json = if args.pretty {
+        serde_json::to_string_pretty(&surface)
+    } else {
+        serde_json::to_string(&surface)
+    }
+    .context("serialize spec surface")?;
+    match args.output.as_deref() {
+        Some(path) => {
+            if let Some(parent) = path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+            {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("create output dir {}", parent.display()))?;
+            }
+            std::fs::write(path, format!("{json}\n"))
+                .with_context(|| format!("write {}", path.display()))?;
+        }
+        None => println!("{json}"),
+    }
     Ok(())
 }
 
