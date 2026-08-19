@@ -28,6 +28,7 @@ import re
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
@@ -80,6 +81,28 @@ class WatchError(RuntimeError):
 # HTTP
 
 
+class _StripAuthOnCrossHostRedirect(urllib.request.HTTPRedirectHandler):
+    """Drop `Authorization` when a redirect leaves the host it was meant for.
+
+    `urllib` copies every header but `Content-Length`/`Content-Type` onto the
+    redirected request, so a token sent to github.com would follow a release
+    asset all the way to its CDN host. GitHub redirects release downloads to
+    objects.githubusercontent.com, which has no business seeing the token.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new_request = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new_request is None:
+            return None
+        if urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+            # Request normalises header names to Capitalised-Form.
+            new_request.headers.pop("Authorization", None)
+        return new_request
+
+
+_OPENER = urllib.request.build_opener(_StripAuthOnCrossHostRedirect)
+
+
 def http_get(url: str, token: str | None = None, accept: str | None = None) -> bytes:
     request = urllib.request.Request(url)
     request.add_header("User-Agent", USER_AGENT)
@@ -88,7 +111,7 @@ def http_get(url: str, token: str | None = None, accept: str | None = None) -> b
     if token:
         request.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with _OPENER.open(request, timeout=60) as response:
             return response.read()
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", "replace")[:400]
@@ -230,16 +253,21 @@ def fetch_spec_text(head: dict, token: str | None) -> str:
 
 def fetch_merged_pulls(
     baseline: dict, token: str | None, max_pages: int, max_file_lookups: int
-) -> list[dict]:
+) -> tuple[list[dict], bool]:
     """Pull requests merged into the spec repository since the baseline commit.
 
     Sorted by merge time, newest first, and tagged with whether they touched the
     static specification, so a reviewer can tell a reference change from a
     realtime-only one without opening each pull request.
+
+    Returns the list and whether the page cap was reached before the scan ran
+    past the baseline, so the report can say the list may be incomplete rather
+    than presenting a truncated list as the whole story.
     """
     repo = baseline["specRevision"]["repository"]
     since = baseline["specRevision"]["committedAt"]
     merged: list[dict] = []
+    page_cap_reached = True
     for page in range(1, max_pages + 1):
         batch = github_json(
             f"/repos/{repo}/pulls?state=closed&sort=updated&direction=desc"
@@ -247,10 +275,12 @@ def fetch_merged_pulls(
             token,
         )
         if not batch:
+            page_cap_reached = False
             break
         # Sorted by update time, so once a whole page predates the baseline there
         # is nothing newer further back.
         if all(pull["updated_at"] <= since for pull in batch):
+            page_cap_reached = False
             break
         for pull in batch:
             merged_at = pull.get("merged_at")
@@ -270,7 +300,7 @@ def fetch_merged_pulls(
         pull["touchesStaticSpec"] = any(
             entry["filename"].startswith(STATIC_SPEC_PREFIXES) for entry in files
         )
-    return merged
+    return merged, page_cap_reached
 
 
 def fetch_canonical_release(baseline: dict, token: str | None) -> dict:
@@ -506,8 +536,9 @@ def render_markdown(state: dict) -> str:
     lines.extend(f"- {reason}" for reason in reasons)
     lines.append("")
 
-    static_pulls = [pull for pull in state["pulls"] if pull["touchesStaticSpec"]]
-    other_pulls = [pull for pull in state["pulls"] if not pull["touchesStaticSpec"]]
+    static_pulls = [pull for pull in state["pulls"] if pull["touchesStaticSpec"] is True]
+    unclassified_pulls = [pull for pull in state["pulls"] if pull["touchesStaticSpec"] is None]
+    elsewhere_pulls = [pull for pull in state["pulls"] if pull["touchesStaticSpec"] is False]
     lines.extend(["## Specification pull requests merged since the baseline", ""])
     if static_pulls:
         for pull in static_pulls:
@@ -515,13 +546,28 @@ def render_markdown(state: dict) -> str:
                 f"- [#{pull['number']}]({pull['url']}) {pull['title']} "
                 f"(merged {pull['mergedAt'][:10]})"
             )
+    elif unclassified_pulls:
+        # "None" would be a claim the run cannot make while pull requests are
+        # still unclassified.
+        lines.append(
+            "- None among the classified pull requests; "
+            f"{len(unclassified_pulls)} were not classified (file lookup cap reached)."
+        )
     else:
         lines.append("- None touching the static specification.")
-    if other_pulls:
-        unclassified = sum(1 for pull in other_pulls if pull["touchesStaticSpec"] is None)
+    if elsewhere_pulls:
         lines.append(
-            f"- Plus {len(other_pulls)} merged pull request(s) elsewhere in the repository"
-            + (f", {unclassified} of them unclassified (file lookup cap reached)." if unclassified else ".")
+            f"- Plus {len(elsewhere_pulls)} merged pull request(s) elsewhere in the repository."
+        )
+    if unclassified_pulls and static_pulls:
+        lines.append(
+            f"- Plus {len(unclassified_pulls)} merged pull request(s) not classified "
+            "(file lookup cap reached); raise `--max-pull-file-lookups` to cover them."
+        )
+    if state.get("pullPageCapReached"):
+        lines.append(
+            "- The pull request scan stopped at `--max-pull-pages`; merged pull "
+            "requests older than the ones listed may be missing."
         )
     lines.append("")
 
@@ -728,8 +774,11 @@ def gather(args: argparse.Namespace, baseline: dict) -> dict:
 
     if args.pulls_file:
         pulls = json.loads(args.pulls_file.read_text(encoding="utf-8"))
+        pull_page_cap_reached = False
     else:
-        pulls = fetch_merged_pulls(baseline, token, args.max_pull_pages, args.max_pull_file_lookups)
+        pulls, pull_page_cap_reached = fetch_merged_pulls(
+            baseline, token, args.max_pull_pages, args.max_pull_file_lookups
+        )
 
     if args.release_file:
         canonical = json.loads(args.release_file.read_text(encoding="utf-8"))
@@ -739,7 +788,9 @@ def gather(args: argparse.Namespace, baseline: dict) -> dict:
     if args.rules_file:
         rules = json.loads(args.rules_file.read_text(encoding="utf-8"))
     else:
-        rules = json.loads(http_get(canonical["rulesUrl"], token))
+        # Release assets are public and served from a CDN host; the token is
+        # not needed and must not be offered to it.
+        rules = json.loads(http_get(canonical["rulesUrl"]))
 
     spec_files = parse_spec_reference(spec_text)
     if not spec_files:
@@ -772,6 +823,7 @@ def gather(args: argparse.Namespace, baseline: dict) -> dict:
         "validatorVersion": surface["validatorVersion"],
         "spec": spec,
         "pulls": pulls,
+        "pullPageCapReached": pull_page_cap_reached,
         "canonical": canonical,
         "allFindings": all_findings,
         "findings": findings,
@@ -809,6 +861,7 @@ def run_check(args: argparse.Namespace) -> int:
                 },
                 "upstream": {"specRevision": state["spec"], "canonicalBaseline": state["canonical"]},
                 "mergedPullRequests": state["pulls"],
+                "mergedPullRequestsTruncated": state["pullPageCapReached"],
                 "validatorVersion": state["validatorVersion"],
                 "findings": state["findings"],
                 "allDifferences": state["allFindings"],

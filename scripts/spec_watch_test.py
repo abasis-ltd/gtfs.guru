@@ -232,6 +232,31 @@ class SpecWatchCase(unittest.TestCase):
         self.assertIn("no drift", result.stdout)
         self.assertFalse(self.reports.exists())
 
+    def test_unclassified_pulls_are_not_reported_as_none(self) -> None:
+        """The report must not claim "None" while classification is pending.
+
+        Pull requests past `--max-pull-file-lookups` carry `touchesStaticSpec:
+        null`. Reading that as "does not touch the static spec" turns a cap into
+        a false all-clear.
+        """
+        pulls = json.loads((self.workdir / "pulls.json").read_text(encoding="utf-8"))
+        for pull in pulls:
+            pull["touchesStaticSpec"] = None
+        (self.workdir / "pulls.json").write_text(json.dumps(pulls), encoding="utf-8")
+        # Move the revision so a report is written at all; the findings are
+        # beside the point here.
+        head = json.loads((self.workdir / "spec_head.json").read_text(encoding="utf-8"))
+        head["commit"] = "0" * 40
+        head["committedAt"] = "2026-09-01T00:00:00Z"
+        (self.workdir / "spec_head.json").write_text(json.dumps(head) + "\n", encoding="utf-8")
+
+        result = self.check()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        body = (self.reports / "spec-drift.md").read_text(encoding="utf-8")
+        self.assertNotIn("None touching the static specification.", body)
+        self.assertIn("were not classified", body)
+
     def test_linear_dry_run_describes_the_payload_without_sending_it(self) -> None:
         self.add_spec_field()
 
@@ -239,6 +264,45 @@ class SpecWatchCase(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("[dry-run] would sync Linear team GTF", result.stdout)
+
+
+class RedirectHandlerCase(unittest.TestCase):
+    """`Authorization` must not follow a redirect off the host it was sent to.
+
+    GitHub redirects release-asset downloads to a CDN host; `urllib` would
+    otherwise carry the token along.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import spec_watch  # noqa: PLC0415 - deliberate late import
+
+        cls.spec_watch = spec_watch
+
+    def redirected(self, from_url: str, to_url: str):
+        import urllib.request  # noqa: PLC0415 - deliberate late import
+
+        request = urllib.request.Request(from_url)
+        request.add_header("Authorization", "Bearer secret-token")
+        request.add_header("User-Agent", "gtfs-guru-spec-watch")
+        handler = self.spec_watch._StripAuthOnCrossHostRedirect()
+        return handler.redirect_request(request, None, 302, "Found", {}, to_url)
+
+    def test_authorization_is_dropped_when_the_host_changes(self) -> None:
+        new_request = self.redirected(
+            "https://github.com/o/r/releases/download/v1/rules.json",
+            "https://objects.githubusercontent.com/blob/abc",
+        )
+        self.assertIsNone(new_request.get_header("Authorization"))
+        self.assertEqual(new_request.get_header("User-agent"), "gtfs-guru-spec-watch")
+
+    def test_authorization_survives_a_same_host_redirect(self) -> None:
+        new_request = self.redirected(
+            "https://api.github.com/repos/o/r/releases",
+            "https://api.github.com/repositories/1/releases",
+        )
+        self.assertEqual(new_request.get_header("Authorization"), "Bearer secret-token")
 
 
 class SpecParserCase(unittest.TestCase):
