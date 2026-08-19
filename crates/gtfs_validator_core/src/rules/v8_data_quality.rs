@@ -99,7 +99,12 @@ impl Validator for UnsortedStopTimesValidator {
         for (index, stop_time) in feed.stop_times.rows.iter().enumerate() {
             if stop_time.trip_id.0 == 0 {
                 if current_trip.0 != 0 {
-                    merge_group(&mut stats_by_trip, &mut trip_order, current_trip, current_stats);
+                    merge_group(
+                        &mut stats_by_trip,
+                        &mut trip_order,
+                        current_trip,
+                        current_stats,
+                    );
                     current_trip = StringId(0);
                     current_stats = Stats::default();
                 }
@@ -107,7 +112,12 @@ impl Validator for UnsortedStopTimesValidator {
             }
             if stop_time.trip_id != current_trip {
                 if current_trip.0 != 0 {
-                    merge_group(&mut stats_by_trip, &mut trip_order, current_trip, current_stats);
+                    merge_group(
+                        &mut stats_by_trip,
+                        &mut trip_order,
+                        current_trip,
+                        current_stats,
+                    );
                 }
                 current_trip = stop_time.trip_id;
                 current_stats = Stats::default();
@@ -130,7 +140,12 @@ impl Validator for UnsortedStopTimesValidator {
             current_stats.last_sequence = Some(stop_time.stop_sequence);
         }
         if current_trip.0 != 0 {
-            merge_group(&mut stats_by_trip, &mut trip_order, current_trip, current_stats);
+            merge_group(
+                &mut stats_by_trip,
+                &mut trip_order,
+                current_trip,
+                current_stats,
+            );
         }
         for trip_id in trip_order {
             let stats = &stats_by_trip[&trip_id];
