@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context};
 use axum::{
     body::Body,
-    extract::{DefaultBodyLimit, Path as AxumPath, Query, Request, State},
+    extract::{Path as AxumPath, Query, Request, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -79,7 +79,6 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::new(base_dir, public_base_url);
     spawn_job_cleanup(state.clone());
 
-    let max_upload_bytes = state.max_upload_bytes;
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/version", get(version))
@@ -87,10 +86,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/create-job", post(create_job))
         .route("/run-validator", post(run_validator))
         .route("/error", post(error))
-        .route(
-            "/upload/:job_id",
-            put(upload_job).layer(DefaultBodyLimit::max(max_upload_bytes)),
-        )
+        // No `DefaultBodyLimit` here: it is honoured only by extractors that
+        // call `into_limited_body` (`Bytes`, `Json`, `Form`), and `upload_job`
+        // takes the raw `Request` so it can stream to disk. The cap is enforced
+        // by the Content-Length pre-check and by `stream_body_to_file`.
+        .route("/upload/:job_id", put(upload_job))
         .route("/jobs/:job_id/status", get(job_status))
         .route("/jobs/:job_id/report.json", get(job_report_json))
         .route("/jobs/:job_id/report.html", get(job_report_html))
@@ -519,10 +519,6 @@ async fn create_job(
             "job creation rate limit exceeded",
         );
     }
-    if awaiting_upload_count(&state) >= state.max_queued_jobs {
-        return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "too many pending uploads");
-    }
-
     let job_id = next_job_id();
     let job_dir = state.base_dir.join(&job_id);
     let _ = tokio::fs::create_dir_all(&job_dir).await;
@@ -545,7 +541,12 @@ async fn create_job(
         output_dir: Some(job_dir.join("output")),
         error: None,
     };
-    insert_job(&state, job);
+    // Counting and inserting under one write lock: two concurrent creates
+    // cannot both observe the last free slot and both take it.
+    if !insert_job_within_pending_cap(&state, job) {
+        let _ = tokio::fs::remove_dir_all(&job_dir).await;
+        return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "too many pending uploads");
+    }
 
     if let Some(url) = source_url {
         spawn_job_processing(state.clone(), job_id.clone(), url);
@@ -595,6 +596,11 @@ async fn upload_job(
     AxumPath(job_id): AxumPath<String>,
     request: Request,
 ) -> StatusCode {
+    // A declared length over the cap is refused before the job is claimed, so a
+    // client that announces an oversized body neither burns an id nor uploads.
+    if declared_length_over_cap(request.headers(), state.max_upload_bytes) {
+        return StatusCode::PAYLOAD_TOO_LARGE;
+    }
     // Claim the job before touching the body so a missing or already-running
     // id does not force the process to buffer hundreds of megabytes first.
     match try_begin_processing(&state, &job_id) {
@@ -754,14 +760,6 @@ fn load_public_base_url() -> String {
     }
 }
 
-fn insert_job(state: &AppState, job: Job) {
-    let job_id = job.id.clone();
-    if let Ok(mut jobs) = state.jobs.write() {
-        jobs.insert(job_id.clone(), job);
-    }
-    persist_job_metadata(state, job_id.as_str());
-}
-
 fn get_job(state: &AppState, job_id: &str) -> Option<Job> {
     state
         .jobs
@@ -908,24 +906,66 @@ async fn stream_body_to_file(
     Ok(())
 }
 
-fn awaiting_upload_count(state: &AppState) -> usize {
-    state
-        .jobs
-        .read()
-        .ok()
-        .map(|jobs| {
-            jobs.values()
-                .filter(|job| matches!(job.status, JobStatus::AwaitingUpload))
-                .count()
-        })
-        .unwrap_or(0)
+/// Insert `job` unless the pending-upload cap is already reached, counting and
+/// inserting under a single write lock. Returns false when the job was refused.
+///
+/// This cap is separate from `admission_semaphore`: a job awaiting its upload
+/// holds no admission permit, so the two limits bound different things and both
+/// use `GTFS_VALIDATOR_WEB_MAX_QUEUED_JOBS` as their size.
+fn insert_job_within_pending_cap(state: &AppState, job: Job) -> bool {
+    let job_id = job.id.clone();
+    let inserted = {
+        let Ok(mut jobs) = state.jobs.write() else {
+            return false;
+        };
+        let pending = jobs
+            .values()
+            .filter(|existing| matches!(existing.status, JobStatus::AwaitingUpload))
+            .count();
+        if matches!(job.status, JobStatus::AwaitingUpload) && pending >= state.max_queued_jobs {
+            false
+        } else {
+            jobs.insert(job_id.clone(), job);
+            true
+        }
+    };
+    if inserted {
+        persist_job_metadata(state, job_id.as_str());
+    }
+    inserted
+}
+
+/// True when the request declares a body larger than the cap. A missing or
+/// unparsable `Content-Length` is not a rejection: the streaming write enforces
+/// the cap regardless of what the client declared.
+fn declared_length_over_cap(headers: &HeaderMap, max_bytes: usize) -> bool {
+    headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .is_some_and(|declared| declared > max_bytes as u64)
 }
 
 fn pubsub_token_matches(state: &AppState, headers: &HeaderMap) -> bool {
     let Some(expected) = state.pubsub_token.as_deref() else {
         return false;
     };
-    extract_pubsub_token(headers).is_some_and(|value| value == expected)
+    extract_pubsub_token(headers).is_some_and(|value| constant_time_eq(value, expected))
+}
+
+/// Compare two secrets without an early return, so response time does not leak
+/// how many leading bytes a guess got right. Length still differs observably,
+/// which is not sensitive for a fixed-length deployment token.
+fn constant_time_eq(left: &str, right: &str) -> bool {
+    let (left, right) = (left.as_bytes(), right.as_bytes());
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut difference = 0u8;
+    for (a, b) in left.iter().zip(right.iter()) {
+        difference |= a ^ b;
+    }
+    difference == 0
 }
 
 fn extract_pubsub_token(headers: &HeaderMap) -> Option<&str> {
@@ -1753,6 +1793,40 @@ mod tests {
             header::HeaderValue::from_static("Basic nope"),
         );
         assert_eq!(extract_pubsub_token(&headers), None);
+    }
+
+    #[test]
+    fn constant_time_eq_matches_string_equality() {
+        assert!(constant_time_eq("secret", "secret"));
+        assert!(!constant_time_eq("secret", "secreT"));
+        assert!(!constant_time_eq("secret", "secrets"));
+        assert!(!constant_time_eq("", "s"));
+        assert!(constant_time_eq("", ""));
+    }
+
+    #[test]
+    fn declared_length_over_cap_only_rejects_a_declared_overflow() {
+        let mut headers = HeaderMap::new();
+        assert!(!declared_length_over_cap(&headers, 10));
+
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("10"),
+        );
+        assert!(!declared_length_over_cap(&headers, 10));
+
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("11"),
+        );
+        assert!(declared_length_over_cap(&headers, 10));
+
+        // Chunked uploads declare nothing; the streaming write is the guard.
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("not-a-number"),
+        );
+        assert!(!declared_length_over_cap(&headers, 10));
     }
 
     #[test]

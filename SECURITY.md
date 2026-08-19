@@ -64,5 +64,8 @@ Out of scope:
   `POST /run-validator`. The endpoint returns 401 when the token is unset.
 - Set `POSTGRES_PASSWORD` and `UMAMI_SECRET`; Compose refuses to start without
   them.
+- Feeds given as a directory are read without following symlinks. A member that
+  is a symlink is not listed, and reading it by name fails as "not a file".
+  Point the validator at the real files if your feed is assembled from links.
 - Uploaded feeds are stored under `GTFS_VALIDATOR_WEB_BASE_DIR`.
   `GTFS_VALIDATOR_WEB_JOB_TTL_SECONDS` controls retention.

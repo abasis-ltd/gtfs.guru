@@ -12,7 +12,9 @@
 - `GTFS_VALIDATOR_WEB_PUBLIC_BASE_URL` sets the base URL used for upload/report links.
 - `GTFS_VALIDATOR_WEB_MAX_UPLOAD_BYTES` caps streamed upload and URL-download size (default: 512 MiB).
 - `GTFS_VALIDATOR_WEB_MAX_CONCURRENT_JOBS` caps concurrent validations (default: 4).
-- `GTFS_VALIDATOR_WEB_MAX_QUEUED_JOBS` caps admitted jobs, including pending uploads (default: 64).
+- `GTFS_VALIDATOR_WEB_MAX_QUEUED_JOBS` sizes two separate caps (default: 64 each):
+  jobs queued or running, and jobs awaiting an upload. A job awaiting its upload
+  holds no admission permit, so the two are counted independently.
 - `GTFS_VALIDATOR_WEB_MAX_CONCURRENT_UPLOADS` caps concurrent upload streams (default: 4).
 - `GTFS_VALIDATOR_WEB_MAX_CREATE_JOB_REQUESTS_PER_MINUTE` rate-limits `POST /create-job` (default: 60).
 - `GTFS_VALIDATOR_WEB_PROCESSING_TIMEOUT_SECONDS` reclaims jobs stuck in `Processing` (default: 1800).
@@ -33,8 +35,10 @@
   browser UI. Private/reserved addresses and cross-site browser requests are rejected.
 - `POST /create-job` creates a job. Optional JSON body supports `countryCode` and `url`.
   Returns 429 when the create-job rate limit or pending-upload cap is hit.
-- `PUT /upload/:job_id` streams a GTFS zip to disk. The job is claimed before
-  the body is read, so a missing id returns 404 without buffering the upload.
+- `PUT /upload/:job_id` streams a GTFS zip to disk. A `Content-Length` over the
+  cap is refused with 413 before the job is claimed; the job is then claimed
+  before the body is read, so a missing id returns 404 without buffering the
+  upload. A body that exceeds the cap while streaming also returns 413.
 - `POST /run-validator` is the optional Pub/Sub restart hook and requires
   `GTFS_VALIDATOR_WEB_PUBSUB_TOKEN`.
 - `GET /jobs/:job_id/status` returns status and report URLs.
