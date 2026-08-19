@@ -60,11 +60,17 @@ impl Validator for BlockTripsWithOverlappingStopTimesValidator {
             });
         }
 
-        for windows in blocks.values_mut() {
+        let mut groups: Vec<_> = blocks.into_iter().collect();
+        groups.sort_by(|(left_id, _), (right_id, _)| {
+            feed.pool
+                .resolve(*left_id)
+                .cmp(&feed.pool.resolve(*right_id))
+        });
+        for (_, windows) in &mut groups {
             windows.sort_by_key(|window| window.start.total_seconds());
         }
 
-        for windows in blocks.values() {
+        for (_, windows) in &groups {
             for i in 0..windows.len() {
                 let current = &windows[i];
                 for next in windows.iter().skip(i + 1) {

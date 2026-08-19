@@ -96,6 +96,11 @@ services:
       - GTFS_VALIDATOR_WEB_BASE_DIR=/data/jobs
       - GTFS_VALIDATOR_WEB_PUBLIC_BASE_URL=${PUBLIC_URL:-http://localhost:3000}
       - GTFS_VALIDATOR_WEB_JOB_TTL_SECONDS=86400
+      - GTFS_VALIDATOR_MAX_MEMBER_BYTES=268435456
+      - GTFS_VALIDATOR_MAX_TOTAL_BYTES=402653184
+      - GTFS_VALIDATOR_WEB_MAX_UPLOAD_BYTES=268435456
+      - GTFS_VALIDATOR_WEB_MAX_CONCURRENT_JOBS=2
+      - GTFS_VALIDATOR_WEB_MAX_CONCURRENT_UPLOADS=2
       - RUST_LOG=info
     volumes:
       - gtfs-data:/data/jobs
@@ -155,7 +160,7 @@ $DOMAIN {
     }
     
     request_body {
-        max_size 500MB
+        max_size 256MiB
     }
 }
 CADDYFILE

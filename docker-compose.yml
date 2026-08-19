@@ -13,7 +13,10 @@ services:
     restart: unless-stopped
 
     ports:
-      - "3000:3000"
+      # Bind loopback only. Publishing 0.0.0.0:3000 bypasses host firewalls
+      # (UFW does not filter Docker-published ports). Caddy still reaches the
+      # service as gtfs-validator:3000 on the compose network.
+      - "127.0.0.1:3000:3000"
 
     environment:
       # Base directory for storing validation jobs
@@ -22,6 +25,13 @@ services:
       - GTFS_VALIDATOR_WEB_PUBLIC_BASE_URL=https://gtfs.yourdomain.com
       # Job TTL in seconds (default: 24 hours)
       - GTFS_VALIDATOR_WEB_JOB_TTL_SECONDS=86400
+      # Caps sized for the 2G memory limit below. Library defaults (4 GiB /
+      # 8 GiB) are for the CLI on larger hosts; do not use them here.
+      - GTFS_VALIDATOR_MAX_MEMBER_BYTES=268435456
+      - GTFS_VALIDATOR_MAX_TOTAL_BYTES=402653184
+      - GTFS_VALIDATOR_WEB_MAX_UPLOAD_BYTES=268435456
+      - GTFS_VALIDATOR_WEB_MAX_CONCURRENT_JOBS=2
+      - GTFS_VALIDATOR_WEB_MAX_CONCURRENT_UPLOADS=2
       # Logging level
       - RUST_LOG=info
 

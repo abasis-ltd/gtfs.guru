@@ -49,7 +49,7 @@ const GTFS_MARKER_FILES: [&str; 2] = ["agency.txt", "stops.txt"];
 fn is_gtfs_directory(path: &Path) -> bool {
     GTFS_MARKER_FILES
         .iter()
-        .any(|marker| path.join(marker).is_file())
+        .all(|marker| path.join(marker).is_file())
 }
 
 #[derive(Debug, Clone)]
@@ -1006,6 +1006,7 @@ mod tests {
         let unzipped = root.join("berlin_unzipped");
         fs::create_dir_all(&unzipped).unwrap();
         fs::write(unzipped.join("agency.txt"), b"agency_id\n").unwrap();
+        fs::write(unzipped.join("stops.txt"), b"stop_id\n").unwrap();
 
         let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
 
@@ -1023,6 +1024,22 @@ mod tests {
         assert_eq!(service.scan_feeds(Some("   ")).feed_count, 4);
         assert_eq!(service.scan_feeds(None).feed_count, 4);
         assert_eq!(service.scan_feeds(Some("nothing-matches")).feed_count, 0);
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn unzipped_feed_requires_both_marker_files() {
+        let root = temp_dir("markers");
+        let unzipped = root.join("partial");
+        fs::create_dir_all(&unzipped).unwrap();
+        fs::write(unzipped.join("agency.txt"), b"agency_id\n").unwrap();
+
+        let service = GtfsGuruMcp::new(McpConfig::local(vec![root.clone()]).unwrap());
+        assert_eq!(service.scan_feeds(None).feed_count, 0);
+
+        fs::write(unzipped.join("stops.txt"), b"stop_id\n").unwrap();
+        assert_eq!(service.scan_feeds(None).feed_count, 1);
 
         fs::remove_dir_all(root).ok();
     }

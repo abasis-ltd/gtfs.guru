@@ -397,7 +397,25 @@ impl Validator for DuplicateTripValidator {
                 .push(trip_id);
         }
 
-        for (_signature, trip_ids) in trips_by_signature {
+        let mut groups: Vec<_> = trips_by_signature.into_iter().collect();
+        for (_, trip_ids) in &mut groups {
+            trip_ids.sort_by_cached_key(|id| feed.pool.resolve(*id));
+        }
+        groups.sort_by(|left, right| {
+            let left_name = left
+                .1
+                .first()
+                .map(|id| feed.pool.resolve(*id))
+                .unwrap_or_default();
+            let right_name = right
+                .1
+                .first()
+                .map(|id| feed.pool.resolve(*id))
+                .unwrap_or_default();
+            left_name.cmp(&right_name)
+        });
+
+        for (_signature, trip_ids) in groups {
             if trip_ids.len() > 1 {
                 let mut notice = ValidationNotice::new(
                     "duplicate_trip",

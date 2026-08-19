@@ -403,6 +403,7 @@ impl GtfsFeed {
         let google = crate::validation_context::google_rules_enabled();
         let country = crate::validation_context::validation_country_code();
         let date = crate::validation_context::validation_date();
+        let notice_group_limit = crate::validation_context::notice_group_limit();
 
         struct ParallelLoader<'a> {
             reader: &'a GtfsInputReader,
@@ -411,6 +412,7 @@ impl GtfsFeed {
             google: bool,
             country: Option<String>,
             date: NaiveDate,
+            notice_group_limit: Option<usize>,
             pool: crate::StringPool,
             file_sizes: &'a HashMap<String, u64>,
             total_bytes: u64,
@@ -432,6 +434,8 @@ impl GtfsFeed {
                 let _g3 =
                     crate::validation_context::set_validation_country_code(self.country.clone());
                 let _g4 = crate::validation_context::set_validation_date(Some(self.date));
+                let _g5 =
+                    crate::validation_context::set_notice_group_limit(self.notice_group_limit);
 
                 let pool_for_intern = self.pool.clone();
                 let pool_for_resolve = self.pool.clone();
@@ -515,6 +519,7 @@ impl GtfsFeed {
             google,
             country,
             date,
+            notice_group_limit,
             pool: crate::StringPool::new(),
             file_sizes: &file_sizes,
             total_bytes,
@@ -691,6 +696,9 @@ impl GtfsFeed {
                                                         );
                                                         let _g4 = crate::validation_context::set_validation_date(
                                                             Some(loader.date),
+                                                        );
+                                                        let _g5 = crate::validation_context::set_notice_group_limit(
+                                                            loader.notice_group_limit,
                                                         );
                                                         let (locations, n4) = match reader
                                                             .read_optional_json::<GeoJsonFeatureCollection>(
