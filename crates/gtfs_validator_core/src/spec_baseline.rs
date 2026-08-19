@@ -46,19 +46,37 @@ pub struct SpecBaseline {
     pub canonical_baseline: CanonicalBaseline,
 }
 
-pub fn spec_baseline() -> &'static SpecBaseline {
-    static BASELINE: OnceLock<SpecBaseline> = OnceLock::new();
-    BASELINE.get_or_init(|| {
-        serde_json::from_str(SPEC_BASELINE_JSON).expect("bundled spec baseline must be valid JSON")
-    })
+/// The baseline, or `None` if the bundled document does not parse.
+///
+/// A library must not panic on data, even data it ships: a malformed baseline
+/// should degrade the two identifier strings reports quote, not take down every
+/// caller of the crate. `parses_the_bundled_baseline` is what actually keeps the
+/// committed file honest, at build time rather than at a user's runtime.
+pub fn spec_baseline() -> Option<&'static SpecBaseline> {
+    static BASELINE: OnceLock<Option<SpecBaseline>> = OnceLock::new();
+    BASELINE
+        .get_or_init(|| match serde_json::from_str(SPEC_BASELINE_JSON) {
+            Ok(baseline) => Some(baseline),
+            Err(err) => {
+                debug_assert!(false, "bundled spec baseline must be valid JSON: {err}");
+                None
+            }
+        })
+        .as_ref()
 }
+
+/// What the identifier accessors report when the baseline is unreadable.
+const UNKNOWN_BASELINE: &str = "unknown";
 
 /// `google/transit@<commit>`: the spec revision reports are aligned with.
 pub fn spec_revision_id() -> &'static str {
     static ID: OnceLock<String> = OnceLock::new();
-    ID.get_or_init(|| {
-        let revision = &spec_baseline().spec_revision;
-        format!("{}@{}", revision.repository, revision.commit)
+    ID.get_or_init(|| match spec_baseline() {
+        Some(baseline) => format!(
+            "{}@{}",
+            baseline.spec_revision.repository, baseline.spec_revision.commit
+        ),
+        None => UNKNOWN_BASELINE.to_string(),
     })
 }
 
@@ -66,9 +84,12 @@ pub fn spec_revision_id() -> &'static str {
 /// aligned with.
 pub fn canonical_baseline_id() -> &'static str {
     static ID: OnceLock<String> = OnceLock::new();
-    ID.get_or_init(|| {
-        let baseline = &spec_baseline().canonical_baseline;
-        format!("{}@{}", baseline.repository, baseline.version)
+    ID.get_or_init(|| match spec_baseline() {
+        Some(baseline) => format!(
+            "{}@{}",
+            baseline.canonical_baseline.repository, baseline.canonical_baseline.version
+        ),
+        None => UNKNOWN_BASELINE.to_string(),
     })
 }
 
@@ -78,7 +99,7 @@ mod tests {
 
     #[test]
     fn parses_the_bundled_baseline() {
-        let baseline = spec_baseline();
+        let baseline = spec_baseline().expect("the committed baseline must parse");
 
         assert_eq!(baseline.spec_revision.repository, "google/transit");
         assert_eq!(baseline.spec_revision.commit.len(), 40);
