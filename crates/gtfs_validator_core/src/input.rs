@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
@@ -192,7 +192,11 @@ impl GtfsInputReader {
                         source: err,
                     })?;
                     let path = entry.path();
-                    if path.is_file() {
+                    let file_type = entry.file_type().map_err(|err| GtfsInputError::Io {
+                        path: path.clone(),
+                        source: err,
+                    })?;
+                    if file_type.is_file() {
                         let name = entry.file_name().to_string_lossy().to_string();
                         let size = path
                             .metadata()
@@ -529,12 +533,20 @@ impl GtfsInputReader {
                 // bypass the zip-bomb guard.
                 let cap = max_member_bytes();
                 if zipped.size() > cap {
-                    return Err(zip_member_too_large(path, file_name, zipped.size(), cap));
+                    return Err(member_too_large(path, file_name, zipped.size(), cap));
+                }
+                if zipped.size() > remaining_bytes.load(Ordering::Relaxed) {
+                    return Err(archive_budget_exceeded(path, file_name, max_total_bytes()));
                 }
                 let capped = CappedReader::new(zipped, path, file_name, cap, remaining_bytes);
                 let mut buf_reader = std::io::BufReader::with_capacity(1 << 20, capped);
-                skip_utf8_bom(&mut buf_reader)
-                    .map_err(|err| GtfsInputError::Csv(map_io_error(file_name, err)))?;
+                skip_utf8_bom(&mut buf_reader).map_err(|err| {
+                    if limit_kind(&err).is_some() {
+                        map_capped_read_error(path, file_name, cap, err)
+                    } else {
+                        GtfsInputError::Csv(map_io_error(file_name, err))
+                    }
+                })?;
 
                 let mut csv_reader = csv::ReaderBuilder::new()
                     .has_headers(true)
@@ -544,7 +556,13 @@ impl GtfsInputReader {
 
                 let headers = csv_reader
                     .byte_headers()
-                    .map_err(|err| GtfsInputError::Csv(map_csv_error(file_name, None, err)))?
+                    .map_err(|err| {
+                        if let Some(io_err) = csv_limit_io_error(&err) {
+                            map_capped_read_error(path, file_name, cap, io_err)
+                        } else {
+                            GtfsInputError::Csv(map_csv_error(file_name, None, err))
+                        }
+                    })?
                     .clone();
                 let mut headers_for_errors = csv::StringRecord::new();
                 for field in headers.iter() {
@@ -575,6 +593,9 @@ impl GtfsInputReader {
                             }
                         }
                         Err(err) => {
+                            if let Some(io_err) = csv_limit_io_error(&err) {
+                                return Err(map_capped_read_error(path, file_name, cap, io_err));
+                            }
                             let parse_err =
                                 map_csv_error(file_name, Some(&headers_for_errors), err);
                             if tx.send(Msg::ScanError(parse_err)).is_err() {
@@ -694,37 +715,19 @@ impl GtfsInputReader {
     fn read_from_directory(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
         let path = self.path.join(file_name);
         if path.exists() {
-            if !path.is_file() {
+            if !is_regular_file(&path) {
                 return Err(GtfsInputError::NotAFile(path));
             }
-            let mut file = File::open(&path).map_err(|err| GtfsInputError::Io {
-                path: path.clone(),
-                source: err,
-            })?;
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer)
-                .map_err(|err| GtfsInputError::Io { path, source: err })?;
-            return Ok(buffer);
+            return read_filesystem_file_capped(path, file_name, &self.remaining_bytes);
         }
 
         let Some(found_path) = find_case_insensitive_file(&self.path, file_name)? else {
             return Err(GtfsInputError::MissingFile(file_name.to_string()));
         };
-        if !found_path.is_file() {
+        if !is_regular_file(&found_path) {
             return Err(GtfsInputError::NotAFile(found_path));
         }
-
-        let mut file = File::open(&found_path).map_err(|err| GtfsInputError::Io {
-            path: found_path.clone(),
-            source: err,
-        })?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)
-            .map_err(|err| GtfsInputError::Io {
-                path: found_path,
-                source: err,
-            })?;
-        Ok(buffer)
+        read_filesystem_file_capped(found_path, file_name, &self.remaining_bytes)
     }
 
     fn read_from_zip(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
@@ -937,6 +940,12 @@ fn max_member_bytes() -> u64 {
         .unwrap_or(DEFAULT_MAX_MEMBER_BYTES)
 }
 
+/// How far the single-threaded reader will inflate a member looking for the end
+/// of its header row. Far above any real GTFS header, and bounded so a member
+/// that is one enormous line cannot be decompressed whole by the header pass.
+#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
+const HEADER_SCAN_BYTES: u64 = 1 << 20;
+
 /// Upper bound on the *total* uncompressed size of a single archive, summed
 /// across every member read from it. This backstops [`max_member_bytes`]: even
 /// if every individual member stays under the per-member cap, an archive full of
@@ -951,14 +960,17 @@ fn max_total_bytes() -> u64 {
         .unwrap_or(DEFAULT_MAX_TOTAL_BYTES)
 }
 
-fn zip_member_too_large(path: &Path, file_name: &str, observed: u64, limit: u64) -> GtfsInputError {
+/// Used for both zip members and files read straight off disk, so the wording
+/// stays true either way: "uncompressed zip member" would be wrong for the
+/// directory reader, which shares this cap.
+fn member_too_large(path: &Path, file_name: &str, observed: u64, limit: u64) -> GtfsInputError {
     GtfsInputError::ZipFileIo {
         path: path.to_path_buf(),
         file: file_name.to_string(),
         source: std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!(
-                "zip member '{}' is {} bytes uncompressed, exceeding the {}-byte limit",
+                "'{}' is {} bytes, exceeding the {}-byte per-file limit",
                 file_name, observed, limit
             ),
         ),
@@ -1007,9 +1019,10 @@ fn charge_archive_budget(budget: &AtomicU64, amount: u64) -> Result<(), ()> {
 /// [`max_member_bytes`] for it or to push the archive total past
 /// [`max_total_bytes`]. Both the declared uncompressed size and the actual
 /// number of decompressed bytes are checked, so a lying zip header cannot slip
-/// past the cap.
+/// past the cap. The archive budget is charged as bytes stream out, so parallel
+/// member reads cannot each allocate a full member before any of them debit.
 fn read_zip_member_capped(
-    mut zipped: zip::read::ZipFile<'_>,
+    zipped: zip::read::ZipFile<'_>,
     path: &Path,
     file_name: &str,
     budget: &AtomicU64,
@@ -1017,47 +1030,158 @@ fn read_zip_member_capped(
     let cap = max_member_bytes();
     let total_cap = max_total_bytes();
     if zipped.size() > cap {
-        return Err(zip_member_too_large(path, file_name, zipped.size(), cap));
+        return Err(member_too_large(path, file_name, zipped.size(), cap));
     }
-    // Cheap early-out: refuse to even start reading a member whose declared size
-    // already blows the remaining archive budget.
     if zipped.size() > budget.load(Ordering::Relaxed) {
         return Err(archive_budget_exceeded(path, file_name, total_cap));
     }
+    read_capped_to_vec(zipped, path, file_name, cap, budget, None)
+}
 
-    let mut buffer = Vec::new();
-    // Read at most cap + 1 bytes so an under-reported header is still caught.
-    zipped
-        .by_ref()
-        .take(cap + 1)
+fn read_filesystem_file_capped(
+    path: PathBuf,
+    file_name: &str,
+    budget: &AtomicU64,
+) -> Result<Vec<u8>, GtfsInputError> {
+    let cap = max_member_bytes();
+    let total_cap = max_total_bytes();
+    let declared = std::fs::metadata(&path)
+        .map_err(|err| GtfsInputError::Io {
+            path: path.clone(),
+            source: err,
+        })?
+        .len();
+    if declared > cap {
+        return Err(member_too_large(&path, file_name, declared, cap));
+    }
+    if declared > budget.load(Ordering::Relaxed) {
+        return Err(archive_budget_exceeded(&path, file_name, total_cap));
+    }
+    let file = File::open(&path).map_err(|err| GtfsInputError::Io {
+        path: path.clone(),
+        source: err,
+    })?;
+    read_capped_to_vec(file, &path, file_name, cap, budget, Some(declared))
+}
+
+/// `capacity_hint` is the size to preallocate, and must come from a source that
+/// cannot lie. `File::read_to_end` reserves from the real file size, and
+/// wrapping the file in [`CappedReader`] loses that, so the caller passes it
+/// back in. A zip member's declared size is written by whoever built the
+/// archive, so the zip path passes `None` rather than let a header reserve
+/// gigabytes it never fills.
+fn read_capped_to_vec<R: Read>(
+    reader: R,
+    path: &Path,
+    file_name: &str,
+    cap: u64,
+    budget: &AtomicU64,
+    capacity_hint: Option<u64>,
+) -> Result<Vec<u8>, GtfsInputError> {
+    let mut capped = CappedReader::new(reader, path, file_name, cap, budget);
+    let mut buffer = match capacity_hint {
+        Some(size) => Vec::with_capacity(size.min(cap) as usize),
+        None => Vec::new(),
+    };
+    capped
         .read_to_end(&mut buffer)
-        .map_err(|err| GtfsInputError::ZipFileIo {
+        .map_err(|err| map_capped_read_error(path, file_name, cap, err))?;
+    Ok(buffer)
+}
+
+fn map_capped_read_error(
+    path: &Path,
+    file_name: &str,
+    cap: u64,
+    err: std::io::Error,
+) -> GtfsInputError {
+    match limit_kind(&err) {
+        Some(LimitKind::Total) => archive_budget_exceeded(path, file_name, max_total_bytes()),
+        Some(LimitKind::Member) => member_too_large(path, file_name, cap.saturating_add(1), cap),
+        None => GtfsInputError::ZipFileIo {
             path: path.to_path_buf(),
             file: file_name.to_string(),
             source: err,
-        })?;
-    if buffer.len() as u64 > cap {
-        return Err(zip_member_too_large(
-            path,
-            file_name,
-            buffer.len() as u64,
-            cap,
-        ));
+        },
     }
-    charge_archive_budget(budget, buffer.len() as u64)
-        .map_err(|()| archive_budget_exceeded(path, file_name, total_cap))?;
-    Ok(buffer)
+}
+
+/// Which cap a [`CappedReader`] hit. Carried as the payload of the `io::Error`
+/// the reader yields so the error can be recognised by type rather than by the
+/// wording of a `format!`, which nothing would keep in sync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LimitKind {
+    /// The per-member cap, [`max_member_bytes`].
+    Member,
+    /// The archive-wide budget, [`max_total_bytes`].
+    Total,
+}
+
+#[derive(Debug)]
+struct LimitExceeded {
+    kind: LimitKind,
+    file_name: String,
+    limit: u64,
+}
+
+impl std::fmt::Display for LimitExceeded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            LimitKind::Member => write!(
+                f,
+                "zip member '{}' exceeds the {}-byte per-file limit",
+                self.file_name, self.limit
+            ),
+            LimitKind::Total => write!(
+                f,
+                "archive exceeds the {}-byte total decompression limit while reading '{}'",
+                self.limit, self.file_name
+            ),
+        }
+    }
+}
+
+impl std::error::Error for LimitExceeded {}
+
+fn limit_io_error(kind: LimitKind, file_name: &str, limit: u64) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        LimitExceeded {
+            kind,
+            file_name: file_name.to_string(),
+            limit,
+        },
+    )
+}
+
+/// The cap an `io::Error` reports hitting, if it is one of ours.
+fn limit_kind(err: &std::io::Error) -> Option<LimitKind> {
+    err.get_ref()
+        .and_then(|inner| inner.downcast_ref::<LimitExceeded>())
+        .map(|exceeded| exceeded.kind)
+}
+
+/// Re-wrap the limit error a CSV reader swallowed, preserving the sentinel so
+/// the caller still recognises it by type.
+#[cfg(feature = "parallel")]
+fn csv_limit_io_error(err: &csv::Error) -> Option<std::io::Error> {
+    let csv::ErrorKind::Io(io_err) = err.kind() else {
+        return None;
+    };
+    let exceeded = io_err.get_ref()?.downcast_ref::<LimitExceeded>()?;
+    Some(limit_io_error(
+        exceeded.kind,
+        &exceeded.file_name,
+        exceeded.limit,
+    ))
 }
 
 /// A `Read` adapter that enforces the per-member and archive-wide decompression
 /// caps as bytes stream out of a zip member. The streaming CSV reader never
 /// buffers a whole member, so without this a large member would be decompressed
 /// past the cap one batch at a time. On overflow it yields an
-/// `InvalidData` io error, which the streaming producer surfaces as a CSV error.
-///
-/// Only the streaming reader uses this, and that path is `parallel`-only, so
-/// the single-threaded build (notably wasm32) leaves it out entirely.
-#[cfg(feature = "parallel")]
+/// `InvalidData` io error. Reads are sized so a lying header cannot inflate
+/// more than one extra byte past the cap.
 struct CappedReader<'a, R> {
     inner: R,
     file_name: String,
@@ -1065,9 +1189,16 @@ struct CappedReader<'a, R> {
     member_cap: u64,
     total_cap: u64,
     budget: &'a AtomicU64,
+    /// Set when a cap is hit. A reader handed to a CSV parser is moved out of
+    /// reach, and the parser flattens the `io::Error` into a string, so this is
+    /// how the caller recovers the reason by value rather than by substring.
+    limit_hit: Arc<AtomicU8>,
 }
 
-#[cfg(feature = "parallel")]
+const LIMIT_HIT_NONE: u8 = 0;
+const LIMIT_HIT_MEMBER: u8 = 1;
+const LIMIT_HIT_TOTAL: u8 = 2;
+
 impl<'a, R> CappedReader<'a, R> {
     fn new(
         inner: R,
@@ -1083,35 +1214,61 @@ impl<'a, R> CappedReader<'a, R> {
             member_cap,
             total_cap: max_total_bytes(),
             budget,
+            limit_hit: Arc::new(AtomicU8::new(LIMIT_HIT_NONE)),
         }
+    }
+
+    /// A handle to this reader's limit flag, to keep after the reader is moved
+    /// into a parser. Only the single-threaded reader needs it: the parallel
+    /// path keeps the `io::Error` and reads the sentinel off it directly.
+    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
+    fn limit_flag(&self) -> Arc<AtomicU8> {
+        self.limit_hit.clone()
     }
 }
 
-#[cfg(feature = "parallel")]
+/// The cap a [`CappedReader`] hit, read back through a flag from
+/// [`CappedReader::limit_flag`].
+#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
+fn limit_kind_from_flag(flag: &AtomicU8) -> Option<LimitKind> {
+    match flag.load(Ordering::Relaxed) {
+        LIMIT_HIT_MEMBER => Some(LimitKind::Member),
+        LIMIT_HIT_TOTAL => Some(LimitKind::Total),
+        _ => None,
+    }
+}
+
 impl<R: Read> Read for CappedReader<'_, R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let n = self.inner.read(buf)?;
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        // Read at most remaining+1 so an exact-sized member still reaches EOF,
+        // while one extra decompressed byte is enough to reject a lying header.
+        let max_read = match self.member_remaining.checked_add(1) {
+            Some(plus_one) => plus_one.min(buf.len() as u64) as usize,
+            None => buf.len(),
+        };
+        let n = self.inner.read(&mut buf[..max_read])?;
         if n == 0 {
             return Ok(0);
         }
         let n64 = n as u64;
         if n64 > self.member_remaining {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "zip member '{}' exceeds the {}-byte per-file limit",
-                    self.file_name, self.member_cap
-                ),
+            self.limit_hit.store(LIMIT_HIT_MEMBER, Ordering::Relaxed);
+            return Err(limit_io_error(
+                LimitKind::Member,
+                &self.file_name,
+                self.member_cap,
             ));
         }
         self.member_remaining -= n64;
         if charge_archive_budget(self.budget, n64).is_err() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "archive exceeds the {}-byte total decompression limit while reading '{}'",
-                    self.total_cap, self.file_name
-                ),
+            self.limit_hit.store(LIMIT_HIT_TOTAL, Ordering::Relaxed);
+            return Err(limit_io_error(
+                LimitKind::Total,
+                &self.file_name,
+                self.total_cap,
             ));
         }
         Ok(n)
@@ -1160,6 +1317,12 @@ fn locate_zip_member<R: Read + Seek>(
     Ok(ci_index)
 }
 
+fn is_regular_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|meta| meta.file_type().is_file())
+        .unwrap_or(false)
+}
+
 fn list_files_in_directory(path: &Path) -> Result<Vec<String>, GtfsInputError> {
     let mut files = Vec::new();
     for entry in std::fs::read_dir(path).map_err(|err| GtfsInputError::Io {
@@ -1195,9 +1358,13 @@ fn collect_files(
             source: err,
         })?;
         let entry_path = entry.path();
-        if entry_path.is_dir() {
+        let file_type = entry.file_type().map_err(|err| GtfsInputError::Io {
+            path: entry_path.clone(),
+            source: err,
+        })?;
+        if file_type.is_dir() {
             collect_files(root, &entry_path, files)?;
-        } else if entry_path.is_file() {
+        } else if file_type.is_file() {
             let rel = entry_path
                 .strip_prefix(root)
                 .unwrap_or(&entry_path)
@@ -1300,19 +1467,21 @@ fn has_nested_gtfs_file_in_zip(path: &Path) -> Result<bool, GtfsInputError> {
 #[derive(Clone)]
 pub struct GtfsBytesReader {
     data: Vec<u8>,
+    remaining_bytes: Arc<AtomicU64>,
 }
 
 impl GtfsBytesReader {
     /// Create a new reader from ZIP file bytes
     pub fn from_zip_bytes(data: Vec<u8>) -> Self {
-        Self { data }
+        Self {
+            data,
+            remaining_bytes: Arc::new(AtomicU64::new(max_total_bytes())),
+        }
     }
 
     /// Create a new reader from a byte slice (copies the data)
     pub fn from_slice(data: &[u8]) -> Self {
-        Self {
-            data: data.to_vec(),
-        }
+        Self::from_zip_bytes(data.to_vec())
     }
 
     pub fn get_files_with_sizes(&self) -> Result<HashMap<String, u64>, GtfsInputError> {
@@ -1349,16 +1518,13 @@ impl GtfsBytesReader {
 
         // Try exact match first
         match archive.by_name(file_name) {
-            Ok(mut zipped) => {
-                let mut buffer = Vec::new();
-                zipped
-                    .read_to_end(&mut buffer)
-                    .map_err(|err| GtfsInputError::ZipFileIo {
-                        path: PathBuf::from("<memory>"),
-                        file: file_name.to_string(),
-                        source: err,
-                    })?;
-                return Ok(buffer);
+            Ok(zipped) => {
+                return read_zip_member_capped(
+                    zipped,
+                    Path::new("<memory>"),
+                    file_name,
+                    &self.remaining_bytes,
+                );
             }
             Err(zip::result::ZipError::FileNotFound) => {}
             Err(err) => {
@@ -1429,21 +1595,18 @@ impl GtfsBytesReader {
             return Err(GtfsInputError::MissingFile(file_name.to_string()));
         };
 
-        let mut zipped = archive
+        let zipped = archive
             .by_index(index)
             .map_err(|err| GtfsInputError::ZipFile {
                 file: file_name.to_string(),
                 source: err,
             })?;
-        let mut buffer = Vec::new();
-        zipped
-            .read_to_end(&mut buffer)
-            .map_err(|err| GtfsInputError::ZipFileIo {
-                path: PathBuf::from("<memory>"),
-                file: file_name.to_string(),
-                source: err,
-            })?;
-        Ok(buffer)
+        read_zip_member_capped(
+            zipped,
+            Path::new("<memory>"),
+            file_name,
+            &self.remaining_bytes,
+        )
     }
 
     #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
@@ -1469,6 +1632,15 @@ impl GtfsBytesReader {
                 file: file_name.to_string(),
                 source: err,
             })?;
+        let cap = max_member_bytes();
+        if zipped.size() > cap {
+            return Err(member_too_large(
+                Path::new("<memory>"),
+                file_name,
+                zipped.size(),
+                cap,
+            ));
+        }
         if zipped.size() == 0 {
             notices.push_empty_table(file_name);
             return Ok(Some(CsvTable::default()));
@@ -1477,13 +1649,31 @@ impl GtfsBytesReader {
             .has_headers(true)
             .flexible(true)
             .trim(csv::Trim::Headers)
-            .from_reader(zipped);
+            .from_reader(zipped.take(HEADER_SCAN_BYTES + 1));
         let headers_record = header_reader
             .headers()
             .map_err(|err| {
                 GtfsInputError::Csv(crate::csv_reader::map_csv_error(file_name, None, err))
             })?
             .clone();
+        // The header pass is bounded so a member with no line break cannot be
+        // inflated whole just to find the columns. Hitting that bound means the
+        // record was cut mid-field, and the second pass would then read a longer
+        // header than the `RowValidator` was built from -- so refuse instead of
+        // validating against a header we know is wrong.
+        if header_reader.into_inner().limit() == 0 {
+            return Err(GtfsInputError::ZipFileIo {
+                path: PathBuf::from("<memory>"),
+                file: file_name.to_string(),
+                source: std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "'{}' has no complete header row in its first {} bytes",
+                        file_name, HEADER_SCAN_BYTES
+                    ),
+                ),
+            });
+        }
         let headers: Vec<String> = headers_record.iter().map(str::to_string).collect();
 
         let mut header_notices = NoticeContainer::new();
@@ -1493,7 +1683,6 @@ impl GtfsBytesReader {
             .any(|notice| notice.severity == NoticeSeverity::Error);
         notices.merge(header_notices);
         let validator = RowValidator::new(file_name, headers);
-        drop(header_reader);
         drop(archive);
 
         let cursor = Cursor::new(&self.data);
@@ -1507,15 +1696,38 @@ impl GtfsBytesReader {
                 file: file_name.to_string(),
                 source: err,
             })?;
+        let capped = CappedReader::new(
+            zipped,
+            Path::new("<memory>"),
+            file_name,
+            cap,
+            &self.remaining_bytes,
+        );
+        // The parser flattens our `io::Error` into a message string, so the
+        // reason is read back off the reader's own flag instead.
+        let limit_flag = capped.limit_flag();
         let (table, errors, row_notices) =
-            read_csv_from_reader_with_validation(zipped, file_name, |record, line| {
+            read_csv_from_reader_with_validation(capped, file_name, |record, line| {
                 if has_header_errors {
                     Vec::new()
                 } else {
                     validator.validate_row(record, line)
                 }
             })
-            .map_err(GtfsInputError::Csv)?;
+            .map_err(|err| match limit_kind_from_flag(&limit_flag) {
+                Some(kind) => {
+                    let limit = match kind {
+                        LimitKind::Member => cap,
+                        LimitKind::Total => max_total_bytes(),
+                    };
+                    GtfsInputError::ZipFileIo {
+                        path: PathBuf::from("<memory>"),
+                        file: file_name.to_string(),
+                        source: limit_io_error(kind, file_name, limit),
+                    }
+                }
+                None => GtfsInputError::Csv(err),
+            })?;
 
         if !has_header_errors {
             for notice in row_notices {
@@ -1837,6 +2049,26 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn directory_reader_rejects_symlinks() {
+        let dir = temp_path("gtfs_dir_symlink");
+        fs::create_dir_all(&dir).expect("create dir");
+        let target = dir.join("real.txt");
+        fs::write(&target, b"a,b\n1,2\n").expect("write target");
+        let link = dir.join("stops.txt");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink");
+
+        let input = GtfsInput::from_path(&dir).expect("input");
+        let reader = input.reader();
+        let err = reader
+            .read_file("stops.txt")
+            .expect_err("symlink must fail");
+        assert!(matches!(err, GtfsInputError::NotAFile(_)));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn reads_csv_from_zip() {
         let dir = temp_path("gtfs_zip");
@@ -1956,6 +2188,80 @@ mod tests {
             .expect_err("reading past the archive budget must error");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
         assert!(err.to_string().contains("total decompression limit"));
+    }
+
+    #[test]
+    fn limit_errors_carry_their_kind_through_a_csv_error() {
+        let member = limit_io_error(LimitKind::Member, "stops.txt", 16);
+        assert_eq!(limit_kind(&member), Some(LimitKind::Member));
+        assert!(member.to_string().contains("per-file limit"));
+
+        let total = limit_io_error(LimitKind::Total, "stops.txt", 16);
+        assert_eq!(limit_kind(&total), Some(LimitKind::Total));
+        assert!(total.to_string().contains("total decompression limit"));
+
+        // A plain io error must not be mistaken for one of ours, however it
+        // happens to be worded.
+        let impostor = std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "cell text mentioning a per-file limit and a total decompression limit",
+        );
+        assert_eq!(limit_kind(&impostor), None);
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn csv_limit_io_error_preserves_the_sentinel() {
+        let wrapped = csv::Error::from(limit_io_error(LimitKind::Total, "stops.txt", 32));
+        let recovered =
+            csv_limit_io_error(&wrapped).expect("limit error must survive the csv wrap");
+        assert_eq!(limit_kind(&recovered), Some(LimitKind::Total));
+
+        let unrelated = csv::Error::from(std::io::Error::other("disk gone"));
+        assert!(csv_limit_io_error(&unrelated).is_none());
+    }
+
+    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
+    #[test]
+    fn header_pass_refuses_a_member_with_no_header_row_in_range() {
+        use std::io::Write as _;
+
+        let mut buffer = Vec::new();
+        {
+            let mut zip = ZipWriter::new(Cursor::new(&mut buffer));
+            zip.start_file("stops.txt", FileOptions::default())
+                .expect("zip file");
+            // One unterminated line, longer than the header scan window.
+            zip.write_all(&vec![b'a'; (HEADER_SCAN_BYTES + 2048) as usize])
+                .expect("zip data");
+            zip.finish().expect("finish zip");
+        }
+
+        let reader = GtfsBytesReader::from_zip_bytes(buffer);
+        let mut notices = NoticeContainer::new();
+        let err = reader
+            .read_optional_csv_with_notices::<ExampleRow>(
+                "stops.txt",
+                &mut notices,
+                &crate::StringPool::new(),
+            )
+            .expect_err("a header row that never ends must be refused");
+        assert!(
+            err.to_string().contains("no complete header row"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn capped_reader_charges_budget_as_bytes_are_read() {
+        let data = vec![b'x'; 32];
+        let budget = AtomicU64::new(100);
+        let mut reader =
+            CappedReader::new(&data[..], Path::new("<test>"), "stops.txt", 100, &budget);
+        let mut buf = [0u8; 8];
+        let n = reader.read(&mut buf).expect("read");
+        assert_eq!(n, 8);
+        assert_eq!(budget.load(Ordering::Relaxed), 92);
     }
 
     #[test]

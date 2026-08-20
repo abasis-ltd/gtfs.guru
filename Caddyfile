@@ -30,9 +30,9 @@ gtfs.guru {
         -Server
     }
 
-    # Request body size limit for GTFS uploads (500MB)
+    # Request body size limit for GTFS uploads (256 MiB, matches compose caps)
     request_body {
-        max_size 500MB
+        max_size 256MiB
     }
 
     # Access logs

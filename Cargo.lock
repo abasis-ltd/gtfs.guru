@@ -1855,6 +1855,7 @@ dependencies = [
  "anyhow",
  "axum",
  "base64 0.22.1",
+ "futures-util",
  "gtfs-guru-core",
  "gtfs-guru-report",
  "include_dir",

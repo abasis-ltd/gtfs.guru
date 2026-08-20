@@ -38,7 +38,20 @@ impl Validator for ShapeIncreasingDistanceValidator {
                 shape_points.sort_by_key(|(_, shape)| shape.shape_pt_sequence);
             }
 
-            for shape_points in by_shape.values() {
+            let mut groups: Vec<_> = by_shape.into_iter().collect();
+            groups.sort_by(|(left_id, left_points), (right_id, right_points)| {
+                feed.pool
+                    .resolve(*left_id)
+                    .cmp(&feed.pool.resolve(*right_id))
+                    .then_with(|| {
+                        left_points
+                            .first()
+                            .map(|(row, _)| *row)
+                            .cmp(&right_points.first().map(|(row, _)| *row))
+                    })
+            });
+
+            for (_, shape_points) in groups {
                 for window in shape_points.windows(2) {
                     let (prev_row, prev) = window[0];
                     let (curr_row, curr) = window[1];

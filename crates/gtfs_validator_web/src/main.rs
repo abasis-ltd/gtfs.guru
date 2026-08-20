@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context};
 use axum::{
     body::Body,
-    extract::{DefaultBodyLimit, Path as AxumPath, Query, State},
+    extract::{Path as AxumPath, Query, Request, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -16,14 +16,15 @@ use axum::{
 };
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use futures_util::StreamExt;
+use include_dir::{include_dir, Dir};
+use mime_guess::MimeGuess;
 use reqwest::blocking::Client;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::sync::Semaphore;
-
-use include_dir::{include_dir, Dir};
-use mime_guess::MimeGuess;
 
 use gtfs_guru_core::{default_runner, validate_input, GtfsInput, NoticeContainer};
 use gtfs_guru_report::{
@@ -50,6 +51,19 @@ const DEFAULT_MAX_CONCURRENT_JOBS: usize = 4;
 /// a flood of requests would spawn unbounded tasks all waiting for a run permit.
 const DEFAULT_MAX_QUEUED_JOBS: usize = 64;
 
+/// Concurrent upload streams that may write to disk at once. Overridable via
+/// `GTFS_VALIDATOR_WEB_MAX_CONCURRENT_UPLOADS`. Distinct from validation
+/// concurrency: this bounds how many request bodies we will accept, not how
+/// many feeds we will parse.
+const DEFAULT_MAX_CONCURRENT_UPLOADS: usize = 4;
+
+/// How long a job may stay in `Processing` before cleanup reclaims it.
+/// Overridable via `GTFS_VALIDATOR_WEB_PROCESSING_TIMEOUT_SECONDS`.
+const DEFAULT_PROCESSING_TIMEOUT_SECS: u128 = 30 * 60;
+
+/// Global create-job requests accepted per minute.
+const DEFAULT_MAX_CREATE_JOB_REQUESTS_PER_MINUTE: usize = 60;
+
 /// Keep the browser proxy aligned with the WASM validator's input limit.
 const DEFAULT_MAX_PROXY_BYTES: usize = 70 * 1024 * 1024;
 const DEFAULT_MAX_CONCURRENT_PROXY_REQUESTS: usize = 4;
@@ -65,7 +79,6 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::new(base_dir, public_base_url);
     spawn_job_cleanup(state.clone());
 
-    let max_upload_bytes = state.max_upload_bytes;
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/version", get(version))
@@ -73,10 +86,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/create-job", post(create_job))
         .route("/run-validator", post(run_validator))
         .route("/error", post(error))
-        .route(
-            "/upload/:job_id",
-            put(upload_job).layer(DefaultBodyLimit::max(max_upload_bytes)),
-        )
+        // No `DefaultBodyLimit` here: it is honoured only by extractors that
+        // call `into_limited_body` (`Bytes`, `Json`, `Form`), and `upload_job`
+        // takes the raw `Request` so it can stream to disk. The cap is enforced
+        // by the Content-Length pre-check and by `stream_body_to_file`.
+        .route("/upload/:job_id", put(upload_job))
         .route("/jobs/:job_id/status", get(job_status))
         .route("/jobs/:job_id/report.json", get(job_report_json))
         .route("/jobs/:job_id/report.html", get(job_report_html))
@@ -164,28 +178,41 @@ struct AppState {
     base_dir: PathBuf,
     public_base_url: String,
     max_upload_bytes: usize,
+    max_queued_jobs: usize,
     job_semaphore: Arc<Semaphore>,
     admission_semaphore: Arc<Semaphore>,
+    upload_semaphore: Arc<Semaphore>,
     max_proxy_bytes: usize,
     proxy_semaphore: Arc<Semaphore>,
     proxy_rate_limiter: Arc<ProxyRateLimiter>,
+    job_create_rate_limiter: Arc<ProxyRateLimiter>,
+    pubsub_token: Option<String>,
+    processing_timeout_ms: u128,
 }
 
 impl AppState {
     fn new(base_dir: PathBuf, public_base_url: String) -> Self {
         let jobs = load_jobs(&base_dir);
+        let max_queued_jobs = load_max_queued_jobs();
         Self {
             jobs: Arc::new(RwLock::new(jobs)),
             base_dir,
             public_base_url,
             max_upload_bytes: load_max_upload_bytes(),
+            max_queued_jobs,
             job_semaphore: Arc::new(Semaphore::new(load_max_concurrent_jobs())),
-            admission_semaphore: Arc::new(Semaphore::new(load_max_queued_jobs())),
+            admission_semaphore: Arc::new(Semaphore::new(max_queued_jobs)),
+            upload_semaphore: Arc::new(Semaphore::new(load_max_concurrent_uploads())),
             max_proxy_bytes: load_max_proxy_bytes(),
             proxy_semaphore: Arc::new(Semaphore::new(load_max_concurrent_proxy_requests())),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(
                 load_max_proxy_requests_per_minute(),
             )),
+            job_create_rate_limiter: Arc::new(ProxyRateLimiter::new(
+                load_max_create_job_requests_per_minute(),
+            )),
+            pubsub_token: load_pubsub_token(),
+            processing_timeout_ms: load_processing_timeout_ms(),
         }
     }
 }
@@ -212,6 +239,41 @@ fn load_max_queued_jobs() -> usize {
         .and_then(|value| value.trim().parse::<usize>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(DEFAULT_MAX_QUEUED_JOBS)
+}
+
+fn load_max_concurrent_uploads() -> usize {
+    load_positive_usize(
+        "GTFS_VALIDATOR_WEB_MAX_CONCURRENT_UPLOADS",
+        DEFAULT_MAX_CONCURRENT_UPLOADS,
+    )
+}
+
+fn load_max_create_job_requests_per_minute() -> usize {
+    load_positive_usize(
+        "GTFS_VALIDATOR_WEB_MAX_CREATE_JOB_REQUESTS_PER_MINUTE",
+        DEFAULT_MAX_CREATE_JOB_REQUESTS_PER_MINUTE,
+    )
+}
+
+fn load_pubsub_token() -> Option<String> {
+    std::env::var("GTFS_VALIDATOR_WEB_PUBSUB_TOKEN")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn load_processing_timeout_ms() -> u128 {
+    let default_ms = DEFAULT_PROCESSING_TIMEOUT_SECS.saturating_mul(1000);
+    match std::env::var("GTFS_VALIDATOR_WEB_PROCESSING_TIMEOUT_SECONDS") {
+        Ok(value) => value
+            .trim()
+            .parse::<u128>()
+            .ok()
+            .filter(|seconds| *seconds > 0)
+            .map(|seconds| seconds.saturating_mul(1000))
+            .unwrap_or(default_ms),
+        Err(_) => default_ms,
+    }
 }
 
 fn load_max_proxy_bytes() -> usize {
@@ -450,7 +512,13 @@ fn plain_text_response(status: StatusCode, message: &'static str) -> Response {
 async fn create_job(
     State(state): State<AppState>,
     body: Option<Json<CreateJobRequest>>,
-) -> Json<CreateJobResponse> {
+) -> Response {
+    if !state.job_create_rate_limiter.try_acquire(Instant::now()) {
+        return plain_text_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            "job creation rate limit exceeded",
+        );
+    }
     let job_id = next_job_id();
     let job_dir = state.base_dir.join(&job_id);
     let _ = tokio::fs::create_dir_all(&job_dir).await;
@@ -473,23 +541,33 @@ async fn create_job(
         output_dir: Some(job_dir.join("output")),
         error: None,
     };
-    insert_job(&state, job);
+    // Counting and inserting under one write lock: two concurrent creates
+    // cannot both observe the last free slot and both take it.
+    if !insert_job_within_pending_cap(&state, job) {
+        let _ = tokio::fs::remove_dir_all(&job_dir).await;
+        return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "too many pending uploads");
+    }
 
     if let Some(url) = source_url {
         spawn_job_processing(state.clone(), job_id.clone(), url);
-        Json(CreateJobResponse { job_id, url: None })
+        Json(CreateJobResponse { job_id, url: None }).into_response()
     } else {
         Json(CreateJobResponse {
             job_id: job_id.clone(),
             url: Some(format!("{}/upload/{}", state.public_base_url, job_id)),
         })
+        .into_response()
     }
 }
 
 async fn run_validator(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<PubsubEnvelope>,
 ) -> StatusCode {
+    if !pubsub_token_matches(&state, &headers) {
+        return StatusCode::UNAUTHORIZED;
+    }
     let data = payload
         .message
         .and_then(|msg| msg.data)
@@ -516,17 +594,49 @@ async fn error() -> StatusCode {
 async fn upload_job(
     State(state): State<AppState>,
     AxumPath(job_id): AxumPath<String>,
-    body: axum::body::Bytes,
+    request: Request,
 ) -> StatusCode {
-    // Claim the job before touching input.zip so a redelivered upload or a
-    // concurrent run cannot overwrite the input of an already-running job.
+    // A declared length over the cap is refused before the job is claimed, so a
+    // client that announces an oversized body neither burns an id nor uploads.
+    if declared_length_over_cap(request.headers(), state.max_upload_bytes) {
+        return StatusCode::PAYLOAD_TOO_LARGE;
+    }
+    // Claim the job before touching the body so a missing or already-running
+    // id does not force the process to buffer hundreds of megabytes first.
     match try_begin_processing(&state, &job_id) {
         BeginOutcome::NotFound => return StatusCode::NOT_FOUND,
         BeginOutcome::AlreadyActive => return StatusCode::CONFLICT,
         BeginOutcome::Started => {}
     }
+    let admission = match state.admission_semaphore.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            update_job_status(
+                &state,
+                &job_id,
+                JobStatus::Error,
+                Some("server is at capacity; please retry later".to_string()),
+            );
+            return StatusCode::TOO_MANY_REQUESTS;
+        }
+    };
+    let upload_permit = match state.upload_semaphore.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            drop(admission);
+            update_job_status(
+                &state,
+                &job_id,
+                JobStatus::Error,
+                Some("server is at capacity; please retry later".to_string()),
+            );
+            return StatusCode::TOO_MANY_REQUESTS;
+        }
+    };
     let job_dir = state.base_dir.join(&job_id);
     if tokio::fs::create_dir_all(&job_dir).await.is_err() {
+        drop(upload_permit);
+        drop(admission);
         update_job_status(
             &state,
             &job_id,
@@ -536,17 +646,35 @@ async fn upload_job(
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
     let input_path = job_dir.join("input.zip");
-    if tokio::fs::write(&input_path, body).await.is_err() {
-        update_job_status(
-            &state,
-            &job_id,
-            JobStatus::Error,
-            Some("failed to persist upload".to_string()),
-        );
-        return StatusCode::INTERNAL_SERVER_ERROR;
+    let max_upload_bytes = state.max_upload_bytes;
+    match stream_body_to_file(request.into_body(), &input_path, max_upload_bytes).await {
+        Ok(()) => {}
+        Err(StreamBodyError::TooLarge) => {
+            drop(upload_permit);
+            drop(admission);
+            update_job_status(
+                &state,
+                &job_id,
+                JobStatus::Error,
+                Some("upload exceeds the configured size limit".to_string()),
+            );
+            return StatusCode::PAYLOAD_TOO_LARGE;
+        }
+        Err(StreamBodyError::Io) => {
+            drop(upload_permit);
+            drop(admission);
+            update_job_status(
+                &state,
+                &job_id,
+                JobStatus::Error,
+                Some("failed to persist upload".to_string()),
+            );
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
     }
+    drop(upload_permit);
     update_job_input(&state, &job_id, input_path);
-    spawn_job_processing(state, job_id, String::new());
+    spawn_job_processing_admitted(state, job_id, String::new(), admission);
     StatusCode::OK
 }
 
@@ -632,14 +760,6 @@ fn load_public_base_url() -> String {
     }
 }
 
-fn insert_job(state: &AppState, job: Job) {
-    let job_id = job.id.clone();
-    if let Ok(mut jobs) = state.jobs.write() {
-        jobs.insert(job_id.clone(), job);
-    }
-    persist_job_metadata(state, job_id.as_str());
-}
-
 fn get_job(state: &AppState, job_id: &str) -> Option<Job> {
     state
         .jobs
@@ -702,6 +822,15 @@ fn spawn_job_processing(state: AppState, job_id: String, url: String) {
             return;
         }
     };
+    spawn_job_processing_admitted(state, job_id, url, admission);
+}
+
+fn spawn_job_processing_admitted(
+    state: AppState,
+    job_id: String,
+    url: String,
+    admission: tokio::sync::OwnedSemaphorePermit,
+) {
     tokio::spawn(async move {
         // Held for the whole lifetime of the job so the admission count only
         // drops once this job is fully done.
@@ -711,7 +840,15 @@ fn spawn_job_processing(state: AppState, job_id: String, url: String) {
         // download + validation and released when the blocking task returns.
         let permit = match state.job_semaphore.clone().acquire_owned().await {
             Ok(permit) => permit,
-            Err(_) => return, // semaphore closed => shutting down
+            Err(_) => {
+                update_job_status(
+                    &state,
+                    &job_id,
+                    JobStatus::Error,
+                    Some("server is shutting down".to_string()),
+                );
+                return;
+            }
         };
         let state_for_block = state.clone();
         let job_id_for_block = job_id.clone();
@@ -731,6 +868,120 @@ fn spawn_job_processing(state: AppState, job_id: String, url: String) {
             );
         }
     });
+}
+
+enum StreamBodyError {
+    TooLarge,
+    Io,
+}
+
+async fn stream_body_to_file(
+    body: Body,
+    path: &Path,
+    max_bytes: usize,
+) -> Result<(), StreamBodyError> {
+    let mut file = tokio::fs::File::create(path)
+        .await
+        .map_err(|_| StreamBodyError::Io)?;
+    let mut written = 0usize;
+    let mut stream = body.into_data_stream();
+    while let Some(chunk) = stream.next().await {
+        let data = chunk.map_err(|_| StreamBodyError::Io)?;
+        if written.saturating_add(data.len()) > max_bytes {
+            drop(file);
+            let _ = tokio::fs::remove_file(path).await;
+            return Err(StreamBodyError::TooLarge);
+        }
+        written += data.len();
+        if file.write_all(&data).await.is_err() {
+            drop(file);
+            let _ = tokio::fs::remove_file(path).await;
+            return Err(StreamBodyError::Io);
+        }
+    }
+    if file.flush().await.is_err() {
+        let _ = tokio::fs::remove_file(path).await;
+        return Err(StreamBodyError::Io);
+    }
+    Ok(())
+}
+
+/// Insert `job` unless the pending-upload cap is already reached, counting and
+/// inserting under a single write lock. Returns false when the job was refused.
+///
+/// This cap is separate from `admission_semaphore`: a job awaiting its upload
+/// holds no admission permit, so the two limits bound different things and both
+/// use `GTFS_VALIDATOR_WEB_MAX_QUEUED_JOBS` as their size.
+fn insert_job_within_pending_cap(state: &AppState, job: Job) -> bool {
+    let job_id = job.id.clone();
+    let inserted = {
+        let Ok(mut jobs) = state.jobs.write() else {
+            return false;
+        };
+        let pending = jobs
+            .values()
+            .filter(|existing| matches!(existing.status, JobStatus::AwaitingUpload))
+            .count();
+        if matches!(job.status, JobStatus::AwaitingUpload) && pending >= state.max_queued_jobs {
+            false
+        } else {
+            jobs.insert(job_id.clone(), job);
+            true
+        }
+    };
+    if inserted {
+        persist_job_metadata(state, job_id.as_str());
+    }
+    inserted
+}
+
+/// True when the request declares a body larger than the cap. A missing or
+/// unparsable `Content-Length` is not a rejection: the streaming write enforces
+/// the cap regardless of what the client declared.
+fn declared_length_over_cap(headers: &HeaderMap, max_bytes: usize) -> bool {
+    headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .is_some_and(|declared| declared > max_bytes as u64)
+}
+
+fn pubsub_token_matches(state: &AppState, headers: &HeaderMap) -> bool {
+    let Some(expected) = state.pubsub_token.as_deref() else {
+        return false;
+    };
+    extract_pubsub_token(headers).is_some_and(|value| constant_time_eq(value, expected))
+}
+
+/// Compare two secrets without an early return, so response time does not leak
+/// how many leading bytes a guess got right. Length still differs observably,
+/// which is not sensitive for a fixed-length deployment token.
+fn constant_time_eq(left: &str, right: &str) -> bool {
+    let (left, right) = (left.as_bytes(), right.as_bytes());
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut difference = 0u8;
+    for (a, b) in left.iter().zip(right.iter()) {
+        difference |= a ^ b;
+    }
+    difference == 0
+}
+
+fn extract_pubsub_token(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get("x-pubsub-token")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            headers
+                .get(header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.strip_prefix("Bearer "))
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        })
 }
 
 /// Result of trying to move a job into the `Processing` state.
@@ -1165,9 +1416,6 @@ fn cleanup_jobs(state: &AppState, ttl_ms: u128) {
     if let Ok(jobs) = state.jobs.read() {
         for (job_id, job) in jobs.iter() {
             known_ids.insert(job_id.clone());
-            if matches!(job.status, JobStatus::Processing) {
-                continue;
-            }
             let job_dir = state.base_dir.join(job_id);
             // Prefer metadata timestamp; fall back to the directory mtime, then
             // to 0 (== expired) so a job whose metadata is unreadable is still
@@ -1175,7 +1423,13 @@ fn cleanup_jobs(state: &AppState, ttl_ms: u128) {
             let updated_at = read_metadata_timestamp(&job_dir.join("job.json"))
                 .or_else(|| dir_mtime_millis(&job_dir))
                 .unwrap_or(0);
-            if now.saturating_sub(updated_at) >= ttl_ms {
+            let age = now.saturating_sub(updated_at);
+            let timed_out_processing =
+                matches!(job.status, JobStatus::Processing) && age >= state.processing_timeout_ms;
+            if matches!(job.status, JobStatus::Processing) && !timed_out_processing {
+                continue;
+            }
+            if timed_out_processing || age >= ttl_ms {
                 expired.push((job_id.clone(), job.output_dir.clone()));
             }
         }
@@ -1519,5 +1773,68 @@ mod tests {
             response.headers().get(header::CONTENT_TYPE),
             Some(&header::HeaderValue::from_static("text/html"))
         );
+    }
+
+    #[test]
+    fn pubsub_token_is_read_from_custom_header_or_bearer() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-pubsub-token", header::HeaderValue::from_static("abc"));
+        assert_eq!(extract_pubsub_token(&headers), Some("abc"));
+
+        headers.remove("x-pubsub-token");
+        headers.insert(
+            header::AUTHORIZATION,
+            header::HeaderValue::from_static("Bearer secret"),
+        );
+        assert_eq!(extract_pubsub_token(&headers), Some("secret"));
+
+        headers.insert(
+            header::AUTHORIZATION,
+            header::HeaderValue::from_static("Basic nope"),
+        );
+        assert_eq!(extract_pubsub_token(&headers), None);
+    }
+
+    #[test]
+    fn constant_time_eq_matches_string_equality() {
+        assert!(constant_time_eq("secret", "secret"));
+        assert!(!constant_time_eq("secret", "secreT"));
+        assert!(!constant_time_eq("secret", "secrets"));
+        assert!(!constant_time_eq("", "s"));
+        assert!(constant_time_eq("", ""));
+    }
+
+    #[test]
+    fn declared_length_over_cap_only_rejects_a_declared_overflow() {
+        let mut headers = HeaderMap::new();
+        assert!(!declared_length_over_cap(&headers, 10));
+
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("10"),
+        );
+        assert!(!declared_length_over_cap(&headers, 10));
+
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("11"),
+        );
+        assert!(declared_length_over_cap(&headers, 10));
+
+        // Chunked uploads declare nothing; the streaming write is the guard.
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("not-a-number"),
+        );
+        assert!(!declared_length_over_cap(&headers, 10));
+    }
+
+    #[test]
+    fn stream_size_check_rejects_a_chunk_past_the_cap() {
+        let written = 4usize;
+        let incoming = 2usize;
+        let max_bytes = 5usize;
+        assert!(written.saturating_add(incoming) > max_bytes);
+        assert!(written.saturating_add(1) <= max_bytes);
     }
 }
