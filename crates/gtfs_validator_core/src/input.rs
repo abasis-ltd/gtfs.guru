@@ -1163,7 +1163,7 @@ fn limit_kind(err: &std::io::Error) -> Option<LimitKind> {
 
 /// Re-wrap the limit error a CSV reader swallowed, preserving the sentinel so
 /// the caller still recognises it by type.
-#[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
+#[cfg(feature = "parallel")]
 fn csv_limit_io_error(err: &csv::Error) -> Option<std::io::Error> {
     let csv::ErrorKind::Io(io_err) = err.kind() else {
         return None;
@@ -2209,7 +2209,7 @@ mod tests {
         assert_eq!(limit_kind(&impostor), None);
     }
 
-    #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
+    #[cfg(feature = "parallel")]
     #[test]
     fn csv_limit_io_error_preserves_the_sentinel() {
         let wrapped = csv::Error::from(limit_io_error(LimitKind::Total, "stops.txt", 32));
