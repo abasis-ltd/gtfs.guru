@@ -958,7 +958,6 @@ mod tests {
     /// cell but missing from the list would hide real drift, and vice versa.
     #[test]
     fn enum_allowed_values_agree_with_the_cell_check() {
-
         for (index, kind) in EnumKind::ALL.iter().enumerate() {
             assert_eq!(
                 kind.position_in_all(),
