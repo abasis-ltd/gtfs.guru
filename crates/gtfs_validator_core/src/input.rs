@@ -1097,16 +1097,12 @@ fn map_capped_read_error(
 ) -> GtfsInputError {
     match limit_kind(&err) {
         Some(LimitKind::Total) => archive_budget_exceeded(path, file_name, max_total_bytes()),
-        Some(LimitKind::Member) => {
-            member_too_large(path, file_name, cap.saturating_add(1), cap)
-        }
-        None => {
-            GtfsInputError::ZipFileIo {
-                path: path.to_path_buf(),
-                file: file_name.to_string(),
-                source: err,
-            }
-        }
+        Some(LimitKind::Member) => member_too_large(path, file_name, cap.saturating_add(1), cap),
+        None => GtfsInputError::ZipFileIo {
+            path: path.to_path_buf(),
+            file: file_name.to_string(),
+            source: err,
+        },
     }
 }
 
@@ -2217,7 +2213,8 @@ mod tests {
     #[test]
     fn csv_limit_io_error_preserves_the_sentinel() {
         let wrapped = csv::Error::from(limit_io_error(LimitKind::Total, "stops.txt", 32));
-        let recovered = csv_limit_io_error(&wrapped).expect("limit error must survive the csv wrap");
+        let recovered =
+            csv_limit_io_error(&wrapped).expect("limit error must survive the csv wrap");
         assert_eq!(limit_kind(&recovered), Some(LimitKind::Total));
 
         let unrelated = csv::Error::from(std::io::Error::other("disk gone"));
