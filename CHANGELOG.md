@@ -7,6 +7,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Spec Watch: a weekly CI run that compares the GTFS specification
+  (`google/transit`) and the canonical validator's published rules against what
+  this build supports, and opens or updates a single Linear issue when the two
+  drift apart. It stays silent when nothing drifted. The accepted upstream state
+  lives in `crates/gtfs_validator_core/spec_baseline.json`;
+  `docs/spec-watch.md` documents the workflow and the protocol for moving it.
+- `gtfs-guru spec-surface` emits the files, fields, enum domains, and notice
+  codes this build supports as JSON, derived from the same tables validation
+  uses.
+- Every JSON report's `summary` now carries `specRevision` and
+  `canonicalBaseline`, so a stored report states which specification revision and
+  canonical validator release it was produced against.
+
 ## [1.0.0] - 2026-07-28
 
 First stable release. The CLI, core, model, report, profile, MCP, web, WASM,

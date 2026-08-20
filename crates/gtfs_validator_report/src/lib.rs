@@ -163,6 +163,12 @@ impl Serialize for NoticeContext {
 pub struct ReportSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validator_version: Option<String>,
+    /// gtfs.guru extension: the GTFS specification revision this build is
+    /// aligned with, as `google/transit@<commit>`.
+    pub spec_revision: String,
+    /// gtfs.guru extension: the canonical validator release this build is
+    /// aligned with, as `MobilityData/gtfs-validator@<tag>`.
+    pub canonical_baseline: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validated_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -241,6 +247,8 @@ impl ReportSummary {
 
         ReportSummary {
             validator_version,
+            spec_revision: gtfs_guru_core::spec_revision_id().to_string(),
+            canonical_baseline: gtfs_guru_core::canonical_baseline_id().to_string(),
             validated_at,
             gtfs_input,
             threads: Some(context.threads),

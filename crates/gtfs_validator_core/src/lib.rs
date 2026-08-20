@@ -37,6 +37,8 @@ pub mod notice;
 pub mod notice_schema;
 pub mod progress;
 pub mod rules;
+pub mod spec_baseline;
+pub mod spec_surface;
 pub mod string_pool;
 mod table_status;
 pub mod timing;
@@ -65,6 +67,8 @@ pub use notice::{
 pub use notice_schema::build_notice_schema_map;
 pub use progress::{NoOpProgressHandler, ProgressHandler};
 pub use rules::default_runner;
+pub use spec_baseline::{canonical_baseline_id, spec_baseline, spec_revision_id, SpecBaseline};
+pub use spec_surface::{spec_surface, SpecSurface};
 pub use string_pool::StringPool;
 pub use table_status::TableStatus;
 pub use timing::{TimingCategory, TimingCollector, TimingRecord, TimingSummary};

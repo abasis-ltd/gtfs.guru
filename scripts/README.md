@@ -48,6 +48,18 @@ Golden tests compare validator output against expected reference files.
 | `golden_manifest.example.tsv` | Example TSV manifest format for golden tests. |
 | `expected_layout.example.txt` | Example expected output directory structure. |
 
+## Upstream Spec Watch
+
+Tracks the GTFS specification (`google/transit`) and the canonical validator
+(`MobilityData/gtfs-validator`) against the accepted baseline in
+`crates/gtfs_validator_core/spec_baseline.json`. See `docs/spec-watch.md`.
+
+| Script | Description |
+|--------|-------------|
+| `spec_watch.py` | `check` reports unacknowledged drift; `update-baseline` accepts the current upstream state. Quiet when nothing drifted. |
+| `spec_watch_test.py` | Offline tests: injects a field, an enum value, and a rule into the fixtures and asserts each is detected. |
+| `spec_watch_fixtures/` | Trimmed real snapshots of the spec reference, the supported surface, and the canonical `rules.json`. |
+
 ## Usage Examples
 
 ```bash
@@ -65,6 +77,10 @@ python3 scripts/benchmark_compare.py benchmark-feeds/nl.zip --iterations 3
 
 # Run the committed canonical-v8 golden suite
 scripts/ci_golden.sh
+
+# Check the GTFS spec and the canonical validator for drift
+cargo build --release -p gtfs-guru
+GTFS_VALIDATOR_BIN=./target/release/gtfs-guru python3 scripts/spec_watch.py check
 
 # Deploy to production server
 ./scripts/deploy-to-hetzner.sh validator.example.com

@@ -1,0 +1,9 @@
+{
+  "repository": "MobilityData/gtfs-validator",
+  "version": "v8.0.1",
+  "publishedAt": "2026-05-12T13:35:43Z",
+  "url": "https://github.com/MobilityData/gtfs-validator/releases/tag/v8.0.1",
+  "rulesAsset": "rules.json",
+  "rulesUrl": "https://github.com/MobilityData/gtfs-validator/releases/download/v8.0.1/rules.json",
+  "newerReleases": []
+}

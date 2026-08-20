@@ -53,6 +53,28 @@ by trip and `stop_sequence`. `--fix-unsafe` can additionally delete rows whose
 foreign key references a missing parent. After writing the copy, the CLI
 validates it again and reports resolved, remaining, and introduced notices.
 
+### Which standard a report answers for
+
+Every JSON report's `summary` states the upstream revisions the build was
+aligned with, alongside the validator's own version:
+
+```bash
+gtfs-guru -i feed.zip --stdout | jq '.summary | {validatorVersion, specRevision, canonicalBaseline}'
+```
+
+```json
+{
+  "validatorVersion": "1.0.0",
+  "specRevision": "google/transit@3215f98f26615f1b925dca1bf2205311b747e308",
+  "canonicalBaseline": "MobilityData/gtfs-validator@v8.0.1"
+}
+```
+
+`specRevision` is the GTFS specification commit, and `canonicalBaseline` the
+release of the canonical Java validator, that this build was checked against.
+Both are extensions to the canonical report schema. `gtfs-guru spec-surface`
+prints the files, fields, enum values, and notice codes that follow from them.
+
 ### Parallelism
 
 `--threads` is report metadata retained for Java compatibility. Set Rayon's

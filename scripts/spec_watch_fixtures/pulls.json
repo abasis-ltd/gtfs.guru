@@ -1,0 +1,16 @@
+[
+  {
+    "number": 640,
+    "title": "fix(transfers): min_transfer_time is conditionally required for timed transfers",
+    "url": "https://github.com/google/transit/pull/640",
+    "mergedAt": "2026-08-17T19:35:00Z",
+    "touchesStaticSpec": true
+  },
+  {
+    "number": 651,
+    "title": "Mark images in Service Alerts as final",
+    "url": "https://github.com/google/transit/pull/651",
+    "mergedAt": "2026-08-17T19:50:34Z",
+    "touchesStaticSpec": false
+  }
+]

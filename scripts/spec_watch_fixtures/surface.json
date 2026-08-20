@@ -1,0 +1,96 @@
+{
+  "canonicalBaseline": "MobilityData/gtfs-validator@v8.0.1",
+  "files": {
+    "agency.txt": {
+      "enums": {
+        "cemv_support": [
+          0,
+          1,
+          2
+        ]
+      },
+      "fields": [
+        "agency_id",
+        "agency_name",
+        "agency_url",
+        "agency_timezone",
+        "agency_lang",
+        "agency_phone",
+        "agency_fare_url",
+        "agency_email",
+        "cemv_support"
+      ],
+      "hasFieldSchema": true,
+      "recommendedFields": [
+        "agency_lang",
+        "agency_phone",
+        "agency_fare_url",
+        "agency_email"
+      ],
+      "requiredFields": [
+        "agency_name",
+        "agency_url",
+        "agency_timezone"
+      ]
+    },
+    "stops.txt": {
+      "enums": {
+        "location_type": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "stop_access": [
+          0,
+          1
+        ],
+        "wheelchair_boarding": [
+          0,
+          1,
+          2
+        ]
+      },
+      "fields": [
+        "stop_id",
+        "stop_code",
+        "stop_name",
+        "tts_stop_name",
+        "stop_desc",
+        "stop_lat",
+        "stop_lon",
+        "zone_id",
+        "stop_url",
+        "location_type",
+        "parent_station",
+        "stop_timezone",
+        "wheelchair_boarding",
+        "level_id",
+        "platform_code",
+        "stop_access"
+      ],
+      "hasFieldSchema": true,
+      "recommendedFields": [
+        "stop_name",
+        "stop_lat",
+        "stop_lon",
+        "stop_desc",
+        "stop_url",
+        "wheelchair_boarding",
+        "level_id",
+        "platform_code"
+      ],
+      "requiredFields": [
+        "stop_id"
+      ]
+    }
+  },
+  "notices": {
+    "missing_required_field": "ERROR",
+    "unexpected_enum_value": "WARNING",
+    "wrong_parent_location_type": "ERROR"
+  },
+  "specRevision": "google/transit@3215f98f26615f1b925dca1bf2205311b747e308",
+  "validatorVersion": "1.0.0"
+}

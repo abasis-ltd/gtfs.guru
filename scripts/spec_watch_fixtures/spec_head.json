@@ -1,0 +1,11 @@
+{
+  "repository": "google/transit",
+  "ref": "master",
+  "commit": "3215f98f26615f1b925dca1bf2205311b747e308",
+  "committedAt": "2026-08-17T19:34:59Z",
+  "message": "fix(transfers): min_transfer_time is conditionally required for timed transfers",
+  "url": "https://github.com/google/transit/commit/3215f98f26615f1b925dca1bf2205311b747e308",
+  "specPaths": [
+    "gtfs/spec/en/reference.md"
+  ]
+}

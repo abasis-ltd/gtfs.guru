@@ -5,6 +5,7 @@
 # Local AI coding sessions may contain full worktrees and conversation data.
 .claude/
 /golden_actual/
+/real_world_actual/
 /scripts/golden_manifest.tsv
 /node_modules/
 google-transitfeed/
