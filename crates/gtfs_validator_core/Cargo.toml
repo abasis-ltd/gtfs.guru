@@ -38,6 +38,7 @@ version = "1.0.0"
 regex = { workspace = true }
 [dev-dependencies]
 criterion = "0.5"
+csv = { workspace = true }
 
 [[bench]]
 name = "benchmark_shape_matching"

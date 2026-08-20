@@ -19,6 +19,59 @@ fn test_feeds_root() -> PathBuf {
     project_root().join("test-gtfs-feeds")
 }
 
+const REAL_WORLD_DIR_ENV: &str = "GTFS_GURU_REAL_WORLD_DIR";
+const REAL_WORLD_REQUIRED_ENV: &str = "GTFS_GURU_REQUIRE_REAL_WORLD";
+
+fn env_flag(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(value) => !value.is_empty() && value != "0",
+        Err(_) => false,
+    }
+}
+
+/// Locates a real-world parity feed, or `None` when it has not been fetched.
+///
+/// These feeds are third-party downloads, not fixtures: they weigh ~143 MB and
+/// their publishers refresh them continuously, so the repository keeps only the
+/// links in `test-gtfs-feeds/real-world/manifest.json`. Run
+/// `scripts/fetch_real_world_feeds.py` to turn those links back into files.
+///
+/// A clean checkout skips rather than fails. Set `GTFS_GURU_REQUIRE_REAL_WORLD=1`
+/// to make a missing feed an error, which is what a parity run wants.
+fn real_world_feed(file_name: &str) -> Option<PathBuf> {
+    let root = std::env::var_os(REAL_WORLD_DIR_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| test_feeds_root().join("real-world"));
+    let path = root.join(file_name);
+    if path.is_file() {
+        return Some(path);
+    }
+
+    assert!(
+        !env_flag(REAL_WORLD_REQUIRED_ENV),
+        "{REAL_WORLD_REQUIRED_ENV} is set but {path:?} is missing. \
+         Run scripts/fetch_real_world_feeds.py to fetch it."
+    );
+    eprintln!(
+        "skipping real-world parity check: {path:?} is not fetched. \
+         Run scripts/fetch_real_world_feeds.py, or point {REAL_WORLD_DIR_ENV} \
+         at a directory that already holds the feeds."
+    );
+    None
+}
+
+/// Counts the data records in a CSV payload the way the loader reads it:
+/// header consumed, ragged rows tolerated, BOM skipped.
+fn csv_record_count(data: &[u8]) -> usize {
+    let body = data.strip_prefix(b"\xef\xbb\xbf").unwrap_or(data);
+    csv::ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .from_reader(body)
+        .records()
+        .count()
+}
+
 #[test]
 fn test_base_valid() {
     let feed_path = test_feeds_root().join("base-valid");
@@ -54,17 +107,17 @@ fn test_base_valid() {
 
 #[test]
 fn test_mbta_pathways_are_fully_loaded_and_reachable() {
-    let feed_path = test_feeds_root().join("real-world/boston_mbta.zip");
-    assert!(
-        feed_path.exists(),
-        "Frozen MBTA feed not found at {:?}",
-        feed_path
-    );
+    let Some(feed_path) = real_world_feed("boston_mbta.zip") else {
+        return;
+    };
 
     let input = GtfsInput::from_path(&feed_path).expect("Failed to create MBTA input");
     let reader = input.reader();
     let pool = StringPool::new();
     let mut load_notices = NoticeContainer::new();
+    let raw_pathways = reader
+        .read_file("pathways.txt")
+        .expect("Failed to read raw MBTA pathways.txt");
     let stops = reader
         .read_csv_with_notices::<Stop>("stops.txt", &mut load_notices, &pool)
         .expect("Failed to read MBTA stops.txt");
@@ -72,16 +125,16 @@ fn test_mbta_pathways_are_fully_loaded_and_reachable() {
         .read_csv_with_notices::<Pathway>("pathways.txt", &mut load_notices, &pool)
         .expect("Failed to read MBTA pathways.txt");
 
+    // MBTA republishes its feed continuously, so the row count is not a constant
+    // to pin down. The invariant that survives a refresh is that no row is
+    // silently dropped: MBTA spells descending stairs as a negative
+    // `stair_count`, which a narrower integer type would reject row by row.
+    // Row equality is what catches that -- `csv_parsing_failed` is suppressed
+    // outside thorough mode, so asserting its absence here would prove nothing.
     assert_eq!(
         pathways.rows.len(),
-        9_293,
+        csv_record_count(&raw_pathways),
         "every MBTA pathway row, including negative stair_count values, must deserialize"
-    );
-    assert!(
-        !load_notices
-            .iter()
-            .any(|notice| notice.code == "csv_parsing_failed"),
-        "MBTA stops/pathways must load without CSV parse failures: {load_notices:#?}"
     );
 
     let feed = GtfsFeed {

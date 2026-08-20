@@ -8,6 +8,7 @@ Each subdirectory represents a specific error case with all necessary GTFS files
 ```
 test-gtfs-feeds/
 ├── base-valid/           # Valid GTFS feed for reference
+├── real-world/           # Links to published feeds for parity checks (fetched, not committed)
 ├── errors/               # Error test cases by category
 │   ├── booking-rules/    # booking_rules.txt errors (GTFS-Flex)
 │   ├── core-files/       # File-level errors
@@ -402,6 +403,25 @@ cd test-gtfs-feeds/errors/core-files/missing_required_file
 zip -r test.zip *.txt
 java -jar gtfs-validator.jar -i test.zip -o output
 ```
+
+## Real-World Feeds (`real-world/`)
+
+Published feeds from five agencies, used for parity checks against the canonical
+validator. Unlike everything else here they are **not committed**: together they
+weigh ~143 MB and their publishers refresh them continuously, so the repository
+keeps only `real-world/manifest.json` -- the source link, license and snapshot
+SHA-256 for each feed.
+
+Fetch them with:
+
+```bash
+scripts/fetch_real_world_feeds.py
+```
+
+The downloads land in `real-world/`, which `.gitignore` keeps untracked. Tests
+that use these feeds skip when they are absent, so a clean checkout runs green
+and offline. See `scripts/README.md` for the flags and the environment variables
+that make a missing feed a hard failure instead.
 
 ## Adding New Test Cases
 

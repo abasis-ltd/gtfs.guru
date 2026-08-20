@@ -58,5 +58,5 @@
       "sha256": "58ac9b44d59b763db332c6311a8af3382f99d40c02dcdd51b6a294276119e5a8"
     }
   ],
-  "note": "Frozen snapshots for parity checks against the canonical validator. Only feeds whose catalog entry states a license are redistributed here; each entry keeps its source URL and SHA-256 so it can be re-fetched and verified."
+  "note": "Links to the real-world feeds used for parity checks against the canonical validator. The feeds themselves are not committed: they weigh ~143 MB and their publishers refresh them continuously. Run scripts/fetch_real_world_feeds.py to download them into this directory, which .gitignore keeps untracked. Only feeds whose catalog entry states a license are listed here. `sizeBytes` and `sha256` identify the snapshot retrieved on `retrievedOn` -- they record which bytes a parity number was taken against, and a fresh download is expected to differ."
 }

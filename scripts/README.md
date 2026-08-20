@@ -48,6 +48,27 @@ Golden tests compare validator output against expected reference files.
 | `golden_manifest.example.tsv` | Example TSV manifest format for golden tests. |
 | `expected_layout.example.txt` | Example expected output directory structure. |
 
+## Real-World Parity Feeds
+
+Five published feeds used for parity checks against the canonical validator.
+They are not committed -- `test-gtfs-feeds/real-world/manifest.json` keeps the
+link, license and snapshot SHA-256 for each, and this script turns those links
+back into files under `test-gtfs-feeds/real-world/`, which `.gitignore` keeps
+untracked.
+
+| Script | Description |
+|--------|-------------|
+| `fetch_real_world_feeds.py` | Downloads the feeds from the manifest links, verifies each against the recorded SHA-256, and reports upstream drift. `--check` verifies without network, `--list` prints the catalog, `--feed NAME` fetches one. |
+
+Publishers refresh these feeds continuously, so a download normally will *not*
+reproduce the recorded SHA-256; the script says so and records what it actually
+got in `fetched.json`. Pass `--require-frozen` to turn drift into a failure.
+
+`cargo test` skips the real-world checks when the feeds are absent, so a clean
+checkout stays green and offline. Set `GTFS_GURU_REQUIRE_REAL_WORLD=1` to make a
+missing feed a failure instead, and `GTFS_GURU_REAL_WORLD_DIR` to read them from
+somewhere other than `test-gtfs-feeds/real-world/`.
+
 ## Upstream Spec Watch
 
 Tracks the GTFS specification (`google/transit`) and the canonical validator

@@ -23,8 +23,10 @@ __pycache__/
 # Local test files
 /tmp/
 /benchmark-feeds/
-# Ignored so local scratch feeds stay out; the checked-in fixtures under it,
-# including real-world/, are tracked and were added with `git add -f`.
+# Ignored so local scratch feeds stay out; the checked-in fixtures under it are
+# tracked and were added with `git add -f`. The real-world/ feeds are the
+# exception: only their manifest is tracked, and the zips this rule keeps
+# untracked are fetched by scripts/fetch_real_world_feeds.py.
 /test-gtfs-feeds/
 /mobility-data-test-feeds/
 /expected-nl/
