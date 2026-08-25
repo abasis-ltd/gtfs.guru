@@ -48,6 +48,7 @@ See `docs/system-dependencies.md` for the package list.
 - Python bindings: `docs/agents/python.md`
 - Desktop GUI (Tauri): `docs/agents/gui.md`
 - Benchmarks and profiling: `docs/agents/benchmarks.md`
+- Generated artifacts and history cleanup: `docs/history-rewrite.md`
 - Upstream spec/validator watcher and the baseline protocol: `docs/spec-watch.md`
 
 ## Contribution Basics

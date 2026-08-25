@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Reject committed build outputs
+        run: python3 scripts/check_repository_artifacts.py
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

@@ -1748,6 +1748,20 @@ mod tests {
     }
 
     #[test]
+    fn embedded_validator_assets_are_present() {
+        for path in [
+            "pkg/gtfs_guru_wasm.js",
+            "pkg/gtfs_guru_wasm_bg.wasm",
+            "pkg/worker.js",
+            "pkg-mt/gtfs_guru_wasm.js",
+            "pkg-mt/gtfs_guru_wasm_bg.wasm",
+            "pkg-mt/worker-mt.js",
+        ] {
+            assert!(WEBSITE_DIR.get_file(path).is_some(), "missing {path}");
+        }
+    }
+
+    #[test]
     fn browser_proxy_rejects_cross_site_requests() {
         let mut headers = HeaderMap::new();
         headers.insert(

@@ -36,10 +36,16 @@ __pycache__/
 /verification_report*/
 /benchmark-java/
 /benchmark-rust/
+/cargo-flamegraph.trace/
+/dist/
+/web-app/bin/
 
-# wasm-pack multithreaded out-dir (pkg/ self-ignores via its own .gitignore;
-# build-wasm.sh strips that from pkg-mt so the website copies stay tracked)
+# Crate-local wasm-pack outputs duplicate the canonical browser packages under
+# website/. Those website copies stay tracked because gtfs-guru-web embeds them
+# at compile time and a clean cargo/Docker build must remain functional.
+crates/gtfs_validator_wasm/pkg/
 crates/gtfs_validator_wasm/pkg-mt/
+crates/gtfs_validator_wasm/pkg-node/
 
 # Tauri regenerates this on every Linux build
 crates/gtfs_validator_gui/gen/schemas/linux-schema.json

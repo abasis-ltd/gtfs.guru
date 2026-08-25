@@ -7,6 +7,9 @@ on:
       - 'website/**'
       - 'scripts/build_demo_feed.py'
       - 'scripts/check_website_links.py'
+      - 'scripts/check_repository_artifacts.py'
+      - 'scripts/check_repository_artifacts_test.py'
+      - '.gitignore'
       - '.github/workflows/website.yml'
   pull_request:
     branches: [ "main" ]
@@ -14,6 +17,9 @@ on:
       - 'website/**'
       - 'scripts/build_demo_feed.py'
       - 'scripts/check_website_links.py'
+      - 'scripts/check_repository_artifacts.py'
+      - 'scripts/check_repository_artifacts_test.py'
+      - '.gitignore'
       - '.github/workflows/website.yml'
 
 jobs:
@@ -22,6 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Reject committed build outputs
+        run: python3 scripts/check_repository_artifacts.py
+
+      - name: Test the repository artifact policy
+        run: python3 scripts/check_repository_artifacts_test.py
 
       - name: The demo feed matches its generator
         run: python3 scripts/build_demo_feed.py --check

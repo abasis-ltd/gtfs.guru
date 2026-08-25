@@ -8,10 +8,11 @@ Utility scripts for building, testing, and deploying the GTFS Validator.
 |--------|-------------|
 | `bootstrap.sh` | Creates the full project structure from scratch. Useful for onboarding new developers. |
 | `build-installers.sh` | Builds platform-specific installers (DMG, MSI, DEB) using Tauri. |
-| `build-wasm.sh` | Builds WASM packages for web and Node.js targets with wasm-pack. |
+| `build-wasm.sh` | Builds ignored crate-local WASM packages and refreshes the canonical browser assets embedded from `website/`. |
 | `deploy-to-hetzner.sh` | Deploys the validator to a Hetzner server via SSH + Docker Compose. |
 | `generate_all_icons.sh` | Generates all app icons (macOS, Windows, iOS, Android) from a source PNG. |
 | `check.sh` | Pre-commit checks: cargo fmt, clippy, and tests. |
+| `check_repository_artifacts.py` | Rejects tracked build, benchmark, profiling, and generated WASM outputs. |
 
 ## Benchmarking
 

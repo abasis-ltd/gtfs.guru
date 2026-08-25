@@ -1,0 +1,14 @@
+benchmark-java/
+benchmark-rust/
+cargo-flamegraph.trace/
+crates/gtfs_validator_wasm/pkg/
+crates/gtfs_validator_wasm/pkg-mt/
+crates/gtfs_validator_wasm/pkg-node/
+crates/gtfs_validator_web/website/pkg/
+crates/gtfs_validator_web/website/pkg-mt/
+output-guru-ny-optimized/
+output-java-nl/
+output_test/
+web-app/bin/
+website/pkg/
+website/pkg-mt/

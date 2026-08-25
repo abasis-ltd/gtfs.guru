@@ -13,9 +13,15 @@
   - Multi-threaded web package: `crates/gtfs_validator_wasm/pkg-mt/`
   - Node package: `crates/gtfs_validator_wasm/pkg-node/`
 - The script requires nightly Rust with the `rust-src` component for the
-  multi-threaded build and syncs both browser packages into both website copies.
+  multi-threaded build and syncs both browser packages into `website/`.
 - The script installs `wasm-pack` if missing and runs `wasm-opt` when available.
 - Extra JS and type definitions are copied from `crates/gtfs_validator_wasm/js/` and `types/`.
+- Crate-local `pkg`, `pkg-mt`, and `pkg-node` directories are generated and
+  ignored by Git. `website/pkg` and `website/pkg-mt` are the one canonical
+  tracked snapshot because `gtfs-guru-web` embeds `website/` at compile time;
+  a clean Cargo or Docker build therefore remains functional. Release CI runs
+  the same script before deployment and the repository policy rejects duplicate
+  package directories elsewhere.
 
 ## Manual Build
 

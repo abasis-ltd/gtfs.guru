@@ -112,14 +112,15 @@ if [ -f "$WASM_CRATE/package.json.template" ]; then
     mv "$WASM_CRATE/pkg/package.json.new" "$WASM_CRATE/pkg/package.json"
 fi
 
-# Keep the checked-in website aligned with the generated browser packages. The
-# Node.js package remains a library artifact only.
+# Refresh the single canonical browser-package snapshot embedded by
+# gtfs-guru-web and deployed as the static website. Crate-local wasm-pack output
+# stays ignored; only website/pkg and website/pkg-mt are tracked. Remove the old
+# tree first so dependency or package layout changes cannot leave stale files.
 echo "Syncing browser packages to website/..."
 WEBSITE_ROOT="$PROJECT_ROOT/website"
+rm -rf "$WEBSITE_ROOT/pkg" "$WEBSITE_ROOT/pkg-mt"
 mkdir -p "$WEBSITE_ROOT/pkg" "$WEBSITE_ROOT/pkg-mt"
 cp -R "$WASM_CRATE/pkg/." "$WEBSITE_ROOT/pkg/"
-# Deliberately exclude wasm-pack's generated .gitignore: these static-site
-# artifacts must be visible to Git.
 cp -R "$WASM_CRATE/pkg-mt/"* "$WEBSITE_ROOT/pkg-mt/"
 
 echo "Generating notice documentation..."
