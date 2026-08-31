@@ -11,8 +11,6 @@
 [![Crates.io](https://img.shields.io/crates/v/gtfs-guru.svg)](https://crates.io/crates/gtfs-guru)
 [![PyPI](https://img.shields.io/pypi/v/gtfs-guru.svg)](https://pypi.org/project/gtfs-guru/)
 
-[Try it in your browser](https://gtfs.guru) · [Documentation](https://abasis-ltd.github.io/gtfs.guru/) · [Download](https://github.com/abasis-ltd/gtfs.guru/releases/latest)
-
 </div>
 
 ---
@@ -26,6 +24,25 @@ schedules, routes, stops, fares, and shapes, in seconds, on your own machine.
 > We rebuilt the validation logic from the ground up in Rust for speed, privacy,
 > and portability. The report shape and notice codes are closely compatible; the
 > rule sets are not identical.
+
+## Table of contents
+
+- 🚀 [Getting Started](#getting-started)
+- ⭐ [Why GTFS Guru](#why-gtfs-guru)
+- ⚙️ [Installation](#installation)
+- 📝 [Usage Examples](#usage-examples)
+- ⚡ [Performance](#performance)
+- 📕 [Documentation](#documentation)
+- 🔎 [Contributing](#contributing)
+- 📜 [License](#license)
+
+## Getting Started
+
+[Try it in your browser](https://gtfs.guru)
+
+[Documentation](https://abasis-ltd.github.io/gtfs.guru/)
+
+[Download](https://github.com/abasis-ltd/gtfs.guru/releases/latest)
 
 ## Why GTFS Guru?
 
@@ -45,7 +62,7 @@ schedules, routes, stops, fares, and shapes, in seconds, on your own machine.
 | **Browser** | Server-side only | Browser-native (WASM) |
 | **CI output** | — | SARIF + JSON/HTML + badges |
 
-## Install
+## Installation
 
 **Desktop app** — download the installer for macOS, Windows, or Linux from the
 [releases page](https://github.com/abasis-ltd/gtfs.guru/releases/latest), then
@@ -73,7 +90,7 @@ Also available with `cargo install gtfs-guru`. Every platform archive, the
 installer's environment variables, and building from source are in the
 [installation guide](docs/installation.md).
 
-## Quick start
+## Usage Examples
 
 ```bash
 # Validate a feed; writes report.json, report.html, and system_errors.json
