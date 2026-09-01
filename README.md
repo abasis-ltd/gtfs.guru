@@ -31,6 +31,9 @@ schedules, routes, stops, fares, and shapes, in seconds, on your own machine.
 - ⭐ [Why GTFS Guru](#why-gtfs-guru)
 - ⚙️ [Installation](#installation)
 - 📝 [Usage Examples](#usage-examples)
+  - [CLI](#cli)
+  - 🖥️ [Desktop](#desktop)
+  - 🌐 [Web](#web)
 - ⚡ [Performance](#performance)
 - 📕 [Documentation](#documentation)
 - 🔎 [Contributing](#contributing)
@@ -92,6 +95,8 @@ installer's environment variables, and building from source are in the
 
 ## Usage Examples
 
+### CLI
+
 ```bash
 # Validate a feed; writes report.json, report.html, and system_errors.json
 gtfs-guru -i gtfs.zip -o ./report
@@ -129,6 +134,14 @@ Validate on every push with the bundled GitHub Action:
 ```
 
 Full option list, subcommands, badges, and CI recipes: [**usage guide**](docs/usage.md).
+
+### Desktop
+
+![Desktop scan complete](images/desktop-scan-complete.jpeg)
+
+### Web
+
+![Web scan complete](images/web-scan-complete.jpeg)
 
 ## Performance
 
