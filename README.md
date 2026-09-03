@@ -225,6 +225,7 @@ flowchart TD
         model --> core
         core --> profile
         core --> report
+        model --> profile
         model --> report
     end
 
@@ -236,10 +237,13 @@ flowchart TD
     engine --> mcp["gtfs-guru-mcp<br/><i>MCP server for LLM clients</i>"]
 ```
 
+Each surface links only the engine crates it needs, not all four — the exact
+per-crate dependencies, and the directory each crate lives in, are in
+[CONTRIBUTING.md](CONTRIBUTING.md#project-layout).
+
 Rust throughout, with Tauri for the desktop shell, `wasm-bindgen` (and rayon
 where the browser allows threads) for the WebAssembly build, and PyO3 for the
-Python extension. Crate layout and the review workflow are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Python extension.
 
 ## Documentation
 

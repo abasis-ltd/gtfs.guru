@@ -74,36 +74,59 @@ See [`docs/system-dependencies.md`](docs/system-dependencies.md) for the package
 
 ### Project layout
 
-This monorepo houses the whole ecosystem. `gtfs_validator_core` is the
-validation engine; every front-end is a thin wrapper around it and
-`gtfs_validator_report`:
+This monorepo houses the whole ecosystem. `gtfs-guru-core` is the validation
+engine; every front-end is a thin wrapper around it and `gtfs-guru-report`.
+The graph and the table below use crate names; the directories they live in are
+named differently, for historical reasons.
+
+Every direct dependency between workspace crates, as declared in the
+`Cargo.toml` files:
 
 ```mermaid
 graph LR
-    model["gtfs_model<br/>shared GTFS types"] --> core["gtfs_validator_core<br/>110 validators"]
-    core --> report["gtfs_validator_report<br/>JSON · HTML · SARIF"]
-    core --> profile["gtfs_validator_profile<br/>deterministic feed facts"]
-    report --> cli["gtfs_validator_cli<br/>gtfs-guru binary"]
+    model["gtfs-guru-model<br/>shared GTFS types"]
+    core["gtfs-guru-core<br/>110 validators"]
+    report["gtfs-guru-report<br/>JSON · HTML · SARIF"]
+    profile["gtfs-guru-profile<br/>deterministic feed facts"]
+
+    model --> core
+    model --> report
+    model --> profile
+    core --> report
+    core --> profile
+
+    core --> cli["gtfs-guru<br/>CLI binary"]
+    report --> cli
     profile --> cli
-    profile --> mcp["gtfs_validator_mcp<br/>MCP server"]
-    report --> web["gtfs_validator_web<br/>Axum API server"]
-    report --> gui["gtfs_validator_gui<br/>Tauri desktop app"]
-    report --> wasm["gtfs_validator_wasm<br/>browser bindings"]
-    report --> python["gtfs_validator_python<br/>PyO3 bindings"]
+
+    core --> mcp["gtfs-guru-mcp<br/>MCP server"]
+    profile --> mcp
+
+    core --> web["gtfs-guru-web<br/>Axum API server"]
+    report --> web
+
+    core --> gui["gtfs-guru-gui<br/>Tauri desktop app"]
+    report --> gui
+
+    core --> wasm["gtfs-guru-wasm<br/>browser bindings"]
+    report --> wasm
+
+    core --> python["gtfs-guru-python<br/>PyO3 bindings"]
+    report --> python
 ```
 
-| Crate | Role |
-| --- | --- |
-| [`crates/gtfs_model`](crates/gtfs_model) | Shared GTFS data model types |
-| [`crates/gtfs_validator_core`](crates/gtfs_validator_core) | The validation engine (110 validators) |
-| [`crates/gtfs_validator_report`](crates/gtfs_validator_report) | Report generation (JSON / HTML / SARIF) |
-| [`crates/gtfs_validator_profile`](crates/gtfs_validator_profile) | Deterministic feed facts behind `profile` and `explain` |
-| [`crates/gtfs_validator_cli`](crates/gtfs_validator_cli) | The `gtfs-guru` command-line tool |
-| [`crates/gtfs_validator_mcp`](crates/gtfs_validator_mcp) | Read-only MCP server for LLM clients |
-| [`crates/gtfs_validator_web`](crates/gtfs_validator_web) | Web API service (Axum) |
-| [`crates/gtfs_validator_gui`](crates/gtfs_validator_gui) | Desktop application (Tauri) |
-| [`crates/gtfs_validator_python`](crates/gtfs_validator_python) | Python bindings (PyO3 / Maturin) |
-| [`crates/gtfs_validator_wasm`](crates/gtfs_validator_wasm) | WebAssembly bindings for the browser |
+| Crate | Directory | Role |
+| --- | --- | --- |
+| `gtfs-guru-model` | [`crates/gtfs_model`](crates/gtfs_model) | Shared GTFS data model types |
+| `gtfs-guru-core` | [`crates/gtfs_validator_core`](crates/gtfs_validator_core) | The validation engine (110 validators) |
+| `gtfs-guru-report` | [`crates/gtfs_validator_report`](crates/gtfs_validator_report) | Report generation (JSON / HTML / SARIF) |
+| `gtfs-guru-profile` | [`crates/gtfs_validator_profile`](crates/gtfs_validator_profile) | Deterministic feed facts behind `profile` and `explain` |
+| `gtfs-guru` | [`crates/gtfs_validator_cli`](crates/gtfs_validator_cli) | The `gtfs-guru` command-line tool |
+| `gtfs-guru-mcp` | [`crates/gtfs_validator_mcp`](crates/gtfs_validator_mcp) | Read-only MCP server for LLM clients |
+| `gtfs-guru-web` | [`crates/gtfs_validator_web`](crates/gtfs_validator_web) | Web API service (Axum) |
+| `gtfs-guru-gui` | [`crates/gtfs_validator_gui`](crates/gtfs_validator_gui) | Desktop application (Tauri) |
+| `gtfs-guru-python` | [`crates/gtfs_validator_python`](crates/gtfs_validator_python) | Python bindings (PyO3 / Maturin) |
+| `gtfs-guru-wasm` | [`crates/gtfs_validator_wasm`](crates/gtfs_validator_wasm) | WebAssembly bindings for the browser |
 
 ### Building
 
