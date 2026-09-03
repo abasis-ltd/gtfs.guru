@@ -11,6 +11,8 @@
 [![Crates.io](https://img.shields.io/crates/v/gtfs-guru.svg)](https://crates.io/crates/gtfs-guru)
 [![PyPI](https://img.shields.io/pypi/v/gtfs-guru.svg)](https://pypi.org/project/gtfs-guru/)
 
+[Try it in your browser](https://gtfs.guru) · [Documentation](https://abasis-ltd.github.io/gtfs.guru/) · [Download](https://github.com/abasis-ltd/gtfs.guru/releases/latest)
+
 </div>
 
 ---
@@ -27,26 +29,20 @@ schedules, routes, stops, fares, and shapes, in seconds, on your own machine.
 
 ## Table of contents
 
-- 🚀 [Getting Started](#getting-started)
 - ⭐ [Why GTFS Guru](#why-gtfs-guru)
 - ⚙️ [Installation](#installation)
-- 📝 [Usage Examples](#usage-examples)
-  - [CLI](#cli)
-  - 🖥️ [Desktop](#desktop)
+- 📝 [Usage](#usage)
+  - ⌨️ [Command line](#command-line)
+  - 🐍 [Python](#python)
+  - 🖥️ [Desktop app](#desktop-app)
+  - 🌐 [Browser](#browser)
   - 🤖 [MCP server](#mcp-server)
-  - 🌐 [Web](#web)
+  - 🔁 [Continuous integration](#continuous-integration)
 - ⚡ [Performance](#performance)
+- 🧩 [How the pieces fit](#how-the-pieces-fit)
 - 📕 [Documentation](#documentation)
 - 🔎 [Contributing](#contributing)
 - 📜 [License](#license)
-
-## Getting Started
-
-[Try it in your browser](https://gtfs.guru)
-
-[Documentation](https://abasis-ltd.github.io/gtfs.guru/)
-
-[Download](https://github.com/abasis-ltd/gtfs.guru/releases/latest)
 
 ## Why GTFS Guru?
 
@@ -94,9 +90,12 @@ Also available with `cargo install gtfs-guru`. Every platform archive, the
 installer's environment variables, and building from source are in the
 [installation guide](docs/installation.md).
 
-## Usage Examples
+## Usage
 
-### CLI
+Every surface below runs the same Rust engine and emits the same notice codes,
+so a feed that passes in CI passes in the desktop app.
+
+### Command line
 
 ```bash
 # Validate a feed; writes report.json, report.html, and system_errors.json
@@ -116,13 +115,73 @@ gtfs-guru -i gtfs.zip -o ./report --fix
 gtfs-guru diff old.zip new.zip --fail-on-new-errors
 ```
 
+Full option list, subcommands, badges, and CI recipes: [**usage guide**](docs/usage.md).
+
+### Python
+
+A native extension rather than a subprocess wrapper, for notebooks and ETL
+pipelines:
+
 ```python
 import gtfs_guru
 
 report = gtfs_guru.validate("gtfs.zip")
 print(f"Valid: {report.is_valid}, notices: {len(report.notices)}")
 report.save_html("validation_report.html")
+
+for notice in report.notices:
+    if notice.severity == "ERROR":
+        print(notice.code, notice.message)
 ```
+
+Every attribute of the report object: [**Python API**](docs/python_api.md).
+
+### Desktop app
+
+Drag a `gtfs.zip` onto the window and read the result — no command line, no
+upload. Errors that carry coordinates are plotted, so a stop placed far from
+its shape is visible rather than merely counted.
+
+![The desktop app after validating a feed: error, warning, and info counts, buttons for the HTML and JSON reports, and a map plotting a stop against the closest point on its shape](images/desktop-scan-complete.jpeg)
+
+Installers for macOS, Windows, and Linux are on the
+[releases page](https://github.com/abasis-ltd/gtfs.guru/releases/latest).
+
+### Browser
+
+[gtfs.guru](https://gtfs.guru) runs the validator as WebAssembly inside the
+tab. The feed is never uploaded — nothing to send, nothing to store — and the
+same page also compares two feeds against each other.
+
+![The browser validator showing a completed scan with error and warning counts, and a preview of the notices an MCP client would receive](images/web-scan-complete.jpeg)
+
+How the WASM build works, and how to embed it: [**browser guide**](docs/wasm.md).
+
+### MCP server
+
+`gtfs-guru-mcp` lets an LLM client validate feeds itself and answer questions
+about the result, with concrete rows and IDs rather than only counts.
+
+![An AI agent asked to validate a feed, answering with the error and warning tables the MCP server returned](images/mcp-explained.jpeg)
+
+Install it with `cargo install gtfs-guru-mcp` (or take the archive from the
+[releases page](https://github.com/abasis-ltd/gtfs.guru/releases/latest)), then
+point your client at the directory holding your feeds:
+
+```json
+{
+  "mcpServers": {
+    "gtfs-guru": {
+      "command": "gtfs-guru-mcp",
+      "args": ["--allow-dir", "/path/to/feeds"]
+    }
+  }
+}
+```
+
+The tool list, the HTTP mode, and the token setup: [**LLM guide**](docs/llm.md).
+
+### Continuous integration
 
 Validate on every push with the bundled GitHub Action:
 
@@ -134,19 +193,9 @@ Validate on every push with the bundled GitHub Action:
     fail-on: error
 ```
 
-Full option list, subcommands, badges, and CI recipes: [**usage guide**](docs/usage.md).
-
-### Desktop
-
-![Desktop scan complete](images/desktop-scan-complete.jpeg)
-
-### MCP server
-
-![Errors and warnings explained by an AI agent using an MCP server](images/mcp-explained.jpeg)
-
-### Web
-
-![Web scan complete](images/web-scan-complete.jpeg)
+It fails the job on errors, writes JSON and HTML reports into the output
+directory, pushes SARIF to GitHub code scanning, and can emit a status badge
+for your README.
 
 ## Performance
 
@@ -158,6 +207,39 @@ Apple M3 Pro, warm page cache, each tool writing its normal report files:
 | OVapi NL | 16.0M | **9.75 s** | 21.66 s | 65.18 s |
 
 Setup, caveats, and commands to reproduce: [**benchmarks**](docs/benchmarks.md).
+
+## How the pieces fit
+
+One validation engine, one report layer, and a thin adapter per surface. The
+adapters share the rule set and the notice codes; none of them reimplements
+validation.
+
+```mermaid
+flowchart TD
+    subgraph engine["Shared engine"]
+        direction LR
+        model["gtfs-guru-model<br/><i>feed types, string pool</i>"]
+        core["gtfs-guru-core<br/><i>loading + 110 validators</i>"]
+        profile["gtfs-guru-profile<br/><i>feed statistics</i>"]
+        report["gtfs-guru-report<br/><i>JSON · HTML · SARIF</i>"]
+        model --> core
+        core --> profile
+        core --> report
+        model --> report
+    end
+
+    engine --> cli["gtfs-guru<br/><i>CLI · GitHub Action</i>"]
+    engine --> gui["gtfs-guru-gui<br/><i>desktop app · Tauri</i>"]
+    engine --> wasm["gtfs-guru-wasm<br/><i>browser · WebAssembly</i>"]
+    engine --> web["gtfs-guru-web<br/><i>HTTP service</i>"]
+    engine --> python["gtfs-guru-python<br/><i>pip install · PyO3</i>"]
+    engine --> mcp["gtfs-guru-mcp<br/><i>MCP server for LLM clients</i>"]
+```
+
+Rust throughout, with Tauri for the desktop shell, `wasm-bindgen` (and rayon
+where the browser allows threads) for the WebAssembly build, and PyO3 for the
+Python extension. Crate layout and the review workflow are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation
 
