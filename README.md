@@ -33,6 +33,7 @@ schedules, routes, stops, fares, and shapes, in seconds, on your own machine.
 - 📝 [Usage Examples](#usage-examples)
   - [CLI](#cli)
   - 🖥️ [Desktop](#desktop)
+  - 🤖 [MCP server](#mcp-server)
   - 🌐 [Web](#web)
 - ⚡ [Performance](#performance)
 - 📕 [Documentation](#documentation)
@@ -138,6 +139,10 @@ Full option list, subcommands, badges, and CI recipes: [**usage guide**](docs/us
 ### Desktop
 
 ![Desktop scan complete](images/desktop-scan-complete.jpeg)
+
+### MCP server
+
+![Errors and warnings explained by an AI agent using an MCP server](images/mcp-explained.jpeg)
 
 ### Web
 
