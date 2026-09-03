@@ -19,6 +19,18 @@
 const MAX_FILE_SIZE_BYTES = 150 * 1024 * 1024;
 const MAX_UNCOMPRESSED_BYTES = 700 * 1024 * 1024;
 
+// A worker that dies mid-run is only credibly out of memory once the feed is
+// substantial: wasm32 does not exhaust its heap on a few megabytes. Below this
+// unpacked size a dead worker is a broken build, a failed module import, or a
+// panic, and is reported as such instead of being blamed on the feed's size.
+const OOM_PLAUSIBLE_RAW_BYTES = 64 * 1024 * 1024;
+
+// postMessage transfers (and detaches) the feed buffer, so retrying a crashed
+// run needs a second copy. Keep one for feeds small enough that the duplicate
+// costs nothing; larger feeds are exactly the ones where doubling memory would
+// cause the failure we are trying to survive.
+const RETRY_COPY_LIMIT_BYTES = 32 * 1024 * 1024;
+
 // Multithreaded (wasm threads) validation: ~5x faster on large feeds. Only
 // engages on cross-origin-isolated pages (COOP/COEP headers set server-side);
 // everything else falls back to the single-threaded worker automatically.
@@ -128,13 +140,53 @@ function getValidatorWorker() {
             rejectReady(new Error('__WORKER_UNAVAILABLE__'));
             if (p) p.reject(new Error('__WORKER_UNAVAILABLE__'));
         } else {
-            // It was running and died — almost always a hard OOM on a big feed.
-            if (p) p.reject(new Error('__OOM__'));
+            // It was running and died. A large feed really can exhaust the wasm
+            // heap, but so can a missing module import or a panic on a
+            // three-line feed, and calling all of those "too large" sends
+            // people hunting a size problem they do not have. Decide from the
+            // size actually submitted, and keep what the browser reported.
+            const detail = describeWorkerError(e, tier.name);
+            const outOfMemory = p ? looksLikeMemoryExhaustion(p) : false;
+            console.error(`Validator worker stopped (${detail})`);
+            if (!outOfMemory) {
+                // Not a memory problem, so this tier is broken rather than
+                // overloaded: step down to the next one, and once they are
+                // exhausted let validation fall back to the main thread.
+                if (workerTierIndex < WORKER_TIERS.length - 1) {
+                    workerTierIndex++;
+                } else {
+                    workerUsable = false;
+                }
+            }
+            if (p) {
+                const err = new Error(outOfMemory ? '__OOM__' : '__WORKER_CRASHED__');
+                err.detail = detail;
+                p.reject(err);
+            }
         }
     };
 
     validatorWorker = worker;
     return worker;
+}
+
+// What the browser could tell us about a worker that died. ErrorEvent from a
+// module worker is often bare (a failed import reports nothing but the event),
+// so say that explicitly rather than rendering "undefined".
+function describeWorkerError(event, tierName) {
+    const parts = [];
+    if (event && event.message) parts.push(event.message);
+    if (event && event.filename) parts.push(`${event.filename}:${event.lineno || 0}`);
+    return `${tierName} tier: ${parts.join(' ') ||
+        'no detail from the browser, which usually means the worker module or its WASM failed to load'}`;
+}
+
+// Could this run plausibly have exhausted the wasm heap?
+function looksLikeMemoryExhaustion({ rawBytes, zipBytes }) {
+    // Fall back to a conservative expansion factor when the central directory
+    // could not be read, so an unreadable zip is never called "too large".
+    const unpacked = typeof rawBytes === 'number' ? rawBytes : (zipBytes || 0) * 5;
+    return unpacked > OOM_PLAUSIBLE_RAW_BYTES;
 }
 
 // ---- Stops index for the error map ----
@@ -535,9 +587,13 @@ async function validateInWorker(arrayBuffer, dateStr) {
         workerReadyPromise,
         new Promise((_, rej) => setTimeout(() => rej(new Error('__WORKER_UNAVAILABLE__')), 10000)),
     ]);
+    // Read the sizes while the buffer is still ours: if the worker dies, they
+    // are the only evidence left for telling memory exhaustion from a crash.
+    const zipBytes = arrayBuffer.byteLength;
+    const rawBytes = sumUncompressedBytes(arrayBuffer);
     return new Promise((resolve, reject) => {
         const id = nextMsgId++;
-        pendingValidation = { id, resolve, reject };
+        pendingValidation = { id, resolve, reject, zipBytes, rawBytes };
         // Transfer (not copy) the ArrayBuffer — feeds can be up to 150 MB.
         validatorWorker.postMessage(
             { type: 'validate', id, payload: { zipBytes: arrayBuffer, date: dateStr } },
@@ -569,9 +625,14 @@ async function diffInWorker(oldArrayBuffer, newArrayBuffer, dateStr) {
         new Promise((_, reject) =>
             setTimeout(() => reject(new Error('__WORKER_UNAVAILABLE__')), 10000)),
     ]);
+    // Both feeds are resident at once, so the memory question is their sum.
+    const zipBytes = oldArrayBuffer.byteLength + newArrayBuffer.byteLength;
+    const oldRaw = sumUncompressedBytes(oldArrayBuffer);
+    const newRaw = sumUncompressedBytes(newArrayBuffer);
+    const rawBytes = oldRaw === null || newRaw === null ? null : oldRaw + newRaw;
     return new Promise((resolve, reject) => {
         const id = nextMsgId++;
-        pendingValidation = { id, resolve, reject };
+        pendingValidation = { id, resolve, reject, zipBytes, rawBytes };
         validatorWorker.postMessage(
             {
                 type: 'diff',
@@ -614,15 +675,26 @@ async function diffFeeds(oldArrayBuffer, newArrayBuffer, dateStr) {
     return diffOnMainThread(oldArrayBuffer, newArrayBuffer, dateStr);
 }
 
-// Validate via the worker, transparently falling back to the main thread if the
-// worker can't be loaded. A mid-validation OOM ('__OOM__') is NOT retried.
+// Validate via the worker, transparently falling back to the next tier and
+// finally to the main thread if the worker can't be loaded or dies on a feed
+// too small to have exhausted memory. A genuine OOM ('__OOM__') is NOT retried:
+// the same feed would only exhaust the heap again.
 async function validateFeed(arrayBuffer, dateStr) {
     if (workerUsable) {
+        const retryCopy = arrayBuffer.byteLength <= RETRY_COPY_LIMIT_BYTES
+            ? arrayBuffer.slice(0)
+            : null;
         try {
             return await validateInWorker(arrayBuffer, dateStr);
         } catch (err) {
-            if (err && err.message === '__WORKER_UNAVAILABLE__') {
+            const code = err && err.message;
+            if (code === '__WORKER_UNAVAILABLE__') {
                 // fall through to main-thread validation with the intact buffer
+            } else if (code === '__WORKER_CRASHED__' && retryCopy) {
+                // The tier was stepped down (or workers were given up on) as
+                // the worker died, so this retry lands somewhere else.
+                console.warn(`Retrying validation after a worker crash — ${err.detail}`);
+                return validateFeed(retryCopy, dateStr);
             } else {
                 throw err;
             }
@@ -1209,7 +1281,10 @@ Download the .zip and drop it here instead; validation still runs locally in you
             console.error('Feed comparison error:', err);
             const message = err?.message === '__OOM__'
                 ? 'These feeds were too large to compare in this browser. Use the desktop app or CLI.'
-                : (err?.message || 'Could not compare these feeds.');
+                : err?.message === '__WORKER_CRASHED__'
+                    ? 'The in-browser comparison failed to run on this page — this is a problem with the site, ' +
+                      `not with your feeds. Reload to try again, or use the desktop app or CLI. Details: ${err.detail}`
+                    : (err?.message || 'Could not compare these feeds.');
             showValidationError(message);
         }
     }
@@ -1506,6 +1581,14 @@ Download the .zip and drop it here instead; validation still runs locally in you
                 showValidationError(
                     "This feed was too large to validate in the browser on this device. " +
                     "Try a Chrome/Firefox-based desktop browser, or use the free desktop app or CLI for large feeds."
+                );
+                return;
+            }
+            if (err && err.message === '__WORKER_CRASHED__') {
+                showValidationError(
+                    "The in-browser validator failed to run on this page — this is a problem with the site, " +
+                    "not with your feed. Reload to try again, or use the free desktop app or CLI. " +
+                    `Details for a bug report: ${err.detail}`
                 );
                 return;
             }

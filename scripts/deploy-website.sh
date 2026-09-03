@@ -50,5 +50,16 @@ rsync -az \
 ssh "$SERVER" "rm -f -- ~/gtfs-guru-web/Dockerfile ~/gtfs-guru-web/nginx.conf"
 
 log_info "Website files copied successfully!"
+
+# 2. Confirm the live site is really serving what we just pushed. rsync runs
+# without --delete and the deploy is manual, so "it copied without an error" is
+# not evidence that the browser validator works: a stale script.js next to a
+# fresh pkg/ is exactly how every feed came to be reported as "too large".
+log_step "Verifying the deployed site..."
+if ! python3 "$SCRIPT_DIR/check_deployed_site.py" --base-url "${VERIFY_URL:-https://gtfs.guru}"; then
+    log_error "The live site is not serving these files. The deploy is not finished."
+    exit 1
+fi
+
 echo ""
-echo "✅ Deployment complete! Refresh your browser to see changes."
+echo "✅ Deployment complete and verified! Refresh your browser to see changes."
