@@ -17,22 +17,25 @@ import init, {
   initThreadPool,
 } from './gtfs_guru_wasm.js';
 
-let initialized = false;
+let initializationPromise;
 
 // Cap the pool: beyond ~8 workers the marginal gain fades while per-thread
 // stack memory keeps growing, which matters for large feeds in wasm32.
 const MAX_THREADS = 8;
 
-async function ensureInitialized() {
-  if (initialized) return;
-  await init();
-  const threads = Math.max(
-    1,
-    Math.min(MAX_THREADS, self.navigator?.hardwareConcurrency || 4),
-  );
-  // Must run before any rayon parallel iterator, or the first one panics.
-  await initThreadPool(threads);
-  initialized = true;
+function ensureInitialized() {
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      await init();
+      const threads = Math.max(
+        1,
+        Math.min(MAX_THREADS, self.navigator?.hardwareConcurrency || 4),
+      );
+      // Must run before any rayon parallel iterator, or the first one panics.
+      await initThreadPool(threads);
+    })();
+  }
+  return initializationPromise;
 }
 
 self.onmessage = async (event) => {
@@ -113,6 +116,13 @@ self.onmessage = async (event) => {
   }
 };
 
-// Signal that the worker is ready (module loaded). Note: the thread pool is
-// initialized lazily on the first 'validate' message, not here.
-self.postMessage({ type: 'ready' });
+// Initialize eagerly and only claim readiness once the module and its rayon
+// pool can actually validate. Announcing readiness at module load hid every
+// startup failure until the first feed arrived, where a dead worker is
+// indistinguishable from one that ran out of memory on a large feed.
+ensureInitialized()
+  .then(() => self.postMessage({ type: 'ready', payload: { runtime: 'multi-threaded' } }))
+  .catch((error) => self.postMessage({
+    type: 'error',
+    payload: error instanceof Error ? error.message : String(error),
+  }));
