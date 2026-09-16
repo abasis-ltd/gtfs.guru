@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix unused_trip in GTFS | GTFS Guru</title>
-  <meta name="description" content="Trip is not be used in stop_times.txt What the unused_trip notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A trip has no stop-time records What the unused_trip notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/unused_trip/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix unused_trip in GTFS | GTFS Guru">
-  <meta property="og:description" content="Trip is not be used in stop_times.txt What the unused_trip notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A trip has no stop-time records What the unused_trip notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/unused_trip/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/unused_trip/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice unused_trip"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Trip is not be used in stop_times.txt What the unused_trip notice means, the files and fields it points at, and how to repair the feed.","headline":"Trip is not be used in stop_times.txt","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/unused_trip/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/unused_trip/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/unused_trip/","name":"unused_trip","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/unused_trip/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice unused_trip"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A trip has no stop-time records What the unused_trip notice means, the files and fields it points at, and how to repair the feed.","headline":"A trip has no stop-time records","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/unused_trip/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/unused_trip/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/unused_trip/","name":"unused_trip","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>Trip is not be used in stop_times.txt</h1>
+      <h1>A trip has no stop-time records</h1>
       <div class="code-line">
         <code id="notice-code">unused_trip</code>
         <button class="copy-button" type="button" data-copy="unused_trip">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>2</dd></div>
+        <div><dt>Files to check</dt><dd>2</dd></div>
         <div><dt>Report fields</dt><dd>2</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Trips should be referred to at least once in <code>stop_times.txt</code>.</p>
+          <p>The trip exists in <code>trips.txt</code> but is not referenced in <code>stop_times.txt</code>.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>The feed cannot describe its passenger journey.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#tripstxt"><code>trips.txt</code><span>Open GTFS specification</span></a></li>
@@ -87,11 +87,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>unused_trip</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Search <code>stop_times.txt</code> for the exact <code>trip_id</code> and check the source export for missing records.</p></div></li>
+            <li><span>2</span><div><p>Restore the trip&#39;s real stop sequence, times, or flexible-service records. If the trip is obsolete, remove it and update any frequency or transfer references.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -108,10 +107,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/duplicate_trip/"><code>duplicate_trip</code><span>Two or more trips have the same route, service, and stop times.</span></a>
-            <a href="/notices/trip_distance_exceeds_shape_distance_below_threshold/"><code>trip_distance_exceeds_shape_distance_below_threshold</code><span>The distance between the last shape point and last stop point is greater than 0 but less than the 11.1m threshold.</span></a>
-            <a href="/notices/unusable_trip/"><code>unusable_trip</code><span>Trips must have more than one stop to be usable.</span></a>
-            <a href="/notices/trip_distance_exceeds_shape_distance/"><code>trip_distance_exceeds_shape_distance</code><span>The distance between the last shape point and last stop point is greater than or equal to the 11.1m threshold.</span></a>
+            <a href="/notices/duplicate_trip/"><code>duplicate_trip</code><span>Two records describe the same scheduled trip</span></a>
+            <a href="/notices/trip_distance_exceeds_shape_distance_below_threshold/"><code>trip_distance_exceeds_shape_distance_below_threshold</code><span>The stop distance exceeds the shape despite nearby endpoints</span></a>
+            <a href="/notices/unusable_trip/"><code>unusable_trip</code><span>A trip has too few stops for a passenger journey</span></a>
+            <a href="/notices/trip_distance_exceeds_shape_distance/"><code>trip_distance_exceeds_shape_distance</code><span>The last stop&#39;s distance goes beyond the shape</span></a>
           </div>
         </section>
       </article>

@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix invalid_time in GTFS | GTFS Guru</title>
-  <meta name="description" content="A field cannot be parsed as time. What the invalid_time notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A time is not in GTFS format What the invalid_time notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/invalid_time/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix invalid_time in GTFS | GTFS Guru">
-  <meta property="og:description" content="A field cannot be parsed as time. What the invalid_time notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A time is not in GTFS format What the invalid_time notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/invalid_time/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/invalid_time/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice invalid_time"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A field cannot be parsed as time. What the invalid_time notice means, the files and fields it points at, and how to repair the feed.","headline":"A field cannot be parsed as time.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/invalid_time/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/invalid_time/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/invalid_time/","name":"invalid_time","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/invalid_time/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice invalid_time"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A time is not in GTFS format What the invalid_time notice means, the files and fields it points at, and how to repair the feed.","headline":"A time is not in GTFS format","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/invalid_time/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/invalid_time/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/invalid_time/","name":"invalid_time","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>A field cannot be parsed as time.</h1>
+      <h1>A time is not in GTFS format</h1>
       <div class="code-line">
         <code id="notice-code">invalid_time</code>
         <button class="copy-button" type="button" data-copy="invalid_time">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>0</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,9 +56,7 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -66,74 +64,48 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Time must be in the <code>H:MM:SS</code>, <code>HH:MM:SS</code> or <code>HHH:MM:SS</code> format.</p>
-<p>Example: <code>14:30:00</code> for 2:30PM or <code>25:35:00</code> for 1:35AM on the next day.</p>
+          <p>The reported value cannot be read as hours, minutes, and seconds.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The value is not a GTFS time, so the arrival or departure it represents cannot be read. Consumers drop the stop time or the whole trip, which removes service from the feed.</p>
+          <p>The trip or time interval cannot be interpreted reliably.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td colspan="3">This notice has no structured context fields.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>A spreadsheet reformatted the column as a time or a duration and wrote <code>8:00 AM</code>, <code>08:00</code> or a decimal fraction of a day.</li>
-            <li>Seconds omitted: <code>14:30</code> instead of <code>14:30:00</code>.</li>
-            <li>Trips running past midnight written as <code>00:20:00</code>, which places them at the start of the same service day instead of after it.</li>
-            <li>A locale that uses a comma or a dot as the separator instead of a colon.</li>
-          </ul>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Write times as `HH:MM:SS` on a 24-hour clock, counted from noon minus twelve hours of the service day. Times after midnight on a service that started the previous day continue past 24 — a trip leaving at 1:35 the next morning is `25:35:00`, not `01:35:00`.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stop_times.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>invalid_time</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Check the intended time and the rules for the reported field.</p></div></li>
+            <li><span>2</span><div><p>Use a value such as <code>08:05:00</code>. In <code>stop_times.txt</code>, a next-day time in the same service day can be <code>25:05:00</code>; do not wrap it to <code>01:05:00</code>. Other files, including <code>timeframes.txt</code>, have different limits.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not convert a past-midnight time to <code>00:20:00</code> to make it look valid. That is a syntactically correct time twenty-four hours away from the trip it belongs to, and it will reorder the trip&#39;s stops.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,11:55 PM,11:55 PM,S1,1
-T1,12:20,12:20,S2,2</code></pre></div>
-            <div><h3>After</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,23:55:00,23:55:00,S1,1
-T1,24:20:00,24:20:00,S2,2</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for <code>stop_times.txt</code>; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#invalid_time-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#field-types"><strong>GTFS Schedule Reference — Field Types</strong><span>Official GTFS documentation</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Decreasing or equal shape_dist_traveled in stop_times.txt.</span></a>
-            <a href="/notices/forbidden_arrival_or_departure_time/"><code>forbidden_arrival_or_departure_time</code><span>The arrival or departure times are provided alongside pickup or drop-off windows in stop_times.txt.</span></a>
-            <a href="/notices/forbidden_prior_notice_start_time/"><code>forbidden_prior_notice_start_time</code><span>prior_notice_start_time value is forbidden when prior_notice_start_day value is not set in booking_rules.txt.</span></a>
-            <a href="/notices/forbidden_real_time_booking_field_value/"><code>forbidden_real_time_booking_field_value</code><span>A forbidden field value is present for a real-time booking rule in booking_rules.txt.</span></a>
+            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Distance does not increase between stops</span></a>
+            <a href="/notices/forbidden_arrival_or_departure_time/"><code>forbidden_arrival_or_departure_time</code><span>A stop-time row mixes fixed times and a service window</span></a>
+            <a href="/notices/forbidden_prior_notice_start_time/"><code>forbidden_prior_notice_start_time</code><span>A booking start time has no start day</span></a>
+            <a href="/notices/forbidden_real_time_booking_field_value/"><code>forbidden_real_time_booking_field_value</code><span>A real-time booking rule contains advance-notice fields</span></a>
           </div>
         </section>
       </article>

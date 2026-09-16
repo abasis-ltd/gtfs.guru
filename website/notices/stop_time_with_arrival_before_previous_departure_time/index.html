@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix stop_time_with_arrival_before_previous_departure_time in GTFS | GTFS Guru</title>
-  <meta name="description" content="Backwards time travel between stops in stop_times.txt What the stop_time_with_arrival_before_previous_departure_time notice means, the files and fields it…">
+  <meta name="description" content="The next stop is reached before the previous departure What the stop_time_with_arrival_before_previous_departure_time notice means, the files and fields it…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix stop_time_with_arrival_before_previous_departure_time in GTFS | GTFS Guru">
-  <meta property="og:description" content="Backwards time travel between stops in stop_times.txt What the stop_time_with_arrival_before_previous_departure_time notice means, the files and fields it…">
+  <meta property="og:description" content="The next stop is reached before the previous departure What the stop_time_with_arrival_before_previous_departure_time notice means, the files and fields it…">
   <meta property="og:url" content="https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice stop_time_with_arrival_before_previous_departure_time"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Backwards time travel between stops in stop_times.txt What the stop_time_with_arrival_before_previous_departure_time notice means, the files and fields it…","headline":"Backwards time travel between stops in stop_times.txt","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","name":"stop_time_with_arrival_before_previous_departure_time","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice stop_time_with_arrival_before_previous_departure_time"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The next stop is reached before the previous departure What the stop_time_with_arrival_before_previous_departure_time notice means, the files and fields it…","headline":"The next stop is reached before the previous departure","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","name":"stop_time_with_arrival_before_previous_departure_time","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Backwards time travel between stops in stop_times.txt</h1>
+      <h1>The next stop is reached before the previous departure</h1>
       <div class="code-line">
         <code id="notice-code">stop_time_with_arrival_before_previous_departure_time</code>
         <button class="copy-button" type="button" data-copy="stop_time_with_arrival_before_previous_departure_time">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>5</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,7 +56,6 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
         <a href="#example">Example</a>
         <a href="#references">References</a>
@@ -66,17 +65,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>For a given <code>trip_id</code>, the <code>arrival_time</code> of (n+1)-th stoptime in sequence must not precede the <code>departure_time</code> of n-th stoptime in sequence in <code>stop_times.txt</code>.</p>
+          <p>For one trip, a stop&#39;s <code>arrival_time</code> is earlier than the previous stop&#39;s <code>departure_time</code>.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The vehicle arrives at a stop before it left the one before it, so the trip travels backwards in time. Journey planners either reject the trip or show a nonsensical itinerary for it.</p>
+          <p>The trip appears to travel backwards in time, which can break journey planning.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -88,41 +87,27 @@
             <tr><td><code>tripId</code></td><td>string</td><td>The trip_id associated to the faulty record.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>A trip that runs past midnight with later stops written as <code>00:10:00</code> instead of <code>24:10:00</code>.</li>
-            <li>Stop times interpolated or rounded by a scheduling tool until two adjacent stops crossed over.</li>
-            <li>Rows reordered by <code>stop_id</code> or by time rather than by <code>stop_sequence</code> during an export.</li>
-            <li>A layover or a timing point edited in isolation without shifting the rest of the trip.</li>
-          </ul>
-          <p class="cross-check"><strong>Check both sides.</strong> Read the whole trip in <code>stop_sequence</code> order, not just the flagged row — one mistyped time makes the row after it look wrong too.</p>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Correct the times so that each stop&#39;s arrival is at or after the previous stop&#39;s departure along the whole `stop_sequence`. Where the trip crosses midnight, keep counting past 24 rather than wrapping to 00.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stop_times.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>stop_time_with_arrival_before_previous_departure_time</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Compare the two reported stop-time rows in <code>stop_sequence</code> order.</p></div></li>
+            <li><span>2</span><div><p>Correct the wrong time or stop order. If the trip crosses midnight, represent next-day service-day times with hours above 24, for example <code>24:15:00</code> instead of <code>00:15:00</code>.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not nudge the later stop forward by a minute just to clear the check. If the real cause is a midnight wrap, the trip is still a day out and the published times will not match what the vehicle does.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
         <section id="example">
           <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
+          <h2>Example correction</h2>
+          <p>Assume the trip starts before midnight and reaches the next stop 20 minutes after midnight in the same service day.</p>
           <div class="example-grid">
-            <div><h3>Before</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,23:50:00,23:52:00,S1,1
-T1,00:10:00,00:10:00,S2,2</code></pre></div>
-            <div><h3>After</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,23:50:00,23:52:00,S1,1
-T1,24:10:00,24:10:00,S2,2</code></pre></div>
+            <div><h3>Before</h3><pre><code>previous departure_time: 23:55:00
+next arrival_time: 00:20:00</code></pre></div>
+            <div><h3>After</h3><pre><code>previous departure_time: 23:55:00
+next arrival_time: 24:20:00</code></pre></div>
           </div>
-          <p class="example-note">Simplified example for <code>stop_times.txt</code>; keep all other required columns from your feed.</p>
+          <p class="example-note">Illustrative excerpt, not a complete GTFS feed. Keep all other required records and fields.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
@@ -136,10 +121,10 @@ T1,24:10:00,24:10:00,S2,2</code></pre></div>
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/stop_time_with_only_arrival_or_departure_time/"><code>stop_time_with_only_arrival_or_departure_time</code><span>Missing stop_times.arrival_time or stop_times.departure_time.</span></a>
-            <a href="/notices/forbidden_arrival_or_departure_time/"><code>forbidden_arrival_or_departure_time</code><span>The arrival or departure times are provided alongside pickup or drop-off windows in stop_times.txt.</span></a>
-            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Decreasing or equal shape_dist_traveled in stop_times.txt.</span></a>
-            <a href="/notices/location_with_unexpected_stop_time/"><code>location_with_unexpected_stop_time</code><span>A location in stops.txt that is not a stop is referenced by some stop_times.stop_id.</span></a>
+            <a href="/notices/stop_time_with_only_arrival_or_departure_time/"><code>stop_time_with_only_arrival_or_departure_time</code><span>A stop has only an arrival time or only a departure time</span></a>
+            <a href="/notices/forbidden_arrival_or_departure_time/"><code>forbidden_arrival_or_departure_time</code><span>A stop-time row mixes fixed times and a service window</span></a>
+            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Distance does not increase between stops</span></a>
+            <a href="/notices/location_with_unexpected_stop_time/"><code>location_with_unexpected_stop_time</code><span>A scheduled stop refers to the wrong location type</span></a>
           </div>
         </section>
       </article>

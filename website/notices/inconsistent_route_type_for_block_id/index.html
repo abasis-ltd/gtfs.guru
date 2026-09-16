@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix inconsistent_route_type_for_block_id in GTFS | GTFS Guru</title>
-  <meta name="description" content="A block should have the same route mode. What the inconsistent_route_type_for_block_id notice means, the files and fields it points at, and how to repair…">
+  <meta name="description" content="One vehicle block mixes transport types What the inconsistent_route_type_for_block_id notice means, the files and fields it points at, and how to repair the…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/inconsistent_route_type_for_block_id/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix inconsistent_route_type_for_block_id in GTFS | GTFS Guru">
-  <meta property="og:description" content="A block should have the same route mode. What the inconsistent_route_type_for_block_id notice means, the files and fields it points at, and how to repair…">
+  <meta property="og:description" content="One vehicle block mixes transport types What the inconsistent_route_type_for_block_id notice means, the files and fields it points at, and how to repair the…">
   <meta property="og:url" content="https://gtfs.guru/notices/inconsistent_route_type_for_block_id/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice inconsistent_route_type_for_block_id"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A block should have the same route mode. What the inconsistent_route_type_for_block_id notice means, the files and fields it points at, and how to repair…","headline":"A block should have the same route mode.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/","name":"inconsistent_route_type_for_block_id","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice inconsistent_route_type_for_block_id"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"One vehicle block mixes transport types What the inconsistent_route_type_for_block_id notice means, the files and fields it points at, and how to repair the…","headline":"One vehicle block mixes transport types","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/inconsistent_route_type_for_block_id/","name":"inconsistent_route_type_for_block_id","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>A block should have the same route mode.</h1>
+      <h1>One vehicle block mixes transport types</h1>
       <div class="code-line">
         <code id="notice-code">inconsistent_route_type_for_block_id</code>
         <button class="copy-button" type="button" data-copy="inconsistent_route_type_for_block_id">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>2</dd></div>
+        <div><dt>Files to check</dt><dd>2</dd></div>
         <div><dt>Report fields</dt><dd>3</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>A block should have the same route mode.</p>
+          <p>Trips sharing a <code>block_id</code> belong to routes with different <code>route_type</code> values.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>The block may incorrectly imply that a passenger can stay on one vehicle across different modes.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#routestxt"><code>routes.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#tripstxt"><code>trips.txt</code><span>Open GTFS specification</span></a></li>
@@ -88,11 +88,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>inconsistent_route_type_for_block_id</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Follow the reported route IDs to <code>routes.txt</code> and the block&#39;s trips to <code>trips.txt</code>.</p></div></li>
+            <li><span>2</span><div><p>Correct an erroneous route type or separate trips that use different vehicles into their actual blocks.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -109,10 +108,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/inconsistent_route_type_for_in_seat_transfer/"><code>inconsistent_route_type_for_in_seat_transfer</code><span>An in-seat transfer should occur in the same route mode.</span></a>
-            <a href="/notices/unused_route/"><code>unused_route</code><span>A route has no trips.</span></a>
-            <a href="/notices/fast_travel_between_consecutive_stops/"><code>fast_travel_between_consecutive_stops</code><span>A transit vehicle moves too fast between two consecutive stops.</span></a>
-            <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>A transit vehicle moves too fast between two far stops.</span></a>
+            <a href="/notices/inconsistent_route_type_for_in_seat_transfer/"><code>inconsistent_route_type_for_in_seat_transfer</code><span>A stay-on-board transfer connects different transport types</span></a>
+            <a href="/notices/unused_route/"><code>unused_route</code><span>A route has no trips</span></a>
+            <a href="/notices/fast_travel_between_consecutive_stops/"><code>fast_travel_between_consecutive_stops</code><span>Travel between two stops appears too fast</span></a>
+            <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>Travel between distant stops appears too fast</span></a>
           </div>
         </section>
       </article>

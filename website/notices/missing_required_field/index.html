@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix missing_required_field in GTFS | GTFS Guru</title>
-  <meta name="description" content="A required field is missing. What the missing_required_field notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A required value is empty What the missing_required_field notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/missing_required_field/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix missing_required_field in GTFS | GTFS Guru">
-  <meta property="og:description" content="A required field is missing. What the missing_required_field notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A required value is empty What the missing_required_field notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/missing_required_field/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_required_field/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_required_field"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A required field is missing. What the missing_required_field notice means, the files and fields it points at, and how to repair the feed.","headline":"A required field is missing.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_required_field/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_required_field/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_required_field/","name":"missing_required_field","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_required_field/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_required_field"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A required value is empty What the missing_required_field notice means, the files and fields it points at, and how to repair the feed.","headline":"A required value is empty","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_required_field/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_required_field/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_required_field/","name":"missing_required_field","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>A required field is missing.</h1>
+      <h1>A required value is empty</h1>
       <div class="code-line">
         <code id="notice-code">missing_required_field</code>
         <button class="copy-button" type="button" data-copy="missing_required_field">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>3</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,9 +56,7 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -66,75 +64,50 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>The given field has no value in some input row, even though values are required.</p>
+          <p>The column exists, but the reported row does not contain its required value.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>A field the specification requires is empty in this row. The record cannot be interpreted without it, so consumers usually drop the row — and a dropped `stop_times.txt` row removes a stop from a trip without any other signal that something is wrong.</p>
+          <p>The record may be rejected or lack essential information.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>csvRowNumber</code></td><td>integer</td><td>The row of the faulty record.</td></tr>
             <tr><td><code>fieldName</code></td><td>string</td><td>The name of the missing field.</td></tr>
             <tr><td><code>filename</code></td><td>string</td><td>The name of the faulty file.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>A source record that was never completed — a stop added to the scheduling system without coordinates, or a route without a name.</li>
-            <li>A spreadsheet export that wrote an empty string where the source system had a null.</li>
-            <li>Rows shifted by one because an earlier row contains an unquoted comma inside a value, so a required column lines up against blank text.</li>
-            <li>A CSV assembled by concatenating exports with different column orders.</li>
-          </ul>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Fill in the real value for the row named in the report. The column exists; only this row&#39;s cell is empty, so this is a data gap rather than a schema problem.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>missing_required_field</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Open <code>filename</code> at <code>csvRowNumber</code> and inspect <code>fieldName</code>, including the condition that makes it required.</p></div></li>
+            <li><span>2</span><div><p>Restore the actual value from the source, or correct an erroneous condition that made the field required. Do not fill every blank with <code>0</code>.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not fill the cell with a placeholder such as <code>0</code>, <code>N/A</code> or <code>unknown</code> to clear the error. A <code>stop_lat</code> of 0 is a valid coordinate off the coast of Africa, and <code>N/A</code> in <code>stop_name</code> is what riders will see in the app.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,35.17,33.36
-S2,,35.18,33.37</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,35.17,33.36
-S2,Harbour Road,35.18,33.37</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for the file named in the report; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#missing_required_field-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#term-definitions"><strong>GTFS Schedule Reference — Term Definitions</strong><span>Official GTFS documentation</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/forbidden_prior_day_booking_field_value/"><code>forbidden_prior_day_booking_field_value</code><span>A forbidden field value is present for a prior-day booking rule in booking_rules.txt</span></a>
-            <a href="/notices/forbidden_real_time_booking_field_value/"><code>forbidden_real_time_booking_field_value</code><span>A forbidden field value is present for a real-time booking rule in booking_rules.txt.</span></a>
-            <a href="/notices/forbidden_same_day_booking_field_value/"><code>forbidden_same_day_booking_field_value</code><span>A forbidden field value is present for a same-day booking rule in booking_rules.txt.</span></a>
-            <a href="/notices/missing_prior_day_booking_field_value/"><code>missing_prior_day_booking_field_value</code><span>The prior_notice_last_day and the prior_notice_last_time values are required for prior day booking_type in booking_rules.txt.</span></a>
+            <a href="/notices/forbidden_prior_day_booking_field_value/"><code>forbidden_prior_day_booking_field_value</code><span>An advance-booking rule contains incompatible fields</span></a>
+            <a href="/notices/forbidden_real_time_booking_field_value/"><code>forbidden_real_time_booking_field_value</code><span>A real-time booking rule contains advance-notice fields</span></a>
+            <a href="/notices/forbidden_same_day_booking_field_value/"><code>forbidden_same_day_booking_field_value</code><span>A same-day booking rule contains incompatible fields</span></a>
+            <a href="/notices/missing_prior_day_booking_field_value/"><code>missing_prior_day_booking_field_value</code><span>An advance-booking rule has an incomplete deadline</span></a>
           </div>
         </section>
       </article>

@@ -53,24 +53,63 @@ const NOTICE_CSS: &str = include_str!("notice.css");
 const NOTICE_JS: &str = include_str!("notice.js");
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct NoticeGuide {
+    title: String,
+    meaning: String,
     impact: String,
-    fix: String,
-    file: String,
-    bad: String,
-    good: String,
-    /// What actually produces this notice in a real feed. A reader who
-    /// recognises their own situation here stops guessing.
-    #[serde(default)]
-    causes: Vec<String>,
-    /// The repair that silences the notice without fixing the data. Every
-    /// notice with an obvious wrong answer should name it.
-    #[serde(default)]
-    pitfall: Option<String>,
-    /// Where to look besides the row the report points at — usually the other
-    /// side of a reference.
-    #[serde(default)]
-    cross_check: Option<String>,
+    fix_steps: Vec<String>,
+    files_to_check: Vec<String>,
+    verification: String,
+    example: Option<NoticeExample>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NoticeExample {
+    assumption: String,
+    before: String,
+    after: String,
+}
+
+fn load_guides(
+    schemas: &BTreeMap<String, NoticeSchema>,
+) -> anyhow::Result<BTreeMap<String, NoticeGuide>> {
+    let guides: BTreeMap<String, NoticeGuide> =
+        serde_json::from_str(include_str!("../notice_guides.json"))
+            .context("parse notice guide content")?;
+    for code in schemas.keys() {
+        if !guides.contains_key(code) {
+            bail!("published notice `{code}` needs a repair guide");
+        }
+    }
+    for (code, guide) in &guides {
+        if !schemas.contains_key(code) {
+            bail!("notice guide references unpublished code `{code}`");
+        }
+        if [
+            &guide.title,
+            &guide.meaning,
+            &guide.impact,
+            &guide.verification,
+        ]
+        .iter()
+        .any(|text| text.trim().is_empty())
+            || guide.fix_steps.len() < 2
+            || guide.fix_steps.iter().any(|step| step.trim().is_empty())
+        {
+            bail!("notice guide `{code}` has incomplete repair guidance");
+        }
+        if let Some(example) = &guide.example {
+            if [&example.assumption, &example.before, &example.after]
+                .iter()
+                .any(|text| text.trim().is_empty())
+            {
+                bail!("notice guide `{code}` has an incomplete example");
+            }
+        }
+    }
+    Ok(guides)
 }
 
 fn main() -> anyhow::Result<()> {
@@ -80,14 +119,7 @@ fn main() -> anyhow::Result<()> {
 
 fn generate(check: bool) -> anyhow::Result<()> {
     let schemas = build_notice_schema_map();
-    let guides: BTreeMap<String, NoticeGuide> =
-        serde_json::from_str(include_str!("../notice_guides.json"))
-            .context("parse notice guide content")?;
-    for code in guides.keys() {
-        if !schemas.contains_key(code) {
-            bail!("notice guide references unpublished code `{code}`");
-        }
-    }
+    let guides = load_guides(&schemas)?;
     let related = build_related_notices(&schemas);
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -114,7 +146,7 @@ fn generate(check: bool) -> anyhow::Result<()> {
     )?;
     check_or_write(
         &notices_dir.join("index.html"),
-        &render_index(&schemas),
+        &render_index(&schemas, &guides),
         check,
         &mut changed,
     )?;
@@ -128,9 +160,9 @@ fn generate(check: bool) -> anyhow::Result<()> {
             &dir.join("index.html"),
             &render_notice_page(
                 schema,
-                guides.get(code),
+                &guides[code],
                 related.get(code).map(Vec::as_slice).unwrap_or_default(),
-                &schemas,
+                &guides,
             ),
             check,
             &mut changed,
@@ -269,13 +301,12 @@ fn check_or_write(
 
 fn render_notice_page(
     schema: &NoticeSchema,
-    guide: Option<&NoticeGuide>,
+    guide: &NoticeGuide,
     related: &[String],
-    schemas: &BTreeMap<String, NoticeSchema>,
+    guides: &BTreeMap<String, NoticeGuide>,
 ) -> String {
-    let summary = schema.short_summary.as_deref().unwrap_or(&schema.code);
-    let display_summary = summary.replace('`', "");
-    let description = schema.description.as_deref().unwrap_or(summary);
+    let display_summary = guide.title.replace('`', "");
+    let description = &guide.meaning;
     let canonical = format!("{BASE_URL}/notices/{}/", schema.code);
     // The code is what people paste into a search box, and the thing they want
     // is the repair — so both lead. The summary used to run first and pushed
@@ -287,8 +318,24 @@ fn render_notice_page(
     ));
     let severity = severity_label(schema.severity_level);
     let severity_class = severity.to_ascii_lowercase();
-    let files = notice_files(schema.references.as_ref());
-    let specification_links = specification_links(schema.references.as_ref());
+    let files = &guide.files_to_check;
+    let mut specification_links = specification_links(schema.references.as_ref());
+    specification_links.retain(|(_, url)| {
+        !url.starts_with("https://gtfs.org/documentation/schedule/reference/#")
+            && !url.starts_with("https://gtfs.org/documentation/schedule/schedule-best-practices/#")
+    });
+    for file in files {
+        specification_links.insert((
+            format!("GTFS Schedule Reference — {file}"),
+            gtfs_file_url(file, false),
+        ));
+    }
+    if specification_links.is_empty() {
+        specification_links.insert((
+            "GTFS Schedule Reference".to_string(),
+            "https://gtfs.org/documentation/schedule/reference/".to_string(),
+        ));
+    }
 
     let json_ld = serde_json::json!({
         "@context": "https://schema.org",
@@ -368,7 +415,7 @@ fn render_notice_page(
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
   <script type="application/ld+json">{}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
@@ -396,9 +443,9 @@ fn render_notice_page(
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>{}</dd></div>
-        <div><dt>Affected files</dt><dd>{}</dd></div>
+        <div><dt>Files to check</dt><dd>{}</dd></div>
         <div><dt>Report fields</dt><dd>{}</dd></div>
-        <div><dt>Documentation</dt><dd>{}</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -441,48 +488,37 @@ fn render_notice_page(
         escape_html(&schema.code),
         severity,
         if files.is_empty() {
-            "Runtime-specific".to_string()
+            "See report".to_string()
         } else {
             files.len().to_string()
         },
         schema.properties.len(),
-        if guide.is_some() { "Curated" } else { "Generated" },
         {
-            // The list mirrors the article, so an optional section only shows
-            // up here when it was actually written.
-            let mut links = String::new();
-            if guide.is_some_and(|value| !value.causes.is_empty()) {
-                links.push_str("        <a href=\"#causes\">Common causes</a>\n");
-            }
-            links.push_str("        <a href=\"#fix\">How to fix</a>");
-            if guide.is_some() {
+            let mut links = String::from("        <a href=\"#fix\">How to fix</a>");
+            if guide.example.is_some() {
                 links.push_str("\n        <a href=\"#example\">Example</a>");
             }
             links
         },
         render_rich_text(description),
-        escape_html(
-            guide
-                .map(|value| value.impact.as_str())
-                .unwrap_or_else(|| generic_impact(schema.severity_level)),
-        ),
+        render_inline(&guide.impact),
     )
     .expect("write to string");
 
     out.push_str(
         r#"        <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
 "#,
     );
     if files.is_empty() {
         out.push_str(
-            "          <p>The affected file is determined at validation time. Use the \
-             <code>filename</code> or related context field in your report to locate it.</p>\n",
+            "          <p>Use the file or input resource identified in the report. Check the \
+             message and available context fields; runtime failures may not identify a GTFS row.</p>\n",
         );
     } else {
         out.push_str("          <ul class=\"file-list\">\n");
-        for file in &files {
+        for file in files {
             let url = gtfs_file_url(file, false);
             writeln!(
                 out,
@@ -518,99 +554,50 @@ fn render_notice_page(
     }
     out.push_str("          </tbody></table></div>\n        </section>\n");
 
-    let first_step = format!(
-        "<li><span>1</span><div><strong>Locate the record</strong><p>Open {} and use the report fields below to find the exact row.</p></div></li>",
-        render_file_label(
-            guide
-                .map(|value| value.file.as_str())
-                .unwrap_or("the file named in the validation report")
-        )
-    );
-    // Common causes: the shortest route from "I have this notice" to "I know
-    // which of my situations this is".
-    if let Some(causes) = guide
-        .map(|value| value.causes.as_slice())
-        .filter(|c| !c.is_empty())
-    {
-        out.push_str(
-            r#"        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-"#,
-        );
-        for cause in causes {
-            writeln!(out, "            <li>{}</li>", render_inline(cause))
-                .expect("write to string");
-        }
-        out.push_str("          </ul>\n");
-        if let Some(cross_check) = guide.and_then(|value| value.cross_check.as_deref()) {
-            writeln!(
-                out,
-                "          <p class=\"cross-check\"><strong>Check both sides.</strong> {}</p>",
-                render_inline(cross_check),
-            )
-            .expect("write to string");
-        }
-        out.push_str("        </section>\n");
-    }
-
-    write!(
-        out,
+    out.push_str(
         r#"        <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>{}</p>
           <ol class="steps">
-            {}
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>{}</code> no longer appears for the record.</p></div></li>
-          </ol>
 "#,
-        escape_html(
-            guide
-                .map(|value| value.fix.as_str())
-                .unwrap_or("Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule."),
-        ),
-        first_step,
-        escape_html(&schema.code),
-    )
-    .expect("write to string");
-
-    // The repair that makes the notice disappear without fixing anything is
-    // usually easier than the real one, so it gets named explicitly.
-    if let Some(pitfall) = guide.and_then(|value| value.pitfall.as_deref()) {
+    );
+    for (index, step) in guide.fix_steps.iter().enumerate() {
         writeln!(
             out,
-            "          <p class=\"pitfall\"><strong>Do not do this:</strong> {}</p>",
-            render_inline(pitfall),
+            "            <li><span>{}</span><div><p>{}</p></div></li>",
+            index + 1,
+            render_inline(step)
         )
         .expect("write to string");
     }
+    writeln!(out,
+        "            <li><span>{}</span><div><strong>Check the result</strong><p>{}</p></div></li>\n          </ol>",
+        guide.fix_steps.len() + 1, render_inline(&guide.verification)).expect("write to string");
 
-    // Step 3 asks the reader to validate again; this is the button that does it.
+    // Keep revalidation next to the repair instructions.
     out.push_str(
         r#"          <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
 "#,
     );
 
-    if let Some(guide) = guide {
+    if let Some(example) = &guide.example {
         write!(
             out,
             r#"        <section id="example">
           <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
+          <h2>Example correction</h2>
+          <p>{}</p>
           <div class="example-grid">
             <div><h3>Before</h3><pre><code>{}</code></pre></div>
             <div><h3>After</h3><pre><code>{}</code></pre></div>
           </div>
-          <p class="example-note">Simplified example for {}; keep all other required columns from your feed.</p>
+          <p class="example-note">Illustrative excerpt, not a complete GTFS feed. Keep all other required records and fields.</p>
         </section>
 "#,
-            escape_html(&guide.bad),
-            escape_html(&guide.good),
-            render_file_label(&guide.file),
+            render_inline(&example.assumption),
+            escape_html(&example.before),
+            escape_html(&example.after),
         )
         .expect("write to string");
     }
@@ -656,12 +643,8 @@ fn render_notice_page(
 "#,
     );
     for code in related {
-        if let Some(other) = schemas.get(code) {
-            let related_summary = other
-                .short_summary
-                .as_deref()
-                .unwrap_or(code)
-                .replace('`', "");
+        if let Some(other) = guides.get(code) {
+            let related_summary = other.title.replace('`', "");
             writeln!(
                 out,
                 "            <a href=\"/notices/{}/\"><code>{}</code><span>{}</span></a>",
@@ -689,7 +672,10 @@ fn render_notice_page(
     out
 }
 
-fn render_index(schemas: &BTreeMap<String, NoticeSchema>) -> String {
+fn render_index(
+    schemas: &BTreeMap<String, NoticeSchema>,
+    guides: &BTreeMap<String, NoticeGuide>,
+) -> String {
     let description = format!(
         "Browse {} GTFS validation notice codes with severity, affected files, report fields, repair guidance, and specification references.",
         schemas.len()
@@ -711,12 +697,8 @@ fn render_index(schemas: &BTreeMap<String, NoticeSchema>) -> String {
     let mut rows = String::new();
     for (code, schema) in schemas {
         let severity = severity_label(schema.severity_level);
-        let files = notice_files(schema.references.as_ref());
-        let display_summary = schema
-            .short_summary
-            .as_deref()
-            .unwrap_or(code)
-            .replace('`', "");
+        let files = &guides[code].files_to_check;
+        let display_summary = guides[code].title.replace('`', "");
         write!(
             rows,
             r#"        <a class="notice-row" href="/notices/{}/" data-code="{}" data-severity="{}" data-search="{} {}">
@@ -735,7 +717,7 @@ fn render_index(schemas: &BTreeMap<String, NoticeSchema>) -> String {
             escape_html(code),
             escape_html(&display_summary),
             if files.is_empty() {
-                "Runtime-specific".to_string()
+                "See report".to_string()
             } else {
                 files
                     .iter()
@@ -767,7 +749,7 @@ fn render_index(schemas: &BTreeMap<String, NoticeSchema>) -> String {
   <meta property="og:image" content="{BASE_URL}/og-image.png">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
   <script type="application/ld+json">{json_ld}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
@@ -799,7 +781,7 @@ fn render_index(schemas: &BTreeMap<String, NoticeSchema>) -> String {
       </div>
     </section>
     <section class="notice-directory" aria-label="Notice directory">
-      <div class="directory-head"><span>Severity</span><span>Notice</span><span>Affected files</span></div>
+      <div class="directory-head"><span>Severity</span><span>Notice</span><span>Files to check</span></div>
 {rows}
       <p id="no-results" hidden>No notice codes match this search.</p>
     </section>
@@ -1080,20 +1062,6 @@ fn severity_label(severity: NoticeSchemaSeverity) -> &'static str {
     }
 }
 
-fn generic_impact(severity: NoticeSchemaSeverity) -> &'static str {
-    match severity {
-        NoticeSchemaSeverity::Error => {
-            "This is a GTFS requirement violation. Consumers may reject the affected data or interpret it incorrectly."
-        }
-        NoticeSchemaSeverity::Warning => {
-            "The feed may still load, but correcting this warning improves data quality and the rider experience."
-        }
-        NoticeSchemaSeverity::Info => {
-            "This finding is not necessarily invalid, but it is worth reviewing because it can reveal stale or unexpected data."
-        }
-    }
-}
-
 fn render_rich_text(value: &str) -> String {
     let value = value.split("<table").next().unwrap_or(value).trim();
     let mut out = String::new();
@@ -1133,31 +1101,6 @@ fn render_rich_text(value: &str) -> String {
         out.push_str("</ul>\n");
     }
     out
-}
-
-/// A guide's `file` is sometimes a bare name (`stops.txt`), sometimes a pair
-/// (`stops.txt / stop_times.txt`), and sometimes a phrase for notices whose
-/// file is only known at validation time. Filenames are monospaced wherever
-/// they appear; the prose around them is not.
-fn render_file_label(value: &str) -> String {
-    let marked = value
-        .split(' ')
-        .map(|token| {
-            let trimmed = token.trim_end_matches([',', '.', ')', '…']);
-            if !trimmed.is_empty()
-                && (trimmed.ends_with(".txt") || trimmed.ends_with(".geojson"))
-                && !trimmed.contains('`')
-            {
-                let suffix = &token[trimmed.len()..];
-                let prefix_len = token.len() - trimmed.len() - suffix.len();
-                format!("{}`{trimmed}`{suffix}", &token[..prefix_len])
-            } else {
-                token.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-    render_inline(&marked)
 }
 
 fn render_inline(value: &str) -> String {
@@ -1293,7 +1236,7 @@ fn render_compatibility_page(
   <meta property="og:image" content="{BASE_URL}/og-image.png">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
   <script type="application/ld+json">{json_ld}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
@@ -1825,6 +1768,49 @@ mod tests {
     #[test]
     fn generated_notice_pages_are_current() {
         generate(true).expect("generated notice pages must be current");
+    }
+
+    #[test]
+    fn notice_copy_is_consistent_across_directory_article_and_related_links() {
+        let schemas = build_notice_schema_map();
+        let guides = load_guides(&schemas).unwrap();
+        let code = "foreign_key_violation";
+        let related = vec!["timeframe_overlap".to_string()];
+        let page = render_notice_page(&schemas[code], &guides[code], &related, &guides);
+        let index = render_index(&schemas, &guides);
+        assert!(page.contains(&format!("<h1>{}</h1>", guides[code].title)));
+        assert!(index.contains(&format!("<strong>{}</strong>", guides[code].title)));
+        assert!(page.contains(&guides["timeframe_overlap"].title));
+        assert!(page.contains("<code>childFilename</code>"));
+        assert!(!page.contains("Apply the repair described above"));
+        assert!(page.contains("id=\"example\""));
+        assert!(page.contains(&guides[code].example.as_ref().unwrap().assumption));
+    }
+
+    #[test]
+    fn runtime_failures_have_diagnostics_without_a_fabricated_example() {
+        let schemas = build_notice_schema_map();
+        let guides = load_guides(&schemas).unwrap();
+        let code = "runtime_exception_in_validator_error";
+        let page = render_notice_page(&schemas[code], &guides[code], &[], &guides);
+        assert!(!page.contains("href=\"#example\""));
+        assert!(!page.contains("id=\"example\""));
+        assert!(!page.contains("This is a GTFS requirement violation"));
+        assert!(page.contains("Run validation again and confirm that it completes"));
+    }
+
+    #[test]
+    fn editorial_file_corrections_replace_wrong_specification_links() {
+        let schemas = build_notice_schema_map();
+        let guides = load_guides(&schemas).unwrap();
+        let code = "timeframe_overlap";
+        let page = render_notice_page(&schemas[code], &guides[code], &[], &guides);
+        assert!(page.contains("reference/#timeframestxt"));
+        assert!(!page.contains("reference/#frequenciestxt"));
+        assert_eq!(
+            render_inline("Use `<script>` & `field`"),
+            "Use <code>&lt;script&gt;</code> &amp; <code>field</code>"
+        );
     }
 
     #[test]

@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix start_and_end_range_equal in GTFS | GTFS Guru</title>
-  <meta name="description" content="Two date or time fields are equal. What the start_and_end_range_equal notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="An interval starts and ends at the same time What the start_and_end_range_equal notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/start_and_end_range_equal/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix start_and_end_range_equal in GTFS | GTFS Guru">
-  <meta property="og:description" content="Two date or time fields are equal. What the start_and_end_range_equal notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="An interval starts and ends at the same time What the start_and_end_range_equal notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/start_and_end_range_equal/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/start_and_end_range_equal/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice start_and_end_range_equal"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Two date or time fields are equal. What the start_and_end_range_equal notice means, the files and fields it points at, and how to repair the feed.","headline":"Two date or time fields are equal.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/start_and_end_range_equal/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/start_and_end_range_equal/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/start_and_end_range_equal/","name":"start_and_end_range_equal","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/start_and_end_range_equal/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice start_and_end_range_equal"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"An interval starts and ends at the same time What the start_and_end_range_equal notice means, the files and fields it points at, and how to repair the feed.","headline":"An interval starts and ends at the same time","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/start_and_end_range_equal/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/start_and_end_range_equal/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/start_and_end_range_equal/","name":"start_and_end_range_equal","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Two date or time fields are equal.</h1>
+      <h1>An interval starts and ends at the same time</h1>
       <div class="code-line">
         <code id="notice-code">start_and_end_range_equal</code>
         <button class="copy-button" type="button" data-copy="start_and_end_range_equal">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>6</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,18 +64,18 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>The fields <code>frequencies.start_date</code> and <code>frequencies.end_date</code> have been found equal in <code>frequencies.txt</code>. The GTFS spec is currently unclear how this case should be handled (e.g., is it a trip that circulates once?). It is recommended to use a trip not defined via frequencies.txt for this case.</p>
+          <p>The fields named by the report have equal values where this check expects a nonzero interval.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>This is a GTFS requirement violation. Consumers may reject the affected data or interpret it incorrectly.</p>
+          <p>A zero-length frequency interval does not describe a usable period of departures.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>csvRowNumber</code></td><td>integer</td><td>The row number of the faulty record.</td></tr>
             <tr><td><code>endFieldName</code></td><td>string</td><td>The end value&#39;s field name.</td></tr>
@@ -88,11 +88,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>start_and_end_range_equal</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Check <code>filename</code>, <code>startFieldName</code>, and <code>endFieldName</code>; for <code>frequencies.txt</code>, these are <code>start_time</code> and <code>end_time</code>.</p></div></li>
+            <li><span>2</span><div><p>Supply the actual interval with an end after its start. If the intention is one departure, model a scheduled trip instead. Do not treat every one-day calendar as invalid.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -101,16 +100,17 @@
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#start_and_end_range_equal-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/start_and_end_range_out_of_order/"><code>start_and_end_range_out_of_order</code><span>Two date or time fields are out of order.</span></a>
-            <a href="/notices/timeframe_only_start_or_end_time_specified/"><code>timeframe_only_start_or_end_time_specified</code><span>A row from timeframes.txt was found with only one of start_time and end_time specified.</span></a>
-            <a href="/notices/timeframe_start_or_end_time_greater_than_twenty_four_hours/"><code>timeframe_start_or_end_time_greater_than_twenty_four_hours</code><span>A time in timeframes.txt is greater than 24:00:00.</span></a>
-            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Decreasing or equal shape_dist_traveled in stop_times.txt.</span></a>
+            <a href="/notices/start_and_end_range_out_of_order/"><code>start_and_end_range_out_of_order</code><span>An interval ends before it starts</span></a>
+            <a href="/notices/timeframe_only_start_or_end_time_specified/"><code>timeframe_only_start_or_end_time_specified</code><span>A fare timeframe is missing one time boundary</span></a>
+            <a href="/notices/timeframe_start_or_end_time_greater_than_twenty_four_hours/"><code>timeframe_start_or_end_time_greater_than_twenty_four_hours</code><span>A fare timeframe uses a time after 24:00:00</span></a>
+            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Distance does not increase between stops</span></a>
           </div>
         </section>
       </article>

@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix platform_without_parent_station in GTFS | GTFS Guru</title>
-  <meta name="description" content="A platform has no parent_station field set. What the platform_without_parent_station notice means, the files and fields it points at, and how to repair the…">
+  <meta name="description" content="A stop or platform has no parent station What the platform_without_parent_station notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/platform_without_parent_station/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix platform_without_parent_station in GTFS | GTFS Guru">
-  <meta property="og:description" content="A platform has no parent_station field set. What the platform_without_parent_station notice means, the files and fields it points at, and how to repair the…">
+  <meta property="og:description" content="A stop or platform has no parent station What the platform_without_parent_station notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/platform_without_parent_station/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/platform_without_parent_station/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice platform_without_parent_station"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A platform has no parent_station field set. What the platform_without_parent_station notice means, the files and fields it points at, and how to repair the…","headline":"A platform has no parent_station field set.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/platform_without_parent_station/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/platform_without_parent_station/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/platform_without_parent_station/","name":"platform_without_parent_station","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/platform_without_parent_station/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice platform_without_parent_station"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A stop or platform has no parent station What the platform_without_parent_station notice means, the files and fields it points at, and how to repair the feed.","headline":"A stop or platform has no parent station","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/platform_without_parent_station/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/platform_without_parent_station/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/platform_without_parent_station/","name":"platform_without_parent_station","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity info">INFO</span><span>GTFS Schedule notice</span></div>
-      <h1>A platform has no parent_station field set.</h1>
+      <h1>A stop or platform has no parent station</h1>
       <div class="code-line">
         <code id="notice-code">platform_without_parent_station</code>
         <button class="copy-button" type="button" data-copy="platform_without_parent_station">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>INFO</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>3</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -57,7 +57,6 @@
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -65,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>This is different from <code>location_without_parent_station</code> since it is less severe.</p>
+          <p>The reported stop/platform does not specify <code>parent_station</code>.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>Consumers cannot group the platform into a station, which weakens station navigation and transfer presentation.</p>
+          <p>This can be correct for a standalone stop, but a station platform may not be grouped with its station.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stopstxt"><code>stops.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -88,25 +87,12 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Create or identify the parent station row and set the platform&#39;s parent_station to that station&#39;s stop_id.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stops.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>platform_without_parent_station</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Check whether the stop physically belongs to a station.</p></div></li>
+            <li><span>2</span><div><p>If it does, reference the correct station record. If it is a standalone street stop, keep the parent empty; a parent is not universally required for every stop.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_id,stop_name,location_type,parent_station
-P1,Central Platform 1,0,</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_id,stop_name,location_type,parent_station
-ST,Central Station,1,
-P1,Central Platform 1,0,ST</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for <code>stops.txt</code>; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
@@ -120,10 +106,10 @@ P1,Central Platform 1,0,ST</code></pre></div>
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/unused_parent_station/"><code>unused_parent_station</code><span>Unused parent station.</span></a>
-            <a href="/notices/location_without_parent_station/"><code>location_without_parent_station</code><span>A location that must have parent_station field does not have it.</span></a>
-            <a href="/notices/station_with_parent_station/"><code>station_with_parent_station</code><span>A station has parent_station field set.</span></a>
-            <a href="/notices/stop_access_specified_for_stop_with_no_parent_station/"><code>stop_access_specified_for_stop_with_no_parent_station</code><span>A stop without a value for parent station has stop_access specified.</span></a>
+            <a href="/notices/unused_parent_station/"><code>unused_parent_station</code><span>A station has no child locations</span></a>
+            <a href="/notices/location_without_parent_station/"><code>location_without_parent_station</code><span>A location is missing its required parent</span></a>
+            <a href="/notices/station_with_parent_station/"><code>station_with_parent_station</code><span>A station is nested under another location</span></a>
+            <a href="/notices/stop_access_specified_for_stop_with_no_parent_station/"><code>stop_access_specified_for_stop_with_no_parent_station</code><span>The access flag is set on a standalone stop</span></a>
           </div>
         </section>
       </article>

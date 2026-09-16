@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix stop_too_far_from_shape in GTFS | GTFS Guru</title>
-  <meta name="description" content="Stop too far from trip shape. What the stop_too_far_from_shape notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A stop is too far from the trip&#39;s route line What the stop_too_far_from_shape notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/stop_too_far_from_shape/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix stop_too_far_from_shape in GTFS | GTFS Guru">
-  <meta property="og:description" content="Stop too far from trip shape. What the stop_too_far_from_shape notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A stop is too far from the trip&#39;s route line What the stop_too_far_from_shape notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/stop_too_far_from_shape/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_too_far_from_shape/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice stop_too_far_from_shape"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Stop too far from trip shape. What the stop_too_far_from_shape notice means, the files and fields it points at, and how to repair the feed.","headline":"Stop too far from trip shape.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/stop_too_far_from_shape/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_too_far_from_shape/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_too_far_from_shape/","name":"stop_too_far_from_shape","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_too_far_from_shape/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice stop_too_far_from_shape"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A stop is too far from the trip's route line What the stop_too_far_from_shape notice means, the files and fields it points at, and how to repair the feed.","headline":"A stop is too far from the trip's route line","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/stop_too_far_from_shape/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_too_far_from_shape/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_too_far_from_shape/","name":"stop_too_far_from_shape","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>Stop too far from trip shape.</h1>
+      <h1>A stop is too far from the trip&#39;s route line</h1>
       <div class="code-line">
         <code id="notice-code">stop_too_far_from_shape</code>
         <button class="copy-button" type="button" data-copy="stop_too_far_from_shape">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>4</dd></div>
+        <div><dt>Files to check</dt><dd>4</dd></div>
         <div><dt>Report fields</dt><dd>0</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -57,7 +57,6 @@
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -65,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Per GTFS Best Practices, route alignments (in <code>shapes.txt</code>) should be within 100 meters of stop locations which a trip serves. This potentially indicates a problem with the location of the stop or the path of the shape.</p>
+          <p>The stop lies farther from the assigned shape than the check allows; the usual best-practice distance is 100 metres.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>Vehicles can appear off-route and walking directions may lead riders away from the actual boarding point.</p>
+          <p>The map may show the vehicle missing its stop, or the trip may use the wrong geometry.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#shapestxt"><code>shapes.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
@@ -89,37 +88,19 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Verify the stop coordinates and the trip&#39;s shape_id. Move the wrong point or redraw the shape so it follows the served stops.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stops.txt</code> / <code>shapes.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>stop_too_far_from_shape</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Follow <code>tripId</code> to its <code>shape_id</code>, then compare the stop coordinate and shape on a map.</p></div></li>
+            <li><span>2</span><div><p>Correct the wrong stop location, trip-shape assignment, or shape geometry using real data. Do not move a correct stop onto an incorrect line.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,35.1700,33.3600
-
-shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence
-SH1,35.1800,33.3700,1</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,35.1700,33.3600
-
-shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence
-SH1,35.1701,33.3601,1</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for <code>stops.txt</code> / <code>shapes.txt</code>; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#stop_too_far_from_shape-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/schedule-best-practices/#shapestxt"><strong>GTFS Schedule Best Practices — shapes.txt</strong><span>Official GTFS documentation</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/#shapestxt"><strong>GTFS Schedule Reference — shapes.txt</strong><span>Official GTFS documentation</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><strong>GTFS Schedule Reference — stop_times.txt</strong><span>Official GTFS documentation</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stopstxt"><strong>GTFS Schedule Reference — stops.txt</strong><span>Official GTFS documentation</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#tripstxt"><strong>GTFS Schedule Reference — trips.txt</strong><span>Official GTFS documentation</span></a></li>
@@ -131,10 +112,10 @@ SH1,35.1701,33.3601,1</code></pre></div>
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>Stop time too far from shape.</span></a>
-            <a href="/notices/stop_has_too_many_matches_for_shape/"><code>stop_has_too_many_matches_for_shape</code><span>Stop entry that has many potential matches to the trip&#39;s path of travel, as defined by the shape entry in shapes.txt.</span></a>
-            <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>A transit vehicle moves too fast between two far stops.</span></a>
-            <a href="/notices/stops_match_shape_out_of_order/"><code>stops_match_shape_out_of_order</code><span>Two stop entries are different than their arrival-departure order defined by shapes.txt.</span></a>
+            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>A stop&#39;s distance places it far from its real location</span></a>
+            <a href="/notices/stop_has_too_many_matches_for_shape/"><code>stop_has_too_many_matches_for_shape</code><span>A stop matches several parts of the route shape</span></a>
+            <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>Travel between distant stops appears too fast</span></a>
+            <a href="/notices/stops_match_shape_out_of_order/"><code>stops_match_shape_out_of_order</code><span>The stop order disagrees with the route shape</span></a>
           </div>
         </section>
       </article>

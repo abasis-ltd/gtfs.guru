@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix missing_required_file in GTFS | GTFS Guru</title>
-  <meta name="description" content="A required file is missing. What the missing_required_file notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="The archive is missing a required GTFS file What the missing_required_file notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/missing_required_file/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix missing_required_file in GTFS | GTFS Guru">
-  <meta property="og:description" content="A required file is missing. What the missing_required_file notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="The archive is missing a required GTFS file What the missing_required_file notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/missing_required_file/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_required_file/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_required_file"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A required file is missing. What the missing_required_file notice means, the files and fields it points at, and how to repair the feed.","headline":"A required file is missing.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_required_file/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_required_file/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_required_file/","name":"missing_required_file","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_required_file/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_required_file"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The archive is missing a required GTFS file What the missing_required_file notice means, the files and fields it points at, and how to repair the feed.","headline":"The archive is missing a required GTFS file","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_required_file/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_required_file/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_required_file/","name":"missing_required_file","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>A required file is missing.</h1>
+      <h1>The archive is missing a required GTFS file</h1>
       <div class="code-line">
         <code id="notice-code">missing_required_file</code>
         <button class="copy-button" type="button" data-copy="missing_required_file">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>1</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,9 +56,7 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -66,75 +64,48 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>If this notice is triggered for every core file, it might be a problem with the input. To create a zip file from the GTFS <code>.txt</code> files: select all the <code>.txt</code> files, right-click, and compress. Do not compress the folder containing the files.</p>
+          <p>The validator cannot find the file named in the report.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>A file the specification requires is not in the archive. A GTFS dataset without it is incomplete, and consumers reject it outright rather than importing part of it.</p>
+          <p>The feed lacks information needed for loading or for a feature it uses.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>filename</code></td><td>string</td><td>The name of the faulty file.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>The ZIP was built from a containing folder, so every file sits one directory down instead of at the archive root.</li>
-            <li>A file named <code>Stops.txt</code>, <code>stops.TXT</code> or <code>stops.csv</code> rather than <code>stops.txt</code>.</li>
-            <li>Service defined only in <code>calendar_dates.txt</code> with no <code>calendar.txt</code>, or the reverse — at least one of the two must be present.</li>
-            <li>An export step that silently skipped a file when its source table was empty.</li>
-          </ul>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Add the file to the archive. If the file exists but is still reported missing, check that it sits at the root of the ZIP rather than inside a folder, and that the name matches exactly — lower-case, with the `.txt` extension.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the archive root and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>missing_required_file</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Inspect the ZIP&#39;s top level for the exact filename; check for a nested folder or incorrect extension.</p></div></li>
+            <li><span>2</span><div><p>Export the required file with its real records and place it at the archive root. If many core files are missing, fix the archive structure first.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not satisfy this by adding a file that contains only a header row. An empty <code>calendar.txt</code> produces a feed in which nothing ever runs — which is harder to notice than a missing file.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>gtfs.zip
-  my-feed/agency.txt
-  my-feed/stops.txt
-  my-feed/routes.txt</code></pre></div>
-            <div><h3>After</h3><pre><code>gtfs.zip
-  agency.txt
-  stops.txt
-  routes.txt</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for the archive root; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#missing_required_file-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#term-definitions"><strong>GTFS Schedule Reference — Term Definitions</strong><span>Official GTFS documentation</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/empty_file/"><code>empty_file</code><span>A CSV file is empty.</span></a>
-            <a href="/notices/missing_required_agency_id/"><code>missing_required_agency_id</code><span>Agency id is required when there are multiple agencies.</span></a>
-            <a href="/notices/missing_required_column/"><code>missing_required_column</code><span>A required column is missing in the input file.</span></a>
-            <a href="/notices/missing_required_element/"><code>missing_required_element</code><span>A required element is missing in locations.geojson.</span></a>
+            <a href="/notices/empty_file/"><code>empty_file</code><span>A GTFS file has no usable content</span></a>
+            <a href="/notices/missing_required_agency_id/"><code>missing_required_agency_id</code><span>A multi-agency feed is missing an agency ID</span></a>
+            <a href="/notices/missing_required_column/"><code>missing_required_column</code><span>A required column is missing from the header</span></a>
+            <a href="/notices/missing_required_element/"><code>missing_required_element</code><span>A GeoJSON object is missing a required element</span></a>
           </div>
         </section>
       </article>

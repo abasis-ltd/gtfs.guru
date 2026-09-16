@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix foreign_key_violation in GTFS | GTFS Guru</title>
-  <meta name="description" content="Wrong foreign key. What the foreign_key_violation notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A record refers to an ID that does not exist What the foreign_key_violation notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/foreign_key_violation/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix foreign_key_violation in GTFS | GTFS Guru">
-  <meta property="og:description" content="Wrong foreign key. What the foreign_key_violation notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A record refers to an ID that does not exist What the foreign_key_violation notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/foreign_key_violation/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/foreign_key_violation/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice foreign_key_violation"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Wrong foreign key. What the foreign_key_violation notice means, the files and fields it points at, and how to repair the feed.","headline":"Wrong foreign key.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/foreign_key_violation/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/foreign_key_violation/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/foreign_key_violation/","name":"foreign_key_violation","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/foreign_key_violation/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice foreign_key_violation"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A record refers to an ID that does not exist What the foreign_key_violation notice means, the files and fields it points at, and how to repair the feed.","headline":"A record refers to an ID that does not exist","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/foreign_key_violation/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/foreign_key_violation/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/foreign_key_violation/","name":"foreign_key_violation","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Wrong foreign key.</h1>
+      <h1>A record refers to an ID that does not exist</h1>
       <div class="code-line">
         <code id="notice-code">foreign_key_violation</code>
         <button class="copy-button" type="button" data-copy="foreign_key_violation">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>6</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,7 +56,6 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
         <a href="#example">Example</a>
         <a href="#references">References</a>
@@ -66,18 +65,18 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>A foreign key references the primary key of another file. A foreign key violation means that the foreign key referenced from a given row (the child file) cannot be found in the corresponding file (the parent file). The Foreign keys are defined in the specification under &quot;Type&quot; for each file.</p>
+          <p>The value in <code>childFieldName</code> cannot be found in the referenced file and field named by the report.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>A row points at an id that does not exist anywhere in the file it references. The reference is dangling, so the record it belongs to cannot be resolved: a trip whose `service_id` is missing from `calendar.txt` never runs, a `stop_times.txt` row whose `stop_id` is missing from `stops.txt` has no location, and a route whose `agency_id` is unknown has no operator. Consumers drop the affected rows, and dropping a `stop_times.txt` row silently removes a stop from a trip. The report names both sides: `childFilename`/`childFieldName` is where the broken reference was written, `parentFilename`/`parentFieldName` is where the id should have been defined, and `fieldValue` is the id that was not found.</p>
+          <p>An app may reject or omit the affected stop, trip, route, or other record.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>childFieldName</code></td><td>string</td><td>The name of the field that makes reference.</td></tr>
             <tr><td><code>childFilename</code></td><td>string</td><td>The name of the file from which reference is made.</td></tr>
@@ -87,68 +86,44 @@
             <tr><td><code>parentFilename</code></td><td>string</td><td>The name of the file that is referred to.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>A typo or case difference in the id — <code>STOP_42</code> in <code>stop_times.txt</code> against <code>stop_42</code> in <code>stops.txt</code>. GTFS ids are case-sensitive, and so is this check.</li>
-            <li>A stray space or a zero-width character copied in from a spreadsheet, so the two ids look identical but do not compare equal.</li>
-            <li>A row was deleted from the parent file (a retired stop, a discontinued route) while the rows referencing it were left behind.</li>
-            <li>A partial export: <code>calendar.txt</code> or <code>calendar_dates.txt</code> was regenerated for a new period, and trips still carry <code>service_id</code> values from the old one.</li>
-            <li>Two source systems with different id schemes merged into one feed, so one system&#39;s ids never made it into the parent file.</li>
-            <li>An id built by concatenation that lost a prefix or a suffix somewhere in the export pipeline.</li>
-          </ul>
-          <p class="cross-check"><strong>Check both sides.</strong> Open the parent file named in <code>parentFilename</code> and search for the exact <code>fieldValue</code> from the report. No match means the id was never defined; a match that differs only in case or whitespace means the child row needs normalising, not a new parent row.</p>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Decide which side is wrong before editing anything. If the id in the child row is a typo or a leftover from an older export, correct it to an id that exists in the parent file. If the id is right and the parent row is genuinely missing, add that row to the parent file with its real data.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the child file named in the report (<code>stop_times.txt</code>, <code>trips.txt</code>, <code>routes.txt</code> …) and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>foreign_key_violation</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Open <code>childFilename</code> at <code>csvRowNumber</code>, then search for the exact <code>fieldValue</code> in <code>parentFilename</code> and <code>parentFieldName</code>.</p></div></li>
+            <li><span>2</span><div><p>Correct a mistyped reference, restore the real missing record, or remove an obsolete record and its dependencies. Check case and whitespace. For service IDs, consider both calendar files; never invent a placeholder stop or service.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not invent a placeholder row in the parent file just to make the notice go away. A fabricated <code>stops.txt</code> entry at 0,0 for a missing <code>stop_id</code> turns a loud error into a stop in the Gulf of Guinea that riders will be routed to, and a fake <code>calendar.txt</code> service with every day set to 0 turns a broken trip into a trip that quietly never runs. Add the real record, or remove the reference.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
         <section id="example">
           <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
+          <h2>Example correction</h2>
+          <p>Assume the source timetable confirms that this trip serves STOP_41. These are field-level excerpts, not a complete feed.</p>
           <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_times.txt
-trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,08:00:00,08:00:00,STOP_42,1
-
-stops.txt
-stop_id,stop_name,stop_lat,stop_lon
-STOP_41,Central,35.17,33.36</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_times.txt
-trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,08:00:00,08:00:00,STOP_41,1
-
-stops.txt
-stop_id,stop_name,stop_lat,stop_lon
-STOP_41,Central,35.17,33.36</code></pre></div>
+            <div><h3>Before</h3><pre><code>stops.stop_id: STOP_41
+stop_times.stop_id: STOP_42</code></pre></div>
+            <div><h3>After</h3><pre><code>stops.stop_id: STOP_41
+stop_times.stop_id: STOP_41</code></pre></div>
           </div>
-          <p class="example-note">Simplified example for the child file named in the report (<code>stop_times.txt</code>, <code>trips.txt</code>, <code>routes.txt</code> …); keep all other required columns from your feed.</p>
+          <p class="example-note">Illustrative excerpt, not a complete GTFS feed. Keep all other required records and fields.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#foreign_key_violation-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#file-requirements"><strong>GTFS Schedule Reference — File Requirements</strong><span>Official GTFS documentation</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/translation_foreign_key_violation/"><code>translation_foreign_key_violation</code><span>An entity with the given record_id and record_sub_id cannot be found in the referenced table.</span></a>
-            <a href="/notices/duplicate_geo_json_key/"><code>duplicate_geo_json_key</code><span>A key in locations.geojson is duplicated.</span></a>
-            <a href="/notices/duplicate_key/"><code>duplicate_key</code><span>Duplicated entity.</span></a>
-            <a href="/notices/bidirectional_exit_gate/"><code>bidirectional_exit_gate</code><span>Pathway is bidirectional and has mode 7 (exit gate).</span></a>
+            <a href="/notices/translation_foreign_key_violation/"><code>translation_foreign_key_violation</code><span>A translation refers to a record that cannot be found</span></a>
+            <a href="/notices/duplicate_geo_json_key/"><code>duplicate_geo_json_key</code><span>Two geographic features use the same ID</span></a>
+            <a href="/notices/duplicate_key/"><code>duplicate_key</code><span>Two rows have the same unique key</span></a>
+            <a href="/notices/bidirectional_exit_gate/"><code>bidirectional_exit_gate</code><span>An exit-only gate allows travel in both directions</span></a>
           </div>
         </section>
       </article>

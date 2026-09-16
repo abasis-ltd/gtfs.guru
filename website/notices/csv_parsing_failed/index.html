@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix csv_parsing_failed in GTFS | GTFS Guru</title>
-  <meta name="description" content="Parsing of a CSV file failed. What the csv_parsing_failed notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A file could not be read as CSV What the csv_parsing_failed notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/csv_parsing_failed/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix csv_parsing_failed in GTFS | GTFS Guru">
-  <meta property="og:description" content="Parsing of a CSV file failed. What the csv_parsing_failed notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A file could not be read as CSV What the csv_parsing_failed notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/csv_parsing_failed/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/csv_parsing_failed/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice csv_parsing_failed"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Parsing of a CSV file failed. What the csv_parsing_failed notice means, the files and fields it points at, and how to repair the feed.","headline":"Parsing of a CSV file failed.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/csv_parsing_failed/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/csv_parsing_failed/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/csv_parsing_failed/","name":"csv_parsing_failed","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/csv_parsing_failed/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice csv_parsing_failed"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A file could not be read as CSV What the csv_parsing_failed notice means, the files and fields it points at, and how to repair the feed.","headline":"A file could not be read as CSV","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/csv_parsing_failed/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/csv_parsing_failed/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/csv_parsing_failed/","name":"csv_parsing_failed","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Parsing of a CSV file failed.</h1>
+      <h1>A file could not be read as CSV</h1>
       <div class="code-line">
         <code id="notice-code">csv_parsing_failed</code>
         <button class="copy-button" type="button" data-copy="csv_parsing_failed">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>6</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,9 +56,7 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -66,18 +64,18 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>One common case of the problem is when a cell value contains more than 4096 characters.</p>
+          <p>The CSV reader could not parse the reported file. The message and position identify where reading failed.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The file could not be read as CSV at all, so nothing in it reaches validation. Everything that file defines is missing from the feed, and consumers will reject the dataset.</p>
+          <p>Some or all of the file may be unavailable to later checks, so the report may be incomplete.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>charIndex</code></td><td>integer</td><td>The location of the last character read from before the error occurred.</td></tr>
             <tr><td><code>columnIndex</code></td><td>integer</td><td>The column index where the exception occurred.</td></tr>
@@ -87,55 +85,32 @@
             <tr><td><code>parsedContent</code></td><td>object</td><td>The record number when the exception occurred.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>A value such as <code>Central Station, Platform 2</code> written without quotes, which splits one field into two.</li>
-            <li>An unbalanced double quote, after which the parser reads the rest of the file as one enormous value.</li>
-            <li>A stray line break inside a stop or route name.</li>
-            <li>A file saved as semicolon- or tab-separated by a spreadsheet using a European locale.</li>
-            <li>Mixed line endings, or a byte-order mark in the middle of the file rather than at its start.</li>
-          </ul>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Repair the file&#39;s CSV structure at source. Values containing a comma, a quote or a line break must be wrapped in double quotes, and a literal double quote inside a quoted value is written twice.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>csv_parsing_failed</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Open <code>filename</code> and inspect the parser&#39;s <code>message</code>, <code>lineIndex</code>, and nearby text. Check delimiters and balanced quotes.</p></div></li>
+            <li><span>2</span><div><p>Export comma-separated UTF-8 CSV. Quote values containing commas and double any literal quote inside a quoted value; remove unintended line breaks from GTFS field values.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not strip every comma out of your names to make the file parse. Quote the value instead — <code>&quot;Central Station, Platform 2&quot;</code> is legal CSV and keeps the name riders recognise.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central Station, Platform 2,35.17,33.36</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,&quot;Central Station, Platform 2&quot;,35.17,33.36</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for the file named in the report; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#csv_parsing_failed-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/bidirectional_exit_gate/"><code>bidirectional_exit_gate</code><span>Pathway is bidirectional and has mode 7 (exit gate).</span></a>
-            <a href="/notices/block_trips_with_overlapping_stop_times/"><code>block_trips_with_overlapping_stop_times</code><span>Trips with the same block id have overlapping stop times.</span></a>
-            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Decreasing or equal shape_dist_traveled in stop_times.txt.</span></a>
-            <a href="/notices/decreasing_shape_distance/"><code>decreasing_shape_distance</code><span>Decreasing shape_dist_traveled in shapes.txt.</span></a>
+            <a href="/notices/bidirectional_exit_gate/"><code>bidirectional_exit_gate</code><span>An exit-only gate allows travel in both directions</span></a>
+            <a href="/notices/block_trips_with_overlapping_stop_times/"><code>block_trips_with_overlapping_stop_times</code><span>One vehicle is assigned to overlapping trips</span></a>
+            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Distance does not increase between stops</span></a>
+            <a href="/notices/decreasing_shape_distance/"><code>decreasing_shape_distance</code><span>Distance goes backwards along a shape</span></a>
           </div>
         </section>
       </article>

@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix google_ic_price_check in GTFS | GTFS Guru</title>
-  <meta name="description" content="The Google Transit ic_price extension has an invalid value. What the google_ic_price_check notice means, the files and fields it points at, and how to…">
+  <meta name="description" content="The Google smart-card fare value is invalid What the google_ic_price_check notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/google_ic_price_check/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix google_ic_price_check in GTFS | GTFS Guru">
-  <meta property="og:description" content="The Google Transit ic_price extension has an invalid value. What the google_ic_price_check notice means, the files and fields it points at, and how to…">
+  <meta property="og:description" content="The Google smart-card fare value is invalid What the google_ic_price_check notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/google_ic_price_check/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/google_ic_price_check/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice google_ic_price_check"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The Google Transit ic_price extension has an invalid value. What the google_ic_price_check notice means, the files and fields it points at, and how to…","headline":"The Google Transit ic_price extension has an invalid value.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/google_ic_price_check/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/google_ic_price_check/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/google_ic_price_check/","name":"google_ic_price_check","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/google_ic_price_check/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice google_ic_price_check"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The Google smart-card fare value is invalid What the google_ic_price_check notice means, the files and fields it points at, and how to repair the feed.","headline":"The Google smart-card fare value is invalid","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/google_ic_price_check/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/google_ic_price_check/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/google_ic_price_check/","name":"google_ic_price_check","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>The Google Transit ic_price extension has an invalid value.</h1>
+      <h1>The Google smart-card fare value is invalid</h1>
       <div class="code-line">
         <code id="notice-code">google_ic_price_check</code>
         <button class="copy-button" type="button" data-copy="google_ic_price_check">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>3</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>The <code>ic_price</code> value must be <code>-1</code> or a non-negative discounted fare. This optional compatibility rule is enabled with <code>--google-rules</code>.</p>
+          <p>The optional <code>ic_price</code> extension contains a value other than <code>-1</code> or a non-negative fare amount.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>This is a GTFS requirement violation. Consumers may reject the affected data or interpret it incorrectly.</p>
+          <p>Google compatibility processing may not interpret the smart-card price correctly.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#fareattributestxt"><code>fare_attributes.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -87,11 +87,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>google_ic_price_check</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Find <code>ic_price</code> in <code>fare_attributes.txt</code> and check the intended discounted fare.</p></div></li>
+            <li><span>2</span><div><p>Use the actual non-negative amount, or <code>-1</code> where that extension requires its special value. Do not substitute a fare merely to pass validation.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -107,10 +106,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/missing_required_agency_id/"><code>missing_required_agency_id</code><span>Agency id is required when there are multiple agencies.</span></a>
-            <a href="/notices/google_transfer_type_check/"><code>google_transfer_type_check</code><span>Google Transit ignores this transfer type.</span></a>
-            <a href="/notices/bidirectional_exit_gate/"><code>bidirectional_exit_gate</code><span>Pathway is bidirectional and has mode 7 (exit gate).</span></a>
-            <a href="/notices/block_trips_with_overlapping_stop_times/"><code>block_trips_with_overlapping_stop_times</code><span>Trips with the same block id have overlapping stop times.</span></a>
+            <a href="/notices/missing_required_agency_id/"><code>missing_required_agency_id</code><span>A multi-agency feed is missing an agency ID</span></a>
+            <a href="/notices/google_transfer_type_check/"><code>google_transfer_type_check</code><span>Google Transit may ignore this transfer type</span></a>
+            <a href="/notices/bidirectional_exit_gate/"><code>bidirectional_exit_gate</code><span>An exit-only gate allows travel in both directions</span></a>
+            <a href="/notices/block_trips_with_overlapping_stop_times/"><code>block_trips_with_overlapping_stop_times</code><span>One vehicle is assigned to overlapping trips</span></a>
           </div>
         </section>
       </article>

@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix stop_has_too_many_matches_for_shape in GTFS | GTFS Guru</title>
-  <meta name="description" content="Stop entry that has many potential matches to the trip&#39;s path of travel, as defined by the shape entry in shapes.txt. What the…">
+  <meta name="description" content="A stop matches several parts of the route shape What the stop_has_too_many_matches_for_shape notice means, the files and fields it points at, and how to…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix stop_has_too_many_matches_for_shape in GTFS | GTFS Guru">
-  <meta property="og:description" content="Stop entry that has many potential matches to the trip&#39;s path of travel, as defined by the shape entry in shapes.txt. What the…">
+  <meta property="og:description" content="A stop matches several parts of the route shape What the stop_has_too_many_matches_for_shape notice means, the files and fields it points at, and how to…">
   <meta property="og:url" content="https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice stop_has_too_many_matches_for_shape"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Stop entry that has many potential matches to the trip's path of travel, as defined by the shape entry in shapes.txt. What the…","headline":"Stop entry that has many potential matches to the trip's path of travel, as defined by the shape entry in shapes.txt.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/","name":"stop_has_too_many_matches_for_shape","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice stop_has_too_many_matches_for_shape"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A stop matches several parts of the route shape What the stop_has_too_many_matches_for_shape notice means, the files and fields it points at, and how to…","headline":"A stop matches several parts of the route shape","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_has_too_many_matches_for_shape/","name":"stop_has_too_many_matches_for_shape","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>Stop entry that has many potential matches to the trip&#39;s path of travel, as defined by the shape entry in shapes.txt.</h1>
+      <h1>A stop matches several parts of the route shape</h1>
       <div class="code-line">
         <code id="notice-code">stop_has_too_many_matches_for_shape</code>
         <button class="copy-button" type="button" data-copy="stop_has_too_many_matches_for_shape">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>3</dd></div>
+        <div><dt>Files to check</dt><dd>3</dd></div>
         <div><dt>Report fields</dt><dd>8</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>This potentially indicates a problem with the location of the stop or the path of the shape.</p>
+          <p>The same stop location has many possible matches along the trip&#39;s shape.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>Apps may place the stop on the wrong pass of a loop or overlapping route section.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stopstxt"><code>stops.txt</code><span>Open GTFS specification</span></a></li>
@@ -94,11 +94,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>stop_has_too_many_matches_for_shape</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Inspect the reported stop, shape, and trip direction on a map.</p></div></li>
+            <li><span>2</span><div><p>Correct inaccurate coordinates or a wrong shape assignment. For a genuine repeated pass, supply consistent cumulative <code>shape_dist_traveled</code> values that identify the intended occurrence.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -117,10 +116,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>Stop too far from trip shape.</span></a>
-            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>Stop time too far from shape.</span></a>
-            <a href="/notices/trip_headsign_matches_intermediate_stop/"><code>trip_headsign_matches_intermediate_stop</code><span>Trip headsign matches the name of an intermediate stop, not the last stop.</span></a>
-            <a href="/notices/stops_match_shape_out_of_order/"><code>stops_match_shape_out_of_order</code><span>Two stop entries are different than their arrival-departure order defined by shapes.txt.</span></a>
+            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>A stop is too far from the trip&#39;s route line</span></a>
+            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>A stop&#39;s distance places it far from its real location</span></a>
+            <a href="/notices/trip_headsign_matches_intermediate_stop/"><code>trip_headsign_matches_intermediate_stop</code><span>The destination display names an intermediate stop</span></a>
+            <a href="/notices/stops_match_shape_out_of_order/"><code>stops_match_shape_out_of_order</code><span>The stop order disagrees with the route shape</span></a>
           </div>
         </section>
       </article>

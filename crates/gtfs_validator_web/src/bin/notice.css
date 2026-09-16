@@ -319,6 +319,7 @@ pre code { color: #d4e2f2; font-size: .76rem; line-height: 1.6; }
   text-decoration: none;
   transition: background 160ms ease, padding 160ms ease;
 }
+.notice-row[hidden] { display: none; }
 .notice-row:hover { margin: 0 -.8rem; padding: 0 .8rem; background: var(--surface); }
 .notice-row > span:nth-child(2) { display: grid; }
 .notice-row code { color: var(--accent); font-size: .78rem; }

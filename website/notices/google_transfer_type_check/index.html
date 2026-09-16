@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix google_transfer_type_check in GTFS | GTFS Guru</title>
-  <meta name="description" content="Google Transit ignores this transfer type. What the google_transfer_type_check notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="Google Transit may ignore this transfer type What the google_transfer_type_check notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/google_transfer_type_check/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix google_transfer_type_check in GTFS | GTFS Guru">
-  <meta property="og:description" content="Google Transit ignores this transfer type. What the google_transfer_type_check notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="Google Transit may ignore this transfer type What the google_transfer_type_check notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/google_transfer_type_check/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/google_transfer_type_check/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice google_transfer_type_check"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Google Transit ignores this transfer type. What the google_transfer_type_check notice means, the files and fields it points at, and how to repair the feed.","headline":"Google Transit ignores this transfer type.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/google_transfer_type_check/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/google_transfer_type_check/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/google_transfer_type_check/","name":"google_transfer_type_check","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/google_transfer_type_check/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice google_transfer_type_check"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Google Transit may ignore this transfer type What the google_transfer_type_check notice means, the files and fields it points at, and how to repair the feed.","headline":"Google Transit may ignore this transfer type","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/google_transfer_type_check/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/google_transfer_type_check/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/google_transfer_type_check/","name":"google_transfer_type_check","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>Google Transit ignores this transfer type.</h1>
+      <h1>Google Transit may ignore this transfer type</h1>
       <div class="code-line">
         <code id="notice-code">google_transfer_type_check</code>
         <button class="copy-button" type="button" data-copy="google_transfer_type_check">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>3</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Google Transit ignores <code>transfer_type</code> values 4 and 5. This is a consumer-compatibility warning rather than a GTFS specification violation.</p>
+          <p>The feed uses <code>transfer_type=4</code> or <code>5</code>, which this Google compatibility check flags as unsupported.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>Stay-on-board transfer behavior may not appear as intended in Google Transit, even when the GTFS data is valid.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#transferstxt"><code>transfers.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -87,11 +87,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>google_transfer_type_check</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Review the affected <code>transfers.txt</code> rows and your target consumers.</p></div></li>
+            <li><span>2</span><div><p>Keep the correct GTFS transfer type. If Google support is required, review its supported modeling options; do not replace the value with an ordinary transfer unless that describes the real journey.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -107,10 +106,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/inconsistent_route_type_for_in_seat_transfer/"><code>inconsistent_route_type_for_in_seat_transfer</code><span>An in-seat transfer should occur in the same route mode.</span></a>
-            <a href="/notices/transfer_with_invalid_stop_location_type/"><code>transfer_with_invalid_stop_location_type</code><span>A stop id field from GTFS file transfers.txt references a stop that has a location_type other than 0 or 1 (aka Stop/Platform or Station).</span></a>
-            <a href="/notices/transfer_distance_too_large/"><code>transfer_distance_too_large</code><span>The transfer distance from stop to stop in transfers.txt is larger than 10 km.</span></a>
-            <a href="/notices/transfer_with_suspicious_mid_trip_in_seat/"><code>transfer_with_suspicious_mid_trip_in_seat</code><span>A trip id field from GTFS file transfers.txt with an in-seat transfer type references a stop that is not in the expected position in the trip&#39;s stop-times.</span></a>
+            <a href="/notices/inconsistent_route_type_for_in_seat_transfer/"><code>inconsistent_route_type_for_in_seat_transfer</code><span>A stay-on-board transfer connects different transport types</span></a>
+            <a href="/notices/transfer_with_invalid_stop_location_type/"><code>transfer_with_invalid_stop_location_type</code><span>A transfer endpoint is not a stop or station</span></a>
+            <a href="/notices/transfer_distance_too_large/"><code>transfer_distance_too_large</code><span>A transfer connects stops more than 10 km apart</span></a>
+            <a href="/notices/transfer_with_suspicious_mid_trip_in_seat/"><code>transfer_with_suspicious_mid_trip_in_seat</code><span>A stay-on-board transfer occurs in the middle of a trip</span></a>
           </div>
         </section>
       </article>

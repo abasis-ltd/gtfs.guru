@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix attribution_without_role in GTFS | GTFS Guru</title>
-  <meta name="description" content="Attribution with no role. What the attribution_without_role notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="An attribution does not say what the organization does What the attribution_without_role notice means, the files and fields it points at, and how to repair…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/attribution_without_role/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix attribution_without_role in GTFS | GTFS Guru">
-  <meta property="og:description" content="Attribution with no role. What the attribution_without_role notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="An attribution does not say what the organization does What the attribution_without_role notice means, the files and fields it points at, and how to repair…">
   <meta property="og:url" content="https://gtfs.guru/notices/attribution_without_role/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/attribution_without_role/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice attribution_without_role"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Attribution with no role. What the attribution_without_role notice means, the files and fields it points at, and how to repair the feed.","headline":"Attribution with no role.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/attribution_without_role/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/attribution_without_role/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/attribution_without_role/","name":"attribution_without_role","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/attribution_without_role/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice attribution_without_role"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"An attribution does not say what the organization does What the attribution_without_role notice means, the files and fields it points at, and how to repair…","headline":"An attribution does not say what the organization does","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/attribution_without_role/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/attribution_without_role/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/attribution_without_role/","name":"attribution_without_role","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>Attribution with no role.</h1>
+      <h1>An attribution does not say what the organization does</h1>
       <div class="code-line">
         <code id="notice-code">attribution_without_role</code>
         <button class="copy-button" type="button" data-copy="attribution_without_role">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>2</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>At least one of the fields <code>is_producer</code>, <code>is_operator</code>, or <code>is_authority</code> should be set to 1.</p>
+          <p>An attribution row has no role set to <code>1</code>.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>Users of the feed cannot tell whether this organization produced the data, operates the service, or acts as the authority.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#attributionstxt"><code>attributions.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -86,11 +86,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>attribution_without_role</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Find the reported row in <code>attributions.txt</code>.</p></div></li>
+            <li><span>2</span><div><p>Set at least one of <code>is_producer</code>, <code>is_operator</code>, or <code>is_authority</code> to <code>1</code>, according to the organization&#39;s actual role.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -106,10 +105,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/agency_phone_invalid/"><code>agency_phone_invalid</code><span>An agency phone number appears to be invalid.</span></a>
-            <a href="/notices/duplicate_fare_media/"><code>duplicate_fare_media</code><span>Two distinct fare media have the same fare media name and type.</span></a>
-            <a href="/notices/duplicate_route_name/"><code>duplicate_route_name</code><span>Two distinct routes have either the same route_short_name, the same route_long_name, or the same combination of route_short_name and route_long_name.</span></a>
-            <a href="/notices/duplicate_trip/"><code>duplicate_trip</code><span>Two or more trips have the same route, service, and stop times.</span></a>
+            <a href="/notices/agency_phone_invalid/"><code>agency_phone_invalid</code><span>Check the agency&#39;s public phone number</span></a>
+            <a href="/notices/duplicate_fare_media/"><code>duplicate_fare_media</code><span>Two fare media have the same name and type</span></a>
+            <a href="/notices/duplicate_route_name/"><code>duplicate_route_name</code><span>Two routes have indistinguishable names</span></a>
+            <a href="/notices/duplicate_trip/"><code>duplicate_trip</code><span>Two records describe the same scheduled trip</span></a>
           </div>
         </section>
       </article>

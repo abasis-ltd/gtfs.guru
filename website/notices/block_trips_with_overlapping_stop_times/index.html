@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix block_trips_with_overlapping_stop_times in GTFS | GTFS Guru</title>
-  <meta name="description" content="Trips with the same block id have overlapping stop times. What the block_trips_with_overlapping_stop_times notice means, the files and fields it points at,…">
+  <meta name="description" content="One vehicle is assigned to overlapping trips What the block_trips_with_overlapping_stop_times notice means, the files and fields it points at, and how to…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix block_trips_with_overlapping_stop_times in GTFS | GTFS Guru">
-  <meta property="og:description" content="Trips with the same block id have overlapping stop times. What the block_trips_with_overlapping_stop_times notice means, the files and fields it points at,…">
+  <meta property="og:description" content="One vehicle is assigned to overlapping trips What the block_trips_with_overlapping_stop_times notice means, the files and fields it points at, and how to…">
   <meta property="og:url" content="https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice block_trips_with_overlapping_stop_times"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Trips with the same block id have overlapping stop times. What the block_trips_with_overlapping_stop_times notice means, the files and fields it points at,…","headline":"Trips with the same block id have overlapping stop times.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/","name":"block_trips_with_overlapping_stop_times","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice block_trips_with_overlapping_stop_times"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"One vehicle is assigned to overlapping trips What the block_trips_with_overlapping_stop_times notice means, the files and fields it points at, and how to…","headline":"One vehicle is assigned to overlapping trips","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/block_trips_with_overlapping_stop_times/","name":"block_trips_with_overlapping_stop_times","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Trips with the same block id have overlapping stop times.</h1>
+      <h1>One vehicle is assigned to overlapping trips</h1>
       <div class="code-line">
         <code id="notice-code">block_trips_with_overlapping_stop_times</code>
         <button class="copy-button" type="button" data-copy="block_trips_with_overlapping_stop_times">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>8</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -57,7 +57,6 @@
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -65,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Trips with the same block id have overlapping stop times.</p>
+          <p>Two trips share a <code>block_id</code> and overlap on a date when both services operate.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>A block tells riders they can stay on the vehicle between trips. Two trips in one block that run at the same time on the same service day cannot both be served by that vehicle, so in-seat transfers and vehicle assignment break. The report&#39;s `intersection` is the first service date (YYYYMMDD) on which both trips are active. A trip whose last stop repeats the exact arrival/departure pair of the next trip&#39;s first stop is a block transfer, not an overlap; trips whose services share no active date never overlap, even under the same service_id.</p>
+          <p>The block cannot describe a single vehicle&#39;s actual work, and stay-on-board connections may be misleading.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#tripstxt"><code>trips.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -93,30 +92,12 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Fix the stop times of one of the trips, move it to another block, or give the two trips services that do not run on the same dates.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stop_times.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>block_trips_with_overlapping_stop_times</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Use <code>tripIdA</code>, <code>tripIdB</code>, and <code>intersection</code> to compare both trips&#39; stop times on the reported service date.</p></div></li>
+            <li><span>2</span><div><p>Correct an erroneous time or calendar, or assign the trips to their actual vehicle blocks. Do not change a real departure simply to remove the overlap.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,08:00:00,08:00:00,S1,1
-T1,09:00:00,09:00:00,S2,2
-T2,08:30:00,08:30:00,S3,1
-T2,09:30:00,09:30:00,S4,2</code></pre></div>
-            <div><h3>After</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T1,08:00:00,08:00:00,S1,1
-T1,09:00:00,09:00:00,S2,2
-T2,09:00:00,09:00:00,S2,1
-T2,09:30:00,09:30:00,S4,2</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for <code>stop_times.txt</code>; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
@@ -130,10 +111,10 @@ T2,09:30:00,09:30:00,S4,2</code></pre></div>
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/inconsistent_route_type_for_block_id/"><code>inconsistent_route_type_for_block_id</code><span>A block should have the same route mode.</span></a>
-            <a href="/notices/stop_has_too_many_matches_for_shape/"><code>stop_has_too_many_matches_for_shape</code><span>Stop entry that has many potential matches to the trip&#39;s path of travel, as defined by the shape entry in shapes.txt.</span></a>
-            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>Stop too far from trip shape.</span></a>
-            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>Stop time too far from shape.</span></a>
+            <a href="/notices/inconsistent_route_type_for_block_id/"><code>inconsistent_route_type_for_block_id</code><span>One vehicle block mixes transport types</span></a>
+            <a href="/notices/stop_has_too_many_matches_for_shape/"><code>stop_has_too_many_matches_for_shape</code><span>A stop matches several parts of the route shape</span></a>
+            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>A stop is too far from the trip&#39;s route line</span></a>
+            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>A stop&#39;s distance places it far from its real location</span></a>
           </div>
         </section>
       </article>

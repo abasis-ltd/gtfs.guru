@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix trip_with_shape_dist_traveled_but_no_shape_distances in GTFS | GTFS Guru</title>
-  <meta name="description" content="A trip has shape_dist_traveled values in stop_times.txt but the shape referenced by the trip&#39;s shape_id does not have shape_dist_traveled values on all of…">
+  <meta name="description" content="Stop distances have no complete matching distances on the shape What the trip_with_shape_dist_traveled_but_no_shape_distances notice means, the files and…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix trip_with_shape_dist_traveled_but_no_shape_distances in GTFS | GTFS Guru">
-  <meta property="og:description" content="A trip has shape_dist_traveled values in stop_times.txt but the shape referenced by the trip&#39;s shape_id does not have shape_dist_traveled values on all of…">
+  <meta property="og:description" content="Stop distances have no complete matching distances on the shape What the trip_with_shape_dist_traveled_but_no_shape_distances notice means, the files and…">
   <meta property="og:url" content="https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice trip_with_shape_dist_traveled_but_no_shape_distances"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A trip has shape_dist_traveled values in stop_times.txt but the shape referenced by the trip's shape_id does not have shape_dist_traveled values on all of…","headline":"A trip has shape_dist_traveled values in stop_times.txt but the shape referenced by the trip's shape_id does not have shape_dist_traveled values on all of its points in shapes.txt.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/","name":"trip_with_shape_dist_traveled_but_no_shape_distances","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice trip_with_shape_dist_traveled_but_no_shape_distances"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Stop distances have no complete matching distances on the shape What the trip_with_shape_dist_traveled_but_no_shape_distances notice means, the files and…","headline":"Stop distances have no complete matching distances on the shape","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/trip_with_shape_dist_traveled_but_no_shape_distances/","name":"trip_with_shape_dist_traveled_but_no_shape_distances","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity info">INFO</span><span>GTFS Schedule notice</span></div>
-      <h1>A trip has shape_dist_traveled values in stop_times.txt but the shape referenced by the trip&#39;s shape_id does not have shape_dist_traveled values on all of its points in shapes.txt.</h1>
+      <h1>Stop distances have no complete matching distances on the shape</h1>
       <div class="code-line">
         <code id="notice-code">trip_with_shape_dist_traveled_but_no_shape_distances</code>
         <button class="copy-button" type="button" data-copy="trip_with_shape_dist_traveled_but_no_shape_distances">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>INFO</dd></div>
-        <div><dt>Affected files</dt><dd>3</dd></div>
+        <div><dt>Files to check</dt><dd>3</dd></div>
         <div><dt>Report fields</dt><dd>4</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,18 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>When stop times define distance values but the shape does not carry matching distances on every point, consumers cannot use those distances to align stops to the shape geometry reliably. This inconsistency may cause incorrect routing or display behaviour.</p>
-<p>&lt;b&gt;Note:&lt;/b&gt; Only the first stop time carrying a shape_dist_traveled value is referenced in the notice; this is a representative row rather than an exhaustive list.</p>
+          <p>A trip supplies <code>shape_dist_traveled</code> in <code>stop_times.txt</code>, but its shape lacks distances on some or all points.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>This finding is not necessarily invalid, but it is worth reviewing because it can reveal stale or unexpected data.</p>
+          <p>Apps cannot reliably locate those stop distances on the route geometry.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#shapestxt"><code>shapes.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
@@ -93,11 +92,10 @@ same trip may also carry distance values.</td></tr>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>trip_with_shape_dist_traveled_but_no_shape_distances</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Find the trip&#39;s <code>shape_id</code> and inspect every point in <code>shapes.txt</code>; the report may identify only a representative stop-time row.</p></div></li>
+            <li><span>2</span><div><p>Populate consistent cumulative distances for all shape points using the same units and origin as the stop times. Recalculate both sides when needed.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -115,10 +113,10 @@ same trip may also carry distance values.</td></tr>
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/trip_distance_exceeds_shape_distance/"><code>trip_distance_exceeds_shape_distance</code><span>The distance between the last shape point and last stop point is greater than or equal to the 11.1m threshold.</span></a>
-            <a href="/notices/trip_distance_exceeds_shape_distance_below_threshold/"><code>trip_distance_exceeds_shape_distance_below_threshold</code><span>The distance between the last shape point and last stop point is greater than 0 but less than the 11.1m threshold.</span></a>
-            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>Stop too far from trip shape.</span></a>
-            <a href="/notices/trip_headsign_matches_intermediate_stop/"><code>trip_headsign_matches_intermediate_stop</code><span>Trip headsign matches the name of an intermediate stop, not the last stop.</span></a>
+            <a href="/notices/trip_distance_exceeds_shape_distance/"><code>trip_distance_exceeds_shape_distance</code><span>The last stop&#39;s distance goes beyond the shape</span></a>
+            <a href="/notices/trip_distance_exceeds_shape_distance_below_threshold/"><code>trip_distance_exceeds_shape_distance_below_threshold</code><span>The stop distance exceeds the shape despite nearby endpoints</span></a>
+            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>A stop is too far from the trip&#39;s route line</span></a>
+            <a href="/notices/trip_headsign_matches_intermediate_stop/"><code>trip_headsign_matches_intermediate_stop</code><span>The destination display names an intermediate stop</span></a>
           </div>
         </section>
       </article>

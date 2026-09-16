@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix missing_pickup_drop_off_booking_rule_id in GTFS | GTFS Guru</title>
-  <meta name="description" content="pickup_booking_rule_id is recommended when pickup_type=2 and drop_off_booking_rule_id is recommended when drop_off_type=2. What the…">
+  <meta name="description" content="A bookable service does not link to booking instructions What the missing_pickup_drop_off_booking_rule_id notice means, the files and fields it points at,…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix missing_pickup_drop_off_booking_rule_id in GTFS | GTFS Guru">
-  <meta property="og:description" content="pickup_booking_rule_id is recommended when pickup_type=2 and drop_off_booking_rule_id is recommended when drop_off_type=2. What the…">
+  <meta property="og:description" content="A bookable service does not link to booking instructions What the missing_pickup_drop_off_booking_rule_id notice means, the files and fields it points at,…">
   <meta property="og:url" content="https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_pickup_drop_off_booking_rule_id"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"pickup_booking_rule_id is recommended when pickup_type=2 and drop_off_booking_rule_id is recommended when drop_off_type=2. What the…","headline":"pickup_booking_rule_id is recommended when pickup_type=2 and drop_off_booking_rule_id is recommended when drop_off_type=2.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/","name":"missing_pickup_drop_off_booking_rule_id","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_pickup_drop_off_booking_rule_id"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A bookable service does not link to booking instructions What the missing_pickup_drop_off_booking_rule_id notice means, the files and fields it points at,…","headline":"A bookable service does not link to booking instructions","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_pickup_drop_off_booking_rule_id/","name":"missing_pickup_drop_off_booking_rule_id","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>pickup_booking_rule_id is recommended when pickup_type=2 and drop_off_booking_rule_id is recommended when drop_off_type=2.</h1>
+      <h1>A bookable service does not link to booking instructions</h1>
       <div class="code-line">
         <code id="notice-code">missing_pickup_drop_off_booking_rule_id</code>
         <button class="copy-button" type="button" data-copy="missing_pickup_drop_off_booking_rule_id">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>3</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Currently, this notice is only triggered on feeds when either start_pickup_drop_off_window or end_pickup_drop_off_window is defined, since this recommendation was added to the specification for feeds with GTFS-Flex.</p>
+          <p>A window-based stop-time row requires advance arrangement but lacks the recommended booking-rule reference.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>Passengers may know that booking is needed without knowing how or when to book.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -87,11 +87,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>missing_pickup_drop_off_booking_rule_id</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Check <code>pickup_type</code>, <code>drop_off_type</code>, and the service&#39;s actual booking procedure.</p></div></li>
+            <li><span>2</span><div><p>Add the applicable <code>pickup_booking_rule_id</code> or <code>drop_off_booking_rule_id</code> and define the referenced rule in <code>booking_rules.txt</code>.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -107,10 +106,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/forbidden_continuous_pickup_drop_off/"><code>forbidden_continuous_pickup_drop_off</code><span>Continuous pickup or drop-off are forbidden when routes.continuous_pickup or routes.continuous_drop_off are 0, 2 or 3 and stop_times.start_pickup_drop_off_window or stop_times.end_pickup_drop_off_window are defined for any trip of this route.</span></a>
-            <a href="/notices/invalid_pickup_drop_off_window/"><code>invalid_pickup_drop_off_window</code><span>The pickup/drop-off window in stop_times.txt is invalid.</span></a>
-            <a href="/notices/missing_pickup_or_drop_off_window/"><code>missing_pickup_or_drop_off_window</code><span>Either the start or end pickup/drop-off window is missing in stop_times.txt.</span></a>
-            <a href="/notices/forbidden_drop_off_type/"><code>forbidden_drop_off_type</code><span>pickup_drop_off_window fields are forbidden when the drop_off_type is regularly scheduled (0).</span></a>
+            <a href="/notices/forbidden_continuous_pickup_drop_off/"><code>forbidden_continuous_pickup_drop_off</code><span>Route-wide continuous service conflicts with a pickup window</span></a>
+            <a href="/notices/invalid_pickup_drop_off_window/"><code>invalid_pickup_drop_off_window</code><span>A pickup/drop-off window does not end after it starts</span></a>
+            <a href="/notices/missing_pickup_or_drop_off_window/"><code>missing_pickup_or_drop_off_window</code><span>A service window is missing one boundary</span></a>
+            <a href="/notices/forbidden_drop_off_type/"><code>forbidden_drop_off_type</code><span>Scheduled drop-off conflicts with a service window</span></a>
           </div>
         </section>
       </article>

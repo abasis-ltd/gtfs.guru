@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix forbidden_real_time_booking_field_value in GTFS | GTFS Guru</title>
-  <meta name="description" content="A forbidden field value is present for a real-time booking rule in booking_rules.txt. What the forbidden_real_time_booking_field_value notice means, the…">
+  <meta name="description" content="A real-time booking rule contains advance-notice fields What the forbidden_real_time_booking_field_value notice means, the files and fields it points at,…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/forbidden_real_time_booking_field_value/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix forbidden_real_time_booking_field_value in GTFS | GTFS Guru">
-  <meta property="og:description" content="A forbidden field value is present for a real-time booking rule in booking_rules.txt. What the forbidden_real_time_booking_field_value notice means, the…">
+  <meta property="og:description" content="A real-time booking rule contains advance-notice fields What the forbidden_real_time_booking_field_value notice means, the files and fields it points at,…">
   <meta property="og:url" content="https://gtfs.guru/notices/forbidden_real_time_booking_field_value/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice forbidden_real_time_booking_field_value"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A forbidden field value is present for a real-time booking rule in booking_rules.txt. What the forbidden_real_time_booking_field_value notice means, the…","headline":"A forbidden field value is present for a real-time booking rule in booking_rules.txt.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/","name":"forbidden_real_time_booking_field_value","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice forbidden_real_time_booking_field_value"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A real-time booking rule contains advance-notice fields What the forbidden_real_time_booking_field_value notice means, the files and fields it points at,…","headline":"A real-time booking rule contains advance-notice fields","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_real_time_booking_field_value/","name":"forbidden_real_time_booking_field_value","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>A forbidden field value is present for a real-time booking rule in booking_rules.txt.</h1>
+      <h1>A real-time booking rule contains advance-notice fields</h1>
       <div class="code-line">
         <code id="notice-code">forbidden_real_time_booking_field_value</code>
         <button class="copy-button" type="button" data-copy="forbidden_real_time_booking_field_value">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>0</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>A forbidden field value is present for a real-time booking rule in <code>booking_rules.txt</code>.</p>
+          <p>A real-time booking rule has fields that are forbidden for that booking type.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>This is a GTFS requirement violation. Consumers may reject the affected data or interpret it incorrectly.</p>
+          <p>Passengers may receive contradictory instructions about how early they must book.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#bookingrulestxt"><code>booking_rules.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -85,11 +85,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>forbidden_real_time_booking_field_value</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Inspect the reported <code>fieldNames</code> for the rule in <code>booking_rules.txt</code>.</p></div></li>
+            <li><span>2</span><div><p>Clear advance-notice fields if booking is genuinely real time. If advance booking is required, correct the booking type and populate its required fields.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -105,10 +104,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/forbidden_prior_day_booking_field_value/"><code>forbidden_prior_day_booking_field_value</code><span>A forbidden field value is present for a prior-day booking rule in booking_rules.txt</span></a>
-            <a href="/notices/forbidden_same_day_booking_field_value/"><code>forbidden_same_day_booking_field_value</code><span>A forbidden field value is present for a same-day booking rule in booking_rules.txt.</span></a>
-            <a href="/notices/missing_prior_day_booking_field_value/"><code>missing_prior_day_booking_field_value</code><span>The prior_notice_last_day and the prior_notice_last_time values are required for prior day booking_type in booking_rules.txt.</span></a>
-            <a href="/notices/forbidden_prior_notice_start_time/"><code>forbidden_prior_notice_start_time</code><span>prior_notice_start_time value is forbidden when prior_notice_start_day value is not set in booking_rules.txt.</span></a>
+            <a href="/notices/forbidden_prior_day_booking_field_value/"><code>forbidden_prior_day_booking_field_value</code><span>An advance-booking rule contains incompatible fields</span></a>
+            <a href="/notices/forbidden_same_day_booking_field_value/"><code>forbidden_same_day_booking_field_value</code><span>A same-day booking rule contains incompatible fields</span></a>
+            <a href="/notices/missing_prior_day_booking_field_value/"><code>missing_prior_day_booking_field_value</code><span>An advance-booking rule has an incomplete deadline</span></a>
+            <a href="/notices/forbidden_prior_notice_start_time/"><code>forbidden_prior_notice_start_time</code><span>A booking start time has no start day</span></a>
           </div>
         </section>
       </article>

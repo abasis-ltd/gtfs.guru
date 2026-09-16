@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix wrong_parent_location_type in GTFS | GTFS Guru</title>
-  <meta name="description" content="Incorrect type of the parent location. What the wrong_parent_location_type notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A location points to the wrong kind of parent What the wrong_parent_location_type notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/wrong_parent_location_type/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix wrong_parent_location_type in GTFS | GTFS Guru">
-  <meta property="og:description" content="Incorrect type of the parent location. What the wrong_parent_location_type notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A location points to the wrong kind of parent What the wrong_parent_location_type notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/wrong_parent_location_type/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/wrong_parent_location_type/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice wrong_parent_location_type"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Incorrect type of the parent location. What the wrong_parent_location_type notice means, the files and fields it points at, and how to repair the feed.","headline":"Incorrect type of the parent location.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/wrong_parent_location_type/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/wrong_parent_location_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/wrong_parent_location_type/","name":"wrong_parent_location_type","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/wrong_parent_location_type/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice wrong_parent_location_type"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A location points to the wrong kind of parent What the wrong_parent_location_type notice means, the files and fields it points at, and how to repair the feed.","headline":"A location points to the wrong kind of parent","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/wrong_parent_location_type/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/wrong_parent_location_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/wrong_parent_location_type/","name":"wrong_parent_location_type","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Incorrect type of the parent location.</h1>
+      <h1>A location points to the wrong kind of parent</h1>
       <div class="code-line">
         <code id="notice-code">wrong_parent_location_type</code>
         <button class="copy-button" type="button" data-copy="wrong_parent_location_type">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>2</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>9</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,7 +56,6 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
         <a href="#example">Example</a>
         <a href="#references">References</a>
@@ -66,27 +65,18 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Value of field <code>location_type</code> of parent found in field <code>parent_station</code> is invalid.</p>
-<p>According to spec</p>
-<ul>
-<li>_Stop/platform_ can only have _Station_ as parent</li>
-<li>_Station_ can NOT have a parent</li>
-<li>_Entrance/exit_ or _generic node_ can only have _Station_ as parent</li>
-<li>_Boarding Area_ can only have _Platform_ as parent</li>
-</ul>
-<p>Any other combination raise this error.</p>
+          <p>The <code>parent_station</code> ID exists, but the parent&#39;s location type is not allowed for the child.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The station hierarchy is malformed, so platform grouping, in-station transfers and pathway routing cannot be resolved. Consumers may drop the affected locations or the station they belong to.</p>
+          <p>Apps cannot interpret the station hierarchy correctly.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stopstxt"><code>stops.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
@@ -101,49 +91,37 @@
             <tr><td><code>stopName</code></td><td>string</td><td>The faulty record&#39;s `stops.stop_name`.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li><code>parent_station</code> pointing at another platform instead of at the station row that contains both.</li>
-            <li>A station given a <code>parent_station</code> of its own, usually to model a complex of several stations.</li>
-            <li><code>location_type</code> left empty on the intended station row, which makes it a plain stop by default.</li>
-            <li>Two levels of station nesting, which GTFS does not model.</li>
-          </ul>
-          <p class="cross-check"><strong>Check both sides.</strong> Look up the row whose <code>stop_id</code> equals the <code>parent_station</code> value and read its <code>location_type</code> — that is the value the check objected to.</p>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Make the parent a station. A stop or platform (`location_type=0`), an entrance or exit (`location_type=2`), a generic node (`3`) and a boarding area (`4`) each need a parent, and for the first three that parent must be a row with `location_type=1`; a boarding area&#39;s parent must be a platform. A station itself must have an empty `parent_station`.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stops.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>wrong_parent_location_type</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Compare the child and parent rows named by the report.</p></div></li>
+            <li><span>2</span><div><p>Use a station (<code>1</code>) as parent for a platform, entrance, or generic node, and a platform (<code>0</code>) as parent for a boarding area. A station must have no parent. Correct the reference or a misclassified type to match the real location.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not clear <code>parent_station</code> to silence the notice. That detaches the platform from its station and breaks transfers and wayfinding inside it, without making the data any more correct.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
         <section id="example">
           <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
+          <h2>Example correction</h2>
+          <p>Assume P1 and P2 are platforms of the existing station ST1. P1 must reference that station, not P2.</p>
           <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station
-P1,Central Platform 1,35.17,33.36,0,P2
-P2,Central Platform 2,35.17,33.36,0,</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station
-ST1,Central Station,35.17,33.36,1,
-P1,Central Platform 1,35.17,33.36,0,ST1
-P2,Central Platform 2,35.17,33.36,0,ST1</code></pre></div>
+            <div><h3>Before</h3><pre><code>stop_id,location_type,parent_station
+ST1,1,
+P1,0,P2
+P2,0,ST1</code></pre></div>
+            <div><h3>After</h3><pre><code>stop_id,location_type,parent_station
+ST1,1,
+P1,0,ST1
+P2,0,ST1</code></pre></div>
           </div>
-          <p class="example-note">Simplified example for <code>stops.txt</code>; keep all other required columns from your feed.</p>
+          <p class="example-note">Illustrative excerpt, not a complete GTFS feed. Keep all other required records and fields.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#wrong_parent_location_type-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><strong>GTFS Schedule Reference — stop_times.txt</strong><span>Official GTFS documentation</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stopstxt"><strong>GTFS Schedule Reference — stops.txt</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
@@ -151,10 +129,10 @@ P2,Central Platform 2,35.17,33.36,0,ST1</code></pre></div>
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/location_with_unexpected_stop_time/"><code>location_with_unexpected_stop_time</code><span>A location in stops.txt that is not a stop is referenced by some stop_times.stop_id.</span></a>
-            <a href="/notices/location_without_parent_station/"><code>location_without_parent_station</code><span>A location that must have parent_station field does not have it.</span></a>
-            <a href="/notices/fast_travel_between_consecutive_stops/"><code>fast_travel_between_consecutive_stops</code><span>A transit vehicle moves too fast between two consecutive stops.</span></a>
-            <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>A transit vehicle moves too fast between two far stops.</span></a>
+            <a href="/notices/location_with_unexpected_stop_time/"><code>location_with_unexpected_stop_time</code><span>A scheduled stop refers to the wrong location type</span></a>
+            <a href="/notices/location_without_parent_station/"><code>location_without_parent_station</code><span>A location is missing its required parent</span></a>
+            <a href="/notices/fast_travel_between_consecutive_stops/"><code>fast_travel_between_consecutive_stops</code><span>Travel between two stops appears too fast</span></a>
+            <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>Travel between distant stops appears too fast</span></a>
           </div>
         </section>
       </article>

@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix duplicate_key in GTFS | GTFS Guru</title>
-  <meta name="description" content="Duplicated entity. What the duplicate_key notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="Two rows have the same unique key What the duplicate_key notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/duplicate_key/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix duplicate_key in GTFS | GTFS Guru">
-  <meta property="og:description" content="Duplicated entity. What the duplicate_key notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="Two rows have the same unique key What the duplicate_key notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/duplicate_key/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/duplicate_key/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice duplicate_key"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Duplicated entity. What the duplicate_key notice means, the files and fields it points at, and how to repair the feed.","headline":"Duplicated entity.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/duplicate_key/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/duplicate_key/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/duplicate_key/","name":"duplicate_key","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/duplicate_key/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice duplicate_key"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Two rows have the same unique key What the duplicate_key notice means, the files and fields it points at, and how to repair the feed.","headline":"Two rows have the same unique key","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/duplicate_key/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/duplicate_key/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/duplicate_key/","name":"duplicate_key","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Duplicated entity.</h1>
+      <h1>Two rows have the same unique key</h1>
       <div class="code-line">
         <code id="notice-code">duplicate_key</code>
         <button class="copy-button" type="button" data-copy="duplicate_key">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>7</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,9 +56,7 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -66,18 +64,18 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>The values of the given key and rows are duplicates.</p>
+          <p>The reported rows have an identical ID or identical combination of key fields.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>Two rows share the value that is supposed to identify a row uniquely, so every reference to that id is ambiguous. Consumers resolve it by keeping one row and discarding the other, and which one survives is not defined — a duplicated `stop_id` can quietly relocate a stop, and a duplicated `trip_id` can drop half a schedule.</p>
+          <p>An app may reject the records or choose a row unpredictably.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>fieldName1</code></td><td>string</td><td>Composite key&#39;s first field name.</td></tr>
             <tr><td><code>fieldName2</code></td><td>string</td><td>Composite key&#39;s second field name.</td></tr>
@@ -88,58 +86,32 @@
             <tr><td><code>oldCsvRowNumber</code></td><td>integer</td><td>The row of the first occurrence.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>The same source file exported or appended twice, so every row appears in duplicate.</li>
-            <li>Two agencies or depots merged into one feed while each kept its own id numbering.</li>
-            <li><code>stop_sequence</code> restarted at 1 partway through a trip, or repeated a value, so the <code>trip_id</code> + <code>stop_sequence</code> pair collides.</li>
-            <li>An id reused after a record was retired, so a new stop inherited a decommissioned stop&#39;s <code>stop_id</code>.</li>
-            <li>A spreadsheet autofilled an id column down a block of rows.</li>
-          </ul>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Give each record its own id, or delete the row that is a genuine duplicate. For composite keys such as `stop_times.txt` (`trip_id` + `stop_sequence`) or `calendar_dates.txt` (`service_id` + `date`), it is the combination that has to be unique, so renumbering the sequence is often the correct repair rather than renaming anything.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the report (<code>stops.txt</code>, <code>trips.txt</code>, <code>stop_times.txt</code> …) and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>duplicate_key</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Compare <code>oldCsvRowNumber</code> and <code>newCsvRowNumber</code> in <code>filename</code>, using the reported key fields.</p></div></li>
+            <li><span>2</span><div><p>Remove a true duplicate. For different entities, correct the key and update affected references. For a compound key, such as <code>trip_id</code> plus <code>stop_sequence</code>, check the whole combination.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not fix a duplicated id by appending <code>_2</code> to one of the rows without checking what references it. If both rows are really the same entity, half your <code>stop_times.txt</code> now points at an id nobody defines and a <code>foreign_key_violation</code> takes the error&#39;s place.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,35.17,33.36
-S1,Harbour,35.18,33.37</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,35.17,33.36
-S2,Harbour,35.18,33.37</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for the file named in the report (<code>stops.txt</code>, <code>trips.txt</code>, <code>stop_times.txt</code> …); keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#duplicate_key-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#file-requirements"><strong>GTFS Schedule Reference — File Requirements</strong><span>Official GTFS documentation</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/duplicate_geo_json_key/"><code>duplicate_geo_json_key</code><span>A key in locations.geojson is duplicated.</span></a>
-            <a href="/notices/duplicate_geography_id/"><code>duplicate_geography_id</code><span>Geography id is duplicated across multiple files.</span></a>
-            <a href="/notices/foreign_key_violation/"><code>foreign_key_violation</code><span>Wrong foreign key.</span></a>
-            <a href="/notices/translation_foreign_key_violation/"><code>translation_foreign_key_violation</code><span>An entity with the given record_id and record_sub_id cannot be found in the referenced table.</span></a>
+            <a href="/notices/duplicate_geo_json_key/"><code>duplicate_geo_json_key</code><span>Two geographic features use the same ID</span></a>
+            <a href="/notices/duplicate_geography_id/"><code>duplicate_geography_id</code><span>An ID is shared by different location types</span></a>
+            <a href="/notices/foreign_key_violation/"><code>foreign_key_violation</code><span>A record refers to an ID that does not exist</span></a>
+            <a href="/notices/translation_foreign_key_violation/"><code>translation_foreign_key_violation</code><span>A translation refers to a record that cannot be found</span></a>
           </div>
         </section>
       </article>

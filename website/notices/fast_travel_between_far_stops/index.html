@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix fast_travel_between_far_stops in GTFS | GTFS Guru</title>
-  <meta name="description" content="A transit vehicle moves too fast between two far stops. What the fast_travel_between_far_stops notice means, the files and fields it points at, and how to…">
+  <meta name="description" content="Travel between distant stops appears too fast What the fast_travel_between_far_stops notice means, the files and fields it points at, and how to repair the…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/fast_travel_between_far_stops/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix fast_travel_between_far_stops in GTFS | GTFS Guru">
-  <meta property="og:description" content="A transit vehicle moves too fast between two far stops. What the fast_travel_between_far_stops notice means, the files and fields it points at, and how to…">
+  <meta property="og:description" content="Travel between distant stops appears too fast What the fast_travel_between_far_stops notice means, the files and fields it points at, and how to repair the…">
   <meta property="og:url" content="https://gtfs.guru/notices/fast_travel_between_far_stops/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/fast_travel_between_far_stops/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice fast_travel_between_far_stops"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A transit vehicle moves too fast between two far stops. What the fast_travel_between_far_stops notice means, the files and fields it points at, and how to…","headline":"A transit vehicle moves too fast between two far stops.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/fast_travel_between_far_stops/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/fast_travel_between_far_stops/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/fast_travel_between_far_stops/","name":"fast_travel_between_far_stops","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/fast_travel_between_far_stops/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice fast_travel_between_far_stops"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Travel between distant stops appears too fast What the fast_travel_between_far_stops notice means, the files and fields it points at, and how to repair the…","headline":"Travel between distant stops appears too fast","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/fast_travel_between_far_stops/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/fast_travel_between_far_stops/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/fast_travel_between_far_stops/","name":"fast_travel_between_far_stops","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>A transit vehicle moves too fast between two far stops.</h1>
+      <h1>Travel between distant stops appears too fast</h1>
       <div class="code-line">
         <code id="notice-code">fast_travel_between_far_stops</code>
         <button class="copy-button" type="button" data-copy="fast_travel_between_far_stops">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>4</dd></div>
+        <div><dt>Files to check</dt><dd>4</dd></div>
         <div><dt>Report fields</dt><dd>0</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -57,7 +57,6 @@
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -65,18 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Two stops are considered &quot;far&quot; if they are more than 10 km apart. This normally indicates a more serious problem than too fast travel between consecutive stops.</p>
-<p>The speed threshold depends on route type and are the same as <code>fast_travel_between_consecutive_stops</code>.</p>
+          <p>Two stops more than 10 km apart imply a speed above the threshold for the route&#39;s transport type.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>A long-distance segment with an impossible speed can corrupt routing, ETAs, and map display for the whole trip.</p>
+          <p>A distant wrong stop or missing hour can distort the trip&#39;s journey time substantially.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#routestxt"><code>routes.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stoptimestxt"><code>stop_times.txt</code><span>Open GTFS specification</span></a></li>
@@ -90,26 +88,12 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Check for a wrong stop_id, misplaced stop coordinates, or a missing hour in the second stop time.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stop_times.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>fast_travel_between_far_stops</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Use the reported IDs, distance, times, and speed to inspect the pair on a map and in the timetable.</p></div></li>
+            <li><span>2</span><div><p>Correct wrong references, coordinates, times, or route type. Check the service-day date before changing an overnight journey.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T7,10:00:00,10:00:00,CITY_A,1
-T7,10:02:00,10:02:00,CITY_B,2</code></pre></div>
-            <div><h3>After</h3><pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
-T7,10:00:00,10:00:00,CITY_A,1
-T7,11:02:00,11:02:00,CITY_B,2</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for <code>stop_times.txt</code>; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
@@ -127,10 +111,10 @@ T7,11:02:00,11:02:00,CITY_B,2</code></pre></div>
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/fast_travel_between_consecutive_stops/"><code>fast_travel_between_consecutive_stops</code><span>A transit vehicle moves too fast between two consecutive stops.</span></a>
-            <a href="/notices/stop_without_zone_id/"><code>stop_without_zone_id</code><span>Stop without value for stops.zone_id contained in a route with a zone-dependent fare rule.</span></a>
-            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>Stop too far from trip shape.</span></a>
-            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>Stop time too far from shape.</span></a>
+            <a href="/notices/fast_travel_between_consecutive_stops/"><code>fast_travel_between_consecutive_stops</code><span>Travel between two stops appears too fast</span></a>
+            <a href="/notices/stop_without_zone_id/"><code>stop_without_zone_id</code><span>A stop is missing a zone required by its fare rules</span></a>
+            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>A stop is too far from the trip&#39;s route line</span></a>
+            <a href="/notices/stop_too_far_from_shape_using_user_distance/"><code>stop_too_far_from_shape_using_user_distance</code><span>A stop&#39;s distance places it far from its real location</span></a>
           </div>
         </section>
       </article>

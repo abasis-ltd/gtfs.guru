@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix number_out_of_range in GTFS | GTFS Guru</title>
-  <meta name="description" content="Out of range value. What the number_out_of_range notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="A number is outside the allowed range What the number_out_of_range notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/number_out_of_range/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix number_out_of_range in GTFS | GTFS Guru">
-  <meta property="og:description" content="Out of range value. What the number_out_of_range notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="A number is outside the allowed range What the number_out_of_range notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/number_out_of_range/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/number_out_of_range/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice number_out_of_range"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Out of range value. What the number_out_of_range notice means, the files and fields it points at, and how to repair the feed.","headline":"Out of range value.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/number_out_of_range/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/number_out_of_range/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/number_out_of_range/","name":"number_out_of_range","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/number_out_of_range/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice number_out_of_range"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A number is outside the allowed range What the number_out_of_range notice means, the files and fields it points at, and how to repair the feed.","headline":"A number is outside the allowed range","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/number_out_of_range/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/number_out_of_range/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/number_out_of_range/","name":"number_out_of_range","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,14 +38,14 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>Out of range value.</h1>
+      <h1>A number is outside the allowed range</h1>
       <div class="code-line">
         <code id="notice-code">number_out_of_range</code>
         <button class="copy-button" type="button" data-copy="number_out_of_range">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>Runtime-specific</dd></div>
+        <div><dt>Files to check</dt><dd>See report</dd></div>
         <div><dt>Report fields</dt><dd>6</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
@@ -56,9 +56,7 @@
         <a href="#meaning">What it means</a>
         <a href="#impact">Why it matters</a>
         <a href="#files">Files and fields</a>
-        <a href="#causes">Common causes</a>
         <a href="#fix">How to fix</a>
-        <a href="#example">Example</a>
         <a href="#references">References</a>
         <a href="#related">Related notices</a>
       </aside>
@@ -66,18 +64,18 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>The values in the given column of the input rows are out of range.</p>
+          <p>The value is numeric, but it is not allowed for the reported field or type.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The value is numeric but outside the range the specification allows for the field, so the record cannot be interpreted. Consumers drop the row, and a dropped stop or stop time removes service.</p>
+          <p>A coordinate, count, or setting may be impossible or interpreted incorrectly.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
-          <p>The affected file is determined at validation time. Use the <code>filename</code> or related context field in your report to locate it.</p>
+          <h2>Files to check and report fields</h2>
+          <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>csvRowNumber</code></td><td>integer</td><td>The row of the faulty record.</td></tr>
             <tr><td><code>entityId</code></td><td>string</td><td>Context included in the report.</td></tr>
@@ -87,59 +85,32 @@
             <tr><td><code>filename</code></td><td>string</td><td>The name of the faulty file.</td></tr>
           </tbody></table></div>
         </section>
-        <section id="causes">
-          <p class="section-kicker">Diagnosis</p>
-          <h2>What usually causes it</h2>
-          <ul class="cause-list">
-            <li>Latitude and longitude swapped, which pushes the latitude past 90 anywhere outside the tropics.</li>
-            <li>Coordinates exported in a projected system (metres) instead of WGS 84 degrees.</li>
-            <li>A decimal separator lost, turning 35.17 into 3517.</li>
-            <li>A negative or zero value where the field requires a positive one, such as a headway of 0.</li>
-          </ul>
-        </section>
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Check the field&#39;s permitted range in the GTFS reference and correct the value at source. Latitudes run from -90 to 90 and longitudes from -180 to 180; `stop_sequence`, headways and counts must be non-negative.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open <code>stops.txt</code> and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>number_out_of_range</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Check <code>fieldName</code>, <code>fieldType</code>, and <code>fieldValue</code> against the field&#39;s allowed range.</p></div></li>
+            <li><span>2</span><div><p>Restore the correct source value and units. Do not clamp an incorrect coordinate or count to the nearest boundary merely to make it pass.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
-          <p class="pitfall"><strong>Do not do this:</strong> Do not clamp an out-of-range coordinate to the nearest legal value. A latitude forced from 3517 down to 90 is a valid coordinate at the North Pole, and the feed will pass this check while pointing riders at the Arctic.</p>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
-        </section>
-        <section id="example">
-          <p class="section-kicker">Worked example</p>
-          <h2>Bad row and correction</h2>
-          <div class="example-grid">
-            <div><h3>Before</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,33.36,35.17
-S2,Harbour,3518,33.37</code></pre></div>
-            <div><h3>After</h3><pre><code>stop_id,stop_name,stop_lat,stop_lon
-S1,Central,35.17,33.36
-S2,Harbour,35.18,33.37</code></pre></div>
-          </div>
-          <p class="example-note">Simplified example for <code>stops.txt</code>; keep all other required columns from your feed.</p>
         </section>
         <section id="references">
           <p class="section-kicker">Sources</p>
           <h2>References</h2>
           <ul class="reference-list">
             <li><a href="https://gtfs-validator.mobilitydata.org/rules.html#number_out_of_range-rule"><strong>MobilityData validator rule</strong><span>Canonical notice metadata and rule details</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#dataset-files"><strong>GTFS Schedule Reference — Dataset Files</strong><span>Official GTFS documentation</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#field-types"><strong>GTFS Schedule Reference — Field Types</strong><span>Official GTFS documentation</span></a></li>
-            <li><a href="https://gtfs.org/documentation/schedule/reference/#file-requirements"><strong>GTFS Schedule Reference — File Requirements</strong><span>Official GTFS documentation</span></a></li>
+            <li><a href="https://gtfs.org/documentation/schedule/reference/"><strong>GTFS Schedule Reference</strong><span>Official GTFS documentation</span></a></li>
           </ul>
         </section>
         <section id="related">
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/start_and_end_range_out_of_order/"><code>start_and_end_range_out_of_order</code><span>Two date or time fields are out of order.</span></a>
-            <a href="/notices/invalid_phone_number/"><code>invalid_phone_number</code><span>A field contains a malformed phone number.</span></a>
-            <a href="/notices/start_and_end_range_equal/"><code>start_and_end_range_equal</code><span>Two date or time fields are equal.</span></a>
-            <a href="/notices/stops_match_shape_out_of_order/"><code>stops_match_shape_out_of_order</code><span>Two stop entries are different than their arrival-departure order defined by shapes.txt.</span></a>
+            <a href="/notices/start_and_end_range_out_of_order/"><code>start_and_end_range_out_of_order</code><span>An interval ends before it starts</span></a>
+            <a href="/notices/invalid_phone_number/"><code>invalid_phone_number</code><span>A phone number does not pass the regional format check</span></a>
+            <a href="/notices/start_and_end_range_equal/"><code>start_and_end_range_equal</code><span>An interval starts and ends at the same time</span></a>
+            <a href="/notices/stops_match_shape_out_of_order/"><code>stops_match_shape_out_of_order</code><span>The stop order disagrees with the route shape</span></a>
           </div>
         </section>
       </article>

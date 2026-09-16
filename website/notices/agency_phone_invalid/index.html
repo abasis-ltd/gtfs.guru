@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix agency_phone_invalid in GTFS | GTFS Guru</title>
-  <meta name="description" content="An agency phone number appears to be invalid. What the agency_phone_invalid notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="Check the agency&#39;s public phone number What the agency_phone_invalid notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/agency_phone_invalid/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix agency_phone_invalid in GTFS | GTFS Guru">
-  <meta property="og:description" content="An agency phone number appears to be invalid. What the agency_phone_invalid notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="Check the agency&#39;s public phone number What the agency_phone_invalid notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/agency_phone_invalid/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/agency_phone_invalid/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice agency_phone_invalid"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"An agency phone number appears to be invalid. What the agency_phone_invalid notice means, the files and fields it points at, and how to repair the feed.","headline":"An agency phone number appears to be invalid.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/agency_phone_invalid/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/agency_phone_invalid/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/agency_phone_invalid/","name":"agency_phone_invalid","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/agency_phone_invalid/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice agency_phone_invalid"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Check the agency's public phone number What the agency_phone_invalid notice means, the files and fields it points at, and how to repair the feed.","headline":"Check the agency's public phone number","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/agency_phone_invalid/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/agency_phone_invalid/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/agency_phone_invalid/","name":"agency_phone_invalid","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>An agency phone number appears to be invalid.</h1>
+      <h1>Check the agency&#39;s public phone number</h1>
       <div class="code-line">
         <code id="notice-code">agency_phone_invalid</code>
         <button class="copy-button" type="button" data-copy="agency_phone_invalid">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>3</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>The <code>agency_phone</code> value does not look like a usable public phone number. This optional Google compatibility rule is enabled with <code>--google-rules</code>.</p>
+          <p>The agency phone number did not pass an optional Google compatibility check.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>Passengers may not be able to contact the operator using this number.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#agencytxt"><code>agency.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -87,11 +87,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>agency_phone_invalid</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Check <code>agency_phone</code> in <code>agency.txt</code> against the operator&#39;s published contact details.</p></div></li>
+            <li><span>2</span><div><p>Correct the number and country code if needed. If it is valid, review the compatibility check before changing it.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -107,10 +106,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/feed_info_lang_and_agency_lang_mismatch/"><code>feed_info_lang_and_agency_lang_mismatch</code><span>Mismatching feed and agency language fields.</span></a>
-            <a href="/notices/inconsistent_agency_lang/"><code>inconsistent_agency_lang</code><span>Inconsistent language among agencies.</span></a>
-            <a href="/notices/same_route_and_agency_url/"><code>same_route_and_agency_url</code><span>Same routes.route_url and agency.agency_url.</span></a>
-            <a href="/notices/same_stop_and_agency_url/"><code>same_stop_and_agency_url</code><span>Same stops.stop_url and agency.agency_url.</span></a>
+            <a href="/notices/feed_info_lang_and_agency_lang_mismatch/"><code>feed_info_lang_and_agency_lang_mismatch</code><span>The feed and agency languages do not agree</span></a>
+            <a href="/notices/inconsistent_agency_lang/"><code>inconsistent_agency_lang</code><span>Agencies use different language tags</span></a>
+            <a href="/notices/same_route_and_agency_url/"><code>same_route_and_agency_url</code><span>A route link opens the agency&#39;s general page</span></a>
+            <a href="/notices/same_stop_and_agency_url/"><code>same_stop_and_agency_url</code><span>A stop link opens the agency&#39;s general page</span></a>
           </div>
         </section>
       </article>

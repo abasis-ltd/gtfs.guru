@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix transfer_with_invalid_trip_and_route in GTFS | GTFS Guru</title>
-  <meta name="description" content="A trip id field from GTFS file transfers.txt references a route that does not match its trips.txt route_id. What the transfer_with_invalid_trip_and_route…">
+  <meta name="description" content="A transfer&#39;s trip belongs to a different route What the transfer_with_invalid_trip_and_route notice means, the files and fields it points at, and how to…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix transfer_with_invalid_trip_and_route in GTFS | GTFS Guru">
-  <meta property="og:description" content="A trip id field from GTFS file transfers.txt references a route that does not match its trips.txt route_id. What the transfer_with_invalid_trip_and_route…">
+  <meta property="og:description" content="A transfer&#39;s trip belongs to a different route What the transfer_with_invalid_trip_and_route notice means, the files and fields it points at, and how to…">
   <meta property="og:url" content="https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice transfer_with_invalid_trip_and_route"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A trip id field from GTFS file transfers.txt references a route that does not match its trips.txt route_id. What the transfer_with_invalid_trip_and_route…","headline":"A trip id field from GTFS file transfers.txt references a route that does not match its trips.txt route_id.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/","name":"transfer_with_invalid_trip_and_route","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice transfer_with_invalid_trip_and_route"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A transfer's trip belongs to a different route What the transfer_with_invalid_trip_and_route notice means, the files and fields it points at, and how to…","headline":"A transfer's trip belongs to a different route","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/transfer_with_invalid_trip_and_route/","name":"transfer_with_invalid_trip_and_route","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>A trip id field from GTFS file transfers.txt references a route that does not match its trips.txt route_id.</h1>
+      <h1>A transfer&#39;s trip belongs to a different route</h1>
       <div class="code-line">
         <code id="notice-code">transfer_with_invalid_trip_and_route</code>
         <button class="copy-button" type="button" data-copy="transfer_with_invalid_trip_and_route">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>6</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>A trip id field from GTFS file <code>transfers.txt</code> references a route that does not match its <code>trips.txt</code> <code>route_id</code>.</p>
+          <p>A trip and route named on the same side of a transfer disagree with <code>trips.route_id</code>.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>This is a GTFS requirement violation. Consumers may reject the affected data or interpret it incorrectly.</p>
+          <p>The transfer rule&#39;s conditions do not describe the intended journey consistently.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#transferstxt"><code>transfers.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -90,11 +90,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>transfer_with_invalid_trip_and_route</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Compare the reported <code>tripId</code>, <code>routeId</code>, and <code>expectedRouteId</code> in <code>transfers.txt</code> and <code>trips.txt</code>.</p></div></li>
+            <li><span>2</span><div><p>Correct the mistaken trip or route reference. Change the trip&#39;s route only if that assignment itself is wrong.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -110,10 +109,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/transfer_with_invalid_trip_and_stop/"><code>transfer_with_invalid_trip_and_stop</code><span>A trip id field from GTFS file transfers.txt references a stop that is not included in the referenced trip&#39;s stop-times.</span></a>
-            <a href="/notices/inconsistent_route_type_for_in_seat_transfer/"><code>inconsistent_route_type_for_in_seat_transfer</code><span>An in-seat transfer should occur in the same route mode.</span></a>
-            <a href="/notices/transfer_with_suspicious_mid_trip_in_seat/"><code>transfer_with_suspicious_mid_trip_in_seat</code><span>A trip id field from GTFS file transfers.txt with an in-seat transfer type references a stop that is not in the expected position in the trip&#39;s stop-times.</span></a>
-            <a href="/notices/transfer_with_invalid_stop_location_type/"><code>transfer_with_invalid_stop_location_type</code><span>A stop id field from GTFS file transfers.txt references a stop that has a location_type other than 0 or 1 (aka Stop/Platform or Station).</span></a>
+            <a href="/notices/transfer_with_invalid_trip_and_stop/"><code>transfer_with_invalid_trip_and_stop</code><span>A transfer&#39;s trip does not serve its stated stop</span></a>
+            <a href="/notices/inconsistent_route_type_for_in_seat_transfer/"><code>inconsistent_route_type_for_in_seat_transfer</code><span>A stay-on-board transfer connects different transport types</span></a>
+            <a href="/notices/transfer_with_suspicious_mid_trip_in_seat/"><code>transfer_with_suspicious_mid_trip_in_seat</code><span>A stay-on-board transfer occurs in the middle of a trip</span></a>
+            <a href="/notices/transfer_with_invalid_stop_location_type/"><code>transfer_with_invalid_stop_location_type</code><span>A transfer endpoint is not a stop or station</span></a>
           </div>
         </section>
       </article>

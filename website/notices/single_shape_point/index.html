@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix single_shape_point in GTFS | GTFS Guru</title>
-  <meta name="description" content="The shape within shapes.txt contains a single shape point. What the single_shape_point notice means, the files and fields it points at, and how to repair…">
+  <meta name="description" content="A route shape contains only one point What the single_shape_point notice means, the files and fields it points at, and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/single_shape_point/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix single_shape_point in GTFS | GTFS Guru">
-  <meta property="og:description" content="The shape within shapes.txt contains a single shape point. What the single_shape_point notice means, the files and fields it points at, and how to repair…">
+  <meta property="og:description" content="A route shape contains only one point What the single_shape_point notice means, the files and fields it points at, and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/single_shape_point/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/single_shape_point/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice single_shape_point"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The shape within shapes.txt contains a single shape point. What the single_shape_point notice means, the files and fields it points at, and how to repair…","headline":"The shape within shapes.txt contains a single shape point.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/single_shape_point/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/single_shape_point/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/single_shape_point/","name":"single_shape_point","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/single_shape_point/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice single_shape_point"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A route shape contains only one point What the single_shape_point notice means, the files and fields it points at, and how to repair the feed.","headline":"A route shape contains only one point","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/single_shape_point/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/single_shape_point/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/single_shape_point/","name":"single_shape_point","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity warning">WARNING</span><span>GTFS Schedule notice</span></div>
-      <h1>The shape within shapes.txt contains a single shape point.</h1>
+      <h1>A route shape contains only one point</h1>
       <div class="code-line">
         <code id="notice-code">single_shape_point</code>
         <button class="copy-button" type="button" data-copy="single_shape_point">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>WARNING</dd></div>
-        <div><dt>Affected files</dt><dd>1</dd></div>
+        <div><dt>Files to check</dt><dd>1</dd></div>
         <div><dt>Report fields</dt><dd>2</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>A shape should contain more than one shape point to visualize the route</p>
+          <p>The reported <code>shape_id</code> has only one point in <code>shapes.txt</code>.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>The feed may still load, but correcting this warning improves data quality and the rider experience.</p>
+          <p>One point cannot draw a route line.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#shapestxt"><code>shapes.txt</code><span>Open GTFS specification</span></a></li>
           </ul>
@@ -86,11 +86,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>single_shape_point</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Check whether the shape export was truncated or assigned the wrong ID.</p></div></li>
+            <li><span>2</span><div><p>Export the actual ordered path with multiple points. Remove an unnecessary shape and its references only when the service does not require that geometry.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -107,10 +106,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/equal_shape_distance_diff_coordinates_distance_below_threshold/"><code>equal_shape_distance_diff_coordinates_distance_below_threshold</code><span>Two consecutive points have equal shape_dist_traveled and different lat/lon coordinates in shapes.txt and the distance between the two points is greater than 0 but less than 1.11m.</span></a>
-            <a href="/notices/equal_shape_distance_same_coordinates/"><code>equal_shape_distance_same_coordinates</code><span>Two consecutive points have equal shape_dist_traveled and the same lat/lon coordinates in shapes.txt.</span></a>
-            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>Stop too far from trip shape.</span></a>
-            <a href="/notices/trip_distance_exceeds_shape_distance_below_threshold/"><code>trip_distance_exceeds_shape_distance_below_threshold</code><span>The distance between the last shape point and last stop point is greater than 0 but less than the 11.1m threshold.</span></a>
+            <a href="/notices/equal_shape_distance_diff_coordinates_distance_below_threshold/"><code>equal_shape_distance_diff_coordinates_distance_below_threshold</code><span>Nearby shape points share a rounded distance</span></a>
+            <a href="/notices/equal_shape_distance_same_coordinates/"><code>equal_shape_distance_same_coordinates</code><span>A shape repeats the same point and distance</span></a>
+            <a href="/notices/stop_too_far_from_shape/"><code>stop_too_far_from_shape</code><span>A stop is too far from the trip&#39;s route line</span></a>
+            <a href="/notices/trip_distance_exceeds_shape_distance_below_threshold/"><code>trip_distance_exceeds_shape_distance_below_threshold</code><span>The stop distance exceeds the shape despite nearby endpoints</span></a>
           </div>
         </section>
       </article>

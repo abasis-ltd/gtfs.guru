@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix pathway_to_stop_with_access_outside_of_station_pathways in GTFS | GTFS Guru</title>
-  <meta name="description" content="A pathway has an endpoint that is a stop with stop_access=1, which should be accessible outside of the station’s pathways. What the…">
+  <meta name="description" content="A street-access stop is linked into station pathways What the pathway_to_stop_with_access_outside_of_station_pathways notice means, the files and fields it…">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix pathway_to_stop_with_access_outside_of_station_pathways in GTFS | GTFS Guru">
-  <meta property="og:description" content="A pathway has an endpoint that is a stop with stop_access=1, which should be accessible outside of the station’s pathways. What the…">
+  <meta property="og:description" content="A street-access stop is linked into station pathways What the pathway_to_stop_with_access_outside_of_station_pathways notice means, the files and fields it…">
   <meta property="og:url" content="https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
-  <link rel="stylesheet" href="/notices/notice.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice pathway_to_stop_with_access_outside_of_station_pathways"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A pathway has an endpoint that is a stop with stop_access=1, which should be accessible outside of the station’s pathways. What the…","headline":"A pathway has an endpoint that is a stop with stop_access=1, which should be accessible outside of the station’s pathways.","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/","name":"pathway_to_stop_with_access_outside_of_station_pathways","position":3}]}]}</script>
+  <link rel="stylesheet" href="/notices/notice.css?v=2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice pathway_to_stop_with_access_outside_of_station_pathways"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A street-access stop is linked into station pathways What the pathway_to_stop_with_access_outside_of_station_pathways notice means, the files and fields it…","headline":"A street-access stop is linked into station pathways","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/pathway_to_stop_with_access_outside_of_station_pathways/","name":"pathway_to_stop_with_access_outside_of_station_pathways","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -38,16 +38,16 @@
     </div>
     <section class="notice-hero">
       <div class="eyebrow"><span class="severity error">ERROR</span><span>GTFS Schedule notice</span></div>
-      <h1>A pathway has an endpoint that is a stop with stop_access=1, which should be accessible outside of the station’s pathways.</h1>
+      <h1>A street-access stop is linked into station pathways</h1>
       <div class="code-line">
         <code id="notice-code">pathway_to_stop_with_access_outside_of_station_pathways</code>
         <button class="copy-button" type="button" data-copy="pathway_to_stop_with_access_outside_of_station_pathways">Copy code</button>
       </div>
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
-        <div><dt>Affected files</dt><dd>2</dd></div>
+        <div><dt>Files to check</dt><dd>2</dd></div>
         <div><dt>Report fields</dt><dd>4</dd></div>
-        <div><dt>Documentation</dt><dd>Generated</dd></div>
+        <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
     <div class="article-layout">
@@ -64,17 +64,17 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
-          <p>Stops with stop_access=1 should not have pathways that link to them since they can be accessed from the street and are independent of the pathways inside the station.</p>
+          <p>A pathway references a stop whose <code>stop_access=1</code> declares access outside the station&#39;s pathway network.</p>
 
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
           <h2>Why it matters</h2>
-          <p>This is a GTFS requirement violation. Consumers may reject the affected data or interpret it incorrectly.</p>
+          <p>The access flag contradicts the modeled connection.</p>
         </section>
         <section id="files">
           <p class="section-kicker">Scope</p>
-          <h2>Affected files and report fields</h2>
+          <h2>Files to check and report fields</h2>
           <ul class="file-list">
             <li><a href="https://gtfs.org/documentation/schedule/reference/#pathwaystxt"><code>pathways.txt</code><span>Open GTFS specification</span></a></li>
             <li><a href="https://gtfs.org/documentation/schedule/reference/#stopstxt"><code>stops.txt</code><span>Open GTFS specification</span></a></li>
@@ -89,11 +89,10 @@
         <section id="fix">
           <p class="section-kicker">Repair</p>
           <h2>How to fix it</h2>
-          <p>Use the evidence in the report to identify the failing record, then make the smallest source-data change that satisfies the rule.</p>
           <ol class="steps">
-            <li><span>1</span><div><strong>Locate the record</strong><p>Open the file named in the validation report and use the report fields below to find the exact row.</p></div></li>
-            <li><span>2</span><div><strong>Change the source data</strong><p>Apply the repair described above to that record, and leave unrelated rows alone.</p></div></li>
-            <li><span>3</span><div><strong>Validate again</strong><p>Rebuild the GTFS archive and confirm that <code>pathway_to_stop_with_access_outside_of_station_pathways</code> no longer appears for the record.</p></div></li>
+            <li><span>1</span><div><p>Compare the stop&#39;s real street and station access with its <code>stop_access</code> value and pathways.</p></div></li>
+            <li><span>2</span><div><p>Remove an incorrectly modeled pathway, or correct the access flag if the stop actually depends on the station network.</p></div></li>
+            <li><span>3</span><div><strong>Check the result</strong><p>After a repair, rebuild the archive and validate it again. Confirm that the affected records are correct and that no new related notices appeared. A reviewed warning or informational notice may remain when it describes intentional, supported data.</p></div></li>
           </ol>
           <p class="revalidate"><a class="revalidate-link" href="/#validator">Re-check your feed in the browser</a><span>Free, no upload for a file you pick.</span></p>
         </section>
@@ -110,10 +109,10 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/pathway_unreachable_location/"><code>pathway_unreachable_location</code><span>A location is not reachable at least in one direction: from the entrances or to the exits.</span></a>
-            <a href="/notices/stop_access_specified_for_stop_with_no_parent_station/"><code>stop_access_specified_for_stop_with_no_parent_station</code><span>A stop without a value for parent station has stop_access specified.</span></a>
-            <a href="/notices/pathway_dangling_generic_node/"><code>pathway_dangling_generic_node</code><span>A generic node has only one incident location in a pathway graph.</span></a>
-            <a href="/notices/stop_access_specified_for_incorrect_location/"><code>stop_access_specified_for_incorrect_location</code><span>A location that is not a stop has stop_access specified.</span></a>
+            <a href="/notices/pathway_unreachable_location/"><code>pathway_unreachable_location</code><span>Part of the station cannot be reached or exited</span></a>
+            <a href="/notices/stop_access_specified_for_stop_with_no_parent_station/"><code>stop_access_specified_for_stop_with_no_parent_station</code><span>The access flag is set on a standalone stop</span></a>
+            <a href="/notices/pathway_dangling_generic_node/"><code>pathway_dangling_generic_node</code><span>An internal station node connects to only one location</span></a>
+            <a href="/notices/stop_access_specified_for_incorrect_location/"><code>stop_access_specified_for_incorrect_location</code><span>The access flag is set on the wrong location type</span></a>
           </div>
         </section>
       </article>
