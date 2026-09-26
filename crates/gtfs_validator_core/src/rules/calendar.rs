@@ -63,21 +63,22 @@ impl Validator for CalendarValidator {
                         NoticeSeverity::Error,
                         "duplicate service_id/date in calendar_dates",
                     );
-                    notice.insert_context_field("fieldName1", "service_id");
-                    notice.insert_context_field("fieldName2", "date");
-                    notice.insert_context_field("fieldValue1", service_id_value.as_str());
-                    notice.insert_context_field("fieldValue2", row.date.to_string());
+                    // The canonical composite key joins its columns into
+                    // one field name and one value.
                     notice.insert_context_field("filename", CALENDAR_DATES_FILE);
-                    notice.insert_context_field("newCsvRowNumber", row_number);
                     notice.insert_context_field("oldCsvRowNumber", *prev_row);
+                    notice.insert_context_field("newCsvRowNumber", row_number);
+                    notice.insert_context_field("fieldName1", "service_id,date");
+                    notice.insert_context_field(
+                        "fieldValue1",
+                        format!("{},{}", service_id_value, row.date),
+                    );
                     notice.field_order = vec![
-                        "fieldName1".into(),
-                        "fieldName2".into(),
-                        "fieldValue1".into(),
-                        "fieldValue2".into(),
                         "filename".into(),
-                        "newCsvRowNumber".into(),
                         "oldCsvRowNumber".into(),
+                        "newCsvRowNumber".into(),
+                        "fieldName1".into(),
+                        "fieldValue1".into(),
                     ];
                     notices.push(notice);
                 } else {

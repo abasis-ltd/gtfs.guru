@@ -112,25 +112,6 @@ impl Validator for ReferentialIntegrityValidator {
         } else {
             HashSet::new()
         };
-        let network_ids: HashSet<gtfs_guru_model::StringId> = if networks_ok || routes_ok {
-            let mut ids: HashSet<gtfs_guru_model::StringId> = feed
-                .routes
-                .rows
-                .iter()
-                .filter_map(|route| route.network_id)
-                .filter(|id| id.0 != 0)
-                .collect();
-            if let Some(networks) = &feed.networks {
-                for network in &networks.rows {
-                    if network.network_id.0 != 0 {
-                        ids.insert(network.network_id);
-                    }
-                }
-            }
-            ids
-        } else {
-            HashSet::new()
-        };
         let area_ids: HashSet<gtfs_guru_model::StringId> = if areas_ok {
             feed.areas
                 .as_ref()
@@ -788,6 +769,12 @@ impl Validator for ReferentialIntegrityValidator {
 
         if route_networks_ok {
             if let Some(route_networks) = &feed.route_networks {
+                let networks_file_ids: HashSet<gtfs_guru_model::StringId> = feed
+                    .networks
+                    .iter()
+                    .flat_map(|networks| networks.rows.iter().map(|network| network.network_id))
+                    .filter(|id| id.0 != 0)
+                    .collect();
                 for (index, row) in route_networks.rows.iter().enumerate() {
                     let row_number = route_networks.row_number(index);
                     if routes_ok {
@@ -805,12 +792,13 @@ impl Validator for ReferentialIntegrityValidator {
                             ));
                         }
                     }
+                    // route_networks.network_id references networks.txt
+                    // alone: routes.network_id is the alternative to
+                    // route_networks.txt, not a definition it can point at.
+                    // Without networks.txt every reference dangles.
                     if networks_ok {
                         let network_id = row.network_id;
-                        if network_id.0 != 0
-                            && !network_ids.is_empty()
-                            && !network_ids.contains(&network_id)
-                        {
+                        if network_id.0 != 0 && !networks_file_ids.contains(&network_id) {
                             let network_value = feed.pool.resolve(network_id);
                             notices.push(missing_ref_notice(
                                 CODE_FOREIGN_KEY_VIOLATION,
@@ -1358,6 +1346,56 @@ mod tests {
                 .unwrap(),
             "route_id"
         );
+    }
+
+    #[test]
+    fn route_network_id_must_be_defined_in_networks_file() {
+        let mut feed = GtfsFeed::default();
+        let network = feed.pool.intern("N1");
+        let route = feed.pool.intern("R1");
+        // routes.network_id does not define a network for route_networks.txt.
+        feed.routes = CsvTable {
+            headers: vec!["route_id".into(), "network_id".into()],
+            rows: vec![Route {
+                route_id: route,
+                route_type: RouteType::Bus,
+                network_id: Some(network),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        };
+        feed.route_networks = Some(CsvTable {
+            headers: vec!["network_id".into(), "route_id".into()],
+            rows: vec![gtfs_guru_model::RouteNetwork {
+                network_id: network,
+                route_id: route,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        ReferentialIntegrityValidator.validate(&feed, &mut notices);
+
+        let violations: Vec<_> = notices
+            .iter()
+            .filter(|n| n.code == CODE_FOREIGN_KEY_VIOLATION)
+            .collect();
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].context["childFilename"], "route_networks.txt");
+        assert_eq!(violations[0].context["parentFilename"], "networks.txt");
+        assert_eq!(violations[0].context["fieldValue"], "N1");
+
+        feed.networks = Some(CsvTable {
+            headers: vec!["network_id".into()],
+            rows: vec![gtfs_guru_model::Network {
+                network_id: network,
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        let mut notices = NoticeContainer::new();
+        ReferentialIntegrityValidator.validate(&feed, &mut notices);
+        assert!(notices.iter().all(|n| n.code != CODE_FOREIGN_KEY_VIOLATION));
     }
 
     #[test]

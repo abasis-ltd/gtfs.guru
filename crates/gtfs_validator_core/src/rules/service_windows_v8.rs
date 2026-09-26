@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{Datelike, NaiveDate};
 
@@ -27,7 +27,7 @@ impl Validator for ServiceWindowsV8Validator {
 
 fn validate_service_spread(
     feed: &GtfsFeed,
-    active_dates: &BTreeMap<StringId, BTreeSet<NaiveDate>>,
+    active_dates: &HashMap<StringId, ServiceActivity>,
     notices: &mut NoticeContainer,
 ) {
     let Some(calendar) = &feed.calendar else {
@@ -39,41 +39,29 @@ fn validate_service_spread(
         if service.service_id.0 == 0 || !visited.insert(service.service_id) {
             continue;
         }
-        let Some(dates) = active_dates
-            .get(&service.service_id)
-            .filter(|dates| !dates.is_empty())
-        else {
+        let Some(activity) = active_dates.get(&service.service_id) else {
             continue;
         };
-        let mut previous: Option<NaiveDate> = None;
-        for &date in dates {
-            if let Some(previous_date) = previous {
-                let gap = (date - previous_date).num_days() - 1;
-                if gap > MAX_GAP_DAYS {
-                    let mut notice = ValidationNotice::new(
-                        "big_gap_in_service",
-                        NoticeSeverity::Info,
-                        "service has a gap of more than 13 days between active dates",
-                    );
-                    notice.insert_context_field(
-                        "serviceId",
-                        feed.pool.resolve(service.service_id).as_str(),
-                    );
-                    notice.insert_context_field("gapStartDate", previous_date.to_string());
-                    notice.insert_context_field("gapEndDate", date.to_string());
-                    notice.insert_context_field("gapDurationDays", gap);
-                    notice.field_order = vec![
-                        "serviceId".into(),
-                        "gapStartDate".into(),
-                        "gapEndDate".into(),
-                        "gapDurationDays".into(),
-                    ];
-                    notices.push(notice);
-                }
-            }
-            previous = Some(date);
+        for &(previous_date, date, gap) in &activity.big_gaps {
+            let mut notice = ValidationNotice::new(
+                "big_gap_in_service",
+                NoticeSeverity::Info,
+                "service has a gap of more than 13 days between active dates",
+            );
+            notice
+                .insert_context_field("serviceId", feed.pool.resolve(service.service_id).as_str());
+            notice.insert_context_field("gapStartDate", previous_date.to_string());
+            notice.insert_context_field("gapEndDate", date.to_string());
+            notice.insert_context_field("gapDurationDays", gap);
+            notice.field_order = vec![
+                "serviceId".into(),
+                "gapStartDate".into(),
+                "gapEndDate".into(),
+                "gapDurationDays".into(),
+            ];
+            notices.push(notice);
         }
-        let last_active = *dates.last().unwrap();
+        let last_active = activity.last;
         if (last_active - today).num_days() > MAX_FUTURE_EXTENT_DAYS {
             let mut notice = ValidationNotice::new(
                 "service_extends_far_in_the_future",
@@ -91,7 +79,7 @@ fn validate_service_spread(
 
 fn validate_feed_window(
     feed: &GtfsFeed,
-    active_dates: &BTreeMap<StringId, BTreeSet<NaiveDate>>,
+    active_dates: &HashMap<StringId, ServiceActivity>,
     notices: &mut NoticeContainer,
 ) {
     // First-appearance order over trips.txt: `StringId` values are assigned by
@@ -111,8 +99,8 @@ fn validate_feed_window(
     let service_windows: Vec<_> = service_ids
         .iter()
         .filter_map(|service_id| {
-            let dates = active_dates.get(service_id)?;
-            Some((*service_id, *dates.first()?, *dates.last()?))
+            let activity = active_dates.get(service_id)?;
+            Some((*service_id, activity.first, activity.last))
         })
         .collect();
     let Some(total_start) = service_windows.iter().map(|(_, start, _)| *start).min() else {
@@ -230,33 +218,48 @@ fn validate_future_feed(feed: &GtfsFeed, notices: &mut NoticeContainer) {
     notices.push(notice);
 }
 
-fn build_active_dates(feed: &GtfsFeed) -> BTreeMap<StringId, BTreeSet<NaiveDate>> {
-    let mut result = BTreeMap::new();
+/// What the service-window checks need from a service's active dates: the
+/// first, the last, and every gap longer than [`MAX_GAP_DAYS`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ServiceActivity {
+    first: NaiveDate,
+    last: NaiveDate,
+    /// `(previous active date, next active date, inactive days between)`.
+    big_gaps: Vec<(NaiveDate, NaiveDate, i64)>,
+}
+
+/// Summarises each service's active dates without listing them day by day, so
+/// a calendar row running to 99991231 costs no more than one running a week.
+///
+/// calendar.txt rows are merged into disjoint date ranges, each with the
+/// weekdays that any row covering it runs on. Inside such a range two
+/// consecutive active dates are at most six days apart, so a gap over
+/// [`MAX_GAP_DAYS`] can only open around calendar_dates.txt exceptions or
+/// between ranges; the walk visits the range ends and the exceptions only.
+/// The result equals expanding every row into dates and then applying the
+/// exceptions in file order.
+fn build_active_dates(feed: &GtfsFeed) -> HashMap<StringId, ServiceActivity> {
+    let mut ranges_by_service: HashMap<StringId, Vec<(NaiveDate, NaiveDate, u8)>> = HashMap::new();
     if let Some(calendar) = &feed.calendar {
         for service in &calendar.rows {
             if service.service_id.0 == 0 {
                 continue;
             }
-            let entry = result
-                .entry(service.service_id)
-                .or_insert_with(BTreeSet::new);
-            let (Some(mut date), Some(end)) = (
+            let entry = ranges_by_service.entry(service.service_id).or_default();
+            let (Some(start), Some(end)) = (
                 gtfs_date_to_naive(service.start_date),
                 gtfs_date_to_naive(service.end_date),
             ) else {
                 continue;
             };
-            while date <= end {
-                if active_on_weekday(service, date) {
-                    entry.insert(date);
-                }
-                let Some(next) = date.succ_opt() else {
-                    break;
-                };
-                date = next;
+            if start <= end {
+                entry.push((start, end, weekday_mask(service)));
             }
         }
     }
+
+    // The last Added or Removed exception for a date decides it.
+    let mut overrides_by_service: HashMap<StringId, BTreeMap<NaiveDate, bool>> = HashMap::new();
     if let Some(calendar_dates) = &feed.calendar_dates {
         for exception in &calendar_dates.rows {
             if exception.service_id.0 == 0 {
@@ -265,38 +268,198 @@ fn build_active_dates(feed: &GtfsFeed) -> BTreeMap<StringId, BTreeSet<NaiveDate>
             let Some(date) = gtfs_date_to_naive(exception.date) else {
                 continue;
             };
-            let entry = result
+            let overrides = overrides_by_service
                 .entry(exception.service_id)
-                .or_insert_with(BTreeSet::new);
+                .or_default();
             match exception.exception_type {
                 ExceptionType::Added => {
-                    entry.insert(date);
+                    overrides.insert(date, true);
                 }
                 ExceptionType::Removed => {
-                    entry.remove(&date);
+                    overrides.insert(date, false);
                 }
                 ExceptionType::Other => {}
             }
         }
     }
+
+    let mut service_ids: Vec<StringId> = ranges_by_service.keys().copied().collect();
+    service_ids.extend(
+        overrides_by_service
+            .keys()
+            .filter(|id| !ranges_by_service.contains_key(id)),
+    );
+
+    let empty_overrides = BTreeMap::new();
+    let mut result = HashMap::new();
+    for service_id in service_ids {
+        let ranges = ranges_by_service
+            .get(&service_id)
+            .map(|rows| merge_calendar_ranges(rows))
+            .unwrap_or_default();
+        let overrides = overrides_by_service
+            .get(&service_id)
+            .unwrap_or(&empty_overrides);
+        if let Some(activity) = summarize_activity(&ranges, overrides) {
+            result.insert(service_id, activity);
+        }
+    }
     result
+}
+
+fn weekday_mask(service: &gtfs_guru_model::Calendar) -> u8 {
+    [
+        service.monday,
+        service.tuesday,
+        service.wednesday,
+        service.thursday,
+        service.friday,
+        service.saturday,
+        service.sunday,
+    ]
+    .iter()
+    .enumerate()
+    .filter(|(_, availability)| **availability == ServiceAvailability::Available)
+    .fold(0, |mask, (bit, _)| mask | (1 << bit))
+}
+
+fn runs_on(mask: u8, date: NaiveDate) -> bool {
+    mask & (1 << date.weekday().num_days_from_monday()) != 0
+}
+
+/// Splits overlapping calendar rows into disjoint, sorted ranges that each
+/// carry the union of the weekdays of the rows covering them. Ranges that run
+/// on no weekday are dropped.
+fn merge_calendar_ranges(rows: &[(NaiveDate, NaiveDate, u8)]) -> Vec<(NaiveDate, NaiveDate, u8)> {
+    // (date, row starts here?, mask): a row covers [start, end + 1).
+    let mut events: Vec<(NaiveDate, bool, u8)> = Vec::with_capacity(rows.len() * 2);
+    for &(start, end, mask) in rows {
+        events.push((start, true, mask));
+        if let Some(after_end) = end.succ_opt() {
+            events.push((after_end, false, mask));
+        }
+    }
+    events.sort_unstable_by_key(|(date, _, _)| *date);
+
+    let mut counts = [0usize; 7];
+    let mut merged = Vec::new();
+    let mut index = 0;
+    while index < events.len() {
+        let date = events[index].0;
+        while index < events.len() && events[index].0 == date {
+            let (_, starts, mask) = events[index];
+            for (bit, count) in counts.iter_mut().enumerate() {
+                if mask & (1 << bit) != 0 {
+                    if starts {
+                        *count += 1;
+                    } else {
+                        *count -= 1;
+                    }
+                }
+            }
+            index += 1;
+        }
+        let mask = counts
+            .iter()
+            .enumerate()
+            .filter(|(_, count)| **count > 0)
+            .fold(0u8, |mask, (bit, _)| mask | (1 << bit));
+        let (Some(next), true) = (events.get(index).map(|event| event.0), mask != 0) else {
+            continue;
+        };
+        if let Some(until) = next.pred_opt() {
+            merged.push((date, until, mask));
+        }
+    }
+    merged
+}
+
+#[derive(Default)]
+struct ActivityWalk {
+    first: Option<NaiveDate>,
+    last: Option<NaiveDate>,
+    big_gaps: Vec<(NaiveDate, NaiveDate, i64)>,
+}
+
+impl ActivityWalk {
+    /// Records an active date later than every date recorded so far.
+    fn visit(&mut self, date: NaiveDate) {
+        match self.last {
+            Some(previous) => {
+                let gap = (date - previous).num_days() - 1;
+                if gap > MAX_GAP_DAYS {
+                    self.big_gaps.push((previous, date, gap));
+                }
+            }
+            None => self.first = Some(date),
+        }
+        self.last = Some(date);
+    }
+
+    /// Records every date in `from..=to` that runs on `mask`. Consecutive such
+    /// dates are at most six days apart, so only the ends matter.
+    fn visit_weekly(&mut self, from: NaiveDate, to: NaiveDate, mask: u8) {
+        let first = from
+            .iter_days()
+            .take(7)
+            .take_while(|date| *date <= to)
+            .find(|date| runs_on(mask, *date));
+        let Some(first) = first else {
+            return;
+        };
+        let last = std::iter::successors(Some(to), |date| date.pred_opt())
+            .take(7)
+            .find(|date| runs_on(mask, *date))
+            .unwrap_or(first);
+        self.visit(first);
+        self.last = Some(last);
+    }
+}
+
+fn summarize_activity(
+    ranges: &[(NaiveDate, NaiveDate, u8)],
+    overrides: &BTreeMap<NaiveDate, bool>,
+) -> Option<ServiceActivity> {
+    let mut walk = ActivityWalk::default();
+    let mut pending = overrides.iter().peekable();
+    for &(from, to, mask) in ranges {
+        while let Some((&date, &active)) = pending.next_if(|(date, _)| **date < from) {
+            if active {
+                walk.visit(date);
+            }
+        }
+        let mut cursor = Some(from);
+        while let Some((&date, &active)) = pending.next_if(|(date, _)| **date <= to) {
+            if let (Some(start), Some(end)) = (cursor, date.pred_opt()) {
+                if start <= end {
+                    walk.visit_weekly(start, end, mask);
+                }
+            }
+            if active {
+                walk.visit(date);
+            }
+            cursor = date.succ_opt();
+        }
+        if let Some(start) = cursor {
+            if start <= to {
+                walk.visit_weekly(start, to, mask);
+            }
+        }
+    }
+    for (&date, &active) in pending {
+        if active {
+            walk.visit(date);
+        }
+    }
+    Some(ServiceActivity {
+        first: walk.first?,
+        last: walk.last?,
+        big_gaps: walk.big_gaps,
+    })
 }
 
 fn gtfs_date_to_naive(date: GtfsDate) -> Option<NaiveDate> {
     NaiveDate::from_ymd_opt(date.year(), date.month() as u32, date.day() as u32)
-}
-
-fn active_on_weekday(service: &gtfs_guru_model::Calendar, date: NaiveDate) -> bool {
-    let availability = match date.weekday() {
-        chrono::Weekday::Mon => service.monday,
-        chrono::Weekday::Tue => service.tuesday,
-        chrono::Weekday::Wed => service.wednesday,
-        chrono::Weekday::Thu => service.thursday,
-        chrono::Weekday::Fri => service.friday,
-        chrono::Weekday::Sat => service.saturday,
-        chrono::Weekday::Sun => service.sunday,
-    };
-    availability == ServiceAvailability::Available
 }
 
 #[cfg(test)]
@@ -373,5 +536,133 @@ mod tests {
         ] {
             assert!(codes.contains(expected), "missing {expected}");
         }
+    }
+
+    /// The day-by-day expansion the summary replaces.
+    fn expand_day_by_day(
+        rows: &[(NaiveDate, NaiveDate, u8)],
+        exceptions: &[(NaiveDate, ExceptionType)],
+    ) -> Option<ServiceActivity> {
+        let mut dates = std::collections::BTreeSet::new();
+        for &(start, end, mask) in rows {
+            let mut date = start;
+            while date <= end {
+                if runs_on(mask, date) {
+                    dates.insert(date);
+                }
+                date = date.succ_opt().unwrap();
+            }
+        }
+        for &(date, exception_type) in exceptions {
+            match exception_type {
+                ExceptionType::Added => {
+                    dates.insert(date);
+                }
+                ExceptionType::Removed => {
+                    dates.remove(&date);
+                }
+                ExceptionType::Other => {}
+            }
+        }
+        let mut walk = ActivityWalk::default();
+        for date in dates {
+            walk.visit(date);
+        }
+        Some(ServiceActivity {
+            first: walk.first?,
+            last: walk.last?,
+            big_gaps: walk.big_gaps,
+        })
+    }
+
+    #[test]
+    fn summary_matches_day_by_day_expansion() {
+        let base = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move |bound: u64| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed % bound
+        };
+        for _ in 0..2000 {
+            let rows: Vec<_> = (0..next(4))
+                .map(|_| {
+                    let start = base + chrono::Duration::days(next(200) as i64);
+                    let end = start + chrono::Duration::days(next(120) as i64);
+                    // Sparse masks make big gaps likely.
+                    let mask = match next(4) {
+                        0 => 0u8,
+                        1 => 1 << next(7),
+                        2 => (1 << next(7)) | (1 << next(7)),
+                        _ => next(128) as u8,
+                    };
+                    (start, end, mask)
+                })
+                .collect();
+            let exceptions: Vec<_> = (0..next(12))
+                .map(|_| {
+                    let date = base + chrono::Duration::days(next(360) as i64 - 20);
+                    let exception_type = match next(5) {
+                        0 => ExceptionType::Other,
+                        1 | 2 => ExceptionType::Added,
+                        _ => ExceptionType::Removed,
+                    };
+                    (date, exception_type)
+                })
+                .collect();
+
+            let mut overrides = BTreeMap::new();
+            for &(date, exception_type) in &exceptions {
+                match exception_type {
+                    ExceptionType::Added => {
+                        overrides.insert(date, true);
+                    }
+                    ExceptionType::Removed => {
+                        overrides.insert(date, false);
+                    }
+                    ExceptionType::Other => {}
+                }
+            }
+            let valid_rows: Vec<_> = rows
+                .iter()
+                .copied()
+                .filter(|(start, end, _)| start <= end)
+                .collect();
+            assert_eq!(
+                summarize_activity(&merge_calendar_ranges(&valid_rows), &overrides),
+                expand_day_by_day(&rows, &exceptions),
+                "rows {rows:?} exceptions {exceptions:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn open_ended_calendar_is_summarised_without_expansion() {
+        let _guard = crate::set_validation_date(Some(NaiveDate::from_ymd_opt(2025, 6, 1).unwrap()));
+        let mut feed = GtfsFeed::default();
+        let rows = (0..200)
+            .map(|index| Calendar {
+                service_id: feed.pool.intern(&format!("SVC{index}")),
+                monday: ServiceAvailability::Available,
+                start_date: GtfsDate::parse("20250101").unwrap(),
+                end_date: GtfsDate::parse("99991231").unwrap(),
+                ..Default::default()
+            })
+            .collect();
+        feed.calendar = Some(CsvTable {
+            headers: vec!["service_id".into()],
+            rows,
+            row_numbers: Vec::new(),
+        });
+
+        let started = std::time::Instant::now();
+        let activity = build_active_dates(&feed);
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+
+        let summary = &activity[&feed.pool.intern("SVC0")];
+        assert_eq!(summary.first, NaiveDate::from_ymd_opt(2025, 1, 6).unwrap());
+        assert_eq!(summary.last, NaiveDate::from_ymd_opt(9999, 12, 27).unwrap());
+        assert!(summary.big_gaps.is_empty());
     }
 }

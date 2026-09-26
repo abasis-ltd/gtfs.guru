@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::feed::{FEED_INFO_FILE, TRANSLATIONS_FILE};
 use crate::{GtfsFeed, NoticeContainer, NoticeSeverity, TableStatus, ValidationNotice, Validator};
 
@@ -85,25 +83,21 @@ impl Validator for FeedInfoValidator {
 
     fn validate(&self, feed: &GtfsFeed, notices: &mut NoticeContainer) {
         if let Some(feed_info) = &feed.feed_info {
-            let header_set: HashSet<String> = feed_info
-                .headers
-                .iter()
-                .map(|header| header.trim().to_ascii_lowercase())
-                .collect();
-            let mut missing_recommended_fields = Vec::new();
-            for field in ["feed_start_date", "feed_end_date", "feed_version"] {
-                if !header_set.contains(field) {
-                    missing_recommended_fields.push(field);
-                }
-            }
-
             if feed_info.rows.len() > 1 {
                 notices.push(more_than_one_entity_notice(feed_info.rows.len()));
             }
             for (index, info) in feed_info.rows.iter().enumerate() {
                 let row_number = feed_info.row_number(index);
-                for field in &missing_recommended_fields {
-                    notices.push(missing_recommended_field_notice(field, row_number));
+                // An empty value is as missing as an absent column: the
+                // canonical loader checks recommended fields per row.
+                for (field, missing) in [
+                    ("feed_start_date", info.feed_start_date.is_none()),
+                    ("feed_end_date", info.feed_end_date.is_none()),
+                    ("feed_version", is_blank(info.feed_version.as_deref())),
+                ] {
+                    if missing {
+                        notices.push(missing_recommended_field_notice(field, row_number));
+                    }
                 }
                 if let (Some(start), Some(end)) = (info.feed_start_date, info.feed_end_date) {
                     if start > end {
@@ -295,6 +289,41 @@ mod tests {
     }
 
     #[test]
+    fn detects_empty_recommended_values_under_present_headers() {
+        let mut feed = GtfsFeed::default();
+        feed.feed_info = Some(CsvTable {
+            headers: vec![
+                "feed_publisher_name".into(),
+                "feed_start_date".into(),
+                "feed_end_date".into(),
+                "feed_version".into(),
+            ],
+            rows: vec![FeedInfo {
+                feed_publisher_name: "Test".into(),
+                feed_publisher_url: feed.pool.intern("http://example.com"),
+                feed_lang: feed.pool.intern("en"),
+                feed_start_date: None,
+                feed_end_date: None,
+                feed_version: Some("".into()),
+                feed_contact_email: Some("test@test.com".into()),
+                feed_contact_url: None,
+                default_lang: None,
+            }],
+            row_numbers: vec![2],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FeedInfoValidator.validate(&feed, &mut notices);
+
+        let fields: Vec<&str> = notices
+            .iter()
+            .filter(|n| n.code == CODE_MISSING_RECOMMENDED_FIELD)
+            .map(|n| n.context["fieldName"].as_str().unwrap())
+            .collect();
+        assert_eq!(fields, ["feed_start_date", "feed_end_date", "feed_version"]);
+    }
+
+    #[test]
     fn passes_with_valid_feed_info() {
         let mut feed = GtfsFeed::default();
         feed.feed_info = Some(CsvTable {
@@ -310,7 +339,7 @@ mod tests {
                 feed_lang: feed.pool.intern("en"),
                 feed_start_date: Some(GtfsDate::parse("20250101").unwrap()),
                 feed_end_date: Some(GtfsDate::parse("20251231").unwrap()),
-                feed_version: None,
+                feed_version: Some("1.0".into()),
                 feed_contact_email: Some("test@test.com".into()),
                 feed_contact_url: None,
                 default_lang: None,

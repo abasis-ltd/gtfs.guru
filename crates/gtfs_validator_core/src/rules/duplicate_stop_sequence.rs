@@ -64,21 +64,19 @@ impl DuplicateStopSequenceValidator {
                     NoticeSeverity::Error,
                     "duplicate key",
                 );
-                notice.insert_context_field("fieldName1", "trip_id");
-                notice.insert_context_field("fieldName2", "stop_sequence");
-                notice.insert_context_field("fieldValue1", trip_id_value.as_str());
-                notice.insert_context_field("fieldValue2", seq);
+                // The canonical composite key joins its columns into one
+                // field name and one value.
                 notice.insert_context_field("filename", STOP_TIMES_FILE);
-                notice.insert_context_field("newCsvRowNumber", row_number);
                 notice.insert_context_field("oldCsvRowNumber", *previous_row);
+                notice.insert_context_field("newCsvRowNumber", row_number);
+                notice.insert_context_field("fieldName1", "trip_id,stop_sequence");
+                notice.insert_context_field("fieldValue1", format!("{},{}", trip_id_value, seq));
                 notice.field_order = vec![
-                    "fieldName1".into(),
-                    "fieldName2".into(),
-                    "fieldValue1".into(),
-                    "fieldValue2".into(),
                     "filename".into(),
-                    "newCsvRowNumber".into(),
                     "oldCsvRowNumber".into(),
+                    "newCsvRowNumber".into(),
+                    "fieldName1".into(),
+                    "fieldValue1".into(),
                 ];
                 notices.push(notice);
             } else {

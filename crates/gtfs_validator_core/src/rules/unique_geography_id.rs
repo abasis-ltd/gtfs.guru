@@ -60,18 +60,33 @@ impl Validator for UniqueGeographyIdValidator {
             }
         }
 
-        for (id, sources) in sources_by_id {
-            if sources.len() > 1 {
-                let id_value = feed.pool.resolve(id);
-                notices.push(duplicate_id_notice(
-                    id,
-                    id_value.as_str(),
-                    &sources,
-                    &stop_rows,
-                    &location_group_rows,
-                    &feature_index_by_id,
-                ));
-            }
+        // Sorted by where the id first appears (stops.txt row, then
+        // location_group_stops.txt row, then GeoJSON feature) so the output
+        // is deterministic.
+        let mut duplicated: Vec<_> = sources_by_id
+            .into_iter()
+            .filter(|(_, sources)| sources.len() > 1)
+            .map(|(id, sources)| {
+                let order = (
+                    stop_rows.get(&id).copied().unwrap_or(u64::MAX),
+                    location_group_rows.get(&id).copied().unwrap_or(u64::MAX),
+                    feature_index_by_id.get(&id).copied().unwrap_or(usize::MAX),
+                    feed.pool.resolve(id),
+                );
+                (order, id, sources)
+            })
+            .collect();
+        duplicated.sort_by(|a, b| a.0.cmp(&b.0));
+
+        for ((_, _, _, id_value), id, sources) in duplicated {
+            notices.push(duplicate_id_notice(
+                id,
+                id_value.as_str(),
+                &sources,
+                &stop_rows,
+                &location_group_rows,
+                &feature_index_by_id,
+            ));
         }
     }
 }
@@ -168,6 +183,44 @@ mod tests {
         assert!(notices
             .iter()
             .any(|n| n.code == CODE_DUPLICATE_GEOGRAPHY_ID));
+    }
+
+    #[test]
+    fn reports_duplicates_in_stops_file_order() {
+        let mut feed = GtfsFeed::default();
+        let ids = ["Z", "A", "M", "B", "K", "C"];
+        feed.stops = CsvTable {
+            headers: vec!["stop_id".into()],
+            rows: ids
+                .iter()
+                .map(|id| Stop {
+                    stop_id: feed.pool.intern(id),
+                    ..Default::default()
+                })
+                .collect(),
+            row_numbers: (2..2 + ids.len() as u64).collect(),
+        };
+        feed.location_group_stops = Some(CsvTable {
+            headers: vec!["location_group_id".into()],
+            rows: ids
+                .iter()
+                .rev()
+                .map(|id| LocationGroupStop {
+                    location_group_id: feed.pool.intern(id),
+                    ..Default::default()
+                })
+                .collect(),
+            row_numbers: (2..2 + ids.len() as u64).collect(),
+        });
+
+        let mut notices = NoticeContainer::new();
+        UniqueGeographyIdValidator.validate(&feed, &mut notices);
+
+        let reported: Vec<&str> = notices
+            .iter()
+            .map(|n| n.context["geographyId"].as_str().unwrap())
+            .collect();
+        assert_eq!(reported, ids);
     }
 
     #[test]
