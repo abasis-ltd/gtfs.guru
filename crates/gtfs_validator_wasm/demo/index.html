@@ -726,6 +726,17 @@
       URL.revokeObjectURL(url);
     };
 
+    // Notice fields echo feed content (file names, CSV values), so every
+    // interpolation into innerHTML goes through this.
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function renderNotices() {
       const noticesEl = document.getElementById('notices');
       const filtered = currentFilter === 'all'
@@ -749,13 +760,13 @@
 
         // Add primary location fields
         if (notice.filename || notice.file) {
-          contextHtml += `<div class="notice-location">File: ${notice.filename || notice.file}</div>`;
+          contextHtml += `<div class="notice-location">File: ${escapeHtml(notice.filename || notice.file)}</div>`;
         }
         if (notice.csvRowNumber || notice.row) {
-          contextHtml += `<div class="notice-location">Row: ${notice.csvRowNumber || notice.row}</div>`;
+          contextHtml += `<div class="notice-location">Row: ${escapeHtml(notice.csvRowNumber || notice.row)}</div>`;
         }
         if (notice.fieldName || notice.field) {
-          contextHtml += `<div class="notice-location">Field: ${notice.fieldName || notice.field}</div>`;
+          contextHtml += `<div class="notice-location">Field: ${escapeHtml(notice.fieldName || notice.field)}</div>`;
         }
 
         // Add extra context if available
@@ -763,15 +774,15 @@
           for (const [key, value] of Object.entries(notice.context)) {
             // Skip already checked keys if they are redundant (though mostly they might be different)
             if (!['filename', 'csvRowNumber', 'fieldName', 'file', 'row', 'field'].includes(key)) {
-              contextHtml += `<div class="notice-location">${key}: ${value}</div>`;
+              contextHtml += `<div class="notice-location">${escapeHtml(key)}: ${escapeHtml(typeof value === 'object' ? JSON.stringify(value) : value)}</div>`;
             }
           }
         }
 
         return `
-        <div class="notice ${notice.severity}">
-          <div class="notice-code">[${notice.code}]</div>
-          <div class="notice-title">${notice.title || notice.code}</div>
+        <div class="notice ${escapeHtml(notice.severity)}">
+          <div class="notice-code">[${escapeHtml(notice.code)}]</div>
+          <div class="notice-title">${escapeHtml(notice.title || notice.message || notice.code)}</div>
           ${contextHtml}
         </div>
       `}).join('');

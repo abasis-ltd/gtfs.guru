@@ -2012,7 +2012,7 @@ fn unknown_file_notice(file_name: &str) -> ValidationNotice {
     notice
 }
 
-fn invalid_input_files_notice() -> ValidationNotice {
+pub(crate) fn invalid_input_files_notice() -> ValidationNotice {
     ValidationNotice::new(
         "invalid_input_files_in_subfolder",
         NoticeSeverity::Error,

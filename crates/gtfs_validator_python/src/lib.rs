@@ -158,7 +158,15 @@ impl ValidationResult {
 <pre>{}</pre>
 </body>
 </html>"#,
-            self.error_count, self.warning_count, self.info_count, self.report_json
+            self.error_count,
+            self.warning_count,
+            self.info_count,
+            // Feed values (stop names, file names) reach the report verbatim;
+            // escape them so a crafted feed cannot inject markup or script.
+            self.report_json
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;")
         );
         std::fs::write(path, html).map_err(|e| PyValueError::new_err(e.to_string()))
     }

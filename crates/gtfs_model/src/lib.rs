@@ -226,7 +226,17 @@ impl GtfsTime {
     pub fn parse(value: &str) -> Result<Self, GtfsParseError> {
         let trimmed = value.trim();
         let parts: Vec<&str> = trimmed.split(':').collect();
-        if parts.len() != 3 {
+        // Canonical pattern `(\d{1,3}):(\d\d):(\d\d)`: it rejects signs,
+        // single-digit minutes/seconds, and hours long enough to overflow
+        // `hours * 3600` (a panic in debug builds, a wrapped time in release).
+        let digits = |part: &str, min: usize, max: usize| {
+            (min..=max).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_digit())
+        };
+        if parts.len() != 3
+            || !digits(parts[0], 1, 3)
+            || !digits(parts[1], 2, 2)
+            || !digits(parts[2], 2, 2)
+        {
             return Err(GtfsParseError::InvalidTimeFormat(value.to_string()));
         }
 
@@ -1310,6 +1320,19 @@ mod tests {
     fn rejects_invalid_time() {
         assert!(GtfsTime::parse("25:99:00").is_err());
         assert!(GtfsTime::parse("bad").is_err());
+        // Shapes the canonical `(\d{1,3}):(\d\d):(\d\d)` pattern rejects.
+        assert!(GtfsTime::parse("8:0:0").is_err());
+        assert!(GtfsTime::parse("+8:00:00").is_err());
+        assert!(GtfsTime::parse("1000:00:00").is_err());
+        assert!(GtfsTime::parse("999999:00:00").is_err());
+        assert_eq!(
+            GtfsTime::parse("8:00:00").unwrap().total_seconds(),
+            8 * 3600
+        );
+        assert_eq!(
+            GtfsTime::parse("999:59:59").unwrap().total_seconds(),
+            999 * 3600 + 59 * 60 + 59
+        );
     }
 
     #[test]

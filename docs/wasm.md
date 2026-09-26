@@ -58,7 +58,7 @@ async function main() {
   // Parse detailed notices
   const notices = JSON.parse(result.json);
   notices.forEach(notice => {
-    console.log(`[${notice.severity}] ${notice.code}: ${notice.title}`);
+    console.log(`[${notice.severity}] ${notice.code}: ${notice.message}`);
   });
 }
 

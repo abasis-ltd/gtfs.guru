@@ -329,6 +329,12 @@ fn open_path(path: String) -> Result<(), String> {
     if !p.exists() {
         return Err(format!("File does not exist at path: {}", path));
     }
+    if !is_generated_report(p) {
+        return Err(format!(
+            "Refusing to open a file that is not a report: {}",
+            path
+        ));
+    }
 
     #[cfg(target_os = "macos")]
     let command = "open";
@@ -337,17 +343,35 @@ fn open_path(path: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     let command = "xdg-open";
 
-    let output = std::process::Command::new(command)
+    // Spawn rather than wait: this command runs on the main thread, and
+    // xdg-open can stay attached to the viewer it launches. explorer.exe also
+    // exits 1 after opening a file, so its status says nothing about success.
+    std::process::Command::new(command)
         .arg(&path)
-        .output()
+        .spawn()
         .map_err(|e| format!("Failed to spawn open command: {}", e))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Open command failed: {}", stderr));
-    }
-
     Ok(())
+}
+
+/// Only reports this app wrote may be handed to the OS opener: the webview
+/// can call `open_path` with any string, and opening an arbitrary path
+/// launches executables on every platform.
+fn is_generated_report(path: &std::path::Path) -> bool {
+    let (Ok(path), Ok(temp)) = (path.canonicalize(), std::env::temp_dir().canonicalize()) else {
+        return false;
+    };
+    let Some(dir) = path.parent() else {
+        return false;
+    };
+    let dir_name = dir.file_name().and_then(|name| name.to_str()).unwrap_or("");
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    dir.parent() == Some(temp.as_path())
+        && (dir_name.starts_with("gtfs_validation_") || dir_name.starts_with("gtfs_diff_"))
+        && matches!(file_name, "report.html" | "report.json" | "diff.json")
 }
 
 fn run_validation(
@@ -356,6 +380,16 @@ fn run_validation(
     country_code: Option<&str>,
     progress_handler: Option<&dyn ProgressHandler>,
 ) -> Result<ValidationResult, String> {
+    /// Removes a downloaded feed when validation finishes, however it ends.
+    struct RemoveOnDrop(Option<PathBuf>);
+    impl Drop for RemoveOnDrop {
+        fn drop(&mut self) {
+            if let Some(path) = &self.0 {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
     // Determine input path (download if URL)
     let (input_path, _download_cleanup) = if let Some(url_str) = url {
         if url_str.trim().is_empty() {
@@ -365,10 +399,11 @@ fn run_validation(
         let file_name = format!("gtfs_download_{}.zip", uuid::Uuid::new_v4());
         let download_path = temp_dir.join(&file_name);
 
+        let cleanup = RemoveOnDrop(Some(download_path.clone()));
         download_url_to_path(&url_str, &download_path).map_err(|e| e.to_string())?;
-        (download_path, true)
+        (download_path, cleanup)
     } else if let Some(p) = path {
-        (PathBuf::from(p), false)
+        (PathBuf::from(p), RemoveOnDrop(None))
     } else {
         return Err("No input provided".to_string());
     };
@@ -385,11 +420,15 @@ fn run_validation(
     let elapsed = started_at.elapsed();
 
     // Create output directory
+    // A fresh, unguessable directory: two runs in the same second must not
+    // share one, and on a shared /tmp another user must not be able to
+    // pre-create it (with symlinked report files) ahead of us.
     let output_dir = std::env::temp_dir().join(format!(
-        "gtfs_validation_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+        "gtfs_validation_{}_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S"),
+        uuid::Uuid::new_v4().simple()
     ));
-    std::fs::create_dir_all(&output_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir(&output_dir).map_err(|e| e.to_string())?;
 
     // Generate reports
     if let Some(p) = progress_handler {

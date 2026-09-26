@@ -221,7 +221,23 @@ pub(crate) fn url(value: &str) -> Option<String> {
     }
 
     let candidate = format!("https://{trimmed}");
-    accept(trimmed, candidate, |value| Url::parse(value).is_ok())
+    // Only a bare `host/...` qualifies. Prefixing a mistyped scheme
+    // (`https//x.com`, `http:/x.com`) or a path (`/a.html`) also parses, but
+    // turns the typo into the host, which is worse than no fix.
+    accept(trimmed, candidate, |value| {
+        Url::parse(value).is_ok_and(|parsed| {
+            parsed.host_str().is_some_and(|host| {
+                host.contains('.')
+                    && trimmed
+                        .get(..host.len())
+                        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(host))
+                    && matches!(
+                        trimmed.as_bytes().get(host.len()),
+                        None | Some(b'/' | b'?' | b'#')
+                    )
+            })
+        })
+    })
 }
 
 /// An address wrapped in `mailto:` or angle brackets.
@@ -367,6 +383,10 @@ mod tests {
         );
         assert_eq!(url("https://example.com"), None);
         assert_eq!(url("nonsense"), None);
+        // Mistyped schemes and bare paths would become the host.
+        assert_eq!(url("https//example.com"), None);
+        assert_eq!(url("http:/www.example.com"), None);
+        assert_eq!(url("/path/file.html"), None);
     }
 
     #[test]

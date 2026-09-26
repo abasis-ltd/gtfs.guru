@@ -940,9 +940,18 @@ fn sort_stop_time_chunks(
         .and_then(|(row, _)| bounds.get(row))
         .map(|(start, _, _)| *start)
         .ok_or_else(|| "cannot locate the first data row".to_string())?;
+    // The file's last record owns no terminator when the file lacks a final
+    // newline. Moved anywhere but the end, it would be glued onto the next
+    // record, so it borrows the file's own line ending instead.
+    let line_ending: &[u8] = if body.windows(2).any(|pair| pair == b"\r\n") {
+        b"\r\n"
+    } else {
+        b"\n"
+    };
+    let row_count = sortable.len();
     let mut out = Vec::with_capacity(body.len() + 64);
     out.extend_from_slice(&body[..first_start]);
-    for entry in sortable {
+    for (position, entry) in sortable.into_iter().enumerate() {
         let (start, end, chunk_end) = bounds
             .get(&entry.row)
             .copied()
@@ -952,7 +961,11 @@ fn sort_stop_time_chunks(
         } else {
             out.extend_from_slice(&body[start..end]);
         }
-        out.extend_from_slice(&body[end..chunk_end]);
+        if end == chunk_end && position + 1 < row_count {
+            out.extend_from_slice(line_ending);
+        } else {
+            out.extend_from_slice(&body[end..chunk_end]);
+        }
     }
     Ok(out)
 }
@@ -1342,6 +1355,26 @@ mod tests {
         );
         assert_eq!(result.applied, vec![planned]);
         assert!(result.conflicts.is_empty());
+    }
+
+    #[test]
+    fn sorting_a_file_without_final_newline_keeps_rows_apart() {
+        for (data, expected) in [
+            (
+                "trip_id,stop_sequence\nT1,2\nT1,1",
+                "trip_id,stop_sequence\nT1,1\nT1,2\n",
+            ),
+            (
+                "trip_id,stop_sequence\r\nT1,3\r\nT1,1\r\nT1,2",
+                "trip_id,stop_sequence\r\nT1,1\r\nT1,2\r\nT1,3\r\n",
+            ),
+        ] {
+            let planned = sort_edit();
+            let refs = [&planned];
+            let result = rewrite_csv("stop_times.txt", data.as_bytes(), &refs).expect("rewrite");
+            assert_eq!(String::from_utf8(result.bytes).unwrap(), expected);
+            assert_eq!(result.applied, vec![planned]);
+        }
     }
 
     #[test]

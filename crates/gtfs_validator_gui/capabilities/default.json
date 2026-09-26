@@ -13,7 +13,7 @@
             "identifier": "shell:allow-open",
             "allow": [
                 {
-                    "pattern": "^.*"
+                    "pattern": "^https://github\\.com/(abasis-ltd/gtfs\\.guru|MobilityData/gtfs-validator)(/.*)?$"
                 }
             ]
         }

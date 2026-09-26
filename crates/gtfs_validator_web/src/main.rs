@@ -508,9 +508,6 @@ async fn cors_proxy(
             "cross-site proxy requests are blocked",
         );
     }
-    if guard_public_url(&query.url).is_err() {
-        return plain_text_response(StatusCode::BAD_REQUEST, "invalid or non-public URL");
-    }
     if !state.proxy_rate_limiter.try_acquire(Instant::now()) {
         return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "proxy rate limit exceeded");
     }
@@ -522,11 +519,17 @@ async fn cors_proxy(
     let max_bytes = state.max_proxy_bytes;
     let result = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        download_url_to_bytes(&url, max_bytes)
+        // The guard resolves the host with a blocking lookup, so it runs here
+        // rather than on an async worker, and only once the rate limiter has
+        // admitted the request: a nameserver that never answers would
+        // otherwise stall the runtime without counting against any limit.
+        guard_public_url(&url).map_err(|_| None)?;
+        download_url_to_bytes(&url, max_bytes).map_err(Some)
     })
     .await;
 
     match result {
+        Ok(Err(None)) => plain_text_response(StatusCode::BAD_REQUEST, "invalid or non-public URL"),
         Ok(Ok(bytes)) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
@@ -535,11 +538,11 @@ async fn cors_proxy(
             .unwrap_or_else(|_| {
                 plain_text_response(StatusCode::INTERNAL_SERVER_ERROR, "response error")
             }),
-        Ok(Err(err)) if err.to_string().contains("exceeds") => plain_text_response(
+        Ok(Err(Some(err))) if err.to_string().contains("exceeds") => plain_text_response(
             StatusCode::PAYLOAD_TOO_LARGE,
             "remote response is too large",
         ),
-        Ok(Err(_)) => plain_text_response(StatusCode::BAD_GATEWAY, "remote fetch failed"),
+        Ok(Err(Some(_))) => plain_text_response(StatusCode::BAD_GATEWAY, "remote fetch failed"),
         Err(_) => plain_text_response(StatusCode::INTERNAL_SERVER_ERROR, "proxy worker failed"),
     }
 }
@@ -1416,6 +1419,7 @@ fn is_global_ip(ip: IpAddr) -> bool {
                 || v4.is_broadcast()
                 || v4.is_documentation()
                 || v4.is_unspecified()
+                || v4.is_multicast()
                 || o[0] == 0
                 // 100.64.0.0/10 carrier-grade NAT
                 || (o[0] == 100 && (o[1] & 0xC0) == 64)
@@ -1433,12 +1437,29 @@ fn is_global_ip(ip: IpAddr) -> bool {
             if let Some(mapped) = v6.to_ipv4_mapped() {
                 return is_global_ip(IpAddr::V4(mapped));
             }
-            let seg0 = v6.segments()[0];
-            // fc00::/7 unique-local, fe80::/10 link-local
-            if (seg0 & 0xfe00) == 0xfc00 || (seg0 & 0xffc0) == 0xfe80 {
+            let seg = v6.segments();
+            // Deprecated IPv4-compatible ::a.b.c.d reaches the IPv4 host.
+            if seg[..6] == [0; 6] {
+                let [a, b] = seg[6].to_be_bytes();
+                let [c, d] = seg[7].to_be_bytes();
+                return is_global_ip(IpAddr::V4(std::net::Ipv4Addr::new(a, b, c, d)));
+            }
+            let seg0 = seg[0];
+            // fc00::/7 unique-local, fe80::/10 link-local, fec0::/10
+            // site-local, ff00::/8 multicast
+            if (seg0 & 0xfe00) == 0xfc00
+                || (seg0 & 0xffc0) == 0xfe80
+                || (seg0 & 0xffc0) == 0xfec0
+                || (seg0 & 0xff00) == 0xff00
+            {
                 return false;
             }
-            true
+            // NAT64 64:ff9b::/96 and 64:ff9b:1::/48, 6to4 2002::/16, Teredo
+            // 2001::/32 and documentation 2001:db8::/32 all translate to or
+            // embed an arbitrary IPv4 address, or are not routable.
+            !((seg0 == 0x0064 && seg[1] == 0xff9b)
+                || seg0 == 0x2002
+                || (seg0 == 0x2001 && (seg[1] == 0 || seg[1] == 0x0db8)))
         }
     }
 }
@@ -1880,6 +1901,21 @@ mod tests {
         assert!(guard_public_url("http://localhost/feed.zip").is_err());
         assert!(guard_public_url("http://169.254.169.254/latest/meta-data/").is_err());
         assert!(guard_public_url("http://[::1]/feed.zip").is_err());
+    }
+
+    #[test]
+    fn guard_public_url_rejects_ipv6_forms_of_internal_ipv4() {
+        for url in [
+            "http://[::ffff:169.254.169.254]/feed.zip",
+            "http://[::127.0.0.1]/feed.zip",
+            "http://[64:ff9b::a9fe:a9fe]/feed.zip",
+            "http://[2002:7f00:1::]/feed.zip",
+            "http://[fec0::1]/feed.zip",
+            "http://[ff02::1]/feed.zip",
+            "http://224.0.0.1/feed.zip",
+        ] {
+            assert!(guard_public_url(url).is_err(), "{url} must be rejected");
+        }
     }
 
     #[test]

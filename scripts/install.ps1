@@ -36,7 +36,10 @@ try {
 }
 
 if ($VerifyChecksums) {
-  $Expected = Select-String -Path $ChecksumsPath -Pattern ("^([A-Fa-f0-9]{64})\\s+$Asset$") |
+  # PowerShell strings do not treat `\` as an escape, so `\s` reaches the regex
+  # engine as written; `\\s` would demand a literal backslash and never match.
+  $Pattern = '^([A-Fa-f0-9]{64})\s+\*?' + [regex]::Escape($Asset) + '$'
+  $Expected = Select-String -Path $ChecksumsPath -Pattern $Pattern |
     ForEach-Object { $_.Matches[0].Groups[1].Value } |
     Select-Object -First 1
 
