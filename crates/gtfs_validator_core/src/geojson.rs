@@ -720,7 +720,7 @@ mod tests {
             .map(|n| n.context.clone())
             .collect();
         assert_eq!(fields.len(), 6);
-        for pair in fields.chunks_exact(2) {
+        for pair in fields.as_chunks::<2>().0 {
             assert_eq!(pair[0]["unknownElement"], "a");
             assert_eq!(pair[1]["unknownElement"], "z");
         }
