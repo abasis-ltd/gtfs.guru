@@ -19,7 +19,12 @@ impl Validator for FareTransferRuleDurationLimitTypeValidator {
 
         for (index, rule) in fare_transfer_rules.rows.iter().enumerate() {
             let row_number = fare_transfer_rules.row_number(index);
-            let has_duration_limit = rule.duration_limit.map(|v| v >= 0).unwrap_or(false);
+            // A negative duration_limit fails to parse in the canonical
+            // loader (number_out_of_range), which drops the whole row.
+            if rule.duration_limit.is_some_and(|v| v < 0) {
+                continue;
+            }
+            let has_duration_limit = rule.duration_limit.is_some();
             let has_duration_limit_type = rule.duration_limit_type.is_some();
             if has_duration_limit && !has_duration_limit_type {
                 let mut notice = ValidationNotice::new(
@@ -32,9 +37,6 @@ impl Validator for FareTransferRuleDurationLimitTypeValidator {
                 notices.push(notice);
             }
             if !has_duration_limit && has_duration_limit_type {
-                if !crate::validation_context::thorough_mode_enabled() {
-                    continue;
-                }
                 let mut notice = ValidationNotice::new(
                     CODE_TYPE_WITHOUT_DURATION_LIMIT,
                     NoticeSeverity::Error,
@@ -79,7 +81,6 @@ mod tests {
 
     #[test]
     fn detects_type_without_duration_limit() {
-        let _guard = crate::validation_context::set_thorough_mode_enabled(true);
         let mut feed = GtfsFeed::default();
         feed.fare_transfer_rules = Some(CsvTable {
             headers: vec!["duration_limit_type".into()],
@@ -99,6 +100,35 @@ mod tests {
             notices.iter().next().unwrap().code,
             CODE_TYPE_WITHOUT_DURATION_LIMIT
         );
+    }
+
+    #[test]
+    fn skips_rows_with_negative_duration_limit() {
+        let mut feed = GtfsFeed::default();
+        feed.fare_transfer_rules = Some(CsvTable {
+            headers: vec!["duration_limit".into(), "duration_limit_type".into()],
+            rows: vec![
+                FareTransferRule {
+                    duration_limit: Some(-1),
+                    duration_limit_type: Some(DurationLimitType::DepartureToArrival),
+                    ..Default::default()
+                },
+                FareTransferRule {
+                    duration_limit: None,
+                    duration_limit_type: Some(DurationLimitType::DepartureToArrival),
+                    ..Default::default()
+                },
+            ],
+            row_numbers: vec![2, 3],
+        });
+
+        let mut notices = NoticeContainer::new();
+        FareTransferRuleDurationLimitTypeValidator.validate(&feed, &mut notices);
+
+        assert_eq!(notices.len(), 1);
+        let notice = notices.iter().next().unwrap();
+        assert_eq!(notice.code, CODE_TYPE_WITHOUT_DURATION_LIMIT);
+        assert_eq!(notice.context["csvRowNumber"], 3);
     }
 
     #[test]

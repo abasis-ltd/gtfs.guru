@@ -161,7 +161,9 @@ impl SarifReport {
             results.push(notice_to_result(notice));
         }
 
-        // Build rules list
+        // Build rules list, sorted so the file is byte-stable across runs.
+        let mut rules_map: Vec<_> = rules_map.into_iter().collect();
+        rules_map.sort_by(|(a, _), (b, _)| a.cmp(b));
         let rules: Vec<SarifRule> = rules_map
             .into_iter()
             .map(|(code, (severity, message))| SarifRule {
@@ -193,6 +195,27 @@ impl SarifReport {
         }
     }
 
+    /// Anchor results that have no file to `uri`, normally the validated
+    /// feed. GitHub code scanning rejects an upload in which any result lacks
+    /// a location, and feed-level notices (expiration, service coverage) have
+    /// no file of their own.
+    pub fn with_default_location(mut self, uri: impl Into<String>) -> Self {
+        let uri = uri.into();
+        for run in &mut self.runs {
+            for result in &mut run.results {
+                if result.locations.is_empty() {
+                    result.locations.push(SarifLocation {
+                        physical_location: SarifPhysicalLocation {
+                            artifact_location: SarifArtifactLocation { uri: uri.clone() },
+                            region: None,
+                        },
+                    });
+                }
+            }
+        }
+        self
+    }
+
     /// Write SARIF report to a file
     pub fn write<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let path = path.as_ref();
@@ -213,11 +236,26 @@ impl SarifReport {
 
 /// Convert a notice to a SARIF result
 fn notice_to_result(notice: &ValidationNotice) -> SarifResult {
-    let locations = if let Some(file) = &notice.file {
+    // Many notices carry their file and row only in the context, and the
+    // message drops those keys on the assumption that the location shows them.
+    let file = notice.file.clone().or_else(|| {
+        notice
+            .context
+            .get("filename")
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+    });
+    let row = notice.row.or_else(|| {
+        notice
+            .context
+            .get("csvRowNumber")
+            .and_then(|value| value.as_u64())
+    });
+    let locations = if let Some(file) = file {
         vec![SarifLocation {
             physical_location: SarifPhysicalLocation {
-                artifact_location: SarifArtifactLocation { uri: file.clone() },
-                region: notice.row.map(|line| SarifRegion {
+                artifact_location: SarifArtifactLocation { uri: file },
+                region: row.map(|line| SarifRegion {
                     start_line: Some(line),
                     start_column: None,
                 }),
@@ -354,5 +392,41 @@ mod tests {
             SarifLevel::from(NoticeSeverity::Info),
             SarifLevel::Note
         ));
+    }
+
+    #[test]
+    fn every_result_has_a_location_and_rules_are_sorted() {
+        let mut container = NoticeContainer::new();
+        // Location only in the context, as many rules emit it.
+        let mut in_context =
+            ValidationNotice::new("unused_route", NoticeSeverity::Warning, "unused route");
+        in_context.insert_context_field("filename", "routes.txt");
+        in_context.insert_context_field("csvRowNumber", 7u64);
+        container.push(in_context);
+        // Feed-level notice with no file at all.
+        container.push(ValidationNotice::new(
+            "feed_expiration_date7_days",
+            NoticeSeverity::Warning,
+            "feed expires soon",
+        ));
+
+        let report = SarifReport::from_notices(&container).with_default_location("feeds/a.zip");
+        let run = &report.runs[0];
+
+        let located = &run.results[0].locations[0].physical_location;
+        assert_eq!(located.artifact_location.uri, "routes.txt");
+        assert_eq!(located.region.as_ref().and_then(|r| r.start_line), Some(7));
+        let fallback = &run.results[1].locations[0].physical_location;
+        assert_eq!(fallback.artifact_location.uri, "feeds/a.zip");
+        assert!(fallback.region.is_none());
+
+        let ids: Vec<_> = run
+            .tool
+            .driver
+            .rules
+            .iter()
+            .map(|r| r.id.as_str())
+            .collect();
+        assert_eq!(ids, ["feed_expiration_date7_days", "unused_route"]);
     }
 }

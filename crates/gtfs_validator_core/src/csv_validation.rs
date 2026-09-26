@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
-use csv::{ReaderBuilder, StringRecord, Trim};
+use csv::StringRecord;
 use url::Url;
 
 use crate::csv_schema::schema_for_file;
@@ -13,6 +13,13 @@ use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
 use gtfs_guru_model::{GtfsColor, GtfsDate, GtfsTime};
 
 const MAX_ROW_NUMBER: u64 = 1_000_000_000;
+
+/// Columns the canonical schema marks `@Recommended`: its row parser reports
+/// `missing_recommended_field` for each row without a value, errors or not.
+const LOADER_RECOMMENDED_FIELDS: &[(&str, &[&str])] = &[(
+    "feed_info.txt",
+    &["feed_start_date", "feed_end_date", "feed_version"],
+)];
 
 const MIXED_CASE_FIELDS: &[&str] = &[
     "agency_name",
@@ -386,15 +393,21 @@ pub struct RowValidator {
     columns: Vec<ColumnPlan>,
     /// Column indexes of the schema's required fields, in schema order.
     required_columns: Vec<usize>,
+    /// Fields the canonical loader checks for a value on every row, with
+    /// their column (`None` when the header lacks it: still missing).
+    recommended_columns: Vec<(&'static str, Option<usize>)>,
     is_fare_products: bool,
     thorough: bool,
 }
 
 impl RowValidator {
     pub fn new(file_name: &str, headers: Vec<String>) -> Self {
+        // Column names match the schema exactly, as in the canonical
+        // validator: `Stop_Lat` is an unknown column, and its values are not
+        // checked as latitudes.
         let normalized_headers: Vec<String> = headers
             .iter()
-            .map(|value| value.trim().to_ascii_lowercase())
+            .map(|value| trim_java_whitespace(value).to_string())
             .collect();
         let header_index: HashMap<String, usize> = normalized_headers
             .iter()
@@ -413,7 +426,7 @@ impl RowValidator {
                     .map(|schema| schema.fields.contains(&normalized))
                     .unwrap_or(false);
                 ColumnPlan {
-                    header: raw.trim().into(),
+                    header: trim_java_whitespace(raw).into(),
                     is_schema_field,
                     check_non_ascii: is_schema_field && is_id_field(file_name, normalized),
                     is_mixed_case: is_mixed_case_field(normalized),
@@ -432,8 +445,16 @@ impl RowValidator {
             })
             .unwrap_or_default();
 
+        let recommended_columns = LOADER_RECOMMENDED_FIELDS
+            .iter()
+            .filter(|(file, _)| file.eq_ignore_ascii_case(file_name))
+            .flat_map(|(_, fields)| fields.iter())
+            .map(|field| (*field, header_index.get(*field).copied()))
+            .collect();
+
         Self {
             file_name: file_name.to_string(),
+            recommended_columns,
             header_index,
             validate_phone_numbers,
             columns,
@@ -452,13 +473,23 @@ impl RowValidator {
             return notices;
         }
 
-        // In default mode, skip empty rows silently (matches Java)
-        // In thorough mode, emit empty_row notice
-        if record.iter().all(|value| value.trim().is_empty()) {
-            if self.thorough {
-                notices.push(empty_row_notice(&self.file_name, row_number));
-            }
+        // A one-field row with nothing in it: what univocity makes of a final
+        // whitespace-only line, or of a line holding only `""`. The canonical
+        // validator warns and does not load it.
+        if record.len() == 1 && record.get(0).is_some_and(str::is_empty) {
+            notices.push(empty_row_notice(&self.file_name, row_number));
             return notices;
+        }
+
+        // A row of empty values is a row like any other (each empty required
+        // field is reported); `--thorough` also flags it as empty.
+        if self.thorough
+            && record.len() > 1
+            && record
+                .iter()
+                .all(|value| trim_java_whitespace(value).is_empty())
+        {
+            notices.push(empty_row_notice(&self.file_name, row_number));
         }
 
         if record.len() != header_len {
@@ -471,9 +502,11 @@ impl RowValidator {
             return notices;
         }
 
+        // A value is missing when univocity hands over nothing; a quoted
+        // `" "` is present, and fails its type check once trimmed instead.
         for &index in &self.required_columns {
             let raw = record.get(index).unwrap_or("");
-            if trim_java_whitespace(raw).is_empty() {
+            if raw.is_empty() {
                 notices.push(missing_required_field_notice(
                     &self.file_name,
                     &self.columns[index].header,
@@ -481,18 +514,31 @@ impl RowValidator {
                 ));
             }
         }
+        for (field, index) in &self.recommended_columns {
+            let raw = index.and_then(|index| record.get(index)).unwrap_or("");
+            if raw.is_empty() {
+                notices.push(missing_recommended_field_notice(
+                    &self.file_name,
+                    field,
+                    row_number,
+                ));
+            }
+        }
 
+        // Java raises these from generated single-entity validators, which
+        // only run on rows that parsed without an error, so they are held back
+        // until the row's field checks are done.
+        let mut entity_level = Vec::new();
         if self.is_fare_products {
             validate_currency_amount(
                 &self.file_name,
                 record,
                 &self.header_index,
                 row_number,
-                &mut notices,
+                &mut entity_level,
             );
         }
 
-        let mut mixed_case = Vec::new();
         // `record.len() == self.columns.len()` was checked above, so the zip
         // covers every field.
         for (plan, value) in self.columns.iter().zip(record.iter()) {
@@ -535,7 +581,7 @@ impl RowValidator {
                 ));
             }
 
-            if trimmed.is_empty() {
+            if value.is_empty() {
                 continue;
             }
 
@@ -548,11 +594,8 @@ impl RowValidator {
                 ));
             }
 
-            // Java raises this from a generated SingleEntityValidator, which
-            // only runs on rows that parsed without an error, so it is held
-            // back until the row's field checks are done.
             if plan.is_mixed_case && is_mixed_case_violation(trimmed) {
-                mixed_case.push(mixed_case_notice(
+                entity_level.push(mixed_case_notice(
                     &self.file_name,
                     header_name,
                     row_number,
@@ -572,7 +615,8 @@ impl RowValidator {
                         &mut notices,
                     );
                 }
-                ValueCheck::Integer(bounds) => match trimmed.parse::<i64>() {
+                // Java's `Integer.parseInt`: 32 bits, an optional sign.
+                ValueCheck::Integer(bounds) => match trimmed.parse::<i32>().map(i64::from) {
                     Ok(value) => {
                         if let Some(bounds) = bounds {
                             if violates_bounds_i64(value, bounds) {
@@ -595,7 +639,7 @@ impl RowValidator {
                         ));
                     }
                 },
-                ValueCheck::Float(kind) => match trimmed.parse::<f64>() {
+                ValueCheck::Float(kind) => match gtfs_guru_model::parse_java_double(trimmed) {
                     Ok(value) => {
                         let out_of_range =
                             match kind {
@@ -669,7 +713,7 @@ impl RowValidator {
                     }
                 }
                 ValueCheck::Language => {
-                    if self.thorough && !is_valid_language_code(trimmed) {
+                    if self.thorough && !trimmed.is_empty() && !is_valid_language_code(trimmed) {
                         notices.push(invalid_language_notice(
                             &self.file_name,
                             header_name,
@@ -696,6 +740,16 @@ impl RowValidator {
                             row_number,
                             trimmed,
                         ));
+                        if self.thorough
+                            && crate::rules::url_syntax::checks_field(&self.file_name, header_name)
+                        {
+                            notices.extend(crate::rules::url_syntax::uri_syntax_error_notice(
+                                trimmed,
+                                &self.file_name,
+                                header_name,
+                                row_number,
+                            ));
+                        }
                     }
                 }
                 ValueCheck::Email => {
@@ -724,77 +778,24 @@ impl RowValidator {
             .iter()
             .any(|notice| notice.severity == NoticeSeverity::Error)
         {
-            notices.extend(mixed_case);
+            notices.extend(entity_level);
         }
         notices
     }
 }
 
-#[allow(dead_code)]
+/// Header and row notices for one table, read as the loader reads it. Only
+/// the unit tests use it; the loader goes through `csv_reader::load_table`.
+#[cfg(test)]
 pub fn validate_csv_data(file_name: &str, data: &[u8], notices: &mut NoticeContainer) {
-    let data = strip_utf8_bom(data);
-    if data.is_empty() {
-        notices.push_empty_table(file_name);
-        return;
-    }
-    let data = crate::csv_univocity::normalize(data);
-    let data = data.as_ref();
-    let mut reader = ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(true)
-        .trim(Trim::Headers)
-        .from_reader(data);
-
-    let headers_record = match reader.headers() {
-        Ok(headers) => headers.clone(),
-        Err(_) => return,
-    };
-    let headers: Vec<String> = headers_record
-        .iter()
-        .map(|value| value.to_string())
-        .collect();
-
-    let mut header_notices = NoticeContainer::new();
-    validate_headers(file_name, &headers, &mut header_notices);
-    let has_header_errors = header_notices
-        .iter()
-        .any(|notice| notice.severity == NoticeSeverity::Error);
-    notices.merge(header_notices);
-    if has_header_errors {
-        return;
-    }
-
-    let validator = RowValidator::new(file_name, headers.clone());
-
-    for (index, result) in reader.records().enumerate() {
-        let record = match result {
-            Ok(record) => record,
-            Err(_) => continue,
-        };
-        let row_number = record
-            .position()
-            .map(|pos| pos.line())
-            .unwrap_or(index as u64 + 2);
-
-        let row_notices = validator.validate_row(&record, row_number);
-        for notice in row_notices {
-            let is_too_many = notice.code == "too_many_rows";
-            notices.push(notice);
-            if is_too_many {
-                return;
-            }
-        }
-    }
+    let _table: crate::CsvTable<IgnoredRow> =
+        crate::csv_reader::load_table(data, file_name, notices, &crate::StringPool::new())
+            .expect("in-memory read");
 }
 
-#[allow(dead_code)]
-fn strip_utf8_bom(data: &[u8]) -> &[u8] {
-    if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        &data[3..]
-    } else {
-        data
-    }
-}
+#[cfg(test)]
+#[derive(serde::Deserialize)]
+struct IgnoredRow {}
 
 pub fn validate_headers(file_name: &str, headers: &[String], notices: &mut NoticeContainer) {
     let schema = schema_for_file(file_name);
@@ -830,7 +831,10 @@ pub fn validate_headers(file_name: &str, headers: &[String], notices: &mut Notic
             .iter()
             .map(|value| value.as_str())
             .collect();
-        for required in schema.required_fields {
+        // The canonical validator walks the missing columns in a `TreeSet`.
+        let mut required: Vec<&str> = schema.required_fields.to_vec();
+        required.sort_unstable();
+        for required in required {
             if !header_set.contains(required) {
                 notices.push(missing_required_column_notice(file_name, required));
             }
@@ -846,8 +850,7 @@ pub fn validate_headers(file_name: &str, headers: &[String], notices: &mut Notic
 }
 
 fn trim_header_name(value: &str) -> &str {
-    // Match Java String.trim(), which strips <= U+0020 control/space characters.
-    value.trim_matches(|ch: char| ch <= '\u{20}')
+    trim_java_whitespace(value)
 }
 
 fn empty_column_name_notice(file: &str, index: usize) -> ValidationNotice {
@@ -1646,8 +1649,8 @@ fn validate_currency_amount(
         return;
     };
 
-    let amount = record.get(amount_index).unwrap_or("").trim();
-    let currency = record.get(currency_index).unwrap_or("").trim();
+    let amount = trim_java_whitespace(record.get(amount_index).unwrap_or(""));
+    let currency = trim_java_whitespace(record.get(currency_index).unwrap_or(""));
     if amount.is_empty() || currency.is_empty() {
         return;
     }
@@ -1673,7 +1676,9 @@ fn validate_enum_value(
     kind: EnumKind,
     notices: &mut Vec<ValidationNotice>,
 ) {
-    match value.parse::<i64>() {
+    // Java reads an enum with `Integer.parseInt`, so a value past 32 bits is
+    // an invalid integer, not an unexpected enum value.
+    match value.parse::<i32>().map(i64::from) {
         Ok(value) => {
             if !enum_value_allowed(kind, value) {
                 notices.push(unexpected_enum_value_notice(
@@ -2810,6 +2815,23 @@ fn missing_required_field_notice(
     notice.file = Some(file.to_string());
     notice.row = Some(row_number);
     notice.field = Some(field_name.to_string());
+    notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
+    notice
+}
+
+fn missing_recommended_field_notice(
+    file: &str,
+    field_name: &str,
+    row_number: u64,
+) -> ValidationNotice {
+    let mut notice = ValidationNotice::new(
+        "missing_recommended_field",
+        NoticeSeverity::Warning,
+        "recommended field is missing",
+    );
+    notice.insert_context_field("csvRowNumber", row_number);
+    notice.insert_context_field("fieldName", field_name);
+    notice.insert_context_field("filename", file);
     notice.field_order = vec!["csvRowNumber".into(), "fieldName".into(), "filename".into()];
     notice
 }

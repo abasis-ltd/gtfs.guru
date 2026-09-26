@@ -29,19 +29,25 @@ impl Validator for SingleShapePointValidator {
             entry.0 += 1;
         }
 
-        for (shape_id, (count, row_number)) in counts {
-            if count == 1 {
-                let shape_id_value = feed.pool.resolve(shape_id);
-                let mut notice = ValidationNotice::new(
-                    CODE_SINGLE_SHAPE_POINT,
-                    NoticeSeverity::Warning,
-                    "shape has a single point",
-                );
-                notice.insert_context_field("csvRowNumber", row_number);
-                notice.insert_context_field("shapeId", shape_id_value.as_str());
-                notice.field_order = vec!["csvRowNumber".into(), "shapeId".into()];
-                notices.push(notice);
-            }
+        // File order keeps the output deterministic.
+        let mut single: Vec<(u64, gtfs_guru_model::StringId)> = counts
+            .into_iter()
+            .filter(|(_, (count, _))| *count == 1)
+            .map(|(shape_id, (_, row_number))| (row_number, shape_id))
+            .collect();
+        single.sort_unstable();
+
+        for (row_number, shape_id) in single {
+            let shape_id_value = feed.pool.resolve(shape_id);
+            let mut notice = ValidationNotice::new(
+                CODE_SINGLE_SHAPE_POINT,
+                NoticeSeverity::Warning,
+                "shape has a single point",
+            );
+            notice.insert_context_field("csvRowNumber", row_number);
+            notice.insert_context_field("shapeId", shape_id_value.as_str());
+            notice.field_order = vec!["csvRowNumber".into(), "shapeId".into()];
+            notices.push(notice);
         }
     }
 }
@@ -68,6 +74,32 @@ mod tests {
         SingleShapePointValidator.validate(&feed, &mut notices);
 
         assert!(notices.iter().any(|n| n.code == CODE_SINGLE_SHAPE_POINT));
+    }
+
+    #[test]
+    fn reports_single_point_shapes_in_file_order() {
+        let mut feed = GtfsFeed::default();
+        let ids = ["zs", "as", "ms", "bs", "ks", "cs"];
+        feed.shapes = Some(CsvTable {
+            headers: vec!["shape_id".into()],
+            rows: ids
+                .iter()
+                .map(|id| Shape {
+                    shape_id: feed.pool.intern(id),
+                    ..Default::default()
+                })
+                .collect(),
+            row_numbers: (2..2 + ids.len() as u64).collect(),
+        });
+
+        let mut notices = NoticeContainer::new();
+        SingleShapePointValidator.validate(&feed, &mut notices);
+
+        let rows: Vec<u64> = notices
+            .iter()
+            .map(|n| n.context["csvRowNumber"].as_u64().unwrap())
+            .collect();
+        assert_eq!(rows, vec![2, 3, 4, 5, 6, 7]);
     }
 
     #[test]

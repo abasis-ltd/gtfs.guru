@@ -27,14 +27,18 @@ impl Validator for ParentStationValidator {
             rows_by_id.insert(stop_id, feed.stops.row_number(index));
         }
 
-        let mut stations: HashSet<gtfs_guru_model::StringId> = HashSet::new();
+        // Stations in file order keep the unused_station output deterministic.
+        let mut stations: Vec<gtfs_guru_model::StringId> = Vec::new();
+        let mut station_set: HashSet<gtfs_guru_model::StringId> = HashSet::new();
         let mut stations_with_stops: HashSet<gtfs_guru_model::StringId> = HashSet::new();
 
         for (index, stop) in feed.stops.rows.iter().enumerate() {
             let row_number = feed.stops.row_number(index);
             let location_type = normalized_location_type(stop.location_type);
             if location_type == LocationType::Station {
-                stations.insert(stop.stop_id);
+                if station_set.insert(stop.stop_id) {
+                    stations.push(stop.stop_id);
+                }
                 continue;
             }
 
@@ -99,8 +103,10 @@ impl Validator for ParentStationValidator {
             }
         }
 
-        for station_id in stations.difference(&stations_with_stops) {
-            let station_id = *station_id;
+        for station_id in stations {
+            if stations_with_stops.contains(&station_id) {
+                continue;
+            }
             let Some(station_stop) = stops_by_id.get(&station_id) else {
                 continue;
             };
@@ -224,6 +230,24 @@ mod tests {
         assert_eq!(context_u64(notice, "csvRowNumber"), 2);
         assert_eq!(context_str(notice, "stopId"), "STATION1");
         assert_eq!(context_str(notice, "stopName"), "Station");
+    }
+
+    #[test]
+    fn reports_unused_stations_in_file_order() {
+        let mut feed = GtfsFeed::default();
+        let ids = ["Z", "A", "M", "B", "K", "C"];
+        let stops = ids.iter().map(|id| station(id, &feed)).collect();
+        feed_with_stops(stops, &mut feed);
+
+        let mut notices = NoticeContainer::new();
+        ParentStationValidator.validate(&feed, &mut notices);
+
+        let reported: Vec<&str> = notices
+            .iter()
+            .filter(|notice| notice.code == CODE_UNUSED_STATION)
+            .map(|notice| context_str(notice, "stopId"))
+            .collect();
+        assert_eq!(reported, ids);
     }
 
     #[test]

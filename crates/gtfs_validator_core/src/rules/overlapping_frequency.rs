@@ -21,16 +21,25 @@ impl Validator for OverlappingFrequencyValidator {
             gtfs_guru_model::StringId,
             Vec<(u64, &gtfs_guru_model::Frequency)>,
         > = HashMap::new();
+        let mut trip_order: Vec<gtfs_guru_model::StringId> = Vec::new();
         for (index, freq) in frequencies.rows.iter().enumerate() {
             let row_number = frequencies.row_number(index);
             let trip_id = freq.trip_id;
             if trip_id.0 == 0 {
                 continue;
             }
-            by_trip.entry(trip_id).or_default().push((row_number, freq));
+            let entry = by_trip.entry(trip_id).or_default();
+            if entry.is_empty() {
+                trip_order.push(trip_id);
+            }
+            entry.push((row_number, freq));
         }
 
-        for freqs in by_trip.values_mut() {
+        // Trips in order of first appearance keep the output deterministic.
+        for trip_id in trip_order {
+            let Some(freqs) = by_trip.get_mut(&trip_id) else {
+                continue;
+            };
             freqs.sort_by(|(_, a), (_, b)| {
                 let start_cmp = a
                     .start_time
@@ -117,6 +126,39 @@ mod tests {
             notices.iter().next().unwrap().code,
             CODE_OVERLAPPING_FREQUENCY
         );
+    }
+
+    #[test]
+    fn reports_trips_in_file_order() {
+        let mut feed = GtfsFeed::default();
+        let trips = ["T9", "T1", "T5", "T3", "T7", "T2"];
+        let mut rows = Vec::new();
+        for trip in trips {
+            for (start, end) in [(3600, 7200), (7000, 10000)] {
+                rows.push(Frequency {
+                    trip_id: feed.pool.intern(trip),
+                    start_time: GtfsTime::from_seconds(start),
+                    end_time: GtfsTime::from_seconds(end),
+                    headway_secs: 300,
+                    ..Default::default()
+                });
+            }
+        }
+        let row_numbers = (2..2 + rows.len() as u64).collect();
+        feed.frequencies = Some(CsvTable {
+            headers: vec!["trip_id".into()],
+            rows,
+            row_numbers,
+        });
+
+        let mut notices = NoticeContainer::new();
+        OverlappingFrequencyValidator.validate(&feed, &mut notices);
+
+        let rows: Vec<u64> = notices
+            .iter()
+            .map(|n| n.context["currCsvRowNumber"].as_u64().unwrap())
+            .collect();
+        assert_eq!(rows, vec![3, 5, 7, 9, 11, 13]);
     }
 
     #[test]

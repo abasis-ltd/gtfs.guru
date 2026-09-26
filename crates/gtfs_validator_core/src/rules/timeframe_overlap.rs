@@ -19,6 +19,7 @@ impl Validator for TimeframeOverlapValidator {
         };
 
         let mut grouped: HashMap<(String, String), Vec<(u64, GtfsTime, GtfsTime)>> = HashMap::new();
+        let mut group_order: Vec<(String, String)> = Vec::new();
         for (index, timeframe) in timeframes.rows.iter().enumerate() {
             let row_number = timeframes.row_number(index);
             let (Some(start_time), Some(end_time)) = (timeframe.start_time, timeframe.end_time)
@@ -32,13 +33,20 @@ impl Validator for TimeframeOverlapValidator {
                 .trim()
                 .to_string();
             let service_id = feed.pool.resolve(timeframe.service_id).trim().to_string();
-            grouped
-                .entry((group_id, service_id))
-                .or_default()
-                .push((row_number, start_time, end_time));
+            let key = (group_id, service_id);
+            let entry = grouped.entry(key.clone()).or_default();
+            if entry.is_empty() {
+                group_order.push(key);
+            }
+            entry.push((row_number, start_time, end_time));
         }
 
-        for ((group_id, service_id), timeframes) in grouped.iter_mut() {
+        // Groups in order of first appearance keep the output deterministic.
+        for key in group_order {
+            let Some(timeframes) = grouped.get_mut(&key) else {
+                continue;
+            };
+            let (group_id, service_id) = &key;
             timeframes.sort_by(|(_, start_a, end_a), (_, start_b, end_b)| {
                 start_a
                     .total_seconds()
@@ -58,8 +66,8 @@ impl Validator for TimeframeOverlapValidator {
                     notice.insert_context_field("currStartTime", curr_start.to_string());
                     notice.insert_context_field("prevCsvRowNumber", prev_row);
                     notice.insert_context_field("prevEndTime", prev_end.to_string());
-                    notice.insert_context_field("serviceId", service_id);
-                    notice.insert_context_field("timeframeGroupId", group_id);
+                    notice.insert_context_field("serviceId", service_id.as_str());
+                    notice.insert_context_field("timeframeGroupId", group_id.as_str());
                     notice.field_order = vec![
                         "currCsvRowNumber".into(),
                         "currStartTime".into(),
@@ -114,6 +122,38 @@ mod tests {
 
         assert_eq!(notices.len(), 1);
         assert_eq!(notices.iter().next().unwrap().code, CODE_TIMEFRAME_OVERLAP);
+    }
+
+    #[test]
+    fn reports_groups_in_file_order() {
+        let mut feed = GtfsFeed::default();
+        let groups = ["G9", "G1", "G5", "G3", "G7", "G2"];
+        let mut rows = Vec::new();
+        for group in groups {
+            for (start, end) in [(3600, 7200), (7000, 10000)] {
+                rows.push(Timeframe {
+                    timeframe_group_id: Some(feed.pool.intern(group)),
+                    start_time: Some(GtfsTime::from_seconds(start)),
+                    end_time: Some(GtfsTime::from_seconds(end)),
+                    service_id: feed.pool.intern("S1"),
+                });
+            }
+        }
+        let row_numbers = (2..2 + rows.len() as u64).collect();
+        feed.timeframes = Some(CsvTable {
+            headers: vec!["timeframe_group_id".into()],
+            rows,
+            row_numbers,
+        });
+
+        let mut notices = NoticeContainer::new();
+        TimeframeOverlapValidator.validate(&feed, &mut notices);
+
+        let groups_seen: Vec<&str> = notices
+            .iter()
+            .map(|n| n.context["timeframeGroupId"].as_str().unwrap())
+            .collect();
+        assert_eq!(groups_seen, groups);
     }
 
     #[test]

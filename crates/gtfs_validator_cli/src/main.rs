@@ -310,9 +310,20 @@ struct AnalysisSourceArgs {
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    // clap exits 2 on a usage error, which the documented exit codes reserve
+    // for "the feed did not meet --fail-on"; report bad arguments as 1.
+    let args = Args::try_parse().unwrap_or_else(|err| {
+        let code = if err.use_stderr() { 1 } else { 0 };
+        let _ = err.print();
+        std::process::exit(code);
+    });
+    // Logs go to stderr so they never interleave with a report, timing JSON,
+    // or `profile`/`explain` output written to stdout.
     if let Some(command) = args.command.as_ref() {
-        tracing_subscriber::fmt().with_target(false).init();
+        tracing_subscriber::fmt()
+            .with_target(false)
+            .with_writer(std::io::stderr)
+            .init();
         return match command {
             Command::Diff(diff_args) => run_diff(diff_args),
             Command::Profile(profile_args) => run_profile(profile_args),
@@ -326,10 +337,14 @@ fn main() -> anyhow::Result<()> {
     if args.stdout {
         tracing_subscriber::fmt()
             .with_target(false)
+            .with_writer(std::io::stderr)
             .with_max_level(tracing::Level::ERROR)
             .init();
     } else {
-        tracing_subscriber::fmt().with_target(false).init();
+        tracing_subscriber::fmt()
+            .with_target(false)
+            .with_writer(std::io::stderr)
+            .init();
     }
 
     if args.export_notices_schema {
@@ -341,6 +356,7 @@ fn main() -> anyhow::Result<()> {
 
     let resolved = resolve_input(&args)?;
     let input = resolved.input;
+    let temp_download = resolved.temp_download;
     info!("input {:?} detected", input.source());
 
     let _validation_date_guard = match args.date_for_validation.as_deref() {
@@ -474,6 +490,7 @@ fn main() -> anyhow::Result<()> {
         }
         .context("serialize report")?;
         println!("{json}");
+        drop(temp_download);
         exit_if_threshold_reached(args.fail_on, stdout_report_container);
         return Ok(());
     }
@@ -493,7 +510,15 @@ fn main() -> anyhow::Result<()> {
     // Generate SARIF report if requested
     if let Some(sarif_name) = &args.sarif {
         let sarif_path = output.join(sarif_name);
-        let sarif_report = SarifReport::from_notices(&validation_notices);
+        let mut sarif_report = SarifReport::from_notices(&validation_notices);
+        if let Some(uri) = args
+            .input
+            .as_deref()
+            .map(sarif_artifact_uri)
+            .or_else(|| args.url.clone())
+        {
+            sarif_report = sarif_report.with_default_location(uri);
+        }
         sarif_report.write(&sarif_path)?;
         info!("SARIF report written to {}", sarif_path.display());
     }
@@ -518,6 +543,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Reports are already written: status 2 describes feed quality, not a run failure.
+    drop(temp_download);
     exit_if_threshold_reached(args.fail_on, stdout_report_container);
 
     Ok(())
@@ -644,6 +670,7 @@ fn resolve_analysis_input(args: &AnalysisSourceArgs) -> anyhow::Result<ResolvedI
                 input,
                 gtfs_input_uri: None,
                 gtfs_source_label: path.display().to_string(),
+                temp_download: None,
             })
         }
         (None, Some(url)) => {
@@ -655,6 +682,7 @@ fn resolve_analysis_input(args: &AnalysisSourceArgs) -> anyhow::Result<ResolvedI
                 std::process::id(),
                 unique_suffix()
             ));
+            let temp_download = TempDownload(download_path.clone());
             download_url_to_path(url, &download_path)?;
             let input = GtfsInput::from_path(&download_path)
                 .with_context(|| format!("load input {}", download_path.display()))?;
@@ -662,6 +690,7 @@ fn resolve_analysis_input(args: &AnalysisSourceArgs) -> anyhow::Result<ResolvedI
                 input,
                 gtfs_input_uri: Some(url.clone()),
                 gtfs_source_label: url.clone(),
+                temp_download: Some(temp_download),
             })
         }
         _ => bail!("exactly one of --input or --url is required"),
@@ -1275,6 +1304,19 @@ struct ResolvedInput {
     input: GtfsInput,
     gtfs_input_uri: Option<String>,
     gtfs_source_label: String,
+    /// A `--url` download kept in the temp directory, deleted once dropped.
+    temp_download: Option<TempDownload>,
+}
+
+/// Deletes a feed downloaded to the temp directory. Without it every `--url`
+/// run left a full copy of the feed behind. `process::exit` skips
+/// destructors, so exit paths drop it explicitly first.
+struct TempDownload(PathBuf);
+
+impl Drop for TempDownload {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 fn resolve_input(args: &Args) -> anyhow::Result<ResolvedInput> {
@@ -1295,6 +1337,7 @@ fn resolve_input(args: &Args) -> anyhow::Result<ResolvedInput> {
                 input,
                 gtfs_input_uri: None,
                 gtfs_source_label: path.display().to_string(),
+                temp_download: None,
             })
         }
         (None, Some(url)) => {
@@ -1318,6 +1361,12 @@ fn resolve_input(args: &Args) -> anyhow::Result<ResolvedInput> {
                 ),
             };
             let download_path = download_dir.join(file_name);
+            // Only a temp-directory download is ours to delete; a copy kept in
+            // --storage_directory is what the user asked for.
+            let temp_download = args
+                .storage_directory
+                .is_none()
+                .then(|| TempDownload(download_path.clone()));
             download_url_to_path(url, &download_path)?;
             let input = GtfsInput::from_path(&download_path)
                 .with_context(|| format!("load input {}", download_path.display()))?;
@@ -1325,6 +1374,7 @@ fn resolve_input(args: &Args) -> anyhow::Result<ResolvedInput> {
                 input,
                 gtfs_input_uri: Some(url.clone()),
                 gtfs_source_label: url.clone(),
+                temp_download,
             })
         }
     }
@@ -1698,6 +1748,23 @@ fn current_rss_bytes() -> Option<u64> {
     #[cfg(not(unix))]
     {
         None
+    }
+}
+
+/// The feed path as a SARIF artifact URI: relative to the working directory
+/// when it lies under it (code scanning resolves URIs against the checkout),
+/// with forward slashes on every platform.
+fn sarif_artifact_uri(input: &Path) -> String {
+    let relative = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| input.strip_prefix(&cwd).ok().map(Path::to_path_buf))
+        .unwrap_or_else(|| input.to_path_buf());
+    let uri = relative.to_string_lossy().replace('\\', "/");
+    let uri = uri.trim_start_matches("./").trim_end_matches('/');
+    if uri.is_empty() {
+        ".".to_string()
+    } else {
+        uri.to_string()
     }
 }
 

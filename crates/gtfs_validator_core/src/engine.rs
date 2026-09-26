@@ -117,6 +117,11 @@ pub fn validate_bytes_reader_and_progress_and_timing(
             }
         }
     }
+    // Same check as the path-based `collect_input_notices`: a zip whose GTFS
+    // files sit under a folder would otherwise only yield missing-file errors.
+    if reader.has_nested_gtfs_files().unwrap_or(false) {
+        notices.push(crate::input::invalid_input_files_notice());
+    }
 
     let load_started = Instant::now();
     let load_result = catch_unwind(AssertUnwindSafe(|| {
@@ -331,5 +336,26 @@ mod tests {
         );
 
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn in_memory_zip_reports_gtfs_files_in_a_subfolder() {
+        use std::io::Write;
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        {
+            let mut zip = zip::ZipWriter::new(&mut bytes);
+            zip.start_file("feed/agency.txt", zip::write::FileOptions::default())
+                .expect("zip file");
+            zip.write_all(b"agency_name,agency_url,agency_timezone\nA,https://a.com,UTC\n")
+                .expect("zip data");
+            zip.finish().expect("finish zip");
+        }
+
+        let outcome = validate_bytes(bytes.get_ref(), &ValidatorRunner::new());
+
+        assert!(outcome
+            .notices
+            .iter()
+            .any(|n| n.code == "invalid_input_files_in_subfolder"));
     }
 }

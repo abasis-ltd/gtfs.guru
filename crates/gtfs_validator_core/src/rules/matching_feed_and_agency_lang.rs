@@ -19,7 +19,6 @@ impl Validator for MatchingFeedAndAgencyLangValidator {
         let Some(info) = feed_info.rows.first() else {
             return;
         };
-        let row_number = 2;
         let feed_lang_value = feed.pool.resolve(info.feed_lang);
         let feed_lang = feed_lang_value.trim();
         if feed_lang.is_empty() {
@@ -31,7 +30,7 @@ impl Validator for MatchingFeedAndAgencyLangValidator {
             return;
         }
 
-        for agency in &feed.agency.rows {
+        for (index, agency) in feed.agency.rows.iter().enumerate() {
             let Some(agency_lang) = agency.agency_lang else {
                 continue;
             };
@@ -47,16 +46,17 @@ impl Validator for MatchingFeedAndAgencyLangValidator {
                     NoticeSeverity::Warning,
                     "agency_lang does not match feed_lang",
                 );
+                // The row is the agency's own, in agency.txt.
+                notice.insert_context_field("csvRowNumber", feed.agency.row_number(index));
                 notice.insert_context_field("agencyId", agency_id_value.as_str());
-                notice.insert_context_field("agencyLang", agency_lang);
                 notice.insert_context_field("agencyName", agency.agency_name.as_str());
-                notice.insert_context_field("csvRowNumber", row_number);
+                notice.insert_context_field("agencyLang", agency_lang);
                 notice.insert_context_field("feedLang", feed_lang);
                 notice.field_order = vec![
-                    "agencyId".into(),
-                    "agencyLang".into(),
-                    "agencyName".into(),
                     "csvRowNumber".into(),
+                    "agencyId".into(),
+                    "agencyName".into(),
+                    "agencyLang".into(),
                     "feedLang".into(),
                 ];
                 notices.push(notice);
@@ -101,6 +101,41 @@ mod tests {
         assert_eq!(context_str(notice, "agencyName"), "Agency");
         assert_eq!(context_u64(notice, "csvRowNumber"), 2);
         assert_eq!(context_str(notice, "feedLang"), "en");
+    }
+
+    #[test]
+    fn reports_each_agency_at_its_own_row() {
+        let mut feed = base_feed();
+        feed.feed_info = Some(CsvTable {
+            headers: Vec::new(),
+            rows: vec![gtfs_guru_model::FeedInfo {
+                feed_publisher_name: "Publisher".into(),
+                feed_publisher_url: feed.pool.intern("https://example.com"),
+                feed_lang: feed.pool.intern("en"),
+                feed_start_date: None,
+                feed_end_date: None,
+                feed_version: None,
+                feed_contact_email: None,
+                feed_contact_url: None,
+                default_lang: None,
+            }],
+            row_numbers: vec![2],
+        });
+        let mut second = feed.agency.rows[0].clone();
+        second.agency_id = Some(feed.pool.intern("A2"));
+        second.agency_lang = Some(feed.pool.intern("de"));
+        feed.agency.rows[0].agency_lang = Some(feed.pool.intern("fr"));
+        feed.agency.rows.push(second);
+        feed.agency.row_numbers = vec![2, 3];
+
+        let mut notices = NoticeContainer::new();
+        MatchingFeedAndAgencyLangValidator.validate(&feed, &mut notices);
+
+        let rows: Vec<u64> = notices
+            .iter()
+            .map(|notice| context_u64(notice, "csvRowNumber"))
+            .collect();
+        assert_eq!(rows, vec![2, 3]);
     }
 
     #[test]

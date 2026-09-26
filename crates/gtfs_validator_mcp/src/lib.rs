@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
@@ -773,7 +773,10 @@ fn download_public_feed(
         let mut client_builder = reqwest::blocking::Client::builder()
             .user_agent(format!("gtfs-guru-mcp/{}", env!("CARGO_PKG_VERSION")))
             .timeout(remaining)
-            .redirect(reqwest::redirect::Policy::none());
+            .redirect(reqwest::redirect::Policy::none())
+            // A proxy from HTTP(S)_PROXY resolves the host itself, which would
+            // bypass the public-address check and the pinned addresses below.
+            .no_proxy();
         if let Some(domain) = url
             .host_str()
             .filter(|_| matches!(url.host(), Some(Host::Domain(_))))
@@ -812,11 +815,22 @@ fn download_public_feed(
             bail!("GTFS download exceeds the configured {max_bytes}-byte limit");
         }
 
+        // The client timeout applies to each read separately, so a server
+        // that drips one byte at a time would never trip it; enforce the
+        // overall deadline between reads.
         let mut bytes = Vec::new();
-        response
-            .take(max_bytes as u64 + 1)
-            .read_to_end(&mut bytes)
-            .context("read GTFS download")?;
+        let mut body = response.take(max_bytes as u64 + 1);
+        let mut chunk = [0u8; 64 * 1024];
+        loop {
+            if Instant::now() >= deadline {
+                bail!("GTFS download exceeded the configured timeout");
+            }
+            let read = body.read(&mut chunk).context("read GTFS download")?;
+            if read == 0 {
+                break;
+            }
+            bytes.extend_from_slice(&chunk[..read]);
+        }
         if bytes.len() > max_bytes {
             bail!("GTFS download exceeds the configured {max_bytes}-byte limit");
         }
@@ -861,30 +875,55 @@ fn resolve_public_http_url(url: &Url) -> anyhow::Result<Vec<SocketAddr>> {
     }
 }
 
+fn is_blocked_ipv4(address: Ipv4Addr) -> bool {
+    let octets = address.octets();
+    address.is_private()
+        || address.is_loopback()
+        || address.is_link_local()
+        || address.is_broadcast()
+        || address.is_documentation()
+        || address.is_unspecified()
+        || address.is_multicast()
+        || octets[0] == 0
+        || (octets[0] == 100 && (64..=127).contains(&octets[1]))
+        || (octets[0] == 192 && octets[1] == 0 && octets[2] == 0)
+        || (octets[0] == 198 && (18..=19).contains(&octets[1]))
+        || octets[0] >= 240
+}
+
+fn is_blocked_ipv6(address: Ipv6Addr) -> bool {
+    let segments = address.segments();
+    // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d) addresses
+    // reach the embedded IPv4 host on a dual-stack socket, so they must pass
+    // the IPv4 rules; `::` and `::1` land on 0.0.0.0/8 there.
+    if let Some(v4) = address.to_ipv4_mapped() {
+        return is_blocked_ipv4(v4);
+    }
+    if segments[..6] == [0; 6] {
+        return is_blocked_ipv4(Ipv4Addr::new(
+            (segments[6] >> 8) as u8,
+            segments[6] as u8,
+            (segments[7] >> 8) as u8,
+            segments[7] as u8,
+        ));
+    }
+    address.is_multicast()
+        || address.is_unique_local()
+        || address.is_unicast_link_local()
+        // Deprecated site-local fec0::/10.
+        || (segments[0] & 0xffc0) == 0xfec0
+        // Documentation 2001:db8::/32 and Teredo 2001::/32.
+        || (segments[0] == 0x2001 && (segments[1] == 0x0db8 || segments[1] == 0))
+        // NAT64 64:ff9b::/96 and local-use 64:ff9b:1::/48 translate to IPv4.
+        || (segments[0] == 0x0064 && segments[1] == 0xff9b)
+        // 6to4 2002::/16 embeds an arbitrary IPv4 address.
+        || segments[0] == 0x2002
+}
+
 fn ensure_public_ip(address: IpAddr) -> anyhow::Result<()> {
     let blocked = match address {
-        IpAddr::V4(address) => {
-            let octets = address.octets();
-            address.is_private()
-                || address.is_loopback()
-                || address.is_link_local()
-                || address.is_broadcast()
-                || address.is_documentation()
-                || address.is_unspecified()
-                || address.is_multicast()
-                || octets[0] == 0
-                || (octets[0] == 100 && (64..=127).contains(&octets[1]))
-                || (octets[0] == 198 && (18..=19).contains(&octets[1]))
-                || octets[0] >= 240
-        }
-        IpAddr::V6(address) => {
-            address.is_loopback()
-                || address.is_unspecified()
-                || address.is_multicast()
-                || address.is_unique_local()
-                || address.is_unicast_link_local()
-                || address.segments()[0] == 0x2001 && address.segments()[1] == 0x0db8
-        }
+        IpAddr::V4(address) => is_blocked_ipv4(address),
+        IpAddr::V6(address) => is_blocked_ipv6(address),
     };
     if blocked {
         bail!("feed URL resolves to a private, local, or reserved address: {address}");
@@ -1092,6 +1131,27 @@ mod tests {
             &Url::parse("http://user:secret@example.com/feed.zip").unwrap()
         )
         .is_err());
+    }
+
+    #[test]
+    fn ipv6_forms_of_private_ipv4_addresses_are_rejected() {
+        for blocked in [
+            "http://[::ffff:127.0.0.1]/feed.zip",
+            "http://[::ffff:169.254.169.254]/feed.zip",
+            "http://[::ffff:10.0.0.1]/feed.zip",
+            "http://[::127.0.0.1]/feed.zip",
+            "http://[64:ff9b::a9fe:a9fe]/feed.zip",
+            "http://[2002:7f00:1::]/feed.zip",
+            "http://[fec0::1]/feed.zip",
+            "http://192.0.0.8/feed.zip",
+        ] {
+            assert!(
+                resolve_public_http_url(&Url::parse(blocked).unwrap()).is_err(),
+                "{blocked} must be rejected"
+            );
+        }
+        assert!(!is_blocked_ipv6("2606:4700::1111".parse().unwrap()));
+        assert!(!is_blocked_ipv6("::ffff:1.1.1.1".parse().unwrap()));
     }
 
     #[test]

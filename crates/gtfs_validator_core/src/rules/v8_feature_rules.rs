@@ -139,17 +139,23 @@ impl Validator for InconsistentRouteTypeForBlockIdValidator {
             })
             .collect();
         let mut blocks: HashMap<_, Vec<_>> = HashMap::new();
+        // Blocks in order of first appearance keep the output deterministic.
+        let mut block_order = Vec::new();
         for trip in &feed.trips.rows {
             if let Some(block_id) = trip.block_id.filter(|id| id.0 != 0) {
                 if let Some(route_type) = route_types.get(&trip.route_id).copied() {
-                    blocks
-                        .entry(block_id)
-                        .or_default()
-                        .push((trip.route_id, route_type));
+                    let entry = blocks.entry(block_id).or_default();
+                    if entry.is_empty() {
+                        block_order.push(block_id);
+                    }
+                    entry.push((trip.route_id, route_type));
                 }
             }
         }
-        for (block_id, entries) in blocks {
+        for block_id in block_order {
+            let Some(entries) = blocks.get(&block_id) else {
+                continue;
+            };
             let distinct_types: Vec<_> = entries.iter().map(|(_, route_type)| *route_type).fold(
                 Vec::new(),
                 |mut values, value| {
@@ -395,6 +401,45 @@ mod tests {
         assert!(notices
             .iter()
             .any(|notice| { notice.code == "inconsistent_route_type_for_in_seat_transfer" }));
+    }
+
+    #[test]
+    fn reports_blocks_in_order_of_first_trip() {
+        let mut feed = GtfsFeed::default();
+        let bus = feed.pool.intern("BUS");
+        let ferry = feed.pool.intern("FERRY");
+        feed.routes.rows = vec![
+            Route {
+                route_id: bus,
+                route_type: RouteType::Bus,
+                ..Default::default()
+            },
+            Route {
+                route_id: ferry,
+                route_type: RouteType::Ferry,
+                ..Default::default()
+            },
+        ];
+        let blocks = ["B9", "B1", "B5", "B3", "B7", "B2"];
+        for block in blocks {
+            let block_id = Some(feed.pool.intern(block));
+            for route_id in [bus, ferry] {
+                feed.trips.rows.push(Trip {
+                    route_id,
+                    block_id,
+                    ..Default::default()
+                });
+            }
+        }
+
+        let mut notices = NoticeContainer::new();
+        InconsistentRouteTypeForBlockIdValidator.validate(&feed, &mut notices);
+
+        let reported: Vec<&str> = notices
+            .iter()
+            .map(|notice| notice.context["blockId"].as_str().unwrap())
+            .collect();
+        assert_eq!(reported, blocks);
     }
 
     #[test]

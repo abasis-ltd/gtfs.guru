@@ -2,8 +2,8 @@
   "feed_id": "mdb-3234",
   "dataset_id": "mdb-3234-202606301640",
   "counts": {
-    "errors": 13,
-    "warnings": 336,
+    "errors": 12,
+    "warnings": 324,
     "infos": 90
   },
   "features": [
@@ -31,13 +31,9 @@
       "severity": "WARNING",
       "total": 1
     },
-    "missing_pickup_drop_off_booking_rule_id": {
-      "severity": "WARNING",
-      "total": 12
-    },
     "missing_prior_notice_duration_min": {
       "severity": "ERROR",
-      "total": 12
+      "total": 11
     },
     "missing_recommended_file": {
       "severity": "WARNING",
@@ -65,14 +61,14 @@
     }
   },
   "perf": {
-    "wall_seconds": 0.017,
-    "peak_rss_mb": 13.8,
+    "wall_seconds": 0.021,
+    "peak_rss_mb": 14.3,
     "threads": 1,
     "note": "Recorded on one machine; thresholds in gate.json are deliberately loose because CI hardware varies."
   },
   "last_change": {
-    "reason": "GTF-35: the CSV reader now applies univocity field boundaries before parsing, so leading_or_trailing_whitespaces is reported in default mode exactly when the canonical validator reports it (whitespace inside quotes). booking_rules.txt row 9 booking_url, the one Java reports, is now reported too.",
-    "git_sha": "360230e6f851812cdf23a2e6e73e5ebc4febbbdd",
+    "reason": "Match canonical row rejection and dependency gating after parse errors: mdb-3234 now has the same notices as Java 8.0.1; remove the two resolved approvals.",
+    "git_sha": "a3dbc97247c0afda9d3e219a99db5abf230164ad",
     "validator_version": "1.0.0",
     "host_platform": "darwin"
   }

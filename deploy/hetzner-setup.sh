@@ -2,10 +2,19 @@
 # ============================================================================
 # GTFS Validator - Hetzner Server Setup Script
 # Run this on a fresh Ubuntu 22.04/24.04 server
-# Usage: curl -sSL https://raw.githubusercontent.com/YOUR_REPO/deploy/hetzner-setup.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/deploy/hetzner-setup.sh | bash
+#
+# Under `curl | bash` stdin is the script itself, so the domain prompt reads
+# from /dev/tty. Without a terminal (cloud-init, CI), set it up front:
+#   curl -sSL .../hetzner-setup.sh | GTFS_DOMAIN=gtfs.example.com bash
+# GTFS_IMAGE overrides the image (default ghcr.io/abasis-ltd/gtfs.guru-web:latest).
 # ============================================================================
 
 set -euo pipefail
+
+# apt must never stop to ask: under `curl | bash` a debconf prompt would read
+# its answer from the rest of this script.
+export DEBIAN_FRONTEND=noninteractive
 
 echo "🚀 GTFS Validator - Hetzner Setup"
 echo "================================="
@@ -89,7 +98,7 @@ log_info "Creating docker-compose.yml..."
 cat > docker-compose.yml << 'DOCKER_COMPOSE'
 services:
   gtfs-validator:
-    image: ghcr.io/your-org/gtfs-validator-web:latest
+    image: ${GTFS_IMAGE:-ghcr.io/abasis-ltd/gtfs.guru-web:latest}
     container_name: gtfs-validator
     restart: unless-stopped
     environment:
@@ -142,8 +151,17 @@ DOCKER_COMPOSE
 # ============================================================================
 # 7. Create Caddyfile (prompt for domain)
 # ============================================================================
-echo ""
-read -p "Enter your domain (e.g., gtfs.example.com): " DOMAIN
+DOMAIN="${GTFS_DOMAIN:-}"
+if [[ -z "$DOMAIN" ]]; then
+    # Opening /dev/tty in a subshell first: it can exist yet fail to open when
+    # there is no controlling terminal.
+    if (exec </dev/tty) 2>/dev/null; then
+        echo ""
+        read -r -p "Enter your domain (e.g., gtfs.example.com): " DOMAIN </dev/tty || DOMAIN=""
+    else
+        log_warn "No terminal to prompt on and GTFS_DOMAIN is unset"
+    fi
+fi
 DOMAIN=${DOMAIN:-localhost}
 
 log_info "Configuring Caddy for domain: $DOMAIN"
@@ -151,14 +169,17 @@ cat > Caddyfile << CADDYFILE
 $DOMAIN {
     reverse_proxy gtfs-validator:3000
     encode gzip zstd
-    
+
     header {
+        # Required for SharedArrayBuffer and multi-threaded WebAssembly.
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Embedder-Policy "require-corp"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Frame-Options "SAMEORIGIN"
         X-Content-Type-Options "nosniff"
         -Server
     }
-    
+
     request_body {
         max_size 256MiB
     }
@@ -172,6 +193,9 @@ log_info "Creating .env file..."
 cat > .env << ENV
 PUBLIC_URL=https://$DOMAIN
 ENV
+if [[ -n "${GTFS_IMAGE:-}" ]]; then
+    echo "GTFS_IMAGE=$GTFS_IMAGE" >> .env
+fi
 
 # ============================================================================
 # 9. Create systemd service

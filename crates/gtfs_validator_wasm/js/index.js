@@ -45,7 +45,9 @@ export class GtfsValidator {
     this.nextId = 0;
     this.ready = false;
 
+    this.terminated = false;
     this.readyPromise = new Promise((resolve, reject) => {
+      this._rejectReady = reject;
       const handler = (event) => {
         if (event.data.type === 'ready') {
           this.ready = true;
@@ -58,6 +60,9 @@ export class GtfsValidator {
       };
       this.worker.addEventListener('message', handler);
     });
+    // Awaiters still see the rejection; this only stops an unobserved one
+    // (terminate() before first use) from surfacing as an unhandled rejection.
+    this.readyPromise.catch(() => {});
 
     this.worker.onmessage = (event) => {
       const { id, type, payload } = event.data;
@@ -77,6 +82,9 @@ export class GtfsValidator {
     };
 
     this.worker.onerror = (error) => {
+      // A worker that fails to load (404, CSP, syntax error) never posts
+      // 'ready'; reject the ready promise too so callers do not hang.
+      this._rejectReady(new Error(error.message || 'Worker failed to load'));
       // Reject all pending promises on worker error
       for (const [id, handler] of this.pending) {
         handler.reject(error);
@@ -102,17 +110,9 @@ export class GtfsValidator {
   async validate(input, options = {}) {
     await this.readyPromise;
 
-    let zipBytes;
-
-    if (input instanceof Uint8Array) {
-      zipBytes = input.buffer;
-    } else if (input instanceof ArrayBuffer) {
-      zipBytes = input;
-    } else if (input instanceof Blob || input instanceof File) {
-      zipBytes = await input.arrayBuffer();
-    } else {
-      throw new Error('Input must be a File, Blob, ArrayBuffer, or Uint8Array');
-    }
+    // A Uint8Array may be a view into a larger buffer (a subarray, a Node
+    // Buffer); sending `input.buffer` would validate the wrong bytes.
+    const zipBytes = await this._toArrayBuffer(input);
 
     return this._send('validate', {
       zipBytes,
@@ -159,7 +159,9 @@ export class GtfsValidator {
    * Terminate the worker
    */
   terminate() {
+    this.terminated = true;
     this.worker.terminate();
+    this._rejectReady(new Error('Validator terminated'));
     // Reject any pending promises
     for (const [id, handler] of this.pending) {
       handler.reject(new Error('Validator terminated'));
@@ -186,6 +188,10 @@ export class GtfsValidator {
    */
   _send(type, payload) {
     return new Promise((resolve, reject) => {
+      if (this.terminated) {
+        reject(new Error('Validator terminated'));
+        return;
+      }
       const id = this.nextId++;
       this.pending.set(id, { resolve, reject });
       this.worker.postMessage({ type, payload, id });

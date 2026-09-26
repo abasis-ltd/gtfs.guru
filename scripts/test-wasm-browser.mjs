@@ -348,6 +348,11 @@ const browser = await chromium.launch({ headless: true });
 
 try {
   const page = await browser.newPage();
+  // Rust panic hooks log the useful cause before the worker reports
+  // `unreachable`; keep that evidence in a failed CI run.
+  page.on('console', message => {
+    if (message.type() === 'error') console.error(message.text());
+  });
 
   await page.goto(isolated.url);
   assert.equal(await page.evaluate(() => globalThis.crossOriginIsolated), true);

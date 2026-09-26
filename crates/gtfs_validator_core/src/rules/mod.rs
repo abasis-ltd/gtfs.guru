@@ -88,7 +88,7 @@ mod unused_agency;
 mod unused_route;
 mod unused_stop;
 mod url_consistency;
-mod url_syntax;
+pub(crate) mod url_syntax;
 mod v8_data_quality;
 mod v8_feature_rules;
 
@@ -188,7 +188,6 @@ pub use unused_agency::UnusedAgencyValidator;
 pub use unused_route::UnusedRouteValidator;
 pub use unused_stop::UnusedStopValidator;
 pub use url_consistency::UrlConsistencyValidator;
-pub use url_syntax::UrlSyntaxValidator;
 pub use v8_data_quality::{
     ServiceHasNoActiveDayOfTheWeekValidator, TripHeadsignMatchesIntermediateStopValidator,
     TripWithShapeDistTraveledButNoShapeDistancesValidator, UnsortedStopTimesValidator,
@@ -298,7 +297,6 @@ pub fn default_runner() -> ValidatorRunner {
     runner.register(PathwayDanglingGenericNodeValidator);
     runner.register(PathwayReachableLocationValidator);
     runner.register(DuplicateKeyValidator);
-    runner.register(UrlSyntaxValidator);
     runner.register(UnusedStopValidator);
     runner.register(UnusedRouteValidator);
     runner.register(UnusedAgencyValidator);

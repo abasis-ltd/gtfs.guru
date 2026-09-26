@@ -21,10 +21,7 @@ const STREAMING_THRESHOLD_BYTES: u64 = 32 * 1024 * 1024;
 use crate::geojson::{GeoJsonFeatureCollection, LocationsGeoJson};
 use crate::input::GtfsBytesReader;
 use crate::progress::ProgressHandler;
-use crate::{
-    CsvTable, GtfsInput, GtfsInputError, GtfsInputReader, NoticeContainer, NoticeSeverity,
-    TableStatus,
-};
+use crate::{CsvTable, GtfsInput, GtfsInputError, GtfsInputReader, NoticeContainer, TableStatus};
 
 pub const AGENCY_FILE: &str = "agency.txt";
 pub const STOPS_FILE: &str = "stops.txt";
@@ -1246,10 +1243,10 @@ fn status_from_load_result<T>(
 ) -> TableStatus {
     match result {
         Ok(Some(_)) => {
-            if notices
-                .iter()
-                .any(|notice| notice.severity == NoticeSeverity::Error)
-            {
+            // The canonical loader marks a table unparsable on a header or row
+            // error (and on an empty file); what its single-entity validators
+            // raise on clean rows leaves the table usable.
+            if notices.iter().any(crate::csv_reader::notice_fails_table) {
                 TableStatus::ParseError
             } else {
                 TableStatus::Ok

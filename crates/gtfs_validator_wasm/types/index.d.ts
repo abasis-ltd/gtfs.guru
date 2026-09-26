@@ -36,17 +36,24 @@ export interface ValidationNotice {
   /** Severity level */
   severity: NoticeSeverity;
   /** Human-readable description */
-  title: string;
-  /** Name of the affected file (e.g., "stops.txt") */
-  filename?: string;
-  /** CSV row number (1-indexed) */
-  csvRowNumber?: number;
+  message: string;
+  /** Name of the affected file (e.g., "stops.txt"), when the notice has one */
+  file: string | null;
+  /** CSV row number, counting the header as row 1 */
+  row: number | null;
   /** Affected field name */
-  fieldName?: string;
+  field: string | null;
+  /** Notice-specific fields (e.g. `fieldValue`, `stopId`), omitted when empty */
+  context?: Record<string, unknown>;
+  /** Canonical order of the notice's fields, omitted when empty */
+  field_order?: string[];
   /** Renderer-neutral geographic context for map-capable notices */
   geometry?: NoticeGeometry;
-  /** Additional context as key-value pairs */
-  [key: string]: unknown;
+  /** Suggested repair, when one exists */
+  fix?: unknown;
+  /** Exact number of notices sharing this code and severity, including any
+   * dropped from `json` when `truncated` is set */
+  totalNotices: number;
 }
 
 /**
@@ -67,6 +74,11 @@ export interface ValidationResult {
   readonly info_count: number;
   /** True if no errors were found (warnings/info don't affect validity) */
   readonly is_valid: boolean;
+  /** True when `json` holds a per-code sample rather than every notice;
+   * the counts above stay exact */
+  readonly truncated: boolean;
+  /** Release the Rust-owned memory now instead of at garbage collection */
+  free(): void;
   /** Move the JSON report out of WASM without a Rust-side clone. */
   take_json(): string;
   /** Move the HTML report out of WASM without a Rust-side clone. */
@@ -102,6 +114,8 @@ export interface ParsedValidationResult {
   warningCount: number;
   infoCount: number;
   isValid: boolean;
+  /** True when `json` holds a per-code sample rather than every notice */
+  truncated: boolean;
   validationTimeMs: number;
   timings: TimingBreakdown;
   runtime: 'single-threaded' | 'multi-threaded';

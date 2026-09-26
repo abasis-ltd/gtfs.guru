@@ -57,20 +57,24 @@ self.onmessage = async (event) => {
 
         const elapsed = performance.now() - startTime;
 
-        self.postMessage({
-          id,
-          type: 'result',
-          payload: {
-            json: result.json,
-            html: result.html,
-            errorCount: result.error_count,
-            warningCount: result.warning_count,
-            infoCount: result.info_count,
-            isValid: result.is_valid,
-            truncated: result.truncated,
-            validationTimeMs: elapsed,
-          },
-        });
+        try {
+          self.postMessage({
+            id,
+            type: 'result',
+            payload: {
+              json: result.json,
+              html: result.html,
+              errorCount: result.error_count,
+              warningCount: result.warning_count,
+              infoCount: result.info_count,
+              isValid: result.is_valid,
+              truncated: result.truncated,
+              validationTimeMs: elapsed,
+            },
+          });
+        } finally {
+          result.free();
+        }
         break;
       }
 
