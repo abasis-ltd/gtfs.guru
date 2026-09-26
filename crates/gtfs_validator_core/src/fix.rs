@@ -618,38 +618,56 @@ fn rewrite_csv(file: &str, data: &[u8], edits: &[&PlannedEdit]) -> Result<Rewrit
 
     // Record start offsets for every record, including malformed ones, so a
     // preceding record can never absorb bytes from a row we could not parse.
-    let mut starts: Vec<(u64, usize)> = Vec::new();
-    let mut records: HashMap<u64, csv::ByteRecord> = HashMap::new();
+    let mut raw_starts: Vec<(usize, Option<csv::ByteRecord>)> = Vec::new();
     for result in reader.into_byte_records() {
         match result {
             Ok(record) => {
                 if let Some(position) = record.position() {
-                    let row = position.record() + 1;
-                    starts.push((row, position.byte() as usize));
-                    records.insert(row, record.clone());
+                    raw_starts.push((position.byte() as usize, Some(record.clone())));
                 }
             }
             Err(err) => {
                 if let Some(position) = err.position() {
-                    starts.push((position.record() + 1, position.byte() as usize));
+                    raw_starts.push((position.byte() as usize, None));
                 }
             }
         }
     }
-    starts.sort_by_key(|(_, byte)| *byte);
+    raw_starts.sort_by_key(|(byte, _)| *byte);
 
     // A chunk owns one record plus the exact terminators and blank lines after
     // it. Reordering chunks therefore preserves raw CSV bytes.
-    let mut content_starts = Vec::with_capacity(starts.len());
-    let mut content_ends = Vec::with_capacity(starts.len());
-    for (index, (_, raw_start)) in starts.iter().enumerate() {
-        let raw_end = starts
+    let mut content_starts = Vec::with_capacity(raw_starts.len());
+    let mut content_ends = Vec::with_capacity(raw_starts.len());
+    for (index, (raw_start, _)) in raw_starts.iter().enumerate() {
+        let raw_end = raw_starts
             .get(index + 1)
-            .map(|(_, byte)| *byte)
+            .map(|(byte, _)| *byte)
             .unwrap_or(body.len());
         let (start, end) = content_span(body, *raw_start, raw_end);
         content_starts.push(start);
         content_ends.push(end);
+    }
+
+    // Notices number a row by the physical line its record ends on (the
+    // canonical validator's univocity `currentLine()`), so blank lines and
+    // multi-line values count.
+    let mut starts: Vec<(u64, usize)> = Vec::with_capacity(raw_starts.len());
+    let mut records: HashMap<u64, csv::ByteRecord> = HashMap::new();
+    let mut newlines_before = 0u64;
+    let mut counted_to = 0usize;
+    for (index, (raw_start, record)) in raw_starts.into_iter().enumerate() {
+        let end = content_ends[index].max(counted_to);
+        newlines_before += body[counted_to..end]
+            .iter()
+            .filter(|&&byte| byte == b'\n')
+            .count() as u64;
+        counted_to = end;
+        let row = newlines_before + 1;
+        starts.push((row, raw_start));
+        if let Some(record) = record {
+            records.insert(row, record);
+        }
     }
     let mut bounds: HashMap<u64, (usize, usize, usize)> = HashMap::new();
     for (index, (row, _)) in starts.iter().enumerate() {
@@ -1395,17 +1413,33 @@ mod tests {
     #[test]
     fn skips_a_row_that_lost_its_quoting_context() {
         // A record spanning two physical lines: the next record's start offset
-        // must be used, not "start + one line".
+        // must be used, not "start + one line". Notices number it by the line
+        // it ends on, as the canonical validator does: row 3.
         let data =
             b"agency_id,agency_name,agency_url\n1,\"Multi\nline\",www.a.com\n2,Other,www.b.com\n";
         let result = rewrite(
             data,
-            &[edit(2, "agency_url", "www.a.com", "https://www.a.com")],
+            &[edit(3, "agency_url", "www.a.com", "https://www.a.com")],
         );
 
         assert_eq!(
             String::from_utf8(result.bytes).unwrap(),
             "agency_id,agency_name,agency_url\n1,\"Multi\nline\",https://www.a.com\n2,Other,www.b.com\n"
+        );
+    }
+
+    #[test]
+    fn edits_rows_numbered_past_blank_lines() {
+        // Row numbers are physical lines: the blank line and the CRLF-ended
+        // multi-line value both count, as they do in the loader's notices.
+        let data = b"agency_id,agency_name,agency_url\r\n\r\n1,\"Multi\r\nline\",www.a.com\r\n2,Other,www.b.com";
+        let result = rewrite(
+            data,
+            &[edit(5, "agency_url", "www.b.com", "https://www.b.com")],
+        );
+        assert_eq!(
+            String::from_utf8(result.bytes).unwrap(),
+            "agency_id,agency_name,agency_url\r\n\r\n1,\"Multi\r\nline\",www.a.com\r\n2,Other,https://www.b.com"
         );
     }
 

@@ -1,21 +1,14 @@
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use zip::ZipArchive;
 
-#[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
-use crate::csv_reader::read_csv_from_reader_parallel;
-#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
-use crate::csv_reader::read_csv_from_reader_with_validation;
-use crate::csv_reader::{read_csv_from_reader, CsvParseError, CsvTable};
-use crate::csv_validation::is_value_validated_field;
-use crate::csv_validation::{validate_headers, RowValidator};
+use crate::csv_reader::{load_table, map_io_error, read_csv_from_reader, CsvParseError, CsvTable};
 
 use crate::feed::GTFS_FILE_NAMES;
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
@@ -161,21 +154,6 @@ pub fn collect_input_notices(input: &GtfsInput) -> Result<Vec<ValidationNotice>,
     Ok(notices)
 }
 
-/// CSV bytes as the parser should see them: univocity field boundaries
-/// (see `csv_univocity`), then UTF-8 with invalid sequences replaced.
-fn decode_utf8_lossy(data: &[u8]) -> Cow<'_, str> {
-    match crate::csv_univocity::normalize(data) {
-        Cow::Borrowed(bytes) => match std::str::from_utf8(bytes) {
-            Ok(text) => Cow::Borrowed(text),
-            Err(_) => Cow::Owned(String::from_utf8_lossy(bytes).into_owned()),
-        },
-        Cow::Owned(bytes) => Cow::Owned(match String::from_utf8(bytes) {
-            Ok(text) => text,
-            Err(err) => String::from_utf8_lossy(err.as_bytes()).into_owned(),
-        }),
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct GtfsInputReader {
     path: PathBuf,
@@ -228,24 +206,7 @@ impl GtfsInputReader {
                         path: self.path.clone(),
                         source: err,
                     })?;
-
-                let mut files = HashMap::new();
-                for index in 0..archive.len() {
-                    let file = archive
-                        .by_index(index)
-                        .map_err(|err| GtfsInputError::ZipFile {
-                            file: self.path.to_string_lossy().to_string(),
-                            source: err,
-                        })?;
-                    if !file.is_dir() {
-                        // Only include root-level files (mirroring current logic)
-                        let name = file.name().to_string();
-                        if !(name.contains('/') || name.contains('\\')) {
-                            files.insert(name, file.size());
-                        }
-                    }
-                }
-                Ok(files)
+                zip_files_with_sizes(&mut archive, &self.path.to_string_lossy())
             }
         }
     }
@@ -257,13 +218,72 @@ impl GtfsInputReader {
         }
     }
 
+    /// Run `f` on the CSV member `file_name`, streamed through the
+    /// decompression caps. `Ok(None)` when the input has no such file.
+    fn with_member<O>(
+        &self,
+        file_name: &str,
+        f: impl FnOnce(&mut dyn Read) -> std::io::Result<O>,
+    ) -> Result<Option<O>, GtfsInputError> {
+        let cap = max_member_bytes();
+        match self.source {
+            GtfsInputSource::Directory => {
+                let path = self.path.join(file_name);
+                let path = if path.exists() {
+                    path
+                } else {
+                    match find_case_insensitive_file(&self.path, file_name)? {
+                        Some(found) => found,
+                        None => return Ok(None),
+                    }
+                };
+                if !is_regular_file(&path) {
+                    return Err(GtfsInputError::NotAFile(path));
+                }
+                let declared = std::fs::metadata(&path)
+                    .map_err(|err| GtfsInputError::Io {
+                        path: path.clone(),
+                        source: err,
+                    })?
+                    .len();
+                check_declared_size(&path, file_name, declared, cap, &self.remaining_bytes)?;
+                let file = File::open(&path).map_err(|err| GtfsInputError::Io {
+                    path: path.clone(),
+                    source: err,
+                })?;
+                let mut capped =
+                    CappedReader::new(file, &path, file_name, cap, &self.remaining_bytes);
+                f(&mut capped)
+                    .map(Some)
+                    .map_err(|err| map_member_read_error(&path, file_name, cap, err))
+            }
+            GtfsInputSource::Zip => {
+                let file = File::open(&self.path).map_err(|err| GtfsInputError::Io {
+                    path: self.path.clone(),
+                    source: err,
+                })?;
+                let mut archive =
+                    ZipArchive::new(file).map_err(|err| GtfsInputError::ZipArchive {
+                        path: self.path.clone(),
+                        source: err,
+                    })?;
+                with_zip_member(
+                    &mut archive,
+                    &self.path,
+                    file_name,
+                    &self.remaining_bytes,
+                    f,
+                )
+            }
+        }
+    }
+
     pub fn read_csv<T: DeserializeOwned>(
         &self,
         file_name: &str,
     ) -> Result<CsvTable<T>, GtfsInputError> {
-        let data = self.read_file(file_name)?;
-        let data_str = decode_utf8_lossy(&data);
-        read_csv_from_reader(data_str.as_bytes(), file_name).map_err(GtfsInputError::Csv)
+        self.read_optional_csv(file_name)?
+            .ok_or_else(|| GtfsInputError::MissingFile(file_name.to_string()))
     }
 
     #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
@@ -273,53 +293,8 @@ impl GtfsInputReader {
         notices: &mut NoticeContainer,
         pool: &crate::StringPool,
     ) -> Result<CsvTable<T>, GtfsInputError> {
-        let data = self.read_file(file_name)?;
-        if strip_utf8_bom(&data).is_empty() {
-            notices.push_empty_table(file_name);
-            return Ok(CsvTable::default());
-        }
-        let data_str = decode_utf8_lossy(&data);
-        let data_bytes = data_str.as_bytes();
-        // Peek headers for validator setup
-        let mut peek_reader = csv::ReaderBuilder::new()
-            .has_headers(true)
-            .flexible(true)
-            .trim(csv::Trim::None)
-            .from_reader(data_bytes);
-
-        let headers_record = match peek_reader.headers() {
-            Ok(h) => h.clone(),
-            Err(_) => {
-                let (table, _, _) =
-                    read_csv_from_reader_parallel(data_bytes, file_name, |_, _| Vec::new(), pool)
-                        .map_err(GtfsInputError::Csv)?;
-                return Ok(table);
-            }
-        };
-
-        let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
-        validate_headers(file_name, &headers, notices);
-        let validator = RowValidator::new(file_name, headers);
-
-        let (table, errors, row_notices) = read_csv_from_reader_parallel(
-            data_bytes,
-            file_name,
-            |record, line| validator.validate_row(record, line),
-            pool,
-        )
-        .map_err(GtfsInputError::Csv)?;
-
-        for notice in row_notices {
-            notices.push(notice);
-        }
-        for error in errors {
-            if skip_csv_parse_error(&table, &error) {
-                continue;
-            }
-            notices.push_csv_error(&error);
-        }
-
-        Ok(table)
+        self.read_optional_csv_with_notices(file_name, notices, pool)?
+            .ok_or_else(|| GtfsInputError::MissingFile(file_name.to_string()))
     }
 
     #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
@@ -327,27 +302,21 @@ impl GtfsInputReader {
         &self,
         file_name: &str,
         notices: &mut NoticeContainer,
-        _pool: &crate::StringPool,
+        pool: &crate::StringPool,
     ) -> Result<CsvTable<T>, GtfsInputError> {
-        let data = self.read_file(file_name)?;
-        let data_str = decode_utf8_lossy(&data);
-        read_csv_bytes_with_notices(data_str.as_bytes(), file_name, notices)
+        self.read_optional_csv_with_notices(file_name, notices, pool)?
+            .ok_or_else(|| GtfsInputError::MissingFile(file_name.to_string()))
     }
 
     pub fn read_optional_csv<T: DeserializeOwned>(
         &self,
         file_name: &str,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        match self.read_file(file_name) {
-            Ok(data) => {
-                let data_str = decode_utf8_lossy(&data);
-                read_csv_from_reader(data_str.as_bytes(), file_name)
-                    .map(Some)
-                    .map_err(GtfsInputError::Csv)
-            }
-            Err(GtfsInputError::MissingFile(_)) => Ok(None),
-            Err(err) => Err(err),
-        }
+        self.with_member(file_name, |reader| {
+            Ok(read_csv_from_reader(reader, file_name))
+        })?
+        .transpose()
+        .map_err(GtfsInputError::Csv)
     }
 
     #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
@@ -357,75 +326,9 @@ impl GtfsInputReader {
         notices: &mut NoticeContainer,
         pool: &crate::StringPool,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        match self.read_file(file_name) {
-            Ok(data) => {
-                if strip_utf8_bom(&data).is_empty() {
-                    notices.push_empty_table(file_name);
-                    return Ok(Some(CsvTable::default()));
-                }
-                let data_str = decode_utf8_lossy(&data);
-                let data_bytes = data_str.as_bytes();
-                // Peek headers for validator setup
-                let mut peek_reader = csv::ReaderBuilder::new()
-                    .has_headers(true)
-                    .flexible(true)
-                    .trim(csv::Trim::None)
-                    .from_reader(data_bytes);
-
-                let headers_record = match peek_reader.headers() {
-                    Ok(h) => h.clone(),
-                    Err(_) => {
-                        let (table, _, _) = read_csv_from_reader_parallel(
-                            data_bytes,
-                            file_name,
-                            |_, _| Vec::new(),
-                            pool,
-                        )
-                        .map_err(GtfsInputError::Csv)?;
-                        return Ok(Some(table));
-                    }
-                };
-
-                let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
-                let mut header_notices = NoticeContainer::new();
-                validate_headers(file_name, &headers, &mut header_notices);
-                let has_header_errors = header_notices
-                    .iter()
-                    .any(|notice| notice.severity == NoticeSeverity::Error);
-                notices.merge(header_notices);
-                let validator = RowValidator::new(file_name, headers);
-
-                let (table, errors, row_notices) = read_csv_from_reader_parallel(
-                    data_bytes,
-                    file_name,
-                    |record, line| {
-                        if has_header_errors {
-                            Vec::new()
-                        } else {
-                            validator.validate_row(record, line)
-                        }
-                    },
-                    pool,
-                )
-                .map_err(GtfsInputError::Csv)?;
-
-                if !has_header_errors {
-                    for notice in row_notices {
-                        notices.push(notice);
-                    }
-                }
-                for error in errors {
-                    if skip_csv_parse_error(&table, &error) {
-                        continue;
-                    }
-                    notices.push_csv_error(&error);
-                }
-
-                Ok(Some(table))
-            }
-            Err(GtfsInputError::MissingFile(_)) => Ok(None),
-            Err(err) => Err(err),
-        }
+        self.with_member(file_name, |reader| {
+            load_table(reader, file_name, notices, pool)
+        })
     }
 
     #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
@@ -433,16 +336,11 @@ impl GtfsInputReader {
         &self,
         file_name: &str,
         notices: &mut NoticeContainer,
-        _pool: &crate::StringPool,
+        pool: &crate::StringPool,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        match self.read_file(file_name) {
-            Ok(data) => {
-                let data_str = decode_utf8_lossy(&data);
-                read_csv_bytes_with_notices(data_str.as_bytes(), file_name, notices).map(Some)
-            }
-            Err(GtfsInputError::MissingFile(_)) => Ok(None),
-            Err(err) => Err(err),
-        }
+        self.with_member(file_name, |reader| {
+            load_table(reader, file_name, notices, pool)
+        })
     }
 
     pub fn read_json<T: DeserializeOwned>(&self, file_name: &str) -> Result<T, GtfsInputError> {
@@ -477,7 +375,8 @@ impl GtfsInputReader {
     /// boundaries, handing batches of byte records to the rayon pool for
     /// deserialization + validation while it keeps decompressing. This overlaps
     /// the otherwise-serial unzip + boundary scan with the parallel parse and
-    /// bounds peak memory (only a few batches are in flight at once).
+    /// bounds peak memory (only a few batches are in flight at once). The
+    /// records and rules are the ones [`load_table`] applies.
     ///
     /// Falls back to the in-memory parallel reader for non-zip sources. The
     /// caller (the feed loader) only routes large files here, and the dominant
@@ -491,8 +390,9 @@ impl GtfsInputReader {
         pool: &crate::StringPool,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         use crate::csv_reader::{
-            deserialize_validate_records, map_csv_error, map_io_error, skip_utf8_bom,
+            field_too_long_error, max_chars_per_column, RecordScanner, ScanError, TableBuilder,
         };
+        use crate::csv_univocity::FieldTooLong;
         use std::sync::mpsc::sync_channel;
 
         if self.source != GtfsInputSource::Zip {
@@ -505,12 +405,13 @@ impl GtfsInputReader {
         const CHANNEL_CAPACITY: usize = 3;
 
         enum Msg {
-            Headers(csv::ByteRecord),
+            Headers(Option<Vec<String>>),
             Batch(Vec<(u64, csv::ByteRecord)>),
-            ScanError(CsvParseError),
+            TooLong(FieldTooLong),
         }
 
         let (tx, rx) = sync_channel::<Msg>(CHANNEL_CAPACITY);
+        let thorough = crate::validation_context::thorough_mode_enabled();
         let path = &self.path;
         let remaining_bytes = &self.remaining_bytes;
 
@@ -526,175 +427,105 @@ impl GtfsInputReader {
                         path: path.clone(),
                         source: err,
                     })?;
-                let Some(index) = locate_zip_member(&mut archive, file_name)? else {
-                    return Ok(false); // missing file
-                };
-                let zipped = archive
-                    .by_index(index)
-                    .map_err(|err| GtfsInputError::ZipFile {
-                        file: file_name.to_string(),
-                        source: err,
-                    })?;
-
-                // Enforce the same per-member and archive-wide decompression
-                // caps as the buffered path, so streaming a large member cannot
-                // bypass the zip-bomb guard.
-                let cap = max_member_bytes();
-                if zipped.size() > cap {
-                    return Err(member_too_large(path, file_name, zipped.size(), cap));
-                }
-                if zipped.size() > remaining_bytes.load(Ordering::Relaxed) {
-                    return Err(archive_budget_exceeded(path, file_name, max_total_bytes()));
-                }
-                let capped = CappedReader::new(zipped, path, file_name, cap, remaining_bytes);
-                let mut buf_reader = std::io::BufReader::with_capacity(1 << 20, capped);
-                skip_utf8_bom(&mut buf_reader).map_err(|err| {
-                    if limit_kind(&err).is_some() {
-                        map_capped_read_error(path, file_name, cap, err)
-                    } else {
-                        GtfsInputError::Csv(map_io_error(file_name, err))
-                    }
-                })?;
-
-                let buf_reader = crate::csv_univocity::NormalizingReader::new(buf_reader);
-                let mut csv_reader = csv::ReaderBuilder::new()
-                    .has_headers(true)
-                    .flexible(true)
-                    .trim(csv::Trim::None)
-                    .from_reader(buf_reader);
-
-                let headers = csv_reader
-                    .byte_headers()
-                    .map_err(|err| {
-                        if let Some(io_err) = csv_limit_io_error(&err) {
-                            map_capped_read_error(path, file_name, cap, io_err)
-                        } else {
-                            GtfsInputError::Csv(map_csv_error(file_name, None, err))
+                let scanned = with_zip_member(
+                    &mut archive,
+                    path,
+                    file_name,
+                    remaining_bytes,
+                    |reader| -> std::io::Result<()> {
+                        let buf_reader = std::io::BufReader::with_capacity(1 << 20, reader);
+                        let mut scanner = RecordScanner::with_options(
+                            buf_reader,
+                            max_chars_per_column(file_name),
+                            thorough,
+                        );
+                        let headers = match scanner.headers() {
+                            Ok(headers) => headers,
+                            Err(ScanError::TooLong(err)) => {
+                                let _ = tx.send(Msg::TooLong(err));
+                                return Ok(());
+                            }
+                            Err(ScanError::Io(err)) => return Err(err),
+                        };
+                        let has_headers = headers.is_some();
+                        if tx.send(Msg::Headers(headers)).is_err() || !has_headers {
+                            return Ok(()); // consumer dropped, or nothing to read
                         }
-                    })?
-                    .clone();
-                let mut headers_for_errors = csv::StringRecord::new();
-                for field in headers.iter() {
-                    headers_for_errors.push_field(&String::from_utf8_lossy(field));
-                }
-                if tx.send(Msg::Headers(headers)).is_err() {
-                    return Ok(true); // consumer dropped
-                }
-
-                let mut batch: Vec<(u64, csv::ByteRecord)> = Vec::with_capacity(BATCH_ROWS);
-                let mut record_index = 0usize;
-                let records = csv_reader.into_byte_records();
-                for result in records {
-                    match result {
-                        Ok(record) => {
-                            let line_number = record
-                                .position()
-                                .map(|p| p.record() + 1)
-                                .unwrap_or((record_index + 2) as u64);
-                            batch.push((line_number, record));
-                            record_index += 1;
-                            if batch.len() >= BATCH_ROWS {
-                                let full =
-                                    std::mem::replace(&mut batch, Vec::with_capacity(BATCH_ROWS));
-                                if tx.send(Msg::Batch(full)).is_err() {
-                                    return Ok(true);
+                        let mut batch: Vec<(u64, csv::ByteRecord)> = Vec::with_capacity(BATCH_ROWS);
+                        loop {
+                            match scanner.next_record() {
+                                Ok(Some(next)) => {
+                                    batch.push(next);
+                                    if batch.len() >= BATCH_ROWS {
+                                        let full = std::mem::replace(
+                                            &mut batch,
+                                            Vec::with_capacity(BATCH_ROWS),
+                                        );
+                                        if tx.send(Msg::Batch(full)).is_err() {
+                                            return Ok(());
+                                        }
+                                    }
                                 }
+                                Ok(None) => break,
+                                Err(ScanError::TooLong(err)) => {
+                                    if !batch.is_empty()
+                                        && tx.send(Msg::Batch(std::mem::take(&mut batch))).is_err()
+                                    {
+                                        return Ok(());
+                                    }
+                                    let _ = tx.send(Msg::TooLong(err));
+                                    return Ok(());
+                                }
+                                Err(ScanError::Io(err)) => return Err(err),
                             }
                         }
-                        Err(err) => {
-                            if let Some(io_err) = csv_limit_io_error(&err) {
-                                return Err(map_capped_read_error(path, file_name, cap, io_err));
-                            }
-                            let parse_err =
-                                map_csv_error(file_name, Some(&headers_for_errors), err);
-                            if tx.send(Msg::ScanError(parse_err)).is_err() {
-                                return Ok(true);
-                            }
+                        if !batch.is_empty() {
+                            let _ = tx.send(Msg::Batch(batch));
                         }
-                    }
-                }
-                if !batch.is_empty() {
-                    let _ = tx.send(Msg::Batch(batch));
-                }
-                Ok(true)
+                        Ok(())
+                    },
+                );
+                Ok(scanned?.is_some())
             });
 
-            // ---- Consumer: build validator from headers, deserialize batches. ----
+            // ---- Consumer: validate the header, deserialize batches. ----
             let ctx = crate::validation_context::ValidationContextState::capture();
-            let mut headers_vec: Option<Vec<String>> = None;
-            let mut headers_trimmed: Option<csv::StringRecord> = None;
-            let mut validator: Option<RowValidator> = None;
-            let mut has_header_errors = false;
-
-            let mut rows: Vec<T> = Vec::new();
-            let mut row_numbers: Vec<u64> = Vec::new();
-            let mut parse_errors: Vec<CsvParseError> = Vec::new();
-            let mut collected_notices: Vec<ValidationNotice> = Vec::new();
+            let mut builder: Option<TableBuilder<T>> = None;
+            let mut table: Option<CsvTable<T>> = None;
+            let mut failure: Option<FieldTooLong> = None;
 
             for msg in rx {
                 match msg {
-                    Msg::Headers(byte_headers) => {
-                        // Untrimmed header names feed header validation and the row
-                        // validator (matching the in-memory path); a trimmed copy
-                        // is used as the deserialization header map.
-                        let untrimmed: Vec<String> = byte_headers
-                            .iter()
-                            .map(|field| String::from_utf8_lossy(field).into_owned())
-                            .collect();
-                        let mut header_notices = NoticeContainer::new();
-                        validate_headers(file_name, &untrimmed, &mut header_notices);
-                        has_header_errors = header_notices
-                            .iter()
-                            .any(|notice| notice.severity == NoticeSeverity::Error);
-                        notices.merge(header_notices);
-                        validator = Some(RowValidator::new(file_name, untrimmed.clone()));
-
-                        let mut trimmed = csv::StringRecord::new();
-                        for field in untrimmed.iter() {
-                            trimmed.push_field(field.trim());
+                    Msg::Headers(None) => {
+                        notices.push_empty_table(file_name);
+                        table = Some(CsvTable::default());
+                    }
+                    Msg::Headers(Some(headers)) => {
+                        match TableBuilder::begin(file_name, headers, notices) {
+                            Some(started) => builder = Some(started),
+                            None => {
+                                // A header error: no row is read.
+                                table = Some(CsvTable::default());
+                                break;
+                            }
                         }
-                        headers_vec = Some(
-                            untrimmed
-                                .iter()
-                                .map(|field| field.trim().to_string())
-                                .collect(),
-                        );
-                        headers_trimmed = Some(trimmed);
                     }
                     Msg::Batch(batch) => {
-                        let (Some(validator), Some(headers_trimmed)) =
-                            (validator.as_ref(), headers_trimmed.as_ref())
-                        else {
+                        let Some(builder) = builder.as_mut() else {
                             continue;
                         };
-                        let processed = deserialize_validate_records::<T, _>(
-                            batch,
-                            headers_trimmed,
-                            file_name,
-                            &|record: &csv::StringRecord, line: u64| {
-                                if has_header_errors {
-                                    Vec::new()
-                                } else {
-                                    validator.validate_row(record, line)
-                                }
-                            },
-                            pool,
-                            &ctx,
-                        );
-                        for (line_number, result, row_notices) in processed {
-                            if !has_header_errors {
-                                collected_notices.extend(row_notices);
-                            }
-                            match result {
-                                Ok(record) => {
-                                    rows.push(record);
-                                    row_numbers.push(line_number);
-                                }
-                                Err(err) => parse_errors.push(err),
-                            }
+                        if !builder.add_batch_parallel(batch, pool, &ctx) {
+                            break;
                         }
                     }
-                    Msg::ScanError(err) => parse_errors.push(err),
+                    Msg::TooLong(err) => {
+                        if builder.is_none() {
+                            notices.push_csv_error(&field_too_long_error(file_name, &err, None));
+                            table = Some(CsvTable::default());
+                        } else {
+                            failure = Some(err);
+                        }
+                    }
                 }
             }
 
@@ -702,22 +533,10 @@ impl GtfsInputReader {
             if !found {
                 return Ok(None);
             }
-
-            let table = CsvTable {
-                headers: headers_vec.unwrap_or_default(),
-                rows,
-                row_numbers,
-            };
-            for notice in collected_notices {
-                notices.push(notice);
+            if let Some(builder) = builder {
+                return Ok(Some(builder.finish(failure.as_ref(), notices)));
             }
-            for error in parse_errors {
-                if skip_csv_parse_error(&table, &error) {
-                    continue;
-                }
-                notices.push_csv_error(&error);
-            }
-            Ok(Some(table))
+            Ok(Some(table.unwrap_or_default()))
         })
     }
 
@@ -748,89 +567,7 @@ impl GtfsInputReader {
             path: self.path.clone(),
             source: err,
         })?;
-
-        match archive.by_name(file_name) {
-            Ok(zipped) => {
-                return read_zip_member_capped(
-                    zipped,
-                    &self.path,
-                    file_name,
-                    &self.remaining_bytes,
-                );
-            }
-            Err(zip::result::ZipError::FileNotFound) => {}
-            Err(err) => {
-                return Err(GtfsInputError::ZipFile {
-                    file: file_name.to_string(),
-                    source: err,
-                });
-            }
-        }
-
-        let target = file_name.to_ascii_lowercase();
-        let mut matched_index = None;
-        let mut matched_depth = None;
-        let mut matched_name = None;
-        for index in 0..archive.len() {
-            let (name, is_dir) = {
-                let file = archive
-                    .by_index(index)
-                    .map_err(|err| GtfsInputError::ZipFile {
-                        file: file_name.to_string(),
-                        source: err,
-                    })?;
-                (file.name().to_string(), file.is_dir())
-            };
-            if is_dir {
-                continue;
-            }
-            if name.contains('/') || name.contains('\\') {
-                continue;
-            }
-            let lower = name.to_ascii_lowercase();
-            let tail = lower
-                .rsplit(|ch| ch == '/' || ch == '\\')
-                .next()
-                .unwrap_or(lower.as_str());
-            if tail != target {
-                continue;
-            }
-            let depth = name.matches(|ch| ch == '/' || ch == '\\').count();
-            match matched_depth {
-                None => {
-                    matched_index = Some(index);
-                    matched_depth = Some(depth);
-                    matched_name = Some(lower);
-                }
-                Some(current_depth) if depth < current_depth => {
-                    matched_index = Some(index);
-                    matched_depth = Some(depth);
-                    matched_name = Some(lower);
-                }
-                Some(current_depth) if depth == current_depth => {
-                    let should_replace = matched_name
-                        .as_ref()
-                        .map(|best| lower < *best)
-                        .unwrap_or(true);
-                    if should_replace {
-                        matched_index = Some(index);
-                        matched_name = Some(lower);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let Some(index) = matched_index else {
-            return Err(GtfsInputError::MissingFile(file_name.to_string()));
-        };
-        let zipped = archive
-            .by_index(index)
-            .map_err(|err| GtfsInputError::ZipFile {
-                file: file_name.to_string(),
-                source: err,
-            })?;
-        read_zip_member_capped(zipped, &self.path, file_name, &self.remaining_bytes)
+        read_zip_file(&mut archive, &self.path, file_name, &self.remaining_bytes)
     }
 
     pub fn list_files(&self) -> Result<Vec<String>, GtfsInputError> {
@@ -846,85 +583,6 @@ impl GtfsInputReader {
             GtfsInputSource::Zip => has_nested_gtfs_file_in_zip(&self.path),
         }
     }
-}
-
-fn skip_csv_parse_error<T>(table: &CsvTable<T>, error: &CsvParseError) -> bool {
-    // In default mode, suppress csv_parsing_failed for tolerance (matches Java Univocity)
-    if !crate::validation_context::thorough_mode_enabled() {
-        return true;
-    }
-
-    let field = error.field.as_deref().or_else(|| {
-        error
-            .column_index
-            .and_then(|index| table.headers.get(index as usize))
-            .map(String::as_str)
-    });
-    if field.map(is_value_validated_field).unwrap_or(false) {
-        return true;
-    }
-
-    let message = error.message.to_ascii_lowercase();
-    message.contains("invalid date")
-        || message.contains("invalid time")
-        || message.contains("invalid color")
-        || message.contains("invalid digit")
-        || message.contains("invalid float")
-}
-
-#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
-fn read_csv_bytes_with_notices<T: DeserializeOwned>(
-    data: &[u8],
-    file_name: &str,
-    notices: &mut NoticeContainer,
-) -> Result<CsvTable<T>, GtfsInputError> {
-    if strip_utf8_bom(data).is_empty() {
-        notices.push_empty_table(file_name);
-        return Ok(CsvTable::default());
-    }
-
-    // Read only the header up front so row validation can be configured. The
-    // data rows themselves are scanned exactly once below.
-    let mut header_reader = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(true)
-        .trim(csv::Trim::Headers)
-        .from_reader(data);
-    let headers_record = header_reader
-        .headers()
-        .map_err(|err| GtfsInputError::Csv(crate::csv_reader::map_csv_error(file_name, None, err)))?
-        .clone();
-    let headers: Vec<String> = headers_record.iter().map(str::to_string).collect();
-
-    let mut header_notices = NoticeContainer::new();
-    validate_headers(file_name, &headers, &mut header_notices);
-    let has_header_errors = header_notices
-        .iter()
-        .any(|notice| notice.severity == NoticeSeverity::Error);
-    notices.merge(header_notices);
-    let validator = RowValidator::new(file_name, headers);
-
-    let (table, errors, row_notices) =
-        read_csv_from_reader_with_validation(data, file_name, |record, line| {
-            if has_header_errors {
-                Vec::new()
-            } else {
-                validator.validate_row(record, line)
-            }
-        })
-        .map_err(GtfsInputError::Csv)?;
-
-    if !has_header_errors {
-        for notice in row_notices {
-            notices.push(notice);
-        }
-    }
-    for error in errors {
-        if !skip_csv_parse_error(&table, &error) {
-            notices.push_csv_error(&error);
-        }
-    }
-    Ok(table)
 }
 
 fn strip_utf8_bom(data: &[u8]) -> &[u8] {
@@ -948,12 +606,6 @@ fn max_member_bytes() -> u64 {
         .filter(|value| *value > 0)
         .unwrap_or(DEFAULT_MAX_MEMBER_BYTES)
 }
-
-/// How far the single-threaded reader will inflate a member looking for the end
-/// of its header row. Far above any real GTFS header, and bounded so a member
-/// that is one enormous line cannot be decompressed whole by the header pass.
-#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
-const HEADER_SCAN_BYTES: u64 = 1 << 20;
 
 /// Upper bound on the *total* uncompressed size of a single archive, summed
 /// across every member read from it. This backstops [`max_member_bytes`]: even
@@ -1170,27 +822,13 @@ fn limit_kind(err: &std::io::Error) -> Option<LimitKind> {
         .map(|exceeded| exceeded.kind)
 }
 
-/// Re-wrap the limit error a CSV reader swallowed, preserving the sentinel so
-/// the caller still recognises it by type.
-#[cfg(feature = "parallel")]
-fn csv_limit_io_error(err: &csv::Error) -> Option<std::io::Error> {
-    let csv::ErrorKind::Io(io_err) = err.kind() else {
-        return None;
-    };
-    let exceeded = io_err.get_ref()?.downcast_ref::<LimitExceeded>()?;
-    Some(limit_io_error(
-        exceeded.kind,
-        &exceeded.file_name,
-        exceeded.limit,
-    ))
-}
-
 /// A `Read` adapter that enforces the per-member and archive-wide decompression
 /// caps as bytes stream out of a zip member. The streaming CSV reader never
 /// buffers a whole member, so without this a large member would be decompressed
 /// past the cap one batch at a time. On overflow it yields an
-/// `InvalidData` io error. Reads are sized so a lying header cannot inflate
-/// more than one extra byte past the cap.
+/// `InvalidData` io error carrying [`LimitExceeded`], which survives the csv
+/// reader's wrapping. Reads are sized so a lying header cannot inflate more
+/// than one extra byte past the cap.
 struct CappedReader<'a, R> {
     inner: R,
     file_name: String,
@@ -1198,15 +836,7 @@ struct CappedReader<'a, R> {
     member_cap: u64,
     total_cap: u64,
     budget: &'a AtomicU64,
-    /// Set when a cap is hit. A reader handed to a CSV parser is moved out of
-    /// reach, and the parser flattens the `io::Error` into a string, so this is
-    /// how the caller recovers the reason by value rather than by substring.
-    limit_hit: Arc<AtomicU8>,
 }
-
-const LIMIT_HIT_NONE: u8 = 0;
-const LIMIT_HIT_MEMBER: u8 = 1;
-const LIMIT_HIT_TOTAL: u8 = 2;
 
 impl<'a, R> CappedReader<'a, R> {
     fn new(
@@ -1223,27 +853,7 @@ impl<'a, R> CappedReader<'a, R> {
             member_cap,
             total_cap: max_total_bytes(),
             budget,
-            limit_hit: Arc::new(AtomicU8::new(LIMIT_HIT_NONE)),
         }
-    }
-
-    /// A handle to this reader's limit flag, to keep after the reader is moved
-    /// into a parser. Only the single-threaded reader needs it: the parallel
-    /// path keeps the `io::Error` and reads the sentinel off it directly.
-    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
-    fn limit_flag(&self) -> Arc<AtomicU8> {
-        self.limit_hit.clone()
-    }
-}
-
-/// The cap a [`CappedReader`] hit, read back through a flag from
-/// [`CappedReader::limit_flag`].
-#[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
-fn limit_kind_from_flag(flag: &AtomicU8) -> Option<LimitKind> {
-    match flag.load(Ordering::Relaxed) {
-        LIMIT_HIT_MEMBER => Some(LimitKind::Member),
-        LIMIT_HIT_TOTAL => Some(LimitKind::Total),
-        _ => None,
     }
 }
 
@@ -1264,7 +874,6 @@ impl<R: Read> Read for CappedReader<'_, R> {
         }
         let n64 = n as u64;
         if n64 > self.member_remaining {
-            self.limit_hit.store(LIMIT_HIT_MEMBER, Ordering::Relaxed);
             return Err(limit_io_error(
                 LimitKind::Member,
                 &self.file_name,
@@ -1273,7 +882,6 @@ impl<R: Read> Read for CappedReader<'_, R> {
         }
         self.member_remaining -= n64;
         if charge_archive_budget(self.budget, n64).is_err() {
-            self.limit_hit.store(LIMIT_HIT_TOTAL, Ordering::Relaxed);
             return Err(limit_io_error(
                 LimitKind::Total,
                 &self.file_name,
@@ -1282,48 +890,6 @@ impl<R: Read> Read for CappedReader<'_, R> {
         }
         Ok(n)
     }
-}
-
-/// Locate the best-matching root-level zip member for `file_name`, returning its
-/// index. Mirrors the matching used by [`GtfsInputReader::read_from_zip`]: an
-/// exact name match wins, otherwise a case-insensitive match (preferring the
-/// lexicographically smallest name). Nested members are ignored.
-fn locate_zip_member<R: Read + Seek>(
-    archive: &mut ZipArchive<R>,
-    file_name: &str,
-) -> Result<Option<usize>, GtfsInputError> {
-    let target = file_name.to_ascii_lowercase();
-    let mut ci_index: Option<usize> = None;
-    let mut ci_name: Option<String> = None;
-    for index in 0..archive.len() {
-        let (name, is_dir) = {
-            let file = archive
-                .by_index(index)
-                .map_err(|err| GtfsInputError::ZipFile {
-                    file: file_name.to_string(),
-                    source: err,
-                })?;
-            (file.name().to_string(), file.is_dir())
-        };
-        if is_dir {
-            continue;
-        }
-        if name.contains('/') || name.contains('\\') {
-            continue; // root-level members only
-        }
-        if name == file_name {
-            return Ok(Some(index)); // exact match wins
-        }
-        let lower = name.to_ascii_lowercase();
-        if lower == target {
-            let replace = ci_name.as_ref().map(|best| lower < *best).unwrap_or(true);
-            if replace {
-                ci_index = Some(index);
-                ci_name = Some(lower);
-            }
-        }
-    }
-    Ok(ci_index)
 }
 
 fn is_regular_file(path: &Path) -> bool {
@@ -1413,13 +979,116 @@ fn list_files_in_zip(path: &Path) -> Result<Vec<String>, GtfsInputError> {
         path: path.to_path_buf(),
         source: err,
     })?;
+    list_zip_files(&mut archive, &path.to_string_lossy())
+}
 
+fn has_nested_gtfs_file_in_zip(path: &Path) -> Result<bool, GtfsInputError> {
+    let file = File::open(path).map_err(|err| GtfsInputError::Io {
+        path: path.to_path_buf(),
+        source: err,
+    })?;
+    let archive = ZipArchive::new(file).map_err(|err| GtfsInputError::ZipArchive {
+        path: path.to_path_buf(),
+        source: err,
+    })?;
+    Ok(zip_has_nested_gtfs_files(&archive))
+}
+
+/// Reject a member whose declared size is already over a cap, before any of it
+/// is inflated.
+fn check_declared_size(
+    path: &Path,
+    file_name: &str,
+    declared: u64,
+    cap: u64,
+    budget: &AtomicU64,
+) -> Result<(), GtfsInputError> {
+    if declared > cap {
+        return Err(member_too_large(path, file_name, declared, cap));
+    }
+    if declared > budget.load(Ordering::Relaxed) {
+        return Err(archive_budget_exceeded(path, file_name, max_total_bytes()));
+    }
+    Ok(())
+}
+
+/// An error from reading a member through [`CappedReader`]: a cap the reader
+/// hit, or a failure of the member itself (a corrupt deflate stream, say),
+/// reported as a CSV error on that file.
+fn map_member_read_error(
+    path: &Path,
+    file_name: &str,
+    cap: u64,
+    err: std::io::Error,
+) -> GtfsInputError {
+    if limit_kind(&err).is_some() {
+        map_capped_read_error(path, file_name, cap, err)
+    } else {
+        GtfsInputError::Csv(map_io_error(file_name, err))
+    }
+}
+
+/// Run `f` on the zip member standing for `file_name` (see
+/// [`zip_member_name`]), streamed through the decompression caps.
+fn with_zip_member<R: Read + Seek, O>(
+    archive: &mut ZipArchive<R>,
+    path: &Path,
+    file_name: &str,
+    budget: &AtomicU64,
+    f: impl FnOnce(&mut dyn Read) -> std::io::Result<O>,
+) -> Result<Option<O>, GtfsInputError> {
+    let Some(name) = zip_member_name(archive, file_name) else {
+        return Ok(None);
+    };
+    let zipped = archive
+        .by_name(&name)
+        .map_err(|err| GtfsInputError::ZipFile {
+            file: file_name.to_string(),
+            source: err,
+        })?;
+    let cap = max_member_bytes();
+    check_declared_size(path, file_name, zipped.size(), cap, budget)?;
+    let mut capped = CappedReader::new(zipped, path, file_name, cap, budget);
+    f(&mut capped)
+        .map(Some)
+        .map_err(|err| map_member_read_error(path, file_name, cap, err))
+}
+
+/// The root-level zip member that stands for `file_name`: an exact name match,
+/// else a case-insensitive one (the smallest name, for a deterministic pick
+/// between members differing only in case). Directories and nested members
+/// never match.
+///
+/// Uses the archive's name index, so a lookup costs one pass over the names
+/// and never opens a member.
+fn zip_member_name<R: Read + Seek>(archive: &ZipArchive<R>, file_name: &str) -> Option<String> {
+    let mut best: Option<&str> = None;
+    for name in archive.file_names() {
+        if name.contains('/') || name.contains('\\') {
+            continue; // nested member, or a directory entry
+        }
+        if name == file_name {
+            return Some(name.to_string());
+        }
+        if name.eq_ignore_ascii_case(file_name) && best.map_or(true, |current| name < current) {
+            best = Some(name);
+        }
+    }
+    best.map(str::to_string)
+}
+
+/// Root-level file members, in archive order. Reads only the central directory
+/// and local headers: no member is inflated.
+fn list_zip_files<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    source: &str,
+) -> Result<Vec<String>, GtfsInputError> {
     let mut files = Vec::new();
     for index in 0..archive.len() {
         let file = archive
-            .by_index(index)
+            .by_index_raw(index)
             .map_err(|err| GtfsInputError::ZipFile {
-                file: path.to_string_lossy().to_string(),
+                file: source.to_string(),
                 source: err,
             })?;
         if file.is_dir() {
@@ -1434,21 +1103,17 @@ fn list_files_in_zip(path: &Path) -> Result<Vec<String>, GtfsInputError> {
     Ok(files)
 }
 
-fn has_nested_gtfs_file_in_zip(path: &Path) -> Result<bool, GtfsInputError> {
-    let file = File::open(path).map_err(|err| GtfsInputError::Io {
-        path: path.to_path_buf(),
-        source: err,
-    })?;
-    let mut archive = ZipArchive::new(file).map_err(|err| GtfsInputError::ZipArchive {
-        path: path.to_path_buf(),
-        source: err,
-    })?;
-
+/// Root-level file members and their uncompressed sizes.
+fn zip_files_with_sizes<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    source: &str,
+) -> Result<HashMap<String, u64>, GtfsInputError> {
+    let mut files = HashMap::new();
     for index in 0..archive.len() {
         let file = archive
-            .by_index(index)
+            .by_index_raw(index)
             .map_err(|err| GtfsInputError::ZipFile {
-                file: path.to_string_lossy().to_string(),
+                file: source.to_string(),
                 source: err,
             })?;
         if file.is_dir() {
@@ -1456,20 +1121,49 @@ fn has_nested_gtfs_file_in_zip(path: &Path) -> Result<bool, GtfsInputError> {
         }
         let name = file.name().to_string();
         if !(name.contains('/') || name.contains('\\')) {
-            continue;
+            files.insert(name, file.size());
+        }
+    }
+    Ok(files)
+}
+
+/// Whether a GTFS file sits in a folder inside the archive.
+fn zip_has_nested_gtfs_files<R: Read + Seek>(archive: &ZipArchive<R>) -> bool {
+    archive.file_names().any(|name| {
+        if name.ends_with('/') || name.ends_with('\\') {
+            return false;
+        }
+        if !(name.contains('/') || name.contains('\\')) {
+            return false;
         }
         let file_name = name
             .rsplit(|ch| ch == '/' || ch == '\\')
             .next()
-            .unwrap_or(name.as_str());
-        if GTFS_FILE_NAMES
+            .unwrap_or(name);
+        GTFS_FILE_NAMES
             .iter()
             .any(|gtfs| gtfs.eq_ignore_ascii_case(file_name))
-        {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    })
+}
+
+/// Read a whole member into memory through the caps; `MissingFile` when the
+/// archive has no member for `file_name`.
+fn read_zip_file<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    path: &Path,
+    file_name: &str,
+    budget: &AtomicU64,
+) -> Result<Vec<u8>, GtfsInputError> {
+    let Some(name) = zip_member_name(archive, file_name) else {
+        return Err(GtfsInputError::MissingFile(file_name.to_string()));
+    };
+    let zipped = archive
+        .by_name(&name)
+        .map_err(|err| GtfsInputError::ZipFile {
+            file: file_name.to_string(),
+            source: err,
+        })?;
+    read_zip_member_capped(zipped, path, file_name, budget)
 }
 
 /// Reader for GTFS data from in-memory bytes (for WASM compatibility)
@@ -1493,274 +1187,51 @@ impl GtfsBytesReader {
         Self::from_zip_bytes(data.to_vec())
     }
 
-    pub fn get_files_with_sizes(&self) -> Result<HashMap<String, u64>, GtfsInputError> {
-        let cursor = Cursor::new(&self.data);
-        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
-            path: PathBuf::from("<memory>"),
-            source: err,
-        })?;
-
-        let mut files = HashMap::new();
-        for index in 0..archive.len() {
-            let file = archive
-                .by_index(index)
-                .map_err(|err| GtfsInputError::ZipFile {
-                    file: "<memory>".into(),
-                    source: err,
-                })?;
-            if !file.is_dir() {
-                let name = file.name().to_string();
-                if !(name.contains('/') || name.contains('\\')) {
-                    files.insert(name, file.size());
-                }
+    fn archive(&self) -> Result<ZipArchive<Cursor<&[u8]>>, GtfsInputError> {
+        ZipArchive::new(Cursor::new(self.data.as_slice())).map_err(|err| {
+            GtfsInputError::ZipArchive {
+                path: PathBuf::from("<memory>"),
+                source: err,
             }
-        }
-        Ok(files)
+        })
+    }
+
+    pub fn get_files_with_sizes(&self) -> Result<HashMap<String, u64>, GtfsInputError> {
+        zip_files_with_sizes(&mut self.archive()?, "<memory>")
     }
 
     pub fn read_file(&self, file_name: &str) -> Result<Vec<u8>, GtfsInputError> {
-        let cursor = Cursor::new(&self.data);
-        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
-            path: PathBuf::from("<memory>"),
-            source: err,
-        })?;
-
-        // Try exact match first
-        match archive.by_name(file_name) {
-            Ok(zipped) => {
-                return read_zip_member_capped(
-                    zipped,
-                    Path::new("<memory>"),
-                    file_name,
-                    &self.remaining_bytes,
-                );
-            }
-            Err(zip::result::ZipError::FileNotFound) => {}
-            Err(err) => {
-                return Err(GtfsInputError::ZipFile {
-                    file: file_name.to_string(),
-                    source: err,
-                });
-            }
-        }
-
-        // Case-insensitive search with preference for root-level files
-        let target = file_name.to_ascii_lowercase();
-        let mut matched_index = None;
-        let mut matched_depth = None;
-        let mut matched_name = None;
-
-        for index in 0..archive.len() {
-            let (name, is_dir) = {
-                let file = archive
-                    .by_index(index)
-                    .map_err(|err| GtfsInputError::ZipFile {
-                        file: file_name.to_string(),
-                        source: err,
-                    })?;
-                (file.name().to_string(), file.is_dir())
-            };
-            if is_dir {
-                continue;
-            }
-            if name.contains('/') || name.contains('\\') {
-                continue;
-            }
-            let lower = name.to_ascii_lowercase();
-            let tail = lower
-                .rsplit(|ch| ch == '/' || ch == '\\')
-                .next()
-                .unwrap_or(lower.as_str());
-            if tail != target {
-                continue;
-            }
-            let depth = name.matches(|ch| ch == '/' || ch == '\\').count();
-            match matched_depth {
-                None => {
-                    matched_index = Some(index);
-                    matched_depth = Some(depth);
-                    matched_name = Some(lower);
-                }
-                Some(current_depth) if depth < current_depth => {
-                    matched_index = Some(index);
-                    matched_depth = Some(depth);
-                    matched_name = Some(lower);
-                }
-                Some(current_depth) if depth == current_depth => {
-                    let should_replace = matched_name
-                        .as_ref()
-                        .map(|best| lower < *best)
-                        .unwrap_or(true);
-                    if should_replace {
-                        matched_index = Some(index);
-                        matched_name = Some(lower);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let Some(index) = matched_index else {
-            return Err(GtfsInputError::MissingFile(file_name.to_string()));
-        };
-
-        let zipped = archive
-            .by_index(index)
-            .map_err(|err| GtfsInputError::ZipFile {
-                file: file_name.to_string(),
-                source: err,
-            })?;
-        read_zip_member_capped(
-            zipped,
+        read_zip_file(
+            &mut self.archive()?,
             Path::new("<memory>"),
             file_name,
             &self.remaining_bytes,
         )
     }
 
-    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
-    fn read_optional_csv_streaming_with_notices<T: DeserializeOwned>(
+    /// Run `f` on the CSV member `file_name`, streamed straight out of the
+    /// archive: the uncompressed table is never materialised, which matters in
+    /// the browser. `Ok(None)` when the archive has no such file.
+    fn with_member<O>(
         &self,
         file_name: &str,
-        notices: &mut NoticeContainer,
-    ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        // Read just the header first to configure validation. Reopening the ZIP
-        // member below costs one tiny inflate but avoids materializing the full
-        // uncompressed CSV in WASM memory.
-        let cursor = Cursor::new(&self.data);
-        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
-            path: PathBuf::from("<memory>"),
-            source: err,
-        })?;
-        let Some(index) = locate_zip_member(&mut archive, file_name)? else {
-            return Ok(None);
-        };
-        let zipped = archive
-            .by_index(index)
-            .map_err(|err| GtfsInputError::ZipFile {
-                file: file_name.to_string(),
-                source: err,
-            })?;
-        let cap = max_member_bytes();
-        if zipped.size() > cap {
-            return Err(member_too_large(
-                Path::new("<memory>"),
-                file_name,
-                zipped.size(),
-                cap,
-            ));
-        }
-        if zipped.size() == 0 {
-            notices.push_empty_table(file_name);
-            return Ok(Some(CsvTable::default()));
-        }
-        let mut header_reader = csv::ReaderBuilder::new()
-            .has_headers(true)
-            .flexible(true)
-            .trim(csv::Trim::Headers)
-            .from_reader(crate::csv_univocity::NormalizingReader::new(
-                zipped.take(HEADER_SCAN_BYTES + 1),
-            ));
-        let headers_record = header_reader
-            .headers()
-            .map_err(|err| {
-                GtfsInputError::Csv(crate::csv_reader::map_csv_error(file_name, None, err))
-            })?
-            .clone();
-        // The header pass is bounded so a member with no line break cannot be
-        // inflated whole just to find the columns. Hitting that bound means the
-        // record was cut mid-field, and the second pass would then read a longer
-        // header than the `RowValidator` was built from -- so refuse instead of
-        // validating against a header we know is wrong.
-        if header_reader.into_inner().into_inner().limit() == 0 {
-            return Err(GtfsInputError::ZipFileIo {
-                path: PathBuf::from("<memory>"),
-                file: file_name.to_string(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!(
-                        "'{}' has no complete header row in its first {} bytes",
-                        file_name, HEADER_SCAN_BYTES
-                    ),
-                ),
-            });
-        }
-        let headers: Vec<String> = headers_record.iter().map(str::to_string).collect();
-
-        let mut header_notices = NoticeContainer::new();
-        validate_headers(file_name, &headers, &mut header_notices);
-        let has_header_errors = header_notices
-            .iter()
-            .any(|notice| notice.severity == NoticeSeverity::Error);
-        notices.merge(header_notices);
-        let validator = RowValidator::new(file_name, headers);
-        drop(archive);
-
-        let cursor = Cursor::new(&self.data);
-        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
-            path: PathBuf::from("<memory>"),
-            source: err,
-        })?;
-        let zipped = archive
-            .by_index(index)
-            .map_err(|err| GtfsInputError::ZipFile {
-                file: file_name.to_string(),
-                source: err,
-            })?;
-        let capped = CappedReader::new(
-            zipped,
+        f: impl FnOnce(&mut dyn Read) -> std::io::Result<O>,
+    ) -> Result<Option<O>, GtfsInputError> {
+        with_zip_member(
+            &mut self.archive()?,
             Path::new("<memory>"),
             file_name,
-            cap,
             &self.remaining_bytes,
-        );
-        // The parser flattens our `io::Error` into a message string, so the
-        // reason is read back off the reader's own flag instead.
-        let limit_flag = capped.limit_flag();
-        let capped = crate::csv_univocity::NormalizingReader::new(capped);
-        let (table, errors, row_notices) =
-            read_csv_from_reader_with_validation(capped, file_name, |record, line| {
-                if has_header_errors {
-                    Vec::new()
-                } else {
-                    validator.validate_row(record, line)
-                }
-            })
-            .map_err(|err| match limit_kind_from_flag(&limit_flag) {
-                Some(kind) => {
-                    let limit = match kind {
-                        LimitKind::Member => cap,
-                        LimitKind::Total => max_total_bytes(),
-                    };
-                    GtfsInputError::ZipFileIo {
-                        path: PathBuf::from("<memory>"),
-                        file: file_name.to_string(),
-                        source: limit_io_error(kind, file_name, limit),
-                    }
-                }
-                None => GtfsInputError::Csv(err),
-            })?;
-
-        if !has_header_errors {
-            for notice in row_notices {
-                notices.push(notice);
-            }
-        }
-        for error in errors {
-            if !skip_csv_parse_error(&table, &error) {
-                notices.push_csv_error(&error);
-            }
-        }
-        Ok(Some(table))
+            f,
+        )
     }
 
     pub fn read_csv<T: DeserializeOwned>(
         &self,
         file_name: &str,
     ) -> Result<CsvTable<T>, GtfsInputError> {
-        let data = self.read_file(file_name)?;
-        let data_str = decode_utf8_lossy(&data);
-        read_csv_from_reader(data_str.as_bytes(), file_name).map_err(GtfsInputError::Csv)
+        self.read_optional_csv(file_name)?
+            .ok_or_else(|| GtfsInputError::MissingFile(file_name.to_string()))
     }
 
     #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
@@ -1770,49 +1241,8 @@ impl GtfsBytesReader {
         notices: &mut NoticeContainer,
         pool: &crate::StringPool,
     ) -> Result<CsvTable<T>, GtfsInputError> {
-        let data = self.read_file(file_name)?;
-        let data_str = decode_utf8_lossy(&data);
-        let data_bytes = data_str.as_bytes();
-        // Peek headers for validator setup
-        let mut peek_reader = csv::ReaderBuilder::new()
-            .has_headers(true)
-            .flexible(true)
-            .trim(csv::Trim::None)
-            .from_reader(data_bytes);
-
-        let headers_record = match peek_reader.headers() {
-            Ok(h) => h.clone(),
-            Err(_) => {
-                let (table, _, _) =
-                    read_csv_from_reader_parallel(data_bytes, file_name, |_, _| Vec::new(), pool)
-                        .map_err(GtfsInputError::Csv)?;
-                return Ok(table);
-            }
-        };
-
-        let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
-        validate_headers(file_name, &headers, notices);
-        let validator = RowValidator::new(file_name, headers);
-
-        let (table, errors, row_notices) = read_csv_from_reader_parallel(
-            data_bytes,
-            file_name,
-            |record, line| validator.validate_row(record, line),
-            pool,
-        )
-        .map_err(GtfsInputError::Csv)?;
-
-        for notice in row_notices {
-            notices.push(notice);
-        }
-        for error in errors {
-            if skip_csv_parse_error(&table, &error) {
-                continue;
-            }
-            notices.push_csv_error(&error);
-        }
-
-        Ok(table)
+        self.read_optional_csv_with_notices(file_name, notices, pool)?
+            .ok_or_else(|| GtfsInputError::MissingFile(file_name.to_string()))
     }
 
     #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
@@ -1820,9 +1250,9 @@ impl GtfsBytesReader {
         &self,
         file_name: &str,
         notices: &mut NoticeContainer,
-        _pool: &crate::StringPool,
+        pool: &crate::StringPool,
     ) -> Result<CsvTable<T>, GtfsInputError> {
-        self.read_optional_csv_streaming_with_notices(file_name, notices)?
+        self.read_optional_csv_with_notices(file_name, notices, pool)?
             .ok_or_else(|| GtfsInputError::MissingFile(file_name.to_string()))
     }
 
@@ -1830,16 +1260,11 @@ impl GtfsBytesReader {
         &self,
         file_name: &str,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        match self.read_file(file_name) {
-            Ok(data) => {
-                let data_str = decode_utf8_lossy(&data);
-                read_csv_from_reader(data_str.as_bytes(), file_name)
-                    .map(Some)
-                    .map_err(GtfsInputError::Csv)
-            }
-            Err(GtfsInputError::MissingFile(_)) => Ok(None),
-            Err(err) => Err(err),
-        }
+        self.with_member(file_name, |reader| {
+            Ok(read_csv_from_reader(reader, file_name))
+        })?
+        .transpose()
+        .map_err(GtfsInputError::Csv)
     }
 
     #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
@@ -1849,58 +1274,9 @@ impl GtfsBytesReader {
         notices: &mut NoticeContainer,
         pool: &crate::StringPool,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        match self.read_file(file_name) {
-            Ok(data) => {
-                let data_str = decode_utf8_lossy(&data);
-                let data_bytes = data_str.as_bytes();
-                // Peek headers for validator setup
-                let mut peek_reader = csv::ReaderBuilder::new()
-                    .has_headers(true)
-                    .flexible(true)
-                    .trim(csv::Trim::None)
-                    .from_reader(data_bytes);
-
-                let headers_record = match peek_reader.headers() {
-                    Ok(h) => h.clone(),
-                    Err(_) => {
-                        let (table, _, _) = read_csv_from_reader_parallel(
-                            data_bytes,
-                            file_name,
-                            |_, _| Vec::new(),
-                            pool,
-                        )
-                        .map_err(GtfsInputError::Csv)?;
-                        return Ok(Some(table));
-                    }
-                };
-
-                let headers: Vec<String> = headers_record.iter().map(|s| s.to_string()).collect();
-                validate_headers(file_name, &headers, notices);
-                let validator = RowValidator::new(file_name, headers);
-
-                let (table, errors, row_notices) = read_csv_from_reader_parallel(
-                    data_bytes,
-                    file_name,
-                    |record, line| validator.validate_row(record, line),
-                    pool,
-                )
-                .map_err(GtfsInputError::Csv)?;
-
-                for notice in row_notices {
-                    notices.push(notice);
-                }
-                for error in errors {
-                    if skip_csv_parse_error(&table, &error) {
-                        continue;
-                    }
-                    notices.push_csv_error(&error);
-                }
-
-                Ok(Some(table))
-            }
-            Err(GtfsInputError::MissingFile(_)) => Ok(None),
-            Err(err) => Err(err),
-        }
+        self.with_member(file_name, |reader| {
+            load_table(reader, file_name, notices, pool)
+        })
     }
 
     #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
@@ -1908,9 +1284,11 @@ impl GtfsBytesReader {
         &self,
         file_name: &str,
         notices: &mut NoticeContainer,
-        _pool: &crate::StringPool,
+        pool: &crate::StringPool,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
-        self.read_optional_csv_streaming_with_notices(file_name, notices)
+        self.with_member(file_name, |reader| {
+            load_table(reader, file_name, notices, pool)
+        })
     }
 
     pub fn read_json<T: DeserializeOwned>(&self, file_name: &str) -> Result<T, GtfsInputError> {
@@ -1939,65 +1317,11 @@ impl GtfsBytesReader {
     }
 
     pub fn list_files(&self) -> Result<Vec<String>, GtfsInputError> {
-        let cursor = Cursor::new(&self.data);
-        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
-            path: PathBuf::from("<memory>"),
-            source: err,
-        })?;
-
-        let mut files = Vec::new();
-        for index in 0..archive.len() {
-            let file = archive
-                .by_index(index)
-                .map_err(|err| GtfsInputError::ZipFile {
-                    file: "<memory>".into(),
-                    source: err,
-                })?;
-            if file.is_dir() {
-                continue;
-            }
-            let name = file.name().to_string();
-            if name.contains('/') || name.contains('\\') {
-                continue;
-            }
-            files.push(name);
-        }
-        Ok(files)
+        list_zip_files(&mut self.archive()?, "<memory>")
     }
 
     pub fn has_nested_gtfs_files(&self) -> Result<bool, GtfsInputError> {
-        let cursor = Cursor::new(&self.data);
-        let mut archive = ZipArchive::new(cursor).map_err(|err| GtfsInputError::ZipArchive {
-            path: PathBuf::from("<memory>"),
-            source: err,
-        })?;
-
-        for index in 0..archive.len() {
-            let file = archive
-                .by_index(index)
-                .map_err(|err| GtfsInputError::ZipFile {
-                    file: "<memory>".into(),
-                    source: err,
-                })?;
-            if file.is_dir() {
-                continue;
-            }
-            let name = file.name().to_string();
-            if !(name.contains('/') || name.contains('\\')) {
-                continue;
-            }
-            let file_name = name
-                .rsplit(|ch| ch == '/' || ch == '\\')
-                .next()
-                .unwrap_or(name.as_str());
-            if GTFS_FILE_NAMES
-                .iter()
-                .any(|gtfs| gtfs.eq_ignore_ascii_case(file_name))
-            {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+        Ok(zip_has_nested_gtfs_files(&self.archive()?))
     }
 }
 
@@ -2023,7 +1347,6 @@ pub(crate) fn invalid_input_files_notice() -> ValidationNotice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::NoticeContainer;
     use std::fs;
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -2221,47 +1544,18 @@ mod tests {
         assert_eq!(limit_kind(&impostor), None);
     }
 
-    #[cfg(feature = "parallel")]
     #[test]
-    fn csv_limit_io_error_preserves_the_sentinel() {
-        let wrapped = csv::Error::from(limit_io_error(LimitKind::Total, "stops.txt", 32));
-        let recovered =
-            csv_limit_io_error(&wrapped).expect("limit error must survive the csv wrap");
-        assert_eq!(limit_kind(&recovered), Some(LimitKind::Total));
-
-        let unrelated = csv::Error::from(std::io::Error::other("disk gone"));
-        assert!(csv_limit_io_error(&unrelated).is_none());
-    }
-
-    #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
-    #[test]
-    fn header_pass_refuses_a_member_with_no_header_row_in_range() {
-        use std::io::Write as _;
-
-        let mut buffer = Vec::new();
-        {
-            let mut zip = ZipWriter::new(Cursor::new(&mut buffer));
-            zip.start_file("stops.txt", FileOptions::default())
-                .expect("zip file");
-            // One unterminated line, longer than the header scan window.
-            zip.write_all(&vec![b'a'; (HEADER_SCAN_BYTES + 2048) as usize])
-                .expect("zip data");
-            zip.finish().expect("finish zip");
+    fn limit_error_survives_the_csv_reader() {
+        let data = vec![b'x'; 4096];
+        let budget = AtomicU64::new(u64::MAX);
+        let capped = CappedReader::new(&data[..], Path::new("<test>"), "stops.txt", 16, &budget);
+        let mut scanner = crate::csv_reader::RecordScanner::new(capped, None);
+        match scanner.headers() {
+            Err(crate::csv_reader::ScanError::Io(err)) => {
+                assert_eq!(limit_kind(&err), Some(LimitKind::Member));
+            }
+            other => panic!("expected the limit error, got {other:?}"),
         }
-
-        let reader = GtfsBytesReader::from_zip_bytes(buffer);
-        let mut notices = NoticeContainer::new();
-        let err = reader
-            .read_optional_csv_with_notices::<ExampleRow>(
-                "stops.txt",
-                &mut notices,
-                &crate::StringPool::new(),
-            )
-            .expect_err("a header row that never ends must be refused");
-        assert!(
-            err.to_string().contains("no complete header row"),
-            "unexpected error: {err}"
-        );
     }
 
     #[test]

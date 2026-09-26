@@ -117,6 +117,7 @@ impl ValidatorRunner {
         progress: Option<&dyn ProgressHandler>,
         timing: Option<&crate::timing::TimingCollector>,
     ) -> NoticeContainer {
+        let gate = crate::table_status::DependencyGate::new(feed);
         self.validators
             .par_iter()
             .map(|validator| {
@@ -134,7 +135,7 @@ impl ValidatorRunner {
                 // `web_time::Instant` is backed by `performance.now()` on wasm32,
                 // so this path keeps real timings in the browser under `parallel`.
                 let start = Instant::now();
-                let res = self.run_single_validator(validator.as_ref(), feed);
+                let res = self.run_single_validator(validator.as_ref(), feed, &gate);
                 let elapsed = start.elapsed();
 
                 if let Some(t) = timing {
@@ -182,6 +183,7 @@ impl ValidatorRunner {
         let _thorough_guard = crate::set_thorough_mode_enabled(captured_thorough);
         let _notice_limit_guard = crate::set_notice_group_limit(captured_notice_limit);
 
+        let gate = crate::table_status::DependencyGate::new(feed);
         self.validators
             .iter()
             .map(|validator| {
@@ -190,7 +192,7 @@ impl ValidatorRunner {
                 }
 
                 let start = Instant::now();
-                let res = self.run_single_validator(validator.as_ref(), feed);
+                let res = self.run_single_validator(validator.as_ref(), feed, &gate);
                 let elapsed = start.elapsed();
 
                 if let Some(t) = timing {
@@ -216,8 +218,21 @@ impl ValidatorRunner {
             )
     }
 
-    fn run_single_validator(&self, validator: &dyn Validator, feed: &GtfsFeed) -> NoticeContainer {
-        let mut local_notices = NoticeContainer::new();
+    /// Run one validator. Its notices pass through `gate`, which drops those
+    /// the canonical validator would not raise because a table it depends on
+    /// failed to parse.
+    fn run_single_validator(
+        &self,
+        validator: &dyn Validator,
+        feed: &GtfsFeed,
+        gate: &crate::table_status::DependencyGate,
+    ) -> NoticeContainer {
+        // Filtering needs every notice, so the group cap waits until after it.
+        let mut local_notices = if gate.is_open() {
+            NoticeContainer::new()
+        } else {
+            NoticeContainer::with_group_limit(None)
+        };
         let start = Instant::now();
 
         // Set resolver hook for StringId serialization
@@ -238,6 +253,10 @@ impl ValidatorRunner {
             && std::env::var_os("GTFS_PERF_DEBUG").is_some()
         {
             eprintln!("[PERF] Validator {} took: {:?}", validator.name(), elapsed);
+        }
+
+        if !gate.is_open() {
+            local_notices = gate.filter(validator.name(), local_notices);
         }
 
         if let Err(panic) = result {

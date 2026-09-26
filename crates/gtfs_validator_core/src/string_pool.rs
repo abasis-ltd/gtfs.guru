@@ -44,7 +44,8 @@ impl StringPool {
     }
 
     pub fn intern(&self, s: &str) -> StringId {
-        let trimmed = s.trim();
+        // Java's `String.trim()`: `"R1\u{a0}"` stays distinct from `"R1"`.
+        let trimmed = gtfs_guru_model::java_trim(s);
         if trimmed.is_empty() {
             return StringId(0);
         }
@@ -101,6 +102,15 @@ mod tests {
         assert_eq!(pool.resolve(id1), "test");
         assert_eq!(pool.resolve(id3), "other");
         assert_eq!(pool.resolve(StringId(0)), "");
+    }
+
+    #[test]
+    fn intern_trims_like_java() {
+        let pool = StringPool::new();
+        assert_eq!(pool.intern(" R1\t"), pool.intern("R1"));
+        assert_ne!(pool.intern("R1\u{a0}"), pool.intern("R1"));
+        assert_eq!(pool.resolve(pool.intern("R1\u{a0}")), "R1\u{a0}");
+        assert_eq!(pool.intern("\u{1}"), StringId(0));
     }
 
     #[test]

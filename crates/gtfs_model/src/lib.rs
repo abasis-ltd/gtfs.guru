@@ -123,6 +123,13 @@ impl<'de> Deserialize<'de> for StringId {
     }
 }
 
+/// Java's `String.trim()`, which the canonical validator applies to every
+/// value: strips chars `<= U+0020` only, so a no-break or other Unicode space
+/// stays part of the value.
+pub fn java_trim(value: &str) -> &str {
+    value.trim_matches(|ch: char| ch <= '\u{20}')
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum GtfsParseError {
     #[error("invalid date format: {0}")]
@@ -146,7 +153,7 @@ pub struct GtfsDate {
 
 impl GtfsDate {
     pub fn parse(value: &str) -> Result<Self, GtfsParseError> {
-        let trimmed = value.trim();
+        let trimmed = java_trim(value);
         if trimmed.len() != 8 || !trimmed.chars().all(|ch| ch.is_ascii_digit()) {
             return Err(GtfsParseError::InvalidDateFormat(value.to_string()));
         }
@@ -224,7 +231,7 @@ impl GtfsTime {
     }
 
     pub fn parse(value: &str) -> Result<Self, GtfsParseError> {
-        let trimmed = value.trim();
+        let trimmed = java_trim(value);
         let parts: Vec<&str> = trimmed.split(':').collect();
         // Canonical pattern `(\d{1,3}):(\d\d):(\d\d)`: it rejects signs,
         // single-digit minutes/seconds, and hours long enough to overflow
@@ -327,7 +334,7 @@ impl GtfsColor {
     }
 
     pub fn parse(value: &str) -> Result<Self, GtfsParseError> {
-        let trimmed = value.trim();
+        let trimmed = java_trim(value);
         if trimmed.len() != 6 || !trimmed.chars().all(|ch| ch.is_ascii_hexdigit()) {
             return Err(GtfsParseError::InvalidColorFormat(value.to_string()));
         }
@@ -490,7 +497,7 @@ impl<'de> Deserialize<'de> for RouteType {
             }
 
             fn visit_str<E: de::Error>(self, value: &str) -> Result<RouteType, E> {
-                let trimmed = value.trim();
+                let trimmed = java_trim(value);
                 if trimmed.is_empty() {
                     return Err(E::custom("empty route_type"));
                 }
@@ -498,12 +505,18 @@ impl<'de> Deserialize<'de> for RouteType {
                 Ok(RouteType::from_i32(parsed))
             }
 
+            // Java reads route_type with `Integer.parseInt`: a value past 32
+            // bits is invalid, not wrapped into range.
             fn visit_i64<E: de::Error>(self, value: i64) -> Result<RouteType, E> {
-                Ok(RouteType::from_i32(value as i32))
+                i32::try_from(value)
+                    .map(RouteType::from_i32)
+                    .map_err(E::custom)
             }
 
             fn visit_u64<E: de::Error>(self, value: u64) -> Result<RouteType, E> {
-                Ok(RouteType::from_i32(value as i32))
+                i32::try_from(value)
+                    .map(RouteType::from_i32)
+                    .map_err(E::custom)
             }
         }
 
@@ -1352,5 +1365,29 @@ mod tests {
     fn rejects_invalid_color() {
         assert!(GtfsColor::parse("GG00AA").is_err());
         assert!(GtfsColor::parse("12345").is_err());
+    }
+
+    #[test]
+    fn parsers_trim_only_what_java_trims() {
+        assert_eq!(java_trim("\t\u{1} x \r"), "x");
+        assert!(GtfsDate::parse("20251231\u{2003}").is_err());
+        assert!(GtfsTime::parse("10:15:00\u{a0}").is_err());
+        assert!(GtfsColor::parse("00FF00\u{a0}").is_err());
+        assert!(GtfsDate::parse("\t20251231\r").is_ok());
+    }
+
+    #[test]
+    fn route_type_rejects_values_past_32_bits() {
+        use serde::de::value::{Error, I64Deserializer, StrDeserializer};
+        use serde::de::IntoDeserializer;
+        let parse_str = |value: &str| {
+            let deserializer: StrDeserializer<'_, Error> = value.into_deserializer();
+            RouteType::deserialize(deserializer)
+        };
+        assert_eq!(parse_str("3").unwrap(), RouteType::Bus);
+        assert!(parse_str("4294967299").is_err());
+        assert!(parse_str("3\u{a0}").is_err());
+        let deserializer: I64Deserializer<Error> = 4_294_967_299_i64.into_deserializer();
+        assert!(RouteType::deserialize(deserializer).is_err());
     }
 }
