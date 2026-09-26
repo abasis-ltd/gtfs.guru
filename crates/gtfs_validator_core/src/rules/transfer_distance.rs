@@ -41,14 +41,9 @@ impl Validator for TransferDistanceValidator {
                 continue;
             };
 
-            let Some((from_lat, from_lon)) = stop_or_parent_coords(from_stop_id, &stops_by_id)
-            else {
-                continue;
-            };
-            let Some((to_lat, to_lon)) = stop_or_parent_coords(to_stop_id, &stops_by_id) else {
-                continue;
-            };
-            let distance_meters = haversine_meters(from_lat, from_lon, to_lat, to_lon);
+            let (from_lat, from_lon) = stop_or_parent_coords(from_stop_id, &stops_by_id);
+            let (to_lat, to_lon) = stop_or_parent_coords(to_stop_id, &stops_by_id);
+            let distance_meters = s2_distance_meters(from_lat, from_lon, to_lat, to_lon);
             let distance_km = distance_meters / 1000.0;
 
             if distance_meters > MAX_DISTANCE_METERS {
@@ -92,7 +87,7 @@ fn has_transfer_stop_headers(headers: &[String]) -> bool {
 fn stop_or_parent_coords(
     stop_id: gtfs_guru_model::StringId,
     stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
-) -> Option<(f64, f64)> {
+) -> (f64, f64) {
     let mut current = stop_id;
     for _ in 0..3 {
         let stop = match stops_by_id.get(&current) {
@@ -100,7 +95,7 @@ fn stop_or_parent_coords(
             None => break,
         };
         if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
-            return Some((lat, lon));
+            return (lat, lon);
         }
         if let Some(parent_station) = stop.parent_station.filter(|id| id.0 != 0) {
             current = parent_station;
@@ -108,7 +103,8 @@ fn stop_or_parent_coords(
             break;
         }
     }
-    None
+    // Canonical StopUtil falls back to S2LatLng.CENTER after three levels.
+    (0.0, 0.0)
 }
 
 fn transfer_distance_notice(
@@ -134,18 +130,24 @@ fn transfer_distance_notice(
     notice
 }
 
-fn haversine_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    // S2Earth's radius, matching the canonical validator's measurements.
-    let radius_meters = 6_371_010.0;
-    let lat1_rad = lat1.to_radians();
-    let lat2_rad = lat2.to_radians();
-    let delta_lat = (lat2 - lat1).to_radians();
-    let delta_lon = (lon2 - lon1).to_radians();
-
-    let a = (delta_lat / 2.0).sin().powi(2)
-        + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
-    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
-    radius_meters * c
+fn s2_distance_meters(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    // S2Earth.getDistanceMeters(S2Point, S2Point): cross/dot angle, including
+    // antipodal points where the haversine expression can round above one.
+    fn point(lat: f64, lon: f64) -> [f64; 3] {
+        let lat = lat.to_radians();
+        let lon = lon.to_radians();
+        [lat.cos() * lon.cos(), lat.cos() * lon.sin(), lat.sin()]
+    }
+    let a = point(lat1, lon1);
+    let b = point(lat2, lon2);
+    let cross = [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ];
+    let norm = (cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]).sqrt();
+    let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    norm.atan2(dot) * 6_371_010.0
 }
 
 #[cfg(test)]
@@ -153,6 +155,48 @@ mod tests {
     use super::*;
     use crate::CsvTable;
     use gtfs_guru_model::{Stop, Transfer};
+
+    #[test]
+    fn missing_coordinates_use_canonical_center_and_antipodes_are_finite() {
+        let mut feed = GtfsFeed::default();
+        let missing = feed.pool.intern("missing");
+        let parent = feed.pool.intern("parent");
+        let child = feed.pool.intern("child");
+        let station = Stop {
+            stop_id: parent,
+            stop_lat: Some(45.0),
+            stop_lon: Some(0.0),
+            ..Default::default()
+        };
+        let boarding = Stop {
+            stop_id: child,
+            parent_station: Some(parent),
+            ..Default::default()
+        };
+        let map = HashMap::from([(parent, &station), (child, &boarding)]);
+        assert_eq!(stop_or_parent_coords(missing, &map), (0.0, 0.0));
+        assert_eq!(stop_or_parent_coords(child, &map), (45.0, 0.0));
+        feed.stops.rows = vec![station];
+        feed.transfers = Some(CsvTable {
+            headers: vec!["from_stop_id".into(), "to_stop_id".into()],
+            rows: vec![Transfer {
+                from_stop_id: Some(missing),
+                to_stop_id: Some(parent),
+                ..Default::default()
+            }],
+            row_numbers: vec![2],
+        });
+        let mut notices = NoticeContainer::new();
+        TransferDistanceValidator.validate(&feed, &mut notices);
+        assert!(notices
+            .iter()
+            .any(|n| n.code == CODE_TRANSFER_DISTANCE_TOO_LARGE));
+        assert!(
+            (s2_distance_meters(45.0, 0.0, -45.0, 180.0) - std::f64::consts::PI * 6_371_010.0)
+                .abs()
+                < 1e-8
+        );
+    }
 
     #[test]
     fn detects_distance_too_large() {

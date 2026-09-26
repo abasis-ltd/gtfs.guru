@@ -639,7 +639,7 @@ impl RowValidator {
                         ));
                     }
                 },
-                ValueCheck::Float(kind) => match trimmed.parse::<f64>() {
+                ValueCheck::Float(kind) => match gtfs_guru_model::parse_java_double(trimmed) {
                     Ok(value) => {
                         let out_of_range =
                             match kind {

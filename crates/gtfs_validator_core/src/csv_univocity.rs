@@ -5,7 +5,7 @@
 //! whitespace (any char `<= U+0020`, so `\r` too) around an unquoted value is
 //! dropped, a quote that follows such whitespace still opens a quoted value,
 //! whitespace inside quotes is kept, a line starting with `#` is a comment,
-//! and a value longer than 4096 chars aborts the file. RFC 4180 readers such
+//! and a value longer than 4096 chars or a record over 512 columns aborts the file. RFC 4180 readers such
 //! as the csv crate disagree on nearly all of that, so this pass rewrites the
 //! bytes once, before parsing, until the csv crate (configured with a `\n`
 //! terminator, see [`crate::csv_reader::csv_reader_builder`]) agrees:
@@ -30,7 +30,7 @@
 //! row number -- is the csv reader's line count after the record, minus one.
 //!
 //! The pass also enforces univocity's per-value length limit (see
-//! [`FieldTooLong`]), which it can only do here: the limit counts trailing
+//! [`CsvLimitError`]), which it can only do here: the limit counts trailing
 //! whitespace the pass removes.
 
 use std::io::{self, Read};
@@ -38,6 +38,7 @@ use std::io::{self, Read};
 /// Univocity's default `maxCharsPerColumn`, which the canonical validator
 /// keeps for every table but `areas.txt`.
 pub const DEFAULT_MAX_CHARS_PER_COLUMN: usize = 4096;
+pub const MAX_COLUMNS: u64 = 512;
 
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
@@ -131,16 +132,18 @@ fn count_newlines(bytes: &[u8]) -> u64 {
     byte_stats(bytes).1
 }
 
-/// A value longer than the column limit. The canonical validator reports it
+/// A value or record exceeding a configured parser limit. Java reports it
 /// as `csv_parsing_failed` carrying univocity's `TextParsingException` state,
 /// and stops reading the file.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldTooLong {
-    /// The limit that was exceeded.
+pub struct CsvLimitError {
+    /// Whether the record exceeded maxColumns rather than maxCharsPerColumn.
+    pub too_many_columns: bool,
+    /// Configured maxCharsPerColumn; usize::MAX represents unlimited.
     pub max_chars: usize,
-    /// Zero-based physical line of the offending char.
+    /// Univocity's physical line counter at failure.
     pub line_index: u64,
-    /// Zero-based index of the value within its record.
+    /// Univocity's column counter (513 when overflowing its 512-slot array).
     pub column_index: u64,
     /// Data records read before this one (the header is not counted).
     pub record_index: u64,
@@ -150,8 +153,13 @@ pub struct FieldTooLong {
     pub parsed_content: String,
 }
 
-impl std::fmt::Display for FieldTooLong {
+impl std::fmt::Display for CsvLimitError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.too_many_columns {
+            return f.write_str(
+                "java.lang.ArrayIndexOutOfBoundsException - Index 512 out of bounds for length 512",
+            );
+        }
         write!(
             f,
             "Length of parsed input ({}) exceeds the maximum number of characters defined in your parser settings ({}).",
@@ -161,17 +169,17 @@ impl std::fmt::Display for FieldTooLong {
     }
 }
 
-impl std::error::Error for FieldTooLong {}
+impl std::error::Error for CsvLimitError {}
 
-impl FieldTooLong {
+impl CsvLimitError {
     /// Recover the overflow from an `io::Error` produced by
     /// [`NormalizingReader`], if that is what it is.
-    pub fn from_io_error(err: &io::Error) -> Option<&FieldTooLong> {
-        err.get_ref()?.downcast_ref::<FieldTooLong>()
+    pub fn from_io_error(err: &io::Error) -> Option<&CsvLimitError> {
+        err.get_ref()?.downcast_ref::<CsvLimitError>()
     }
 
     /// Recover the overflow from a csv error wrapping the reader's `io::Error`.
-    pub fn from_csv_error(err: &csv::Error) -> Option<&FieldTooLong> {
+    pub fn from_csv_error(err: &csv::Error) -> Option<&CsvLimitError> {
         match err.kind() {
             csv::ErrorKind::Io(io_err) => Self::from_io_error(io_err),
             _ => None,
@@ -228,7 +236,7 @@ pub struct Normalizer {
     /// UTF-16 units and newlines in input consumed by earlier `push` calls.
     units_before: u64,
     lines_before: u64,
-    failed: Option<FieldTooLong>,
+    failed: Option<CsvLimitError>,
 }
 
 impl Default for Normalizer {
@@ -270,7 +278,7 @@ impl Normalizer {
         self
     }
 
-    pub fn push(&mut self, input: &[u8], out: &mut Vec<u8>) -> Result<(), FieldTooLong> {
+    pub fn push(&mut self, input: &[u8], out: &mut Vec<u8>) -> Result<(), CsvLimitError> {
         if let Some(err) = &self.failed {
             return Err(err.clone());
         }
@@ -300,7 +308,7 @@ impl Normalizer {
         self.process(input, out)
     }
 
-    fn process(&mut self, input: &[u8], out: &mut Vec<u8>) -> Result<(), FieldTooLong> {
+    fn process(&mut self, input: &[u8], out: &mut Vec<u8>) -> Result<(), CsvLimitError> {
         if self.field.open {
             self.field.out_start = out.len();
         }
@@ -309,14 +317,12 @@ impl Normalizer {
             self.failed = Some(err.clone());
             return Err(err);
         }
-        if self.max_chars.is_some() {
-            if self.field.open {
-                self.carry_field(out);
-            }
-            let (units, lines) = byte_stats(input);
-            self.units_before += units;
-            self.lines_before += lines;
+        if self.field.open {
+            self.carry_field(out);
         }
+        let (units, lines) = byte_stats(input);
+        self.units_before += units;
+        self.lines_before += lines;
         Ok(())
     }
 
@@ -367,7 +373,7 @@ impl Normalizer {
         input: &[u8],
         pos: usize,
         out: &[u8],
-    ) -> Result<(), FieldTooLong> {
+    ) -> Result<(), CsvLimitError> {
         if self.max_chars.is_none() {
             return Ok(());
         }
@@ -387,7 +393,7 @@ impl Normalizer {
     }
 
     #[cold]
-    fn check_length(&mut self, input: &[u8], pos: usize, out: &[u8]) -> Result<(), FieldTooLong> {
+    fn check_length(&mut self, input: &[u8], pos: usize, out: &[u8]) -> Result<(), CsvLimitError> {
         let max = self.max_chars.unwrap_or(usize::MAX);
         let raw = self.field_raw_prefix(out);
         // Raw bytes of the value, cap ignored: carried + this call + pending.
@@ -435,7 +441,8 @@ impl Normalizer {
         let at = pos.saturating_sub(after).min(input.len());
         let (char_len, _) = decode_char(&input[at..]);
         let through = (at + char_len).min(input.len());
-        Err(FieldTooLong {
+        Err(CsvLimitError {
+            too_many_columns: false,
             max_chars: max,
             line_index: self.lines_before + count_newlines(&input[..at]),
             column_index: self.column,
@@ -499,7 +506,11 @@ impl Normalizer {
             }
             // `input[i]` is the line's `\n`.
             let content = i - line_start - usize::from(cr);
-            if content > max_line {
+            if content > max_line
+                || (content >= MAX_COLUMNS as usize
+                    && input[line_start..i].iter().filter(|&&b| b == b',').count()
+                        >= MAX_COLUMNS as usize)
+            {
                 i = line_start;
                 break;
             }
@@ -517,7 +528,22 @@ impl Normalizer {
         i
     }
 
-    fn process_inner(&mut self, input: &[u8], out: &mut Vec<u8>) -> Result<(), FieldTooLong> {
+    fn check_columns(&self, input: &[u8], through: usize) -> Result<(), CsvLimitError> {
+        if self.column < MAX_COLUMNS {
+            return Ok(());
+        }
+        Err(CsvLimitError {
+            too_many_columns: true,
+            max_chars: self.max_chars.unwrap_or(usize::MAX),
+            line_index: self.lines_before + count_newlines(&input[..through]),
+            column_index: self.column + 1,
+            record_index: self.records.saturating_sub(1),
+            char_index: self.units_before + utf16_units(&input[..through]),
+            parsed_content: String::new(),
+        })
+    }
+
+    fn process_inner(&mut self, input: &[u8], out: &mut Vec<u8>) -> Result<(), CsvLimitError> {
         let mut i = 0;
         let n = input.len();
         while i < n {
@@ -534,6 +560,7 @@ impl Normalizer {
                         self.pending.push(b);
                         i += 1;
                     } else if b == b'\n' {
+                        self.check_columns(input, i + 1)?;
                         if self.at_line_start {
                             if !self.pending.is_empty()
                                 && (!self.seen_record || self.keep_whitespace_rows)
@@ -566,6 +593,7 @@ impl Normalizer {
                             out.push(b);
                             self.state = State::Quoted;
                         } else if b == b',' {
+                            self.check_columns(input, i + 1)?;
                             out.push(b);
                             self.column += 1;
                         } else {
@@ -607,6 +635,7 @@ impl Normalizer {
                             self.grow(1, input, i, out)?;
                         } else {
                             // Delimiter or line end: trailing whitespace goes.
+                            self.check_columns(input, i + 1)?;
                             self.pending.clear();
                             out.push(b);
                             self.state = State::FieldStart;
@@ -652,6 +681,7 @@ impl Normalizer {
                         // univocity skips whitespace after the closing quote.
                         i += 1;
                     } else if b == b',' || b == b'\n' {
+                        self.check_columns(input, i + 1)?;
                         out.push(b);
                         self.state = State::FieldStart;
                         if b == b'\n' {
@@ -678,7 +708,7 @@ impl Normalizer {
     /// Flush the end of input: close an open quote, terminate the last record,
     /// and turn a final whitespace-only line into the one-field row univocity
     /// reads there.
-    pub fn finish(&mut self, out: &mut Vec<u8>) -> Result<(), FieldTooLong> {
+    pub fn finish(&mut self, out: &mut Vec<u8>) -> Result<(), CsvLimitError> {
         if let Some(err) = &self.failed {
             return Err(err.clone());
         }
@@ -686,6 +716,11 @@ impl Normalizer {
             self.bom_done = true;
             let held = std::mem::take(&mut self.bom);
             self.process(&held, out)?;
+        }
+        // Univocity counts the unterminated final record as the next line.
+        if let Err(mut err) = self.check_columns(&[], 0) {
+            err.line_index += 1;
+            return Err(err);
         }
         match self.state {
             State::Comment => {}
@@ -722,7 +757,7 @@ fn memchr_newline(bytes: &[u8]) -> Option<usize> {
 }
 
 /// Normalise a whole buffer with the default column limit.
-pub fn normalize(data: &[u8]) -> Result<Vec<u8>, FieldTooLong> {
+pub fn normalize(data: &[u8]) -> Result<Vec<u8>, CsvLimitError> {
     normalize_with_limit(data, Some(DEFAULT_MAX_CHARS_PER_COLUMN))
 }
 
@@ -730,7 +765,7 @@ pub fn normalize(data: &[u8]) -> Result<Vec<u8>, FieldTooLong> {
 pub fn normalize_with_limit(
     data: &[u8],
     max_chars: Option<usize>,
-) -> Result<Vec<u8>, FieldTooLong> {
+) -> Result<Vec<u8>, CsvLimitError> {
     let mut out = Vec::with_capacity(data.len() + 1);
     let mut normalizer = Normalizer::with_max_chars(max_chars);
     normalizer.push(data, &mut out)?;
@@ -739,7 +774,7 @@ pub fn normalize_with_limit(
 }
 
 /// `Read` adapter applying the same pass to a stream. A value over the limit
-/// surfaces as an `io::Error` carrying [`FieldTooLong`].
+/// surfaces as an `io::Error` carrying [`CsvLimitError`].
 pub struct NormalizingReader<R> {
     inner: R,
     normalizer: Normalizer,
@@ -749,7 +784,7 @@ pub struct NormalizingReader<R> {
     eof: bool,
     /// An overflow found while normalising a chunk. The records before it are
     /// handed out first, as univocity parses them before it throws.
-    pending_error: Option<FieldTooLong>,
+    pending_error: Option<CsvLimitError>,
 }
 
 impl<R: Read> NormalizingReader<R> {
@@ -838,7 +873,7 @@ mod tests {
         input: &[u8],
         chunk: usize,
         max: Option<usize>,
-    ) -> Result<Vec<u8>, FieldTooLong> {
+    ) -> Result<Vec<u8>, CsvLimitError> {
         struct Chunked<'a>(&'a [u8], usize);
         impl Read for Chunked<'_> {
             fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -852,11 +887,36 @@ mod tests {
         NormalizingReader::with_max_chars(Chunked(input, chunk), max)
             .read_to_end(&mut out)
             .map_err(|err| {
-                FieldTooLong::from_io_error(&err)
+                CsvLimitError::from_io_error(&err)
                     .cloned()
                     .expect("overflow")
             })?;
         Ok(out)
+    }
+
+    #[test]
+    fn column_limit_counts_fields_not_quoted_commas_in_every_chunking() {
+        let valid = format!("{}\"x,y\"\n", "x,".repeat(511));
+        let invalid = format!("a,b\n{}y\n", "x,".repeat(512));
+        for chunk in [1, 7, 65536] {
+            assert!(norm_stream(valid.as_bytes(), chunk, Some(4096)).is_ok());
+            for max in [Some(4096), None] {
+                let err = norm_stream(invalid.as_bytes(), chunk, max).unwrap_err();
+                assert!(err.too_many_columns);
+                assert_eq!(
+                    (err.line_index, err.column_index, err.char_index),
+                    (2, 513, 1030)
+                );
+            }
+            assert!(
+                norm_stream(format!("{}\n", ",".repeat(512)).as_bytes(), chunk, None)
+                    .unwrap_err()
+                    .too_many_columns
+            );
+            let eof = norm_stream("x,".repeat(512).as_bytes(), chunk, None).unwrap_err();
+            assert!(eof.too_many_columns);
+            assert_eq!(eof.line_index, 1);
+        }
     }
 
     #[test]

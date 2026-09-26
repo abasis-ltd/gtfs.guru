@@ -1,47 +1,7 @@
 {
   "version": 1,
-  "description": "Approved differences between gtfs.guru and MobilityData/gtfs-validator on the mdb-50 catalogue set (scripts/real_world/mdb50.json), in the same format as expected_deltas.json. mdb_parity.py compare loads expected_deltas.json first, so feeds shared with the 12-feed corpus (mdb-3234, mdb-502) are approved there and not repeated here. Totals are pinned: a difference that changes size loses its approval and resurfaces.",
+  "description": "Approved differences between gtfs.guru and MobilityData/gtfs-validator on the mdb-50 catalogue set (scripts/real_world/mdb50.json), in the same format as expected_deltas.json. mdb_parity.py compare loads expected_deltas.json first, so feeds shared with the 12-feed corpus (currently mdb-502) are approved there and not repeated here. Totals are pinned: a difference that changes size loses its approval and resurfaces.",
   "entries": [
-    {
-      "feed_id": "mdb-1831",
-      "code": "duplicate_key",
-      "severity": "ERROR",
-      "java_total": "absent",
-      "guru_total": 2,
-      "triaged": true,
-      "added": "2026-09-15",
-      "reason": "Triaged 2026-09-15 (canon parity). agency.txt rows 24 and 89 repeat an agency_id that both validators see. Java reports nothing because nine agency.txt rows carry an invalid_url (agency_url is '-', reported by both validators as 9 invalid_url), its loader marks the whole table UNPARSABLE_ROWS, and every validator injecting the agency table, DuplicateKeyValidator included, is skipped for the feed. gtfs.guru keeps rows with field-level parse errors. Kept: the duplicate keys are real."
-    },
-    {
-      "feed_id": "mdb-1831",
-      "code": "start_and_end_range_equal",
-      "severity": "ERROR",
-      "java_total": "absent",
-      "guru_total": 555,
-      "triaged": true,
-      "added": "2026-09-15",
-      "reason": "Triaged 2026-09-15 (canon parity). The 555 frequencies.txt rows with start_time equal to end_time are the same 555 rows whose headway_secs is 0, which both validators report as number_out_of_range. Java drops those rows before validation (number_out_of_range marks frequencies.txt UNPARSABLE_ROWS and the frequencies validators are skipped), so it never sees the equal ranges. gtfs.guru keeps the rows. Kept: the notice is correct on the data."
-    },
-    {
-      "feed_id": "mdb-1831",
-      "code": "overlapping_frequency",
-      "severity": "ERROR",
-      "java_total": "absent",
-      "guru_total": 1,
-      "triaged": true,
-      "added": "2026-09-15",
-      "reason": "Triaged 2026-09-15 (canon parity). Same skip as start_and_end_range_equal: Java's OverlappingFrequencyValidator is not run once frequencies.txt has unparsable rows (555 number_out_of_range on headway_secs). gtfs.guru validates the rows that did parse and finds one overlapping pair. Kept."
-    },
-    {
-      "feed_id": "mdb-1901",
-      "code": "missing_feed_contact_email_and_url",
-      "severity": "WARNING",
-      "java_total": "absent",
-      "guru_total": 1,
-      "triaged": true,
-      "added": "2026-09-15",
-      "reason": "Triaged 2026-09-15 (canon parity). feed_info.txt row 2 has neither feed_contact_email nor feed_contact_url. Java drops that row before validation because feed_publisher_url is empty (the feed's single missing_required_field, reported by both validators), so FeedContactValidator sees an empty table and stays silent. gtfs.guru keeps rows with field-level errors. Same mechanism as mdb-3234 in expected_deltas.json. Kept: the contact fields really are missing."
-    },
     {
       "feed_id": "mdb-1831",
       "code": "stops_match_shape_out_of_order",

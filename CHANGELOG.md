@@ -7,6 +7,20 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Match Java 8.0.1 when transfer and shape matching cannot find coordinates in
+  a stop's parent chain; use the S2 point angle for transfer distances.
+- Enforce the canonical CSV limit of 512 columns, including quoted fields,
+  streamed input, and a final record without a newline. Accept Java floating
+  point suffixes and hexadecimal values in both validation and deserialization.
+- Remove leftover parser probe timers that compiled for WASM but panicked on
+  the first validation (`std::time::Instant` is unsupported there).
+- Emit unknown GeoJSON elements in a stable order and release threaded WASM
+  validation results immediately, including when result delivery throws.
+- Refresh the real-world baseline and remove six obsolete Java parity
+  exceptions after canonical row rejection and dependency gating fixes.
+
 ## [1.0.0] - 2026-09-15
 
 First stable release. The CLI, core, model, report, profile, MCP, web, WASM,

@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
+mod java_float;
+pub use java_float::parse_java_double;
+
 use compact_str::CompactString;
 use std::fmt;
 
@@ -795,7 +798,9 @@ pub struct Stop {
     pub stop_name: Option<CompactString>,
     pub tts_stop_name: Option<CompactString>,
     pub stop_desc: Option<CompactString>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub stop_lat: Option<f64>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub stop_lon: Option<f64>,
     pub zone_id: Option<StringId>,
     pub stop_url: Option<StringId>,
@@ -878,7 +883,9 @@ pub struct Trip {
     pub wheelchair_accessible: Option<WheelchairAccessible>,
     pub bikes_allowed: Option<BikesAllowed>,
     pub cars_allowed: Option<CarsAllowed>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub safe_duration_factor: Option<f64>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub safe_duration_offset: Option<f64>,
     pub continuous_pickup: Option<ContinuousPickupDropOff>,
     pub continuous_drop_off: Option<ContinuousPickupDropOff>,
@@ -900,6 +907,7 @@ pub struct StopTime {
     pub drop_off_booking_rule_id: Option<StringId>,
     pub continuous_pickup: Option<ContinuousPickupDropOff>,
     pub continuous_drop_off: Option<ContinuousPickupDropOff>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub shape_dist_traveled: Option<f64>,
     pub timepoint: Option<Timepoint>,
     pub start_pickup_drop_off_window: Option<GtfsTime>,
@@ -997,12 +1005,14 @@ pub struct CalendarDate {
 #[derive(Debug, Clone, Deserialize)]
 pub struct FareAttribute {
     pub fare_id: StringId,
+    #[serde(deserialize_with = "java_float::deserialize")]
     pub price: f64,
     pub currency_type: StringId,
     pub payment_method: PaymentMethod,
     pub transfers: Option<Transfers>,
     pub agency_id: Option<StringId>,
     pub transfer_duration: Option<u32>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub ic_price: Option<f64>,
 }
 
@@ -1034,9 +1044,12 @@ pub struct FareRule {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Shape {
     pub shape_id: StringId,
+    #[serde(deserialize_with = "java_float::deserialize")]
     pub shape_pt_lat: f64,
+    #[serde(deserialize_with = "java_float::deserialize")]
     pub shape_pt_lon: f64,
     pub shape_pt_sequence: u32,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub shape_dist_traveled: Option<f64>,
 }
 
@@ -1102,6 +1115,7 @@ impl Default for FareMedia {
 pub struct FareProduct {
     pub fare_product_id: StringId,
     pub fare_product_name: Option<CompactString>,
+    #[serde(deserialize_with = "java_float::deserialize")]
     pub amount: f64,
     pub currency: StringId,
     pub fare_media_id: Option<StringId>,
@@ -1233,6 +1247,7 @@ pub struct Attribution {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Level {
     pub level_id: StringId,
+    #[serde(deserialize_with = "java_float::deserialize")]
     pub level_index: f64,
     pub level_name: Option<CompactString>,
 }
@@ -1244,10 +1259,13 @@ pub struct Pathway {
     pub to_stop_id: StringId,
     pub pathway_mode: PathwayMode,
     pub is_bidirectional: Bidirectional,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub length: Option<f64>,
     pub traversal_time: Option<u32>,
     pub stair_count: Option<i32>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub max_slope: Option<f64>,
+    #[serde(default, deserialize_with = "java_float::deserialize_optional")]
     pub min_width: Option<f64>,
     pub signposted_as: Option<CompactString>,
     pub reversed_signposted_as: Option<CompactString>,

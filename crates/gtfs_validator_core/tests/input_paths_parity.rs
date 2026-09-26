@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use gtfs_guru_core::{engine, rules::default_runner, GtfsInput, ValidationNotice};
@@ -25,11 +26,20 @@ const CALENDAR: &str =
                         s1,1,1,1,1,1,0,0,20250101,20251231\n";
 
 fn temp_dir(prefix: &str) -> PathBuf {
+    // The system clock may return the same value to parallel test threads.
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("time")
         .as_nanos();
-    std::env::temp_dir().join(format!("{}_{}_{}", prefix, std::process::id(), nanos))
+    std::env::temp_dir().join(format!(
+        "{}_{}_{}_{}",
+        prefix,
+        std::process::id(),
+        nanos,
+        id
+    ))
 }
 
 /// The base feed with `overrides` replacing (or adding) files.
@@ -87,7 +97,7 @@ fn validate_everywhere(files: &[(String, Vec<u8>)]) -> Vec<ValidationNotice> {
     let bytes = zip_bytes(files);
 
     let dir = temp_dir("gtfs_paths");
-    fs::create_dir_all(&dir).expect("dir");
+    fs::create_dir(&dir).expect("unique dir");
     let zip_path = dir.join("feed.zip");
     fs::write(&zip_path, &bytes).expect("write zip");
     let feed_dir = dir.join("feed");
@@ -268,4 +278,36 @@ fn only_java_whitespace_is_trimmed_from_ids() {
         })
         .collect();
     assert_eq!(fk.len(), 1);
+}
+
+#[test]
+fn column_overflow_agrees_on_all_input_paths() {
+    for ending in ["\n", ""] {
+        let too_wide = format!("level_id,level_index\n{}x{ending}", "x,".repeat(512));
+        let notices = validate_everywhere(&feed_files(&[("levels.txt", too_wide.as_bytes())]));
+        let failure = notices
+            .iter()
+            .find(|n| n.code == "csv_parsing_failed")
+            .expect("column overflow");
+        assert_eq!(failure.context["columnIndex"], 513);
+        assert_eq!(failure.context["lineIndex"], 2);
+    }
+    let header = format!("{}last\n", "x,".repeat(512));
+    let notices = validate_everywhere(&feed_files(&[("levels.txt", header.as_bytes())]));
+    assert!(notices.iter().any(|n| n.code == "csv_parsing_failed"));
+}
+
+#[test]
+fn java_float_syntax_agrees_on_all_input_paths() {
+    let stops = STOPS.replace("40.7128,-74.0060", "40.7128d,-0x1.280624dd2f1aap6");
+    let notices = validate_everywhere(&feed_files(&[
+        ("stops.txt", stops.as_bytes()),
+        (
+            "levels.txt",
+            b"level_id,level_index,level_name\nL1,0x1.8p1F,First\nL2,1.5d,Second\n",
+        ),
+    ]));
+    assert!(!notices
+        .iter()
+        .any(|n| matches!(n.code.as_str(), "invalid_float" | "csv_parsing_failed")));
 }

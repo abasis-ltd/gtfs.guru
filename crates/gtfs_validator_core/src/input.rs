@@ -390,9 +390,9 @@ impl GtfsInputReader {
         pool: &crate::StringPool,
     ) -> Result<Option<CsvTable<T>>, GtfsInputError> {
         use crate::csv_reader::{
-            field_too_long_error, max_chars_per_column, RecordScanner, ScanError, TableBuilder,
+            csv_limit_error, max_chars_per_column, RecordScanner, ScanError, TableBuilder,
         };
-        use crate::csv_univocity::FieldTooLong;
+        use crate::csv_univocity::CsvLimitError;
         use std::sync::mpsc::sync_channel;
 
         if self.source != GtfsInputSource::Zip {
@@ -407,7 +407,7 @@ impl GtfsInputReader {
         enum Msg {
             Headers(Option<Vec<String>>),
             Batch(Vec<(u64, csv::ByteRecord)>),
-            TooLong(FieldTooLong),
+            LimitExceeded(CsvLimitError),
         }
 
         let (tx, rx) = sync_channel::<Msg>(CHANNEL_CAPACITY);
@@ -441,8 +441,8 @@ impl GtfsInputReader {
                         );
                         let headers = match scanner.headers() {
                             Ok(headers) => headers,
-                            Err(ScanError::TooLong(err)) => {
-                                let _ = tx.send(Msg::TooLong(err));
+                            Err(ScanError::LimitExceeded(err)) => {
+                                let _ = tx.send(Msg::LimitExceeded(err));
                                 return Ok(());
                             }
                             Err(ScanError::Io(err)) => return Err(err),
@@ -467,13 +467,13 @@ impl GtfsInputReader {
                                     }
                                 }
                                 Ok(None) => break,
-                                Err(ScanError::TooLong(err)) => {
+                                Err(ScanError::LimitExceeded(err)) => {
                                     if !batch.is_empty()
                                         && tx.send(Msg::Batch(std::mem::take(&mut batch))).is_err()
                                     {
                                         return Ok(());
                                     }
-                                    let _ = tx.send(Msg::TooLong(err));
+                                    let _ = tx.send(Msg::LimitExceeded(err));
                                     return Ok(());
                                 }
                                 Err(ScanError::Io(err)) => return Err(err),
@@ -492,7 +492,7 @@ impl GtfsInputReader {
             let ctx = crate::validation_context::ValidationContextState::capture();
             let mut builder: Option<TableBuilder<T>> = None;
             let mut table: Option<CsvTable<T>> = None;
-            let mut failure: Option<FieldTooLong> = None;
+            let mut failure: Option<CsvLimitError> = None;
 
             for msg in rx {
                 match msg {
@@ -518,9 +518,9 @@ impl GtfsInputReader {
                             break;
                         }
                     }
-                    Msg::TooLong(err) => {
+                    Msg::LimitExceeded(err) => {
                         if builder.is_none() {
-                            notices.push_csv_error(&field_too_long_error(file_name, &err, None));
+                            notices.push_csv_error(&csv_limit_error(file_name, &err, None));
                             table = Some(CsvTable::default());
                         } else {
                             failure = Some(err);

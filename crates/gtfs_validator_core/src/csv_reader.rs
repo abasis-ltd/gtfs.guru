@@ -4,7 +4,7 @@ use std::io::Read;
 use csv::{ByteRecord, ReaderBuilder, StringRecord, Terminator, Trim};
 use serde::de::DeserializeOwned;
 
-use crate::csv_univocity::{FieldTooLong, NormalizingReader, DEFAULT_MAX_CHARS_PER_COLUMN};
+use crate::csv_univocity::{CsvLimitError, NormalizingReader, DEFAULT_MAX_CHARS_PER_COLUMN};
 use crate::{NoticeContainer, NoticeSeverity, ValidationNotice};
 
 #[derive(Debug)]
@@ -91,16 +91,16 @@ pub(crate) fn csv_reader_builder() -> ReaderBuilder {
 /// Why a scan stopped early.
 #[derive(Debug)]
 pub(crate) enum ScanError {
-    /// A value over the column limit: univocity's `TextParsingException`.
-    TooLong(FieldTooLong),
+    /// A parser limit exceeded: univocity's `TextParsingException`.
+    LimitExceeded(CsvLimitError),
     /// The underlying reader failed.
     Io(std::io::Error),
 }
 
 impl ScanError {
     fn from_csv(err: csv::Error) -> Self {
-        if let Some(too_long) = FieldTooLong::from_csv_error(&err) {
-            return ScanError::TooLong(too_long.clone());
+        if let Some(too_long) = CsvLimitError::from_csv_error(&err) {
+            return ScanError::LimitExceeded(too_long.clone());
         }
         match err.into_kind() {
             csv::ErrorKind::Io(io_err) => ScanError::Io(io_err),
@@ -305,7 +305,7 @@ fn scan_error_to_parse_error(
     headers: Option<&[String]>,
 ) -> CsvParseError {
     match err {
-        ScanError::TooLong(too_long) => field_too_long_error(file, &too_long, headers),
+        ScanError::LimitExceeded(too_long) => csv_limit_error(file, &too_long, headers),
         ScanError::Io(err) => map_io_error(file, err),
     }
 }
@@ -323,12 +323,12 @@ pub(crate) fn map_io_error(file: &str, err: std::io::Error) -> CsvParseError {
     }
 }
 
-/// Univocity's `TextParsingException` for a value over the column limit, as the
+/// Univocity's `TextParsingException` for a field or column count overflow, as the
 /// canonical validator reports it in `csv_parsing_failed`. `headers` is `None`
 /// while the header itself is being read, where univocity has none to print.
-pub(crate) fn field_too_long_error(
+pub(crate) fn csv_limit_error(
     file: &str,
-    err: &FieldTooLong,
+    err: &CsvLimitError,
     headers: Option<&[String]>,
 ) -> CsvParseError {
     let headers_part = headers
@@ -347,9 +347,29 @@ pub(crate) fn field_too_long_error(
             format!("headers=[{}], ", names.join(", "))
         })
         .unwrap_or_default();
+    let prefix = if err.too_many_columns {
+        format!("{err}\n")
+    } else {
+        format!("{err} \n")
+    };
+    let content = if err.too_many_columns {
+        String::new()
+    } else {
+        format!(", content parsed={}", err.parsed_content)
+    };
+    let headers_part = headers_part.trim_end_matches(", ");
+    let headers_part = if headers_part.is_empty() {
+        String::new()
+    } else {
+        format!(", {headers_part}")
+    };
+    let max_chars = if err.max_chars == usize::MAX {
+        "-1".to_owned()
+    } else {
+        err.max_chars.to_string()
+    };
     let message = format!(
-        "Length of parsed input ({}) exceeds the maximum number of characters defined in your \
-parser settings ({}). \nParser Configuration: CsvParserSettings:\n\tAuto configuration enabled=true\n\
+        "{prefix}Parser Configuration: CsvParserSettings:\n\tAuto configuration enabled=true\n\
 \tAuto-closing enabled=true\n\tAutodetect column delimiter=false\n\tAutodetect quotes=false\n\
 \tColumn reordering enabled=true\n\tDelimiters for detection=null\n\tEmpty value=null\n\
 \tEscape unquoted values=false\n\tHeader extraction enabled=true\n\tHeaders=null\n\
@@ -365,16 +385,14 @@ parser settings ({}). \nParser Configuration: CsvParserSettings:\n\tAuto configu
 \t\tComment character=#\n\t\tField delimiter=,\n\t\tLine separator (normalized)=\\n\n\
 \t\tLine separator sequence=\\n\n\t\tQuote character=\"\n\t\tQuote escape character=\"\n\
 \t\tQuote escape escape character=null\nInternal state when error was thrown: line={}, \
-column={}, record={}, charIndex={}, {}content parsed={}",
-        err.max_chars + 1,
-        err.max_chars,
-        err.max_chars,
+column={}, record={}, charIndex={}{}{}",
+        max_chars,
         err.line_index,
         err.column_index,
         err.record_index,
         err.char_index,
         headers_part,
-        err.parsed_content,
+        content,
     );
     CsvParseError {
         file: file.to_string(),
@@ -384,7 +402,7 @@ column={}, record={}, charIndex={}, {}content parsed={}",
         char_index: Some(err.char_index),
         column_index: Some(err.column_index),
         line_index: Some(err.line_index),
-        parsed_content: Some(err.parsed_content.clone()),
+        parsed_content: (!err.too_many_columns).then(|| err.parsed_content.clone()),
     }
 }
 
@@ -745,8 +763,8 @@ where
             notices.push_empty_table(file_name);
             return Ok(CsvTable::default());
         }
-        Err(ScanError::TooLong(err)) => {
-            notices.push_csv_error(&field_too_long_error(file_name, &err, None));
+        Err(ScanError::LimitExceeded(err)) => {
+            notices.push_csv_error(&csv_limit_error(file_name, &err, None));
             return Ok(CsvTable::default());
         }
         Err(ScanError::Io(err)) => return Err(err),
@@ -766,7 +784,6 @@ where
     let ctx = crate::validation_context::ValidationContextState::capture();
 
     let mut failure = None;
-    let dbg_scan = std::time::Instant::now();
     loop {
         let mut batch = Vec::new();
         let mut done = false;
@@ -777,7 +794,7 @@ where
                     done = true;
                     break;
                 }
-                Err(ScanError::TooLong(err)) => {
+                Err(ScanError::LimitExceeded(err)) => {
                     failure = Some(err);
                     done = true;
                     break;
@@ -785,28 +802,15 @@ where
                 Err(ScanError::Io(err)) => return Err(err),
             }
         }
-        if std::env::var_os("PROBE").is_some() {
-            eprintln!("PROBE {file_name} scan: {:?}", dbg_scan.elapsed());
-        }
-        let dbg_t = std::time::Instant::now();
-        let dbg_n = batch.len();
         #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
         let more = builder.add_batch_parallel(batch, pool, &ctx);
-        if std::env::var_os("PROBE").is_some() {
-            eprintln!("PROBE {file_name} process {dbg_n}: {:?}", dbg_t.elapsed());
-        }
         #[cfg(any(not(feature = "parallel"), target_arch = "wasm32"))]
         let more = builder.add_batch_sequential(batch);
         if done || !more {
             break;
         }
     }
-    let dbg_t = std::time::Instant::now();
-    let table = builder.finish(failure.as_ref(), notices);
-    if std::env::var_os("PROBE").is_some() {
-        eprintln!("PROBE {file_name} finish: {:?}", dbg_t.elapsed());
-    }
-    Ok(table)
+    Ok(builder.finish(failure.as_ref(), notices))
 }
 
 /// Accumulates one table from batches of scanned records. Shared by
@@ -920,7 +924,7 @@ impl<T: DeserializeOwned> TableBuilder<T> {
     /// over the column limit that stopped the scan.
     pub(crate) fn finish(
         self,
-        failure: Option<&FieldTooLong>,
+        failure: Option<&CsvLimitError>,
         notices: &mut NoticeContainer,
     ) -> CsvTable<T> {
         for notice in self.notices {
@@ -933,7 +937,7 @@ impl<T: DeserializeOwned> TableBuilder<T> {
             }
         }
         if let Some(failure) = failure {
-            notices.push_csv_error(&field_too_long_error(
+            notices.push_csv_error(&csv_limit_error(
                 &self.file_name,
                 failure,
                 Some(&self.raw_headers),
@@ -987,6 +991,17 @@ mod tests {
     struct ExampleRow {
         a: i32,
         b: i32,
+    }
+
+    #[test]
+    fn java_numbers_deserialize_after_validation() {
+        let table = read_csv_from_reader::<gtfs_guru_model::Level, _>(
+            b"level_id,level_index,level_name\nL1,0x1.8p1F,First\nL2,1.5d,Second\n".as_slice(),
+            "levels.txt",
+        )
+        .unwrap();
+        assert_eq!(table.rows[0].level_index, 3.0);
+        assert_eq!(table.rows[1].level_index, 1.5);
     }
 
     #[test]

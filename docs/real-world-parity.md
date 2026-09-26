@@ -234,6 +234,21 @@ records the sha256 each approval was triaged against and `run` prints a note
 output from an earlier run, which is how a validator change is checked without
 waiting for the JVM.
 
+### Review follow-up (2026-09-26)
+
+After the CSV and table-dependency fixes, the pinned corpus has 11/12 exact
+notice fingerprints against Java 8.0.1. The remaining difference is the five
+`service_never_active` notices on `mdb-502`, an intentional additional rule.
+The `mdb-3234` baseline now matches Java; its two old approvals were removed.
+
+The same Rust build against the saved Java reports for the fifty catalogue
+snapshots yields 48/50 exact and 50/50 exact-on-shared. The remaining differences
+are `service_never_active` and one `stops_match_shape_out_of_order` occurrence on
+`mdb-1831` caused by floating point rounding, documented in the approvals.
+Four obsolete skip-after-parse approvals were removed from the catalogue set.
+These comparisons cover notice codes, severities and totals, not byte-for-byte
+identity of all sample contexts or report presentation.
+
 ## Files
 
 | Path | Purpose |

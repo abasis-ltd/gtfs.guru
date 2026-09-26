@@ -932,10 +932,7 @@ impl<'a> StopPoints<'a> {
             if stop_id.0 == 0 {
                 continue;
             }
-            let location = match stop_or_parent_location(stops_by_id, stop_id) {
-                Some(location) => location,
-                None => continue,
-            };
+            let location = stop_or_parent_location(stops_by_id, stop_id);
             points.push(StopPoint {
                 location,
                 user_distance: stop_time.shape_dist_traveled.unwrap_or(0.0),
@@ -1667,7 +1664,7 @@ fn cmp_f64(a: f64, b: f64) -> Ordering {
 fn stop_or_parent_location(
     stops_by_id: &HashMap<gtfs_guru_model::StringId, &gtfs_guru_model::Stop>,
     stop_id: gtfs_guru_model::StringId,
-) -> Option<LatLng> {
+) -> LatLng {
     let mut current_id = stop_id;
     for _ in 0..3 {
         let stop = match stops_by_id.get(&current_id) {
@@ -1675,14 +1672,15 @@ fn stop_or_parent_location(
             None => break,
         };
         if let (Some(lat), Some(lon)) = (stop.stop_lat, stop.stop_lon) {
-            return Some(LatLng { lat, lon });
+            return LatLng { lat, lon };
         }
         let Some(parent_id) = stop.parent_station.filter(|id| id.0 != 0) else {
             break;
         };
         current_id = parent_id;
     }
-    None
+    // Match StopUtil.getStopOrParentLatLng, also used by Java StopPoints.
+    LatLng { lat: 0.0, lon: 0.0 }
 }
 
 fn lat_lng(shape: &gtfs_guru_model::Shape) -> LatLng {
@@ -2117,6 +2115,14 @@ mod tests {
             }
             other => panic!("unexpected geometry: {other:?}"),
         }
+        // Missing coordinates must still be matched at Java's CENTER fallback.
+        feed.stops.rows[1].stop_lat = None;
+        feed.stops.rows[1].stop_lon = None;
+        let mut fallback = NoticeContainer::new();
+        ShapeToStopMatchingValidator.validate(&feed, &mut fallback);
+        assert!(fallback
+            .iter()
+            .any(|n| n.code == CODE_STOP_TOO_FAR_FROM_SHAPE));
     }
 
     #[test]

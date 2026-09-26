@@ -3,26 +3,6 @@
   "description": "Approved differences between gtfs.guru and MobilityData/gtfs-validator on the pinned real-world corpus. An entry documents a difference the project has decided to accept or has not triaged yet; anything not listed here is a parity regression. Totals are pinned, so a difference that changes size loses its approval and resurfaces. Use \"absent\" when a validator does not emit the code at all, and omit a total to accept any value. See docs/real-world-parity.md.",
   "entries": [
     {
-      "feed_id": "mdb-3234",
-      "code": "missing_pickup_drop_off_booking_rule_id",
-      "severity": "WARNING",
-      "java_total": "absent",
-      "guru_total": 12,
-      "triaged": true,
-      "added": "2026-08-14",
-      "reason": "Triaged 2026-09-15 (GTF-34). stop_times.txt rows 130-135 have pickup_type=2 and drop_off_type=2 with pickup/drop-off windows and no booking rule ids: 6 rows x 2 fields = 12, and the Java rule has the same semantics. Java reports nothing because booking_rules.txt row 7 carries an invalid_url, its loader marks that table UNPARSABLE_ROWS, and every validator injecting the booking rules table is skipped for the whole feed. gtfs.guru does not skip validators on field parse errors. Kept: these are genuine defects Java under-reports."
-    },
-    {
-      "feed_id": "mdb-3234",
-      "code": "missing_prior_notice_duration_min",
-      "severity": "ERROR",
-      "java_total": 11,
-      "guru_total": 12,
-      "triaged": true,
-      "added": "2026-08-14",
-      "reason": "Triaged 2026-09-15 (GTF-34). The extra occurrence is booking_rules.txt row 7 (booking_rule_000006): booking_type=1 and an empty prior_notice_duration_min, exactly like the eleven rows both validators report. Java drops the row before validation because its info_url fails to parse (the feed's single invalid_url, reported by both validators), so BookingRulesEntityValidator never sees it. gtfs.guru keeps rows with field-level parse errors. Kept: the notice is correct on the data."
-    },
-    {
       "feed_id": "mdb-502",
       "code": "service_never_active",
       "severity": "WARNING",

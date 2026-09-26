@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -22,7 +22,7 @@ pub(crate) struct GeoJsonFeatureCollection {
     #[serde(default)]
     pub features: Option<Vec<GeoJsonFeature>>,
     #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,7 +36,7 @@ pub(crate) struct GeoJsonFeature {
     #[serde(default)]
     pub geometry: Option<GeoJsonGeometry>,
     #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,7 +46,7 @@ pub(crate) struct GeoJsonGeometry {
     #[serde(default)]
     pub coordinates: Option<Value>,
     #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -707,6 +707,24 @@ fn point_near_pole_notice(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_elements_have_stable_order_at_every_level() {
+        let data = r#"{"type":"FeatureCollection","z":0,"a":0,"features":[{"type":"Feature","id":"x","properties":{},"z":0,"a":0,"geometry":{"type":"Point","coordinates":[0,0],"z":0,"a":0}}]}"#;
+        let collection: GeoJsonFeatureCollection = serde_json::from_str(data).unwrap();
+        let locations = LocationsGeoJson::new(collection, &crate::StringPool::default());
+        let fields: Vec<_> = locations
+            .notices
+            .iter()
+            .filter(|n| n.code == "geo_json_unknown_element")
+            .map(|n| n.context.clone())
+            .collect();
+        assert_eq!(fields.len(), 6);
+        for pair in fields.chunks_exact(2) {
+            assert_eq!(pair[0]["unknownElement"], "a");
+            assert_eq!(pair[1]["unknownElement"], "z");
+        }
+    }
 
     #[test]
     fn collects_location_ids_from_feature_collection() {
