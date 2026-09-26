@@ -47,14 +47,22 @@ docker image prune -f
 
 # Health check
 log_info "Checking service health..."
-sleep 3
+healthy=false
+for _ in $(seq 1 "${HEALTH_TIMEOUT:-60}"); do
+    if curl -sf --max-time 2 http://localhost:3000/healthz &>/dev/null; then
+        healthy=true
+        break
+    fi
+    sleep 1
+done
 
-if curl -sf http://localhost:3000/healthz &>/dev/null; then
+if [[ "$healthy" == true ]]; then
     echo ""
     echo -e "${GREEN}✅ Update complete! Service is healthy.${NC}"
 else
-    log_warn "Service may still be starting..."
+    log_warn "Service did not become healthy within ${HEALTH_TIMEOUT:-60}s"
     echo "Check logs with: docker compose logs -f"
+    exit 1
 fi
 
 echo ""

@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context};
 use axum::{
     body::Body,
-    extract::{Path as AxumPath, Query, Request, State},
+    body::Bytes,
+    extract::{ConnectInfo, Path as AxumPath, Query, Request, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -57,9 +58,21 @@ const DEFAULT_MAX_QUEUED_JOBS: usize = 64;
 /// many feeds we will parse.
 const DEFAULT_MAX_CONCURRENT_UPLOADS: usize = 4;
 
-/// How long a job may stay in `Processing` before cleanup reclaims it.
-/// Overridable via `GTFS_VALIDATOR_WEB_PROCESSING_TIMEOUT_SECONDS`.
+/// How long a validation may run before cleanup marks it failed. Measured from
+/// when validation actually starts, not from when the job was claimed, so time
+/// spent queueing for a run permit or uploading does not count. Overridable via
+/// `GTFS_VALIDATOR_WEB_PROCESSING_TIMEOUT_SECONDS`.
 const DEFAULT_PROCESSING_TIMEOUT_SECS: u128 = 30 * 60;
+
+/// How long a job may wait for its upload before cleanup drops it. Overridable
+/// via `GTFS_VALIDATOR_WEB_PENDING_UPLOAD_TTL_SECONDS`. Pending jobs count
+/// against `GTFS_VALIDATOR_WEB_MAX_QUEUED_JOBS`; with only the 24 h job TTL a
+/// burst of bodiless `POST /create-job` calls would lock uploads for a day.
+const DEFAULT_PENDING_UPLOAD_TTL_SECS: u64 = 15 * 60;
+
+/// How often the cleanup sweep runs. The sweep only holds the jobs lock to
+/// decide; the filesystem work runs on the blocking pool.
+const CLEANUP_INTERVAL: Duration = Duration::from_secs(60);
 
 /// How long an upload may stall between body chunks before it is abandoned.
 /// Overridable via `GTFS_VALIDATOR_WEB_UPLOAD_IDLE_TIMEOUT_SECONDS`. A client
@@ -75,11 +88,48 @@ const DEFAULT_UPLOAD_TIMEOUT_SECS: u64 = 30 * 60;
 
 /// Global create-job requests accepted per minute.
 const DEFAULT_MAX_CREATE_JOB_REQUESTS_PER_MINUTE: usize = 60;
+/// Create-job requests accepted per minute from one client address.
+const DEFAULT_MAX_CREATE_JOB_REQUESTS_PER_MINUTE_PER_CLIENT: usize = 10;
 
 /// Keep the browser proxy aligned with the WASM validator's input limit.
 const DEFAULT_MAX_PROXY_BYTES: usize = 70 * 1024 * 1024;
 const DEFAULT_MAX_CONCURRENT_PROXY_REQUESTS: usize = 4;
 const DEFAULT_MAX_PROXY_REQUESTS_PER_MINUTE: usize = 60;
+const DEFAULT_MAX_PROXY_REQUESTS_PER_MINUTE_PER_CLIENT: usize = 10;
+const DEFAULT_MAX_CONCURRENT_PROXY_REQUESTS_PER_CLIENT: usize = 2;
+/// Wall-clock ceiling on one proxy fetch. Overridable via
+/// `GTFS_VALIDATOR_WEB_PROXY_TIMEOUT_SECONDS`. reqwest's blocking timeout
+/// applies per read, so without an overall deadline four slow-drip upstreams
+/// could hold every proxy permit for as long as they keep dripping.
+const DEFAULT_PROXY_TIMEOUT_SECS: u64 = 120;
+/// Per-operation timeout (connect plus response headers, then each body read)
+/// for proxy fetches. The overall deadline is checked between reads, so a
+/// fetch ends at most this long after `DEFAULT_PROXY_TIMEOUT_SECS`.
+const PROXY_IO_TIMEOUT: Duration = Duration::from_secs(30);
+/// The same pair for server-side job downloads (`POST /create-job` with a
+/// `url`), which hold an admission and a run permit while they stream.
+const JOB_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
+const JOB_DOWNLOAD_IO_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Peers whose `X-Forwarded-For` is believed, as comma-separated addresses or
+/// CIDR ranges. Overridable via `GTFS_VALIDATOR_WEB_TRUSTED_PROXIES`; an empty
+/// value trusts no one.
+///
+/// Loopback covers a proxy on the same host as a bare process. Docker's
+/// default bridge and Compose pools (172.16.0.0/12, 192.168.0.0/16) are
+/// included because production runs in a container published on
+/// `127.0.0.1:3000`: the host's Caddy then reaches it through docker-proxy and
+/// the service sees the bridge gateway, not loopback. Trusting only loopback
+/// there would key every visitor to the gateway address and turn the
+/// per-client limits into a much smaller global one. Internet peers are never
+/// trusted; a deployment that exposes the port directly to a LAN in those
+/// ranges should narrow this.
+const DEFAULT_TRUSTED_PROXIES: &str = "127.0.0.0/8,::1,172.16.0.0/12,192.168.0.0/16";
+
+/// Sliding window shared by every rate limiter here.
+const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
+/// Per-client limiter size at which idle entries are swept out.
+const CLIENT_LIMITER_PRUNE_THRESHOLD: usize = 4096;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -118,7 +168,13 @@ async fn main() -> anyhow::Result<()> {
     let addr = "0.0.0.0:3000";
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("listening on {}", addr);
-    axum::serve(listener, app).await?;
+    // Connect info carries the TCP peer, which decides whether a request's
+    // `X-Forwarded-For` is believed when keying the per-client rate limits.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -174,6 +230,45 @@ struct Job {
     input_path: Option<PathBuf>,
     output_dir: Option<PathBuf>,
     error: Option<String>,
+    /// Kept in memory so cleanup decides from the map alone instead of
+    /// re-reading every `job.json` under the jobs lock.
+    created_at_millis: u128,
+    updated_at_millis: u128,
+    /// True while a `JobLease` owns the job: an upload handler or a worker may
+    /// still write its directory. Cleanup never removes such a job and nobody
+    /// else may claim it. Runtime only; a restart clears it (see `load_jobs`).
+    active: bool,
+    /// When validation actually began, after any queueing for a run permit.
+    /// The processing timeout is measured from here.
+    processing_started: Option<Instant>,
+}
+
+impl Job {
+    fn new(
+        id: String,
+        status: JobStatus,
+        country_code: Option<String>,
+        input_path: Option<PathBuf>,
+        output_dir: Option<PathBuf>,
+    ) -> Self {
+        let now = current_millis();
+        Self {
+            id,
+            status,
+            country_code,
+            input_path,
+            output_dir,
+            error: None,
+            created_at_millis: now,
+            updated_at_millis: now,
+            active: false,
+            processing_started: None,
+        }
+    }
+
+    fn touch(&mut self) {
+        self.updated_at_millis = current_millis();
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,17 +296,22 @@ struct AppState {
     upload_semaphore: Arc<Semaphore>,
     max_proxy_bytes: usize,
     proxy_semaphore: Arc<Semaphore>,
-    proxy_rate_limiter: Arc<ProxyRateLimiter>,
-    job_create_rate_limiter: Arc<ProxyRateLimiter>,
+    proxy_client_slots: Arc<ClientSlots>,
+    proxy_rate_limiter: Arc<RateLimits>,
+    proxy_timeout: Duration,
+    job_create_rate_limiter: Arc<RateLimits>,
+    trusted_proxies: Arc<Vec<IpNetwork>>,
     pubsub_token: Option<String>,
     processing_timeout_ms: u128,
+    pending_upload_ttl_ms: u128,
     upload_idle_timeout: Duration,
     upload_timeout: Duration,
 }
 
 impl AppState {
     fn new(base_dir: PathBuf, public_base_url: String) -> Self {
-        let jobs = load_jobs(&base_dir);
+        let pending_upload_ttl_ms = load_pending_upload_ttl_ms();
+        let jobs = load_jobs(&base_dir, pending_upload_ttl_ms, current_millis());
         let max_queued_jobs = load_max_queued_jobs();
         Self {
             jobs: Arc::new(RwLock::new(jobs)),
@@ -224,14 +324,32 @@ impl AppState {
             upload_semaphore: Arc::new(Semaphore::new(load_max_concurrent_uploads())),
             max_proxy_bytes: load_max_proxy_bytes(),
             proxy_semaphore: Arc::new(Semaphore::new(load_max_concurrent_proxy_requests())),
-            proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(
+            proxy_client_slots: Arc::new(ClientSlots::new(load_positive_usize(
+                "GTFS_VALIDATOR_WEB_MAX_CONCURRENT_PROXY_REQUESTS_PER_CLIENT",
+                DEFAULT_MAX_CONCURRENT_PROXY_REQUESTS_PER_CLIENT,
+            ))),
+            proxy_rate_limiter: Arc::new(RateLimits::new(
                 load_max_proxy_requests_per_minute(),
+                load_positive_usize(
+                    "GTFS_VALIDATOR_WEB_MAX_PROXY_REQUESTS_PER_MINUTE_PER_CLIENT",
+                    DEFAULT_MAX_PROXY_REQUESTS_PER_MINUTE_PER_CLIENT,
+                ),
             )),
-            job_create_rate_limiter: Arc::new(ProxyRateLimiter::new(
+            proxy_timeout: load_timeout_secs(
+                "GTFS_VALIDATOR_WEB_PROXY_TIMEOUT_SECONDS",
+                DEFAULT_PROXY_TIMEOUT_SECS,
+            ),
+            job_create_rate_limiter: Arc::new(RateLimits::new(
                 load_max_create_job_requests_per_minute(),
+                load_positive_usize(
+                    "GTFS_VALIDATOR_WEB_MAX_CREATE_JOB_REQUESTS_PER_MINUTE_PER_CLIENT",
+                    DEFAULT_MAX_CREATE_JOB_REQUESTS_PER_MINUTE_PER_CLIENT,
+                ),
             )),
+            trusted_proxies: Arc::new(load_trusted_proxies()),
             pubsub_token: load_pubsub_token(),
             processing_timeout_ms: load_processing_timeout_ms(),
+            pending_upload_ttl_ms,
             upload_idle_timeout: load_upload_idle_timeout(),
             upload_timeout: load_upload_timeout(),
         }
@@ -295,6 +413,34 @@ fn load_processing_timeout_ms() -> u128 {
             .unwrap_or(default_ms),
         Err(_) => default_ms,
     }
+}
+
+fn load_pending_upload_ttl_ms() -> u128 {
+    load_timeout_secs(
+        "GTFS_VALIDATOR_WEB_PENDING_UPLOAD_TTL_SECONDS",
+        DEFAULT_PENDING_UPLOAD_TTL_SECS,
+    )
+    .as_millis()
+}
+
+fn load_trusted_proxies() -> Vec<IpNetwork> {
+    let raw = std::env::var("GTFS_VALIDATOR_WEB_TRUSTED_PROXIES")
+        .unwrap_or_else(|_| DEFAULT_TRUSTED_PROXIES.to_string());
+    parse_trusted_proxies(&raw)
+}
+
+fn parse_trusted_proxies(raw: &str) -> Vec<IpNetwork> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .filter_map(|entry| {
+            let network = IpNetwork::parse(entry);
+            if network.is_none() {
+                tracing::warn!("ignoring invalid trusted proxy entry {:?}", entry);
+            }
+            network
+        })
+        .collect()
 }
 
 fn load_upload_idle_timeout() -> Duration {
@@ -369,15 +515,229 @@ impl ProxyRateLimiter {
         let Ok(mut requests) = self.requests.lock() else {
             return false;
         };
-        let cutoff = now - Duration::from_secs(60);
+        admit_in_window(&mut requests, now, self.max_requests)
+    }
+}
+
+/// Drop timestamps that left the window, then record `now` if there is room.
+fn admit_in_window(requests: &mut VecDeque<Instant>, now: Instant, max_requests: usize) -> bool {
+    // `checked_sub`: an `Instant` less than a window after the clock's origin
+    // has nothing older to expire, and plain subtraction would panic.
+    if let Some(cutoff) = now.checked_sub(RATE_LIMIT_WINDOW) {
         while requests.front().is_some_and(|request| *request <= cutoff) {
             requests.pop_front();
         }
-        if requests.len() >= self.max_requests {
-            return false;
+    }
+    if requests.len() >= max_requests {
+        return false;
+    }
+    requests.push_back(now);
+    true
+}
+
+/// A sliding window per client address, so one client cannot spend a budget
+/// meant for everyone.
+struct ClientRateLimiter {
+    max_requests: usize,
+    clients: Mutex<HashMap<IpAddr, VecDeque<Instant>>>,
+}
+
+impl ClientRateLimiter {
+    fn new(max_requests: usize) -> Self {
+        Self {
+            max_requests,
+            clients: Mutex::new(HashMap::new()),
         }
-        requests.push_back(now);
-        true
+    }
+
+    fn try_acquire(&self, client: IpAddr, now: Instant) -> bool {
+        let Ok(mut clients) = self.clients.lock() else {
+            return false;
+        };
+        if clients.len() >= CLIENT_LIMITER_PRUNE_THRESHOLD {
+            // Bound memory by forgetting clients with nothing left in the
+            // window; what remains is at most one window's worth of traffic.
+            let cutoff = now.checked_sub(RATE_LIMIT_WINDOW);
+            clients.retain(|_, requests| {
+                requests
+                    .back()
+                    .is_some_and(|last| cutoff.is_none_or(|cutoff| *last > cutoff))
+            });
+        }
+        admit_in_window(clients.entry(client).or_default(), now, self.max_requests)
+    }
+}
+
+/// A per-client window in front of a global one. The per-client check runs
+/// first and only what it admits is counted globally: were it the other way
+/// round, a client hammering the endpoint would use up the global budget with
+/// requests that are refused anyway, and lock everyone else out.
+struct RateLimits {
+    global: ProxyRateLimiter,
+    per_client: ClientRateLimiter,
+}
+
+impl RateLimits {
+    fn new(global: usize, per_client: usize) -> Self {
+        Self {
+            global: ProxyRateLimiter::new(global),
+            per_client: ClientRateLimiter::new(per_client),
+        }
+    }
+
+    fn try_acquire(&self, client: IpAddr, now: Instant) -> bool {
+        self.per_client.try_acquire(client, now) && self.global.try_acquire(now)
+    }
+}
+
+/// Caps how many requests one client may have in flight at once, so a single
+/// client cannot hold every global permit with slow requests.
+struct ClientSlots {
+    max_per_client: usize,
+    in_flight: Mutex<HashMap<IpAddr, usize>>,
+}
+
+/// One in-flight request; frees its slot when dropped.
+struct ClientSlot {
+    slots: Arc<ClientSlots>,
+    client: IpAddr,
+}
+
+impl ClientSlots {
+    fn new(max_per_client: usize) -> Self {
+        Self {
+            max_per_client,
+            in_flight: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn try_acquire(self: &Arc<Self>, client: IpAddr) -> Option<ClientSlot> {
+        let mut in_flight = self.in_flight.lock().ok()?;
+        let count = in_flight.entry(client).or_insert(0);
+        if *count >= self.max_per_client {
+            return None;
+        }
+        *count += 1;
+        Some(ClientSlot {
+            slots: Arc::clone(self),
+            client,
+        })
+    }
+}
+
+impl Drop for ClientSlot {
+    fn drop(&mut self) {
+        if let Ok(mut in_flight) = self.slots.in_flight.lock() {
+            if let Some(count) = in_flight.get_mut(&self.client) {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    in_flight.remove(&self.client);
+                }
+            }
+        }
+    }
+}
+
+/// An address or CIDR range, for `GTFS_VALIDATOR_WEB_TRUSTED_PROXIES`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct IpNetwork {
+    network: IpAddr,
+    prefix: u8,
+}
+
+impl IpNetwork {
+    fn parse(raw: &str) -> Option<Self> {
+        let (addr, prefix) = match raw.split_once('/') {
+            Some((addr, prefix)) => (addr.trim(), Some(prefix.trim().parse::<u8>().ok()?)),
+            None => (raw.trim(), None),
+        };
+        let addr = addr.parse::<IpAddr>().ok()?.to_canonical();
+        let max_prefix = if addr.is_ipv4() { 32 } else { 128 };
+        let prefix = prefix.unwrap_or(max_prefix);
+        if prefix > max_prefix {
+            return None;
+        }
+        Some(Self {
+            network: mask_ip(addr, prefix),
+            prefix,
+        })
+    }
+
+    fn contains(&self, ip: IpAddr) -> bool {
+        let ip = ip.to_canonical();
+        ip.is_ipv4() == self.network.is_ipv4() && mask_ip(ip, self.prefix) == self.network
+    }
+}
+
+fn mask_ip(ip: IpAddr, prefix: u8) -> IpAddr {
+    match ip {
+        IpAddr::V4(v4) => {
+            let mask = u32::MAX
+                .checked_shl(32 - u32::from(prefix.min(32)))
+                .unwrap_or(0);
+            IpAddr::V4((u32::from(v4) & mask).into())
+        }
+        IpAddr::V6(v6) => {
+            let mask = u128::MAX
+                .checked_shl(128 - u32::from(prefix.min(128)))
+                .unwrap_or(0);
+            IpAddr::V6((u128::from(v6) & mask).into())
+        }
+    }
+}
+
+/// The client address a request is attributed to.
+///
+/// `X-Forwarded-For` is read only when the TCP peer is a trusted proxy: from
+/// anyone else it is attacker-controlled and would let a client pick a fresh
+/// identity per request. The list is walked from the right, skipping trusted
+/// hops, so a client cannot prepend a spoofed entry in front of the address
+/// our own proxy appended.
+fn client_ip(peer: IpAddr, headers: &HeaderMap, trusted: &[IpNetwork]) -> IpAddr {
+    let is_trusted = |ip: IpAddr| trusted.iter().any(|network| network.contains(ip));
+    let mut client = peer.to_canonical();
+    if !is_trusted(client) {
+        return client;
+    }
+    let hops: Vec<&str> = headers
+        .get_all("x-forwarded-for")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .collect();
+    for hop in hops.iter().rev() {
+        let Some(ip) = parse_forwarded_ip(hop) else {
+            // Garbage in the chain: keep the last address we can vouch for.
+            break;
+        };
+        client = ip;
+        if !is_trusted(client) {
+            break;
+        }
+    }
+    client
+}
+
+fn parse_forwarded_ip(hop: &str) -> Option<IpAddr> {
+    let hop = hop.trim();
+    hop.parse::<IpAddr>()
+        .or_else(|_| hop.parse::<SocketAddr>().map(|addr| addr.ip()))
+        .ok()
+        .map(|ip| ip.to_canonical())
+}
+
+/// Key for the per-client limits. An IPv6 client usually controls a whole /64,
+/// so keying on the full address would let it rotate through fresh identities.
+fn rate_limit_key(ip: IpAddr) -> IpAddr {
+    match ip.to_canonical() {
+        IpAddr::V4(v4) => IpAddr::V4(v4),
+        v6 @ IpAddr::V6(_) => mask_ip(v6, 64),
+    }
+}
+
+impl AppState {
+    fn client_key(&self, peer: SocketAddr, headers: &HeaderMap) -> IpAddr {
+        rate_limit_key(client_ip(peer.ip(), headers, &self.trusted_proxies))
     }
 }
 
@@ -499,6 +859,7 @@ async fn version() -> Json<VersionResponse> {
 
 async fn cors_proxy(
     State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Query(query): Query<CorsProxyQuery>,
 ) -> Response {
@@ -508,23 +869,32 @@ async fn cors_proxy(
             "cross-site proxy requests are blocked",
         );
     }
-    if !state.proxy_rate_limiter.try_acquire(Instant::now()) {
+    let client = state.client_key(peer, &headers);
+    if !state.proxy_rate_limiter.try_acquire(client, Instant::now()) {
         return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "proxy rate limit exceeded");
     }
+    let Some(client_slot) = state.proxy_client_slots.try_acquire(client) else {
+        return plain_text_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many proxy requests in flight from this client",
+        );
+    };
     let Ok(permit) = state.proxy_semaphore.clone().try_acquire_owned() else {
         return plain_text_response(StatusCode::TOO_MANY_REQUESTS, "proxy is busy");
     };
 
     let url = query.url;
     let max_bytes = state.max_proxy_bytes;
+    let timeout = state.proxy_timeout;
     let result = tokio::task::spawn_blocking(move || {
         let _permit = permit;
+        let _client_slot = client_slot;
         // The guard resolves the host with a blocking lookup, so it runs here
         // rather than on an async worker, and only once the rate limiter has
         // admitted the request: a nameserver that never answers would
         // otherwise stall the runtime without counting against any limit.
         guard_public_url(&url).map_err(|_| None)?;
-        download_url_to_bytes(&url, max_bytes).map_err(Some)
+        download_url_to_bytes(&url, max_bytes, timeout).map_err(Some)
     })
     .await;
 
@@ -542,6 +912,9 @@ async fn cors_proxy(
             StatusCode::PAYLOAD_TOO_LARGE,
             "remote response is too large",
         ),
+        Ok(Err(Some(err))) if is_deadline_error(&err) => {
+            plain_text_response(StatusCode::GATEWAY_TIMEOUT, "remote fetch took too long")
+        }
         Ok(Err(Some(_))) => plain_text_response(StatusCode::BAD_GATEWAY, "remote fetch failed"),
         Err(_) => plain_text_response(StatusCode::INTERNAL_SERVER_ERROR, "proxy worker failed"),
     }
@@ -564,9 +937,25 @@ fn plain_text_response(status: StatusCode, message: &'static str) -> Response {
 
 async fn create_job(
     State(state): State<AppState>,
-    body: Option<Json<CreateJobRequest>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
 ) -> Response {
-    if !state.job_create_rate_limiter.try_acquire(Instant::now()) {
+    // A page on another site can POST here without a CORS preflight (a
+    // `no-cors` fetch or a plain form), which would let it spend its visitors'
+    // browsers on our pending-upload slots.
+    if is_cross_site_browser_request(&headers) {
+        return plain_text_response(StatusCode::FORBIDDEN, "cross-site job creation is blocked");
+    }
+    let body = match parse_create_job_body(&headers, &body) {
+        Ok(body) => body,
+        Err((status, message)) => return plain_text_response(status, message),
+    };
+    let client = state.client_key(peer, &headers);
+    if !state
+        .job_create_rate_limiter
+        .try_acquire(client, Instant::now())
+    {
         return plain_text_response(
             StatusCode::TOO_MANY_REQUESTS,
             "job creation rate limit exceeded",
@@ -586,14 +975,16 @@ async fn create_job(
         JobStatus::AwaitingUpload
     };
 
-    let job = Job {
-        id: job_id.clone(),
+    let mut job = Job::new(
+        job_id.clone(),
         status,
         country_code,
         input_path,
-        output_dir: Some(job_dir.join("output")),
-        error: None,
-    };
+        Some(job_dir.join("output")),
+    );
+    // A URL job is born owned by its worker, so it is never unowned while
+    // `Processing`.
+    job.active = source_url.is_some();
     // Counting and inserting under one write lock: two concurrent creates
     // cannot both observe the last free slot and both take it.
     if !insert_job_within_pending_cap(&state, job) {
@@ -602,7 +993,8 @@ async fn create_job(
     }
 
     if let Some(url) = source_url {
-        spawn_job_processing(state.clone(), job_id.clone(), url);
+        let lease = JobLease::adopt(state.clone(), job_id.clone(), LeaseStage::Processing);
+        spawn_job_processing(state.clone(), job_id.clone(), url, lease);
         Json(CreateJobResponse { job_id, url: None }).into_response()
     } else {
         Json(CreateJobResponse {
@@ -611,6 +1003,36 @@ async fn create_job(
         })
         .into_response()
     }
+}
+
+/// An empty body means "no options". Anything else must be JSON: a body sent
+/// as `text/plain` or a form is what a cross-site page can send without a
+/// preflight, and it used to be silently accepted as an option-less job.
+fn parse_create_job_body(
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Result<Option<CreateJobRequest>, (StatusCode, &'static str)> {
+    if body.iter().all(u8::is_ascii_whitespace) {
+        return Ok(None);
+    }
+    if !has_json_content_type(headers) {
+        return Err((
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "create-job expects an application/json body",
+        ));
+    }
+    serde_json::from_slice(body)
+        .map(Some)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "invalid create-job body"))
+}
+
+fn has_json_content_type(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(|essence| essence.trim().to_ascii_lowercase())
+        .is_some_and(|essence| essence == "application/json" || essence.ends_with("+json"))
 }
 
 async fn run_validator(
@@ -628,13 +1050,13 @@ async fn run_validator(
     let Some(job_id) = data.and_then(|name| extract_job_id(&name)) else {
         return StatusCode::BAD_REQUEST;
     };
-    match try_begin_processing(&state, &job_id) {
+    match try_begin_processing(&state, &job_id, LeaseStage::Processing) {
         BeginOutcome::NotFound => StatusCode::NOT_FOUND,
         // Already claimed by another handler / a redelivered event. Ack so
         // Pub/Sub stops retrying instead of piling on duplicate work.
         BeginOutcome::AlreadyActive => StatusCode::OK,
-        BeginOutcome::Started => {
-            spawn_job_processing(state.clone(), job_id, String::new());
+        BeginOutcome::Started(lease) => {
+            spawn_job_processing(state.clone(), job_id, String::new(), *lease);
             StatusCode::OK
         }
     }
@@ -656,11 +1078,16 @@ async fn upload_job(
     }
     // Claim the job before touching the body so a missing or already-running
     // id does not force the process to buffer hundreds of megabytes first.
-    match try_begin_processing(&state, &job_id) {
+    //
+    // The lease is also the drop guard: if the client disconnects, hyper drops
+    // this future mid-stream and none of the error arms below run. Dropping the
+    // lease then puts the job back to `AwaitingUpload` and removes the partial
+    // `input.zip`, instead of leaving it `Processing` (409 on every retry).
+    let lease = match try_begin_processing(&state, &job_id, LeaseStage::Upload) {
         BeginOutcome::NotFound => return StatusCode::NOT_FOUND,
         BeginOutcome::AlreadyActive => return StatusCode::CONFLICT,
-        BeginOutcome::Started => {}
-    }
+        BeginOutcome::Started(lease) => *lease,
+    };
     let admission = match state.admission_semaphore.clone().try_acquire_owned() {
         Ok(permit) => permit,
         Err(_) => {
@@ -746,7 +1173,13 @@ async fn upload_job(
     }
     drop(upload_permit);
     update_job_input(&state, &job_id, input_path);
-    spawn_job_processing_admitted(state, job_id, String::new(), admission);
+    spawn_job_processing_admitted(
+        state,
+        job_id,
+        String::new(),
+        admission,
+        lease.into_processing(),
+    );
     StatusCode::OK
 }
 
@@ -844,6 +1277,7 @@ fn update_job_input(state: &AppState, job_id: &str, input_path: PathBuf) {
     if let Ok(mut jobs) = state.jobs.write() {
         if let Some(job) = jobs.get_mut(job_id) {
             job.input_path = Some(input_path);
+            job.touch();
         }
     }
     persist_job_metadata(state, job_id);
@@ -854,9 +1288,52 @@ fn update_job_status(state: &AppState, job_id: &str, status: JobStatus, error: O
         if let Some(job) = jobs.get_mut(job_id) {
             job.status = status;
             job.error = error;
+            job.touch();
         }
     }
     persist_job_metadata(state, job_id);
+}
+
+/// Set the final status only if the job is still `Processing`. Cleanup may have
+/// marked a runaway validation as timed out in the meantime; the worker's late
+/// verdict must not overwrite that.
+fn set_status_if_processing(
+    state: &AppState,
+    job_id: &str,
+    status: JobStatus,
+    error: Option<String>,
+) -> bool {
+    let updated = {
+        let Ok(mut jobs) = state.jobs.write() else {
+            return false;
+        };
+        match jobs.get_mut(job_id) {
+            Some(job) if matches!(job.status, JobStatus::Processing) => {
+                job.status = status;
+                job.error = error;
+                job.processing_started = None;
+                job.touch();
+                true
+            }
+            _ => false,
+        }
+    };
+    if updated {
+        persist_job_metadata(state, job_id);
+    }
+    updated
+}
+
+fn job_is_processing(state: &AppState, job_id: &str) -> bool {
+    get_job(state, job_id).is_some_and(|job| matches!(job.status, JobStatus::Processing))
+}
+
+fn mark_processing_started(state: &AppState, job_id: &str) {
+    if let Ok(mut jobs) = state.jobs.write() {
+        if let Some(job) = jobs.get_mut(job_id) {
+            job.processing_started = Some(Instant::now());
+        }
+    }
 }
 
 fn job_output_path(state: &AppState, job_id: &str, name: &str) -> Result<PathBuf, StatusCode> {
@@ -875,7 +1352,7 @@ async fn read_file_response(
     Ok(([(header::CONTENT_TYPE, content_type)], data))
 }
 
-fn spawn_job_processing(state: AppState, job_id: String, url: String) {
+fn spawn_job_processing(state: AppState, job_id: String, url: String, lease: JobLease) {
     // Admission control: cap the number of jobs queued or running at once.
     // Without this, every request spawns a task that then waits on the run
     // semaphore, so a flood of requests piles up unbounded waiting tasks (each
@@ -894,7 +1371,7 @@ fn spawn_job_processing(state: AppState, job_id: String, url: String) {
             return;
         }
     };
-    spawn_job_processing_admitted(state, job_id, url, admission);
+    spawn_job_processing_admitted(state, job_id, url, admission, lease);
 }
 
 fn spawn_job_processing_admitted(
@@ -902,6 +1379,7 @@ fn spawn_job_processing_admitted(
     job_id: String,
     url: String,
     admission: tokio::sync::OwnedSemaphorePermit,
+    lease: JobLease,
 ) {
     tokio::spawn(async move {
         // Held for the whole lifetime of the job so the admission count only
@@ -922,22 +1400,25 @@ fn spawn_job_processing_admitted(
                 return;
             }
         };
+        // The processing timeout starts now, not at claim time: queueing for
+        // the run permit and the upload before it are not validation.
+        mark_processing_started(&state, &job_id);
         let state_for_block = state.clone();
         let job_id_for_block = job_id.clone();
         let url_for_block = url.clone();
         let result = tokio::task::spawn_blocking(move || {
+            // The lease rides with the blocking work, not with this task: a
+            // validation cannot be cancelled, so the job stays owned (and safe
+            // from cleanup) until the work has really stopped writing to its
+            // directory. A panic drops it too, which marks the job failed.
+            let _lease = lease;
             process_job(&state_for_block, &job_id_for_block, &url_for_block)
         })
         .await;
         drop(permit);
 
         if let Err(err) = result {
-            update_job_status(
-                &state,
-                &job_id,
-                JobStatus::Error,
-                Some(format!("join error: {}", err)),
-            );
+            tracing::error!("validation worker for {} failed: {}", job_id, err);
         }
     });
 }
@@ -1092,7 +1573,7 @@ fn extract_pubsub_token(headers: &HeaderMap) -> Option<&str> {
 /// Result of trying to move a job into the `Processing` state.
 enum BeginOutcome {
     /// The job existed and was atomically claimed for processing.
-    Started,
+    Started(Box<JobLease>),
     /// The job is already `Processing` or finished `Success`; caller must not
     /// start a second worker for it.
     AlreadyActive,
@@ -1102,19 +1583,25 @@ enum BeginOutcome {
 
 /// Atomically transition a job into `Processing`. Only jobs waiting for input
 /// or in a prior `Error` state may (re)start; this is the single point that
-/// prevents two workers writing the same job's output concurrently.
-fn try_begin_processing(state: &AppState, job_id: &str) -> BeginOutcome {
+/// prevents two workers writing the same job's output concurrently. A job
+/// still owned by a lease is never restarted, even once cleanup has marked its
+/// runaway validation as timed out: that worker is still writing.
+fn try_begin_processing(state: &AppState, job_id: &str, stage: LeaseStage) -> BeginOutcome {
     let started = {
         let Ok(mut jobs) = state.jobs.write() else {
             return BeginOutcome::NotFound;
         };
         match jobs.get_mut(job_id) {
             None => return BeginOutcome::NotFound,
+            Some(job) if job.active => false,
             Some(job) => match job.status {
                 JobStatus::Processing | JobStatus::Success => false,
                 JobStatus::AwaitingUpload | JobStatus::Error => {
                     job.status = JobStatus::Processing;
                     job.error = None;
+                    job.active = true;
+                    job.processing_started = None;
+                    job.touch();
                     true
                 }
             },
@@ -1122,9 +1609,105 @@ fn try_begin_processing(state: &AppState, job_id: &str) -> BeginOutcome {
     };
     if started {
         persist_job_metadata(state, job_id);
-        BeginOutcome::Started
+        BeginOutcome::Started(Box::new(JobLease::adopt(
+            state.clone(),
+            job_id.to_string(),
+            stage,
+        )))
     } else {
         BeginOutcome::AlreadyActive
+    }
+}
+
+/// Who holds a job, which decides how it is handed back if the holder goes
+/// away without recording an outcome.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LeaseStage {
+    /// An upload handler is streaming the body. Abandoned: the job goes back to
+    /// `AwaitingUpload` and the partial `input.zip` is removed.
+    Upload,
+    /// A worker is queued for, or running, validation. Abandoned: `Error`.
+    Processing,
+}
+
+/// Ownership of a job while it is `Processing` (the job's `active` flag).
+///
+/// While a lease is alive cleanup never removes the job, so its directory
+/// cannot vanish under a writer and a late write cannot resurrect a removed
+/// job. Dropping the lease is what releases it -- including when the owning
+/// future is dropped (client disconnect) or the worker panics.
+struct JobLease {
+    state: AppState,
+    job_id: String,
+    stage: LeaseStage,
+}
+
+impl JobLease {
+    /// Wrap a job whose `active` flag the caller has just set under the lock.
+    fn adopt(state: AppState, job_id: String, stage: LeaseStage) -> Self {
+        Self {
+            state,
+            job_id,
+            stage,
+        }
+    }
+
+    /// The upload finished; the same ownership continues into validation.
+    fn into_processing(mut self) -> Self {
+        self.stage = LeaseStage::Processing;
+        self
+    }
+}
+
+impl Drop for JobLease {
+    fn drop(&mut self) {
+        release_job(&self.state, &self.job_id, self.stage);
+    }
+}
+
+/// Hand a job back. An owner that went away without an outcome left it
+/// `Processing`; that is undone first, while the job is still owned, and only
+/// then is `active` cleared -- so cleanup can never remove the directory
+/// between the reset and its filesystem writes.
+fn release_job(state: &AppState, job_id: &str, stage: LeaseStage) {
+    let abandoned = {
+        let Ok(mut jobs) = state.jobs.write() else {
+            return;
+        };
+        let Some(job) = jobs.get_mut(job_id) else {
+            return;
+        };
+        let abandoned = matches!(job.status, JobStatus::Processing);
+        if abandoned {
+            match stage {
+                LeaseStage::Upload => {
+                    job.status = JobStatus::AwaitingUpload;
+                    job.error = None;
+                    job.input_path = None;
+                }
+                LeaseStage::Processing => {
+                    job.status = JobStatus::Error;
+                    job.error = Some("validation was interrupted".to_string());
+                }
+            }
+            job.processing_started = None;
+            job.touch();
+        }
+        abandoned
+    };
+    if abandoned {
+        let job_dir = state.base_dir.join(job_id);
+        if stage == LeaseStage::Upload {
+            let _ = std::fs::remove_file(job_dir.join("input.zip"));
+        } else {
+            write_execution_result(&job_dir, Err("validation was interrupted".to_string()));
+        }
+        persist_job_metadata(state, job_id);
+    }
+    if let Ok(mut jobs) = state.jobs.write() {
+        if let Some(job) = jobs.get_mut(job_id) {
+            job.active = false;
+        }
     }
 }
 
@@ -1138,48 +1721,66 @@ fn process_job(state: &AppState, job_id: &str, url: &str) {
     let input_path = if !url.is_empty() {
         let path = job_dir.join("input.zip");
         if let Err(err) = download_url_to_path(url, &path, state.max_upload_bytes) {
-            write_execution_result(&job_dir, Err(err.to_string()));
-            update_job_status(state, job_id, JobStatus::Error, Some(err.to_string()));
+            discard_job_input(state, job_id, &job_dir, &path);
+            finish_job(state, &job_dir, job_id, Err(err.to_string()));
             return;
         }
         path
     } else if let Some(input_path) = job.input_path.clone() {
         input_path
     } else {
-        write_execution_result(&job_dir, Err("missing input".to_string()));
-        update_job_status(
-            state,
-            job_id,
-            JobStatus::Error,
-            Some("missing input".to_string()),
-        );
+        finish_job(state, &job_dir, job_id, Err("missing input".to_string()));
         return;
     };
 
     let output_dir = job_dir.join("output");
-    if let Err(err) = std::fs::create_dir_all(&output_dir) {
-        write_execution_result(&job_dir, Err(err.to_string()));
-        update_job_status(state, job_id, JobStatus::Error, Some(err.to_string()));
+    let result = std::fs::create_dir_all(&output_dir)
+        .map_err(anyhow::Error::from)
+        .and_then(|()| {
+            let input_uri = if url.is_empty() { None } else { Some(url) };
+            run_validation(
+                &input_path,
+                &output_dir,
+                job.country_code.as_deref(),
+                input_uri,
+                Instant::now(),
+            )
+        });
+    // Only the reports are served, so the archive -- the bulk of a job's disk
+    // use -- goes as soon as validation is done rather than living out the job
+    // TTL. A retry uploads a fresh one.
+    discard_job_input(state, job_id, &job_dir, &input_path);
+    finish_job(
+        state,
+        &job_dir,
+        job_id,
+        result.map_err(|err| err.to_string()),
+    );
+}
+
+/// Record a worker's verdict, unless cleanup already marked the job as timed
+/// out: that verdict stands, together with the execution result it wrote.
+fn finish_job(state: &AppState, job_dir: &Path, job_id: &str, result: Result<(), String>) {
+    if !job_is_processing(state, job_id) {
         return;
     }
+    write_execution_result(job_dir, result.clone());
+    let (status, error) = match result {
+        Ok(()) => (JobStatus::Success, None),
+        Err(err) => (JobStatus::Error, Some(err)),
+    };
+    set_status_if_processing(state, job_id, status, error);
+}
 
-    let started_at = Instant::now();
-    let input_uri = if url.is_empty() { None } else { Some(url) };
-    let result = run_validation(
-        &input_path,
-        &output_dir,
-        job.country_code.as_deref(),
-        input_uri,
-        started_at,
-    );
-    match result {
-        Ok(()) => {
-            write_execution_result(&job_dir, Ok(()));
-            update_job_status(state, job_id, JobStatus::Success, None);
-        }
-        Err(err) => {
-            write_execution_result(&job_dir, Err(err.to_string()));
-            update_job_status(state, job_id, JobStatus::Error, Some(err.to_string()));
+/// Delete a job's input archive and forget its path. Only a file inside the
+/// job's own directory is removed; a path from elsewhere is left alone.
+fn discard_job_input(state: &AppState, job_id: &str, job_dir: &Path, input_path: &Path) {
+    if input_path.starts_with(job_dir) {
+        let _ = std::fs::remove_file(input_path);
+    }
+    if let Ok(mut jobs) = state.jobs.write() {
+        if let Some(job) = jobs.get_mut(job_id) {
+            job.input_path = None;
         }
     }
 }
@@ -1281,7 +1882,8 @@ fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Res
     // public addresses only.
     guard_public_url(url)?;
 
-    let client = build_public_http_client()?;
+    let deadline = Instant::now() + JOB_DOWNLOAD_TIMEOUT;
+    let client = build_public_http_client(JOB_DOWNLOAD_IO_TIMEOUT)?;
     let response = client
         .get(url)
         .send()
@@ -1290,17 +1892,26 @@ fn download_url_to_path(url: &str, path: &Path, max_bytes: usize) -> anyhow::Res
         .with_context(|| format!("download gtfs from {}", url))?;
     let mut file =
         std::fs::File::create(path).with_context(|| format!("create {}", path.display()))?;
-    copy_bounded(response, &mut file, max_bytes)
-        .with_context(|| format!("write {}", path.display()))
-        .inspect_err(|_| {
-            drop(std::fs::remove_file(path));
-        })?;
+    copy_bounded(
+        DeadlineReader::new(response, deadline),
+        &mut file,
+        max_bytes,
+    )
+    .with_context(|| format!("write {}", path.display()))
+    .inspect_err(|_| {
+        drop(std::fs::remove_file(path));
+    })?;
     Ok(())
 }
 
-fn download_url_to_bytes(url: &str, max_bytes: usize) -> anyhow::Result<Vec<u8>> {
+fn download_url_to_bytes(
+    url: &str,
+    max_bytes: usize,
+    timeout: Duration,
+) -> anyhow::Result<Vec<u8>> {
     guard_public_url(url)?;
-    let client = build_public_http_client()?;
+    let deadline = Instant::now() + timeout;
+    let client = build_public_http_client(PROXY_IO_TIMEOUT.min(timeout))?;
     let response = client
         .get(url)
         .send()
@@ -1313,11 +1924,57 @@ fn download_url_to_bytes(url: &str, max_bytes: usize) -> anyhow::Result<Vec<u8>>
         .unwrap_or(0)
         .min(max_bytes);
     let mut bytes = Vec::with_capacity(initial_capacity);
-    copy_bounded(response, &mut bytes, max_bytes)?;
+    copy_bounded(
+        DeadlineReader::new(response, deadline),
+        &mut bytes,
+        max_bytes,
+    )?;
     Ok(bytes)
 }
 
-fn build_public_http_client() -> anyhow::Result<Client> {
+const DEADLINE_MESSAGE: &str = "remote transfer exceeded its time limit";
+
+/// Fails reads once `deadline` has passed. reqwest's blocking timeout bounds
+/// each read separately, so an upstream that drips a byte just inside it would
+/// otherwise keep a transfer (and the permits behind it) alive indefinitely.
+/// A read already in progress still ends by the per-read timeout.
+struct DeadlineReader<R> {
+    inner: R,
+    deadline: Instant,
+}
+
+impl<R> DeadlineReader<R> {
+    fn new(inner: R, deadline: Instant) -> Self {
+        Self { inner, deadline }
+    }
+}
+
+impl<R: std::io::Read> std::io::Read for DeadlineReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if Instant::now() >= self.deadline {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                DEADLINE_MESSAGE,
+            ));
+        }
+        self.inner.read(buf)
+    }
+}
+
+fn is_deadline_error(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::TimedOut)
+            || cause
+                .downcast_ref::<reqwest::Error>()
+                .is_some_and(reqwest::Error::is_timeout)
+    })
+}
+
+/// `io_timeout` bounds each blocking operation (connect plus response headers,
+/// then every body read); callers add an overall deadline with `DeadlineReader`.
+fn build_public_http_client(io_timeout: Duration) -> anyhow::Result<Client> {
     Client::builder()
         .user_agent(format!(
             "gtfs-validator-rust-web/{}",
@@ -1325,8 +1982,7 @@ fn build_public_http_client() -> anyhow::Result<Client> {
         ))
         .dns_resolver(Arc::new(PublicOnlyResolver))
         .connect_timeout(Duration::from_secs(10))
-        // Overall cap; large public feeds can take a while to stream.
-        .timeout(Duration::from_secs(600))
+        .timeout(io_timeout)
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 10 {
                 return attempt.error(std::io::Error::other("too many redirects"));
@@ -1536,60 +2192,121 @@ fn extract_job_id(name: &str) -> Option<String> {
 
 fn spawn_job_cleanup(state: AppState) {
     let ttl_ms = load_job_ttl_ms();
-    if ttl_ms == 0 {
-        return;
-    }
+    // Runs even with the job TTL disabled (0): pending uploads and runaway
+    // validations have their own deadlines.
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        let mut interval = tokio::time::interval(CLEANUP_INTERVAL);
         loop {
             interval.tick().await;
-            cleanup_jobs(&state, ttl_ms);
+            cleanup_jobs(&state, ttl_ms).await;
         }
     });
 }
 
-fn cleanup_jobs(state: &AppState, ttl_ms: u128) {
-    let now = current_millis();
-    let mut expired = Vec::new();
-    let mut known_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
-    if let Ok(jobs) = state.jobs.read() {
-        for (job_id, job) in jobs.iter() {
-            known_ids.insert(job_id.clone());
-            let job_dir = state.base_dir.join(job_id);
-            // Prefer metadata timestamp; fall back to the directory mtime, then
-            // to 0 (== expired) so a job whose metadata is unreadable is still
-            // reclaimed instead of living forever.
-            let updated_at = read_metadata_timestamp(&job_dir.join("job.json"))
-                .or_else(|| dir_mtime_millis(&job_dir))
-                .unwrap_or(0);
-            let age = now.saturating_sub(updated_at);
-            let timed_out_processing =
-                matches!(job.status, JobStatus::Processing) && age >= state.processing_timeout_ms;
-            if matches!(job.status, JobStatus::Processing) && !timed_out_processing {
-                continue;
+/// What one cleanup pass decided, computed from the in-memory map alone.
+#[derive(Debug, Default)]
+struct CleanupPlan {
+    /// Directories of jobs already dropped from the map.
+    remove_dirs: Vec<PathBuf>,
+    /// Owned jobs whose validation ran past the processing timeout and were
+    /// just marked failed; their metadata still has to be written.
+    timed_out: Vec<String>,
+    /// Every job still in the map, so the orphan sweep leaves them alone.
+    known_ids: HashSet<String>,
+}
+
+/// One cleanup pass. Deciding happens under the jobs lock and touches no disk;
+/// the filesystem work (metadata writes, `remove_dir_all`, the orphan scan)
+/// then runs on the blocking pool with the lock released, so neither the
+/// runtime's worker threads nor every other request wait on it.
+async fn cleanup_jobs(state: &AppState, ttl_ms: u128) {
+    let plan = plan_cleanup(state, ttl_ms, current_millis(), Instant::now());
+    let state = state.clone();
+    let _ = tokio::task::spawn_blocking(move || apply_cleanup(&state, plan, ttl_ms)).await;
+}
+
+fn plan_cleanup(state: &AppState, ttl_ms: u128, now_millis: u128, now: Instant) -> CleanupPlan {
+    let mut plan = CleanupPlan::default();
+    let Ok(mut jobs) = state.jobs.write() else {
+        return plan;
+    };
+    jobs.retain(|job_id, job| {
+        let job_dir = state.base_dir.join(job_id);
+        if job.active {
+            // Owned by a live upload or worker, which may still be writing the
+            // job directory: never removed here. A validation past its deadline
+            // is marked failed instead; the worker cannot be cancelled, so the
+            // job is reclaimed by the TTL only after it has let go.
+            let overdue = matches!(job.status, JobStatus::Processing)
+                && job.processing_started.is_some_and(|started| {
+                    now.saturating_duration_since(started).as_millis()
+                        >= state.processing_timeout_ms
+                });
+            if overdue {
+                job.status = JobStatus::Error;
+                job.error = Some(processing_timeout_message(state));
+                job.processing_started = None;
+                job.updated_at_millis = now_millis;
+                plan.timed_out.push(job_id.clone());
             }
-            if timed_out_processing || age >= ttl_ms {
-                expired.push((job_id.clone(), job.output_dir.clone()));
+            plan.known_ids.insert(job_id.clone());
+            return true;
+        }
+        let age = now_millis.saturating_sub(job.updated_at_millis);
+        let expired = match job.status {
+            // Measured from creation, so a client that keeps starting and
+            // abandoning uploads cannot keep the pending slot alive.
+            JobStatus::AwaitingUpload => {
+                now_millis.saturating_sub(job.created_at_millis) >= state.pending_upload_ttl_ms
+                    || (ttl_ms > 0 && age >= ttl_ms)
+            }
+            // `Processing` with no owner should not exist (leases and
+            // `load_jobs` both resolve it); reclaim it rather than keep it.
+            JobStatus::Processing => age >= state.processing_timeout_ms,
+            JobStatus::Success | JobStatus::Error => ttl_ms > 0 && age >= ttl_ms,
+        };
+        if !expired {
+            plan.known_ids.insert(job_id.clone());
+            return true;
+        }
+        if let Some(output_dir) = job.output_dir.as_ref() {
+            if !output_dir.starts_with(&job_dir) {
+                plan.remove_dirs.push(output_dir.clone());
             }
         }
-    }
+        plan.remove_dirs.push(job_dir);
+        false
+    });
+    plan
+}
 
-    if !expired.is_empty() {
-        if let Ok(mut jobs) = state.jobs.write() {
-            for (job_id, output_dir) in &expired {
-                jobs.remove(job_id);
-                let job_dir = state.base_dir.join(job_id);
-                let _ = std::fs::remove_dir_all(&job_dir);
-                if let Some(output_dir) = output_dir.as_ref() {
-                    let _ = std::fs::remove_dir_all(output_dir);
-                }
-            }
-        }
-    }
+fn processing_timeout_message(state: &AppState) -> String {
+    format!(
+        "validation timed out after {} seconds",
+        state.processing_timeout_ms / 1000
+    )
+}
 
+fn apply_cleanup(state: &AppState, plan: CleanupPlan, ttl_ms: u128) {
+    for job_id in &plan.timed_out {
+        // Still owned by its worker, so the directory is still there.
+        write_execution_result(
+            &state.base_dir.join(job_id),
+            Err(processing_timeout_message(state)),
+        );
+        persist_job_metadata(state, job_id);
+    }
+    for dir in &plan.remove_dirs {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    if ttl_ms == 0 {
+        return;
+    }
     // Reclaim orphan directories that never made it into the in-memory map
-    // (e.g. a job.json that failed to parse on load): the loop above can never
-    // see them, so they would otherwise leak disk indefinitely.
+    // (e.g. a job.json that failed to parse on load): the pass above can never
+    // see them, so they would otherwise leak disk indefinitely. A job created
+    // after the snapshot is not in `known_ids`, but its directory is fresh.
+    let now = current_millis();
     if let Ok(entries) = std::fs::read_dir(&state.base_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -1600,7 +2317,7 @@ fn cleanup_jobs(state: &AppState, ttl_ms: u128) {
                 Some(name) => name.to_string(),
                 None => continue,
             };
-            if known_ids.contains(&name) {
+            if plan.known_ids.contains(&name) {
                 continue;
             }
             let updated_at = dir_mtime_millis(&path).unwrap_or(0);
@@ -1619,12 +2336,6 @@ fn dir_mtime_millis(path: &Path) -> Option<u128> {
             .unwrap_or_default()
             .as_millis(),
     )
-}
-
-fn read_metadata_timestamp(path: &Path) -> Option<u128> {
-    let data = std::fs::read_to_string(path).ok()?;
-    let metadata: JobMetadata = serde_json::from_str(&data).ok()?;
-    Some(metadata.updated_at_millis)
 }
 
 fn load_job_ttl_ms() -> u128 {
@@ -1647,7 +2358,16 @@ fn current_millis() -> u128 {
         .as_millis()
 }
 
-fn load_jobs(base_dir: &Path) -> HashMap<String, Job> {
+/// Read jobs back after a restart. No lease survives a restart, so a job left
+/// `Processing` is resolved here instead of blocking re-uploads with 409 until
+/// cleanup reclaims it: an upload that never completed goes back to
+/// `AwaitingUpload`, a validation that was cut off becomes an error. Pending
+/// jobs past their TTL are dropped outright.
+fn load_jobs(
+    base_dir: &Path,
+    pending_upload_ttl_ms: u128,
+    now_millis: u128,
+) -> HashMap<String, Job> {
     let mut jobs = HashMap::new();
     let entries = match std::fs::read_dir(base_dir) {
         Ok(entries) => entries,
@@ -1664,10 +2384,34 @@ fn load_jobs(base_dir: &Path) -> HashMap<String, Job> {
             Ok(data) => data,
             Err(_) => continue,
         };
-        let metadata: JobMetadata = match serde_json::from_str(&data) {
+        let mut metadata: JobMetadata = match serde_json::from_str(&data) {
             Ok(meta) => meta,
             Err(_) => continue,
         };
+        if matches!(metadata.status, JobStatus::Processing) {
+            // `input_path` is set up front for URL jobs and after a finished
+            // upload for upload jobs; unset means the upload never completed.
+            let upload_completed = metadata.input_path.is_some();
+            if upload_completed {
+                metadata.status = JobStatus::Error;
+                metadata.error = Some("interrupted by restart".to_string());
+                write_execution_result(&path, Err("interrupted by restart".to_string()));
+            } else {
+                metadata.status = JobStatus::AwaitingUpload;
+                metadata.error = None;
+            }
+            // Either way the archive is stale or partial; a retry uploads anew.
+            let _ = std::fs::remove_file(path.join("input.zip"));
+            metadata.input_path = None;
+            metadata.updated_at_millis = now_millis;
+            write_job_metadata(&path, &metadata);
+        }
+        if matches!(metadata.status, JobStatus::AwaitingUpload)
+            && now_millis.saturating_sub(metadata.created_at_millis) >= pending_upload_ttl_ms
+        {
+            let _ = std::fs::remove_dir_all(&path);
+            continue;
+        }
         let job = metadata.to_job(&path);
         jobs.insert(job.id.clone(), job);
     }
@@ -1681,24 +2425,21 @@ fn persist_job_metadata(state: &AppState, job_id: &str) {
         None => return,
     };
     let job_dir = state.base_dir.join(&job.id);
-    let mut metadata = JobMetadata::from_job(&job, &job_dir);
-    let meta_path = job_dir.join("job.json");
-    if let Ok(data) = std::fs::read_to_string(&meta_path) {
-        if let Ok(existing) = serde_json::from_str::<JobMetadata>(&data) {
-            metadata.created_at_millis = existing.created_at_millis;
-        }
-    }
-    metadata.updated_at_millis = current_millis();
-    let Ok(json) = serde_json::to_string_pretty(&metadata) else {
+    write_job_metadata(&job_dir, &JobMetadata::from_job(&job, &job_dir));
+}
+
+/// Write `job.json`. Deliberately does not create the directory: a write that
+/// races a cleanup that just removed the job must fail rather than resurrect a
+/// half-empty job directory that the next restart would load again.
+fn write_job_metadata(job_dir: &Path, metadata: &JobMetadata) {
+    let Ok(json) = serde_json::to_string_pretty(metadata) else {
         return;
     };
-    let _ = std::fs::create_dir_all(&job_dir);
-    let _ = std::fs::write(&meta_path, format!("{}\n", json));
+    let _ = std::fs::write(job_dir.join("job.json"), format!("{}\n", json));
 }
 
 impl JobMetadata {
     fn from_job(job: &Job, job_dir: &Path) -> Self {
-        let now = current_millis();
         Self {
             id: job.id.clone(),
             status: job.status.clone(),
@@ -1712,8 +2453,8 @@ impl JobMetadata {
                 .as_ref()
                 .map(|path| path_to_metadata(job_dir, path)),
             error: job.error.clone(),
-            created_at_millis: now,
-            updated_at_millis: now,
+            created_at_millis: job.created_at_millis,
+            updated_at_millis: job.updated_at_millis,
         }
     }
 
@@ -1733,6 +2474,10 @@ impl JobMetadata {
                 .map(|path| resolve_job_path(job_dir, path)),
             output_dir,
             error: self.error.clone(),
+            created_at_millis: self.created_at_millis,
+            updated_at_millis: self.updated_at_millis,
+            active: false,
+            processing_started: None,
         }
     }
 }
@@ -2098,5 +2843,503 @@ mod tests {
         let max_bytes = 5usize;
         assert!(written.saturating_add(incoming) > max_bytes);
         assert!(written.saturating_add(1) <= max_bytes);
+    }
+
+    fn test_state(name: &str) -> AppState {
+        let dir =
+            std::env::temp_dir().join(format!("gtfs_web_{name}_{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).expect("create base dir");
+        AppState::new(dir, "http://localhost:3000".to_string())
+    }
+
+    fn add_job(state: &AppState, status: JobStatus) -> String {
+        let job_id = next_job_id();
+        let job_dir = state.base_dir.join(&job_id);
+        std::fs::create_dir_all(&job_dir).expect("create job dir");
+        let job = Job::new(
+            job_id.clone(),
+            status,
+            None,
+            None,
+            Some(job_dir.join("output")),
+        );
+        assert!(insert_job_within_pending_cap(state, job));
+        job_id
+    }
+
+    fn edit_job(state: &AppState, job_id: &str, edit: impl FnOnce(&mut Job)) {
+        let mut jobs = state.jobs.write().expect("jobs lock");
+        edit(jobs.get_mut(job_id).expect("job exists"));
+    }
+
+    fn peer() -> ConnectInfo<SocketAddr> {
+        ConnectInfo("203.0.113.7:40000".parse().expect("socket addr"))
+    }
+
+    // --- Pending uploads -------------------------------------------------
+
+    /// A job nobody uploads to gives its pending slot back after the short
+    /// pending TTL, not after the 24 h job TTL.
+    #[test]
+    fn a_pending_upload_expires_after_its_own_ttl() {
+        let mut state = test_state("pending_ttl");
+        state.pending_upload_ttl_ms = 1_000;
+        let pending = add_job(&state, JobStatus::AwaitingUpload);
+        let finished = add_job(&state, JobStatus::Success);
+        let created = get_job(&state, &pending).expect("job").created_at_millis;
+        let day = 24 * 60 * 60 * 1000;
+
+        let plan = plan_cleanup(&state, day, created + 500, Instant::now());
+        assert!(plan.remove_dirs.is_empty());
+        assert!(get_job(&state, &pending).is_some());
+
+        let plan = plan_cleanup(&state, day, created + 1_000, Instant::now());
+        assert_eq!(plan.remove_dirs, vec![state.base_dir.join(&pending)]);
+        assert!(get_job(&state, &pending).is_none());
+        assert!(
+            get_job(&state, &finished).is_some(),
+            "only pending jobs use it"
+        );
+        std::fs::remove_dir_all(&state.base_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn create_job_refuses_cross_site_and_non_json_requests() {
+        let state = test_state("create_job_guard");
+        let create = |headers: HeaderMap, body: &'static [u8]| {
+            create_job(
+                State(state.clone()),
+                peer(),
+                headers,
+                Bytes::from_static(body),
+            )
+        };
+
+        let mut cross_site = HeaderMap::new();
+        cross_site.insert(
+            "sec-fetch-site",
+            header::HeaderValue::from_static("cross-site"),
+        );
+        assert_eq!(
+            create(cross_site, b"").await.status(),
+            StatusCode::FORBIDDEN
+        );
+
+        // What a `no-cors` fetch or a form can send without a preflight.
+        let mut text = HeaderMap::new();
+        text.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/plain"),
+        );
+        assert_eq!(
+            create(text, b"{}").await.status(),
+            StatusCode::UNSUPPORTED_MEDIA_TYPE
+        );
+
+        let mut json = HeaderMap::new();
+        json.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/json"),
+        );
+        assert_eq!(
+            create(json.clone(), b"{not json").await.status(),
+            StatusCode::BAD_REQUEST
+        );
+        assert!(state.jobs.read().expect("jobs").is_empty());
+
+        // `curl -X POST` with no body, and the UI's JSON body, still work.
+        assert_eq!(create(HeaderMap::new(), b"").await.status(), StatusCode::OK);
+        assert_eq!(
+            create(json, br#"{"countryCode":"US"}"#).await.status(),
+            StatusCode::OK
+        );
+        assert_eq!(state.jobs.read().expect("jobs").len(), 2);
+        std::fs::remove_dir_all(&state.base_dir).ok();
+    }
+
+    // --- Input retention --------------------------------------------------
+
+    /// Only the reports are served, so the uploaded archive goes once
+    /// validation has finished, whatever its outcome.
+    #[test]
+    fn validation_discards_the_input_archive() {
+        let state = test_state("discard_input");
+        let job_id = add_job(&state, JobStatus::AwaitingUpload);
+        let input = state.base_dir.join(&job_id).join("input.zip");
+        std::fs::write(&input, b"not a zip").expect("write input");
+        update_job_input(&state, &job_id, input.clone());
+        let BeginOutcome::Started(lease) =
+            try_begin_processing(&state, &job_id, LeaseStage::Processing)
+        else {
+            panic!("job must be claimable");
+        };
+
+        process_job(&state, &job_id, "");
+        drop(lease);
+
+        let job = get_job(&state, &job_id).expect("job");
+        assert!(!input.exists(), "the archive must be deleted");
+        assert!(job.input_path.is_none());
+        assert!(!matches!(job.status, JobStatus::Processing));
+        assert!(!job.active);
+        assert!(state
+            .base_dir
+            .join(&job_id)
+            .join("output/execution_result.json")
+            .exists());
+        std::fs::remove_dir_all(&state.base_dir).ok();
+    }
+
+    // --- Per-client limits ------------------------------------------------
+
+    #[test]
+    fn forwarded_for_is_only_believed_from_trusted_peers() {
+        let trusted = parse_trusted_proxies(DEFAULT_TRUSTED_PROXIES);
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            header::HeaderValue::from_static("198.51.100.9"),
+        );
+        let loopback: IpAddr = "127.0.0.1".parse().unwrap();
+        let stranger: IpAddr = "203.0.113.7".parse().unwrap();
+
+        assert_eq!(
+            client_ip(loopback, &headers, &trusted),
+            "198.51.100.9".parse::<IpAddr>().unwrap()
+        );
+        assert_eq!(client_ip(stranger, &headers, &trusted), stranger);
+        assert_eq!(client_ip(loopback, &HeaderMap::new(), &trusted), loopback);
+        // Production: the host's Caddy reaches the container via the Docker
+        // bridge gateway, not loopback.
+        let docker_gateway: IpAddr = "172.17.0.1".parse().unwrap();
+        assert_eq!(
+            client_ip(docker_gateway, &headers, &trusted),
+            "198.51.100.9".parse::<IpAddr>().unwrap()
+        );
+        // Nobody trusted: the header is ignored even from loopback.
+        assert_eq!(client_ip(loopback, &headers, &[]), loopback);
+        // A v4-mapped loopback peer is still loopback.
+        let mapped: IpAddr = "::ffff:127.0.0.1".parse().unwrap();
+        assert_eq!(
+            client_ip(mapped, &headers, &trusted),
+            "198.51.100.9".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    /// A client can put anything at the front of the header; only what our own
+    /// proxy appended on the right is believed.
+    #[test]
+    fn forwarded_for_is_read_from_the_right() {
+        let trusted = parse_trusted_proxies("127.0.0.1, 10.0.0.0/8");
+        let loopback: IpAddr = "127.0.0.1".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            header::HeaderValue::from_static("1.2.3.4, 198.51.100.9, 10.1.2.3"),
+        );
+        assert_eq!(
+            client_ip(loopback, &headers, &trusted),
+            "198.51.100.9".parse::<IpAddr>().unwrap()
+        );
+
+        headers.insert(
+            "x-forwarded-for",
+            header::HeaderValue::from_static("1.2.3.4, garbage"),
+        );
+        assert_eq!(client_ip(loopback, &headers, &trusted), loopback);
+    }
+
+    #[test]
+    fn trusted_proxy_networks_parse_and_match() {
+        let networks = parse_trusted_proxies("127.0.0.0/8, ::1, fd00::/8, nonsense, 10.0.0.0/33");
+        assert_eq!(networks.len(), 3, "invalid entries are skipped");
+        let contains = |ip: &str| {
+            let ip: IpAddr = ip.parse().unwrap();
+            networks.iter().any(|network| network.contains(ip))
+        };
+        assert!(contains("127.5.6.7"));
+        assert!(contains("::1"));
+        assert!(contains("fd12::1"));
+        assert!(!contains("128.0.0.1"));
+        assert!(!contains("::2"));
+        assert!(parse_trusted_proxies("").is_empty());
+        assert!(IpNetwork::parse("0.0.0.0/0")
+            .expect("any")
+            .contains("8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn ipv6_clients_are_keyed_by_their_64() {
+        let a: IpAddr = "2001:db8:1:2::1".parse().unwrap();
+        let b: IpAddr = "2001:db8:1:2:ffff::9".parse().unwrap();
+        let c: IpAddr = "2001:db8:1:3::1".parse().unwrap();
+        assert_eq!(rate_limit_key(a), rate_limit_key(b));
+        assert_ne!(rate_limit_key(a), rate_limit_key(c));
+        let v4: IpAddr = "198.51.100.9".parse().unwrap();
+        assert_eq!(rate_limit_key(v4), v4);
+    }
+
+    /// Requests a client is refused do not count against the global budget, so
+    /// one noisy client cannot lock everyone else out.
+    #[test]
+    fn one_client_cannot_spend_the_global_budget() {
+        let limits = RateLimits::new(3, 2);
+        let now = Instant::now();
+        let noisy: IpAddr = "198.51.100.1".parse().unwrap();
+        let quiet: IpAddr = "198.51.100.2".parse().unwrap();
+        let admitted = (0..50).filter(|_| limits.try_acquire(noisy, now)).count();
+        assert_eq!(admitted, 2);
+        assert!(limits.try_acquire(quiet, now));
+        // The global cap still holds across clients.
+        let third: IpAddr = "198.51.100.3".parse().unwrap();
+        assert!(!limits.try_acquire(third, now));
+        let later = now + Duration::from_secs(61);
+        assert!(limits.try_acquire(noisy, later));
+    }
+
+    #[test]
+    fn client_slots_cap_in_flight_requests_per_client() {
+        let slots = Arc::new(ClientSlots::new(2));
+        let client: IpAddr = "198.51.100.1".parse().unwrap();
+        let other: IpAddr = "198.51.100.2".parse().unwrap();
+        let first = slots.try_acquire(client).expect("first");
+        let _second = slots.try_acquire(client).expect("second");
+        assert!(slots.try_acquire(client).is_none());
+        assert!(slots.try_acquire(other).is_some());
+        drop(first);
+        assert!(slots.try_acquire(client).is_some());
+    }
+
+    /// Each read arrives well inside any per-read timeout, but the transfer as
+    /// a whole must still end at the deadline.
+    #[test]
+    fn a_slow_drip_hits_the_overall_deadline() {
+        struct Drip;
+        impl std::io::Read for Drip {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                std::thread::sleep(Duration::from_millis(5));
+                buf[0] = b'x';
+                Ok(1)
+            }
+        }
+        let started = Instant::now();
+        let reader = DeadlineReader::new(Drip, started + Duration::from_millis(50));
+        let error = copy_bounded(reader, &mut Vec::new(), usize::MAX - 1)
+            .expect_err("an endless drip must stop");
+        assert!(is_deadline_error(&error), "{error:#}");
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    // --- Processing timeout -----------------------------------------------
+
+    /// A validation past its deadline is reported as failed, but its job and
+    /// directory stay until the worker lets go, and the worker's late verdict
+    /// does not overwrite the timeout.
+    #[test]
+    fn a_runaway_validation_is_failed_but_not_removed_while_running() {
+        let mut state = test_state("processing_timeout");
+        state.processing_timeout_ms = 1_000;
+        let job_id = add_job(&state, JobStatus::AwaitingUpload);
+        let job_dir = state.base_dir.join(&job_id);
+        let BeginOutcome::Started(lease) =
+            try_begin_processing(&state, &job_id, LeaseStage::Processing)
+        else {
+            panic!("job must be claimable");
+        };
+        edit_job(&state, &job_id, |job| {
+            job.processing_started = Instant::now().checked_sub(Duration::from_secs(5));
+        });
+
+        let plan = plan_cleanup(&state, 1, current_millis() + 10_000, Instant::now());
+        assert!(
+            plan.remove_dirs.is_empty(),
+            "a running job is never removed"
+        );
+        assert_eq!(plan.timed_out, vec![job_id.clone()]);
+        apply_cleanup(&state, plan, 0);
+        let job = get_job(&state, &job_id).expect("job kept");
+        assert!(matches!(job.status, JobStatus::Error));
+        assert!(job.error.as_deref().unwrap_or("").contains("timed out"));
+        assert!(job_dir.exists());
+        // Nobody may restart it while the old worker still writes.
+        assert!(matches!(
+            try_begin_processing(&state, &job_id, LeaseStage::Upload),
+            BeginOutcome::AlreadyActive
+        ));
+
+        finish_job(&state, &job_dir, &job_id, Ok(()));
+        let job = get_job(&state, &job_id).expect("job kept");
+        assert!(
+            matches!(job.status, JobStatus::Error),
+            "timeout verdict stands"
+        );
+        let result = std::fs::read_to_string(job_dir.join("output/execution_result.json"))
+            .expect("execution result");
+        assert!(result.contains("timed out"));
+
+        drop(lease);
+        assert!(!get_job(&state, &job_id).expect("job").active);
+        let plan = plan_cleanup(&state, 1, current_millis() + 20_000, Instant::now());
+        assert_eq!(plan.remove_dirs, vec![job_dir]);
+        std::fs::remove_dir_all(&state.base_dir).ok();
+    }
+
+    /// Time spent queueing for a run permit is not processing time: a job
+    /// claimed long ago that has not started validating is left alone.
+    #[test]
+    fn a_queued_job_does_not_time_out_before_validation_starts() {
+        let mut state = test_state("queued_not_timed_out");
+        state.processing_timeout_ms = 1_000;
+        let job_id = add_job(&state, JobStatus::AwaitingUpload);
+        let BeginOutcome::Started(_lease) =
+            try_begin_processing(&state, &job_id, LeaseStage::Processing)
+        else {
+            panic!("job must be claimable");
+        };
+        edit_job(&state, &job_id, |job| {
+            job.created_at_millis = 0;
+            job.updated_at_millis = 0;
+        });
+
+        let plan = plan_cleanup(&state, 1, current_millis(), Instant::now());
+        assert!(plan.remove_dirs.is_empty());
+        assert!(plan.timed_out.is_empty());
+        let job = get_job(&state, &job_id).expect("job kept");
+        assert!(matches!(job.status, JobStatus::Processing));
+        std::fs::remove_dir_all(&state.base_dir).ok();
+    }
+
+    // --- Restart and cancellation -----------------------------------------
+
+    #[test]
+    fn restart_resolves_jobs_left_processing() {
+        let base = std::env::temp_dir().join(format!(
+            "gtfs_web_restart_{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let now = current_millis();
+        let write = |status: JobStatus, input: Option<&str>, created: u128| {
+            let job_id = next_job_id();
+            let job_dir = base.join(&job_id);
+            std::fs::create_dir_all(&job_dir).expect("job dir");
+            std::fs::write(job_dir.join("input.zip"), b"partial").expect("input");
+            let metadata = JobMetadata {
+                id: job_id.clone(),
+                status,
+                country_code: None,
+                input_path: input.map(str::to_string),
+                output_dir: Some("output".to_string()),
+                error: None,
+                created_at_millis: created,
+                updated_at_millis: created,
+            };
+            write_job_metadata(&job_dir, &metadata);
+            job_id
+        };
+        let mid_upload = write(JobStatus::Processing, None, now);
+        let mid_validation = write(JobStatus::Processing, Some("input.zip"), now);
+        let stale_pending = write(JobStatus::AwaitingUpload, None, now - 10_000);
+        let done = write(JobStatus::Success, None, now - 10_000);
+
+        let jobs = load_jobs(&base, 5_000, now);
+
+        let job = &jobs[&mid_upload];
+        assert!(matches!(job.status, JobStatus::AwaitingUpload));
+        assert!(!base.join(&mid_upload).join("input.zip").exists());
+        let job_json =
+            std::fs::read_to_string(base.join(&mid_upload).join("job.json")).expect("job.json");
+        assert!(job_json.contains("awaiting_upload"), "{job_json}");
+
+        let job = &jobs[&mid_validation];
+        assert!(matches!(job.status, JobStatus::Error));
+        assert_eq!(job.error.as_deref(), Some("interrupted by restart"));
+        assert!(job.input_path.is_none());
+        assert!(!base.join(&mid_validation).join("input.zip").exists());
+
+        assert!(!jobs.contains_key(&stale_pending));
+        assert!(!base.join(&stale_pending).exists());
+        assert!(matches!(jobs[&done].status, JobStatus::Success));
+        assert!(jobs.values().all(|job| !job.active));
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    /// A client that disconnects mid-upload drops the handler future; the job
+    /// must go back to accepting uploads rather than sit in `Processing`.
+    #[tokio::test]
+    async fn a_dropped_upload_hands_the_job_back() {
+        let state = test_state("dropped_upload");
+        let job_id = add_job(&state, JobStatus::AwaitingUpload);
+        let input = state.base_dir.join(&job_id).join("input.zip");
+        let body = Body::from_stream(
+            futures_util::stream::once(async {
+                Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"partial"))
+            })
+            .chain(futures_util::stream::pending()),
+        );
+        let request = Request::builder()
+            .method("PUT")
+            .body(body)
+            .expect("request");
+
+        let outcome = tokio::time::timeout(
+            Duration::from_millis(200),
+            upload_job(State(state.clone()), AxumPath(job_id.clone()), request),
+        )
+        .await;
+        assert!(outcome.is_err(), "the upload must still be streaming");
+
+        let job = get_job(&state, &job_id).expect("job");
+        assert!(matches!(job.status, JobStatus::AwaitingUpload));
+        assert!(!job.active);
+        assert!(!input.exists(), "the partial upload must be removed");
+        assert!(matches!(
+            try_begin_processing(&state, &job_id, LeaseStage::Upload),
+            BeginOutcome::Started(_)
+        ));
+        std::fs::remove_dir_all(&state.base_dir).ok();
+    }
+
+    #[test]
+    fn an_abandoned_worker_marks_its_job_failed() {
+        let state = test_state("abandoned_worker");
+        let job_id = add_job(&state, JobStatus::AwaitingUpload);
+        let BeginOutcome::Started(lease) =
+            try_begin_processing(&state, &job_id, LeaseStage::Processing)
+        else {
+            panic!("job must be claimable");
+        };
+        drop(lease);
+        let job = get_job(&state, &job_id).expect("job");
+        assert!(matches!(job.status, JobStatus::Error));
+        assert!(!job.active);
+        std::fs::remove_dir_all(&state.base_dir).ok();
+    }
+
+    // --- Cleanup ------------------------------------------------------------
+
+    #[tokio::test]
+    async fn cleanup_removes_expired_jobs_and_orphans_off_the_lock() {
+        let state = test_state("cleanup");
+        let expired = add_job(&state, JobStatus::Success);
+        let fresh = add_job(&state, JobStatus::Error);
+        edit_job(&state, &expired, |job| job.updated_at_millis = 0);
+        let orphan = state.base_dir.join("orphan");
+        std::fs::create_dir_all(&orphan).expect("orphan");
+
+        // A 1 ms TTL makes the orphan (seconds-old mtime at worst) expire too.
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        edit_job(&state, &fresh, |job| {
+            job.updated_at_millis = current_millis()
+        });
+        cleanup_jobs(&state, 60_000).await;
+        assert!(get_job(&state, &expired).is_none());
+        assert!(!state.base_dir.join(&expired).exists());
+        assert!(get_job(&state, &fresh).is_some());
+        assert!(state.base_dir.join(&fresh).exists());
+        assert!(orphan.exists(), "a fresh orphan is kept");
+
+        cleanup_jobs(&state, 1).await;
+        assert!(!orphan.exists());
+        std::fs::remove_dir_all(&state.base_dir).ok();
     }
 }

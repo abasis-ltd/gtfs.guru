@@ -106,12 +106,22 @@ ssh "$SERVER" "cd $REMOTE_DIR && docker compose up -d"
 # Step 6: Check health
 # ============================================================================
 log_step "Waiting for service to start..."
-sleep 5
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-60}"
+healthy=false
+for _ in $(seq 1 "$HEALTH_TIMEOUT"); do
+    if ssh "$SERVER" "curl -sf --max-time 2 http://localhost:3000/healthz" &>/dev/null; then
+        healthy=true
+        break
+    fi
+    sleep 1
+done
 
-if ssh "$SERVER" "curl -sf http://localhost:3000/healthz" &>/dev/null; then
+if [[ "$healthy" == true ]]; then
     log_info "Service is healthy!"
 else
-    log_warn "Service may still be starting. Check with: ssh $SERVER 'docker compose logs -f'"
+    log_error "Service did not become healthy within ${HEALTH_TIMEOUT}s"
+    log_error "Check with: ssh $SERVER 'cd $REMOTE_DIR && docker compose logs --tail 100'"
+    exit 1
 fi
 
 # ============================================================================
