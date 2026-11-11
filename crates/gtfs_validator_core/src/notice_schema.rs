@@ -183,6 +183,33 @@ struct NoticeMetadata {
 #[derive(Debug, Clone, Deserialize)]
 struct FieldMetadata {
     description: Option<String>,
+    #[serde(rename = "type")]
+    field_type: Option<String>,
+    contains: Option<FieldItemMetadata>,
+    #[serde(rename = "minItems")]
+    min_items: Option<u32>,
+    #[serde(rename = "maxItems")]
+    max_items: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FieldItemMetadata {
+    #[serde(rename = "type")]
+    field_type: String,
+}
+
+impl FieldMetadata {
+    fn type_schema(&self) -> FieldTypeSchema {
+        FieldTypeSchema {
+            field_type: self.field_type.clone().unwrap_or_else(|| "string".into()),
+            contains: self
+                .contains
+                .as_ref()
+                .map(|item| Box::new(FieldTypeSchema::from_type_name(&item.field_type))),
+            min_items: self.min_items,
+            max_items: self.max_items,
+        }
+    }
 }
 
 fn notice_metadata() -> &'static BTreeMap<String, NoticeMetadata> {
@@ -198,9 +225,9 @@ pub fn build_notice_schema_map() -> BTreeMap<String, NoticeSchema> {
     let metadata = notice_metadata();
     for entry in NOTICE_SCHEMA_ENTRIES.iter() {
         let mut schema = NoticeSchema::new(entry.code, entry.severity);
+        let notice_metadata = metadata.get(entry.code);
         for field in entry.fields {
-            let description = metadata
-                .get(entry.code)
+            let description = notice_metadata
                 .and_then(|notice| notice.properties.get(field.name))
                 .and_then(|field| field.description.clone());
             schema.properties.insert(
@@ -211,6 +238,27 @@ pub fn build_notice_schema_map() -> BTreeMap<String, NoticeSchema> {
                     description,
                 },
             );
+        }
+        // build.rs reads context fields off `insert_context_field` calls made
+        // on the variable that holds the notice. Rules that fill the notice in
+        // a helper (`populate_stop_too_far_notice`, the shared CSV field
+        // parser) leave it no fields to find, and the published schema then
+        // claims the notice carries none. Where the scan found nothing, the
+        // canonical metadata is the record of what the notice reports: every
+        // code the scan does resolve matches it field for field.
+        if entry.fields.is_empty() {
+            if let Some(notice) = notice_metadata {
+                for (name, field) in &notice.properties {
+                    schema.properties.insert(
+                        name.clone(),
+                        FieldSchema {
+                            field_type: field.type_schema(),
+                            field_name: name.clone(),
+                            description: field.description.clone(),
+                        },
+                    );
+                }
+            }
         }
         if let Some(metadata) = metadata.get(entry.code) {
             schema.short_summary = metadata.short_summary.clone();
@@ -267,6 +315,48 @@ mod tests {
             .get("filename")
             .and_then(|field| field.description.as_deref())
             .is_some_and(|value| value.contains("file")));
+    }
+
+    #[test]
+    fn notices_filled_by_helpers_still_list_their_context_fields() {
+        let schemas = build_notice_schema_map();
+        let schema = schemas
+            .get("stop_too_far_from_shape")
+            .expect("stop_too_far_from_shape schema");
+        for field in ["stopId", "tripId", "shapeId", "geoDistanceToShape"] {
+            assert!(
+                schema.properties.contains_key(field),
+                "stop_too_far_from_shape lost {field}"
+            );
+        }
+        let location = &schema.properties["match"].field_type;
+        assert_eq!(location.field_type, "array");
+        assert_eq!(location.min_items, Some(2));
+        assert_eq!(
+            location
+                .contains
+                .as_ref()
+                .map(|item| item.field_type.as_str()),
+            Some("number")
+        );
+        assert!(schemas["invalid_url"].properties.contains_key("fieldValue"));
+    }
+
+    #[test]
+    fn no_notice_drops_fields_the_canonical_metadata_lists() {
+        let metadata = super::notice_metadata();
+        for (code, schema) in build_notice_schema_map() {
+            let Some(notice) = metadata.get(&code) else {
+                continue;
+            };
+            if !notice.properties.is_empty() {
+                assert!(
+                    !schema.properties.is_empty(),
+                    "{code} lists no context fields, but the canonical metadata names {}",
+                    notice.properties.len()
+                );
+            }
+        }
     }
 
     #[test]

@@ -7,6 +7,24 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The notice schema lists context fields for the 30 notices whose rules fill
+  them in a helper (`stop_too_far_from_shape`, `invalid_url`,
+  `feed_expiration_date7_days` and others). The source scan in `build.rs`
+  found none for these, so `--export_notices_schema` and the gtfs.guru notice
+  pages said they carried no fields. Where the scan finds nothing, the fields
+  now come from the canonical notice metadata.
+- Notice page meta descriptions end the summary with a full stop instead of
+  running it into the template, and stay whole sentences within 158
+  characters.
+- The web server sends `Cache-Control` and an `ETag` on every embedded file and
+  answers `If-None-Match` with `304 Not Modified`. HTML, scripts and WASM are
+  revalidated on each use, and images and icons are cached for a day.
+- The web server sets HSTS, `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy` and the COOP/COEP pair itself, so they no longer depend on
+  the reverse proxy configuration.
+
 ## [1.0.0] - 2026-09-15
 
 First stable release. The CLI, core, model, report, profile, MCP, web, WASM,

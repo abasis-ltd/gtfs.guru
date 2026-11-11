@@ -42,6 +42,12 @@ gtfs.guru {
     }
 }
 
+# The GitHub repo and older links point at www. Without this block Caddy has no
+# certificate for the name and the TLS handshake fails before any redirect.
+www.gtfs.guru {
+    redir https://gtfs.guru{uri} permanent
+}
+
 analytics.gtfs.guru {
     reverse_proxy umami:3000
 
