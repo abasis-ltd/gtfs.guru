@@ -34,7 +34,7 @@ def test_source_and_intentional_binary_fixtures_are_allowed() -> None:
         "crates/gtfs_validator_wasm/src/lib.rs",
         "crates/gtfs_validator_gui/icons/icon.ico",
         "test-gtfs-feeds/base-valid.zip",
-        "website/og-image.png",
+        "website/og-image.jpg",
         "benchmark-feeds/gtfs-validator.jar",
     ]
     assert not any(is_blocked(path) for path in allowed)

@@ -367,7 +367,7 @@ fn render_notice_page(
                     "name": "GTFS Guru",
                     "url": format!("{BASE_URL}/")
                 },
-                "image": format!("{BASE_URL}/og-image.png"),
+                "image": format!("{BASE_URL}/og-image.jpg"),
                 "inLanguage": "en",
                 "isAccessibleForFree": true
             },
@@ -415,7 +415,7 @@ fn render_notice_page(
   <meta property="og:title" content="{}">
   <meta property="og:description" content="{}">
   <meta property="og:url" content="{}">
-  <meta property="og:image" content="{}/og-image.png">
+  <meta property="og:image" content="{}/og-image.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
@@ -675,7 +675,7 @@ fn render_notice_page(
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>
@@ -759,7 +759,7 @@ fn render_index(
   <meta property="og:title" content="GTFS validation notice codes">
   <meta property="og:description" content="{description}">
   <meta property="og:url" content="{BASE_URL}/notices/">
-  <meta property="og:image" content="{BASE_URL}/og-image.png">
+  <meta property="og:image" content="{BASE_URL}/og-image.jpg">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
@@ -801,7 +801,7 @@ fn render_index(
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>
@@ -1352,7 +1352,7 @@ fn render_compatibility_page(
         "url": format!("{BASE_URL}/compatibility/"),
         "author": organization_ref(),
         "publisher": organization_ref(),
-        "image": format!("{BASE_URL}/og-image.png"),
+        "image": format!("{BASE_URL}/og-image.jpg"),
         "isPartOf": {
             "@type": "WebSite",
             "@id": format!("{BASE_URL}/#website"),
@@ -1382,7 +1382,7 @@ fn render_compatibility_page(
   <meta property="og:title" content="GTFS specification and validator compatibility">
   <meta property="og:description" content="{meta_description}">
   <meta property="og:url" content="{BASE_URL}/compatibility/">
-  <meta property="og:image" content="{BASE_URL}/og-image.png">
+  <meta property="og:image" content="{BASE_URL}/og-image.jpg">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
@@ -1516,7 +1516,7 @@ fn render_compatibility_page(
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/#validator">Validate a feed</a><a href="/notices/">Notice codes</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/#validator">Validate a feed</a><a href="/notices/">Notice codes</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About GTFS Guru: Who Builds It and How It Is Tested</title>
+    <meta name="description" content="GTFS Guru is an open-source Rust GTFS validator maintained by Abasis.AI. How it tracks the GTFS spec and MobilityData's canonical validator, and how it is tested.">
+    <link rel="canonical" href="https://gtfs.guru/about.html">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="About GTFS Guru: Who Builds It and How It Is Tested">
+    <meta property="og:description" content="GTFS Guru is an open-source Rust GTFS validator maintained by Abasis.AI. How it tracks the GTFS spec and MobilityData's canonical validator, and how it is tested.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:url" content="https://gtfs.guru/about.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="About GTFS Guru: Who Builds It and How It Is Tested">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "AboutPage",
+          "@id": "https://gtfs.guru/about.html#page",
+          "url": "https://gtfs.guru/about.html",
+          "name": "About GTFS Guru",
+          "isPartOf": { "@type": "WebSite", "@id": "https://gtfs.guru/#website", "name": "GTFS Guru", "url": "https://gtfs.guru/" },
+          "mainEntity": {
+            "@type": "Organization",
+            "@id": "https://gtfs.guru/#organization",
+            "name": "GTFS Guru",
+            "url": "https://gtfs.guru/",
+            "email": "gtfs@abasis.ai",
+            "sameAs": [
+              "https://github.com/abasis-ltd/gtfs.guru",
+              "https://pypi.org/project/gtfs-guru/",
+              "https://crates.io/crates/gtfs-guru"
+            ],
+            "parentOrganization": { "@type": "Organization", "@id": "https://abasis.ai/#organization", "name": "Abasis.AI", "url": "https://abasis.ai" }
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "GTFS Guru", "item": "https://gtfs.guru/" },
+            { "@type": "ListItem", "position": 2, "name": "About", "item": "https://gtfs.guru/about.html" }
+          ]
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS<span class="highlight">.Guru</span></span>
+            </a>
+            <div class="nav-links" id="nav-links">
+                <a href="/#validator">Validator</a>
+                <a href="faq.html">Guides</a>
+                <details class="nav-dropdown">
+                    <summary>Documentation</summary>
+                    <div class="nav-dropdown-panel">
+                        <a href="notices/">Notice codes</a>
+                        <a href="compatibility/">Compatibility</a>
+                        <a href="/#faq">FAQ</a>
+                    </div>
+                </details>
+                <a href="/#developers">Developers</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+                <a href="/#validator" class="nav-mobile-cta">Validate a feed</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/#validator" class="btn btn-primary">Validate a feed</a>
+                <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu"
+                    aria-expanded="false" aria-controls="nav-links">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container" style="padding-top: 160px; padding-bottom: 80px; min-height: 80vh;">
+        <h1 style="margin-bottom: 1rem;">About GTFS Guru</h1>
+        <p class="lead" style="margin-bottom: 2rem; max-width: 800px;">GTFS Guru is a free, open-source validator for
+            GTFS Schedule feeds, written in Rust and maintained by <a href="https://abasis.ai">Abasis.AI</a>. It
+            reimplements the rules of MobilityData's canonical
+            <a href="https://github.com/MobilityData/gtfs-validator">gtfs-validator</a> so the same checks can run in a
+            browser tab, on the command line, from Python, in CI and inside AI assistants, without a Java runtime.</p>
+
+        <div class="glass-card" style="padding: 3rem;">
+            <h2 style="margin-bottom: 1rem;">What it is</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">The validator runs 110 checks and reports
+                191 notice codes. The codes and the report layout follow the canonical validator, so a report from
+                either tool reads the same way. The rule sets are close but not identical, and the
+                <a href="compatibility/">compatibility page</a> lists the GTFS reference revision and canonical
+                release this build answers for, along with every known difference.</p>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">MobilityData's validator remains the
+                reference implementation. GTFS Guru is an independent project that tracks it.</p>
+
+            <h2 style="margin: 2rem 0 1rem;">How it is kept correct</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;"><strong>Golden suite.</strong> Small
+                controlled feeds whose reports are pinned byte for byte, so any change in output is caught in review.
+            </p>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;"><strong>Real-world parity.</strong> Twelve
+                pinned MobilityData datasets covering flexible services, Fares v2 and pathways, from 31 KiB to 229 MiB
+                unpacked. They are checked on every commit and compared against the canonical Java validator before
+                every release.</p>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;"><strong>Spec watch.</strong> The GTFS
+                reference in <a href="https://github.com/google/transit">google/transit</a> and the canonical
+                validator's releases are tracked, so a new field, enum value or rule shows up as a reviewed change
+                instead of a silent gap.</p>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">The method and the commands to reproduce the
+                speed figures are in the <a href="https://abasis-ltd.github.io/gtfs.guru/benchmarks/">benchmarks</a>.
+            </p>
+
+            <h2 style="margin: 2rem 0 1rem;">Your data</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">A feed you pick from your device is
+                validated in your browser and never uploaded. Validating by URL can pass the archive through our
+                server for that one request. The <a href="privacy.html">privacy policy</a> describes both paths.</p>
+
+            <h2 style="margin: 2rem 0 1rem;">License and contact</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">The code is Apache 2.0 and lives on
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>, where bug reports and contributions are
+                welcome. For anything else, write to <a href="mailto:gtfs@abasis.ai">gtfs@abasis.ai</a>.</p>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img class="footer-logo" src="logo.png" alt="" aria-hidden="true" width="512" height="512">
+                <span class="logo-text">GTFS Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="/#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons with error handling
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+    <script src="nav.js" defer></script>
+</body>
+
+</html>

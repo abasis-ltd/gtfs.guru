@@ -114,7 +114,13 @@ GitHub Actions:
 - [What GTFS is used for](https://gtfs.guru/what-is-gtfs-used-for.html): who consumes the data
 - [Who uses GTFS](https://gtfs.guru/who-uses-gtfs.html): agencies, apps and analysts
 - [Is GTFS free](https://gtfs.guru/is-gtfs-free.html): licensing of the format and of feeds
+- [Validate GTFS in Python](https://gtfs.guru/gtfs-validator-python.html): the `gtfs-guru` package
+- [Validate GTFS in CI](https://gtfs.guru/gtfs-validation-ci.html): `--fail-on`, SARIF, the GitHub Action
+- [GTFS validator MCP server](https://gtfs.guru/gtfs-mcp-server.html): `gtfs-guru-mcp` for Claude, Cursor, VS Code and Codex
+- [GTFS Guru vs the MobilityData validator](https://gtfs.guru/gtfs-guru-vs-mobilitydata-validator.html): shared codes, differences, speed
 - [All guides](https://gtfs.guru/faq.html): index of the above
+- [Notice codes](https://gtfs.guru/notices/): one page per validation notice (191), with meaning, files, fields and repair steps
+- [Compatibility](https://gtfs.guru/compatibility/): the GTFS reference revision and canonical validator release this build follows, and every difference
 
 ## Reference
 
@@ -132,6 +138,7 @@ GitHub Actions:
 
 ## Optional
 
+- [About](https://gtfs.guru/about.html): who maintains GTFS Guru and how parity with the canonical validator is tested
 - [Privacy policy](https://gtfs.guru/privacy.html): what the site does and does not collect
 - [Terms](https://gtfs.guru/terms.html): terms of use
 - [Contact](https://gtfs.guru/contact.html): how to reach the maintainers

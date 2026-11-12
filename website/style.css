@@ -1,3 +1,21 @@
+/* Self-hosted (OFL) latin subsets: one variable file per family, no
+   render-blocking request to a third-party origin, nothing for COEP to block. */
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('/fonts/inter-latin.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Fira Code';
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+    src: url('/fonts/fira-code-latin.woff2') format('woff2');
+}
+
 /* GTFS.Guru Styles */
 :root {
     /* The original Slate palette, kept. What was decorative slop here was the
@@ -113,6 +131,16 @@ a {
     text-decoration: none;
     color: inherit;
     transition: color 0.15s ease;
+}
+
+/* A link inside running text has to be recognisable without colour: the
+   accent on secondary text is only 1.19:1 apart, below WCAG's 3:1. */
+p a:not(.btn),
+td a:not(.btn),
+li a:not(.btn) {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
 }
 
 .container {
@@ -714,7 +742,9 @@ h1 {
     margin-bottom: 1rem;
 }
 
-.upload-state h3 {
+.upload-state h2 {
+    font-size: 1.17em;
+    letter-spacing: -0.01em;
     margin-bottom: 0.75rem;
 }
 

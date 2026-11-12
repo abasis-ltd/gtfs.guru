@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://gtfs.guru/</loc><lastmod>2026-09-15</lastmod></url>
+  <url><loc>https://gtfs.guru/</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/about.html</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://gtfs.guru/compatibility/</loc><lastmod>2026-11-12</lastmod></url>
-  <url><loc>https://gtfs.guru/contact.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/faq.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/gtfs-vs-gtfs-realtime.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/how-often-update-gtfs.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/how-to-create-gtfs-file.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/how-to-get-my-bus-on-google-maps.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/how-to-validate-gtfs.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/is-gtfs-free.html</loc><lastmod>2026-09-15</lastmod></url>
+  <url><loc>https://gtfs.guru/contact.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/faq.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/gtfs-guru-vs-mobilitydata-validator.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/gtfs-mcp-server.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/gtfs-validation-ci.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/gtfs-validator-python.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/gtfs-vs-gtfs-realtime.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/how-often-update-gtfs.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/how-to-create-gtfs-file.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/how-to-get-my-bus-on-google-maps.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/how-to-validate-gtfs.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/is-gtfs-free.html</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://gtfs.guru/notices/</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://gtfs.guru/notices/agency_phone_invalid/</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://gtfs.guru/notices/attribution_without_role/</loc><lastmod>2026-11-12</lastmod></url>
@@ -202,11 +207,11 @@
   <url><loc>https://gtfs.guru/notices/unused_stop/</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://gtfs.guru/notices/unused_trip/</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://gtfs.guru/notices/wrong_parent_location_type/</loc><lastmod>2026-11-12</lastmod></url>
-  <url><loc>https://gtfs.guru/privacy.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/terms.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/what-does-gtfs-stand-for.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/what-is-gtfs-used-for.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/where-to-find-gtfs-feeds.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/who-uses-gtfs.html</loc><lastmod>2026-09-15</lastmod></url>
-  <url><loc>https://gtfs.guru/why-is-my-gtfs-rejected.html</loc><lastmod>2026-09-15</lastmod></url>
+  <url><loc>https://gtfs.guru/privacy.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/terms.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/what-does-gtfs-stand-for.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/what-is-gtfs-used-for.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/where-to-find-gtfs-feeds.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/who-uses-gtfs.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://gtfs.guru/why-is-my-gtfs-rejected.html</loc><lastmod>2026-11-12</lastmod></url>
 </urlset>

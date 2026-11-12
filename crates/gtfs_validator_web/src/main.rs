@@ -614,10 +614,20 @@ fn serve_static_path(path: &str) -> Response {
         return not_found();
     };
     let mime = MimeGuess::from_path(served_path).first_or_octet_stream();
+    // Everything in website/ is UTF-8. Without a charset a browser or crawler
+    // reading llms.txt or robots.txt may fall back to Latin-1 and garble
+    // "—" and "’"; HTML also declares it in a meta tag, but only after
+    // the parser has started.
+    let content_type = match (mime.type_(), mime.subtype().as_str()) {
+        (mime_guess::mime::TEXT, _) | (_, "javascript" | "json" | "xml") => {
+            format!("{mime}; charset=utf-8")
+        }
+        _ => mime.to_string(),
+    };
     let mut response = Response::new(Body::from(file.contents().to_owned()));
     response.headers_mut().insert(
         header::CONTENT_TYPE,
-        header::HeaderValue::from_str(mime.as_ref())
+        header::HeaderValue::from_str(&content_type)
             .unwrap_or_else(|_| header::HeaderValue::from_static("application/octet-stream")),
     );
     response.headers_mut().insert(
@@ -2153,7 +2163,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers().get(header::CONTENT_TYPE),
-            Some(&header::HeaderValue::from_static("text/html"))
+            Some(&header::HeaderValue::from_static(
+                "text/html; charset=utf-8"
+            ))
         );
     }
 

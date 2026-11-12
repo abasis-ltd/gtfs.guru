@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTFS Validator MCP Server for AI Assistants | GTFS Guru</title>
+    <meta name="description"
+        content="Let Claude, Cursor, VS Code or Codex validate GTFS feeds with gtfs-guru-mcp, a read-only MCP server that runs locally and reads only folders you allow.">
+    <link rel="canonical" href="https://gtfs.guru/gtfs-mcp-server.html">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="GTFS Validator MCP Server for AI Assistants | GTFS Guru">
+    <meta property="og:description"
+        content="Let Claude, Cursor, VS Code or Codex validate GTFS feeds with gtfs-guru-mcp, a read-only MCP server that runs locally and reads only folders you allow.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:url" content="https://gtfs.guru/gtfs-mcp-server.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="GTFS Validator MCP Server for AI Assistants | GTFS Guru">
+    <meta name="twitter:description"
+        content="Let Claude, Cursor, VS Code or Codex validate GTFS feeds with gtfs-guru-mcp, a read-only MCP server that runs locally and reads only folders you allow.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "How Do I Let an AI Assistant Validate GTFS Feeds?",
+  "description": "Let Claude, Cursor, VS Code or Codex validate GTFS feeds with gtfs-guru-mcp, a read-only MCP server that runs locally and reads only folders you allow.",
+  "author": {
+    "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
+    "name": "GTFS Guru",
+    "url": "https://gtfs.guru/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
+    "name": "GTFS Guru",
+    "url": "https://gtfs.guru/"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/gtfs-mcp-server.html"
+  },
+  "datePublished": "2026-11-12",
+  "dateModified": "2026-11-12"
+}
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "GTFS Guru",
+          "item": "https://gtfs.guru/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guides",
+          "item": "https://gtfs.guru/faq.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "How Do I Let an AI Assistant Validate GTFS Feeds?",
+          "item": "https://gtfs.guru/gtfs-mcp-server.html"
+        }
+      ]
+    }
+    </script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+
+</head>
+
+<body>
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links" id="nav-links">
+                <a href="/#validator">Validator</a>
+                <a href="faq.html" class="active">Guides</a>
+                <details class="nav-dropdown">
+                    <summary>Documentation</summary>
+                    <div class="nav-dropdown-panel">
+                        <a href="notices/">Notice codes</a>
+                        <a href="compatibility/">Compatibility</a>
+                        <a href="/#faq">FAQ</a>
+                    </div>
+                </details>
+                <a href="/#developers">Developers</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+                <a href="/#validator" class="nav-mobile-cta">Validate a feed</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/#validator" class="btn btn-primary">Validate a feed</a>
+                <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu"
+                    aria-expanded="false" aria-controls="nav-links">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">How Do I Let an AI Assistant Validate GTFS Feeds?</span></nav>
+
+        <h1>How Do I Let an AI Assistant Validate GTFS Feeds?</h1>
+
+        <p class="short-answer"><strong>Install <code>gtfs-guru-mcp</code>, the GTFS Guru MCP server, and register it
+                in your assistant with <code>--allow-dir</code> pointing at the folder that holds your feeds. The
+                assistant can then list your feeds, validate them, and explain the results using exact notice totals
+                and real examples from the report.</strong></p>
+
+        <p>MCP (Model Context Protocol) is the standard way for an AI client to call local tools. The server runs on
+            your own machine, started by the client. It is read-only: it never writes to a feed, and it can only open
+            files under the folders you allow. It runs the same Rust validator as the
+            <a href="/#validator">browser app</a> and the CLI.</p>
+
+        <h2>What the server exposes</h2>
+
+        <p>Four tools:</p>
+
+        <ul>
+            <li><code>list_gtfs_feeds</code>: finds ZIP archives and unzipped feeds under the allowed folders and
+                returns the absolute path the other tools take, so the assistant does not have to search your disk.
+                An optional <code>nameContains</code> filter matches names case-insensitively.</li>
+            <li><code>validate_gtfs</code>: validates a feed and returns a feed profile, exact totals for each notice
+                code and severity, and up to three concrete examples per group with the file, row, field, message,
+                context values, and a suggested fix where one exists.</li>
+            <li><code>explain_gtfs</code>: the same validation payload plus a plain-language explanation built only
+                from deterministic facts about the feed.</li>
+            <li><code>get_notice_details</code>: the description, severity and references for one notice code. The
+                same codes are documented for people in the <a href="notices/">notice code reference</a>.</li>
+        </ul>
+
+        <p>The totals are counted by the validator, not estimated by the model. When the assistant says a feed has
+            a given number of <a href="notices/foreign_key_violation/">foreign_key_violation</a> errors, that number
+            comes from the report.</p>
+
+        <h2>Install the server</h2>
+
+        <p>Every <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest" target="_blank"
+                rel="noopener">GitHub release</a> attaches <code>gtfs-guru-mcp</code> archives for Linux (x86_64,
+            x86_64-musl, aarch64), macOS (x86_64, arm64, universal) and Windows (x64). Unpack one and put the binary
+            on your <code>PATH</code>, for example on Linux:</p>
+
+        <pre class="code-block"><code>tar -xzf gtfs-guru-mcp-linux-x86_64.tar.gz
+sudo install -m 755 gtfs-guru-mcp /usr/local/bin/</code></pre>
+
+        <p>With a Rust toolchain you can install it from crates.io instead:</p>
+
+        <pre class="code-block"><code>cargo install gtfs-guru-mcp</code></pre>
+
+        <p>The <a href="/#developers">Developers section</a> on the home page has a "Connect your AI assistant" dialog
+            that builds the install commands and client config for your operating system.</p>
+
+        <h2>Connect your assistant</h2>
+
+        <p>Most clients take the same JSON block. Replace the path with the folder that holds your feeds:</p>
+
+        <pre class="code-block"><code>{
+  "mcpServers": {
+    "gtfs-guru": {
+      "command": "gtfs-guru-mcp",
+      "args": ["--allow-dir", "/path/to/feeds"]
+    }
+  }
+}</code></pre>
+
+        <ul>
+            <li><strong>Claude Code:</strong> run
+                <code>claude mcp add gtfs-guru -- gtfs-guru-mcp --allow-dir /path/to/feeds</code>, or put the block
+                above in <code>.mcp.json</code> in the project root.</li>
+            <li><strong>Claude Desktop:</strong> Settings, Developer, Edit Config, and add the block to
+                <code>claude_desktop_config.json</code>.</li>
+            <li><strong>Cursor:</strong> <code>~/.cursor/mcp.json</code> for every project, or
+                <code>.cursor/mcp.json</code> for one.</li>
+            <li><strong>VS Code:</strong> <code>.mcp.json</code> in the workspace, with the top-level key
+                <code>servers</code> instead of <code>mcpServers</code>.</li>
+            <li><strong>Codex CLI:</strong> add a <code>[mcp_servers.gtfs-guru]</code> table with
+                <code>command</code> and <code>args</code> to <code>~/.codex/config.toml</code>.</li>
+        </ul>
+
+        <p>A client started from a desktop icon often does not inherit your shell's <code>PATH</code>. If the server
+            does not start, give <code>command</code> the absolute path to the binary. Then ask something like "Which
+            GTFS feeds do I have, and what are the errors in the newest one?"</p>
+
+        <h2>What stays on your machine</h2>
+
+        <ul>
+            <li>The feed files. The client starts the server locally over stdio; nothing is uploaded to gtfs.guru, and
+                gtfs.guru is not part of the connection.</li>
+            <li>Everything outside the <code>--allow-dir</code> folders. The server cannot read it.</li>
+            <li>The network, by default. The server only downloads feeds from public URLs if you start it with
+                <code>--allow-url</code>, and even then it refuses local and private addresses, credentials in URLs,
+                oversized downloads and more than five redirects.</li>
+        </ul>
+
+        <p>What the server returns to your assistant (totals, the profile, and the example rows) becomes part of
+            your conversation, so it goes wherever your assistant sends its context. Use
+            <code>--notice-examples-per-group 0</code> to return only the grouped totals and no example rows.</p>
+
+        <h2>Remote clients over HTTP</h2>
+
+        <p>For a client that cannot start a local process, the server also speaks stateless Streamable HTTP, protected
+            by a bearer token of at least 32 bytes:</p>
+
+        <pre class="code-block"><code>export GTFS_GURU_MCP_BEARER_TOKEN="$(openssl rand -hex 32)"
+gtfs-guru-mcp --transport http --bind 127.0.0.1:3000 --allow-dir /path/to/feeds</code></pre>
+
+        <p>The endpoint is <code>/mcp</code>. Put TLS in front of it with a reverse proxy before exposing it, and pass
+            the public hostname with <code>--allowed-host</code>. By default the HTTP transport allows 60
+            authenticated requests per rolling minute, four concurrent validations and 64 KiB request bodies. The
+            <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/llm.md#mcp-server" target="_blank"
+                rel="noopener">MCP setup guide</a> covers every option.</p>
+
+        <h2>FAQ</h2>
+
+        <h3>Does the AI decide whether my feed is valid?</h3>
+        <p>No. The validator decides, using the same rules and <a href="notices/">notice codes</a> as the rest of
+            GTFS Guru. The assistant reads the result and can paraphrase it, but the counts and examples come from the
+            report.</p>
+
+        <h3>Can the assistant fix my feed through MCP?</h3>
+        <p>No. The server is read-only and never writes to a feed. It can return a suggested fix per example, and the
+            CLI's <code>--fix</code> option writes a repaired copy if you want to apply those changes yourself.</p>
+
+        <h3>Which assistants work with it?</h3>
+        <p>Any MCP client that can start a local stdio server, or connect to an HTTP one. The setup dialog on the home
+            page has ready-made config for Claude Code, Claude Desktop, Cursor, VS Code, Codex CLI and OpenCode.</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="how-to-validate-gtfs.html">How do I validate my GTFS feed?</a></p>
+        <p>• <a href="gtfs-validator-python.html">How do I validate GTFS in Python?</a></p>
+        <p>• <a href="gtfs-validation-ci.html">How do I validate GTFS in CI?</a></p>
+        <p>• <a href="https://github.com/abasis-ltd/gtfs.guru/tree/main/crates/gtfs_validator_mcp" target="_blank"
+                rel="noopener">gtfs-guru-mcp source on GitHub</a></p>
+
+        <div class="cta-box">
+            <p>Prefer to look at a report yourself? <a href="/#validator">Validate a feed in your browser</a>. The file
+                stays on your device.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img class="footer-logo" src="logo.png" alt="" aria-hidden="true" width="512" height="512">
+                <span class="logo-text">GTFS Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="/#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+    <script src="nav.js" defer></script>
+</body>
+
+</html>

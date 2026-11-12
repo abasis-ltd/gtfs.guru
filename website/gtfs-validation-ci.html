@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validate GTFS in CI: GitHub Action and CLI | GTFS Guru</title>
+    <meta name="description"
+        content="Fail a CI job on a broken GTFS feed: the gtfs-guru CLI with --fail-on error, SARIF and JSON output, a GitHub Action, status badges and release diffs.">
+    <link rel="canonical" href="https://gtfs.guru/gtfs-validation-ci.html">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="Validate GTFS in CI: GitHub Action and CLI | GTFS Guru">
+    <meta property="og:description"
+        content="Fail a CI job on a broken GTFS feed: the gtfs-guru CLI with --fail-on error, SARIF and JSON output, a GitHub Action, status badges and release diffs.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:url" content="https://gtfs.guru/gtfs-validation-ci.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Validate GTFS in CI: GitHub Action and CLI | GTFS Guru">
+    <meta name="twitter:description"
+        content="Fail a CI job on a broken GTFS feed: the gtfs-guru CLI with --fail-on error, SARIF and JSON output, a GitHub Action, status badges and release diffs.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "How Do I Validate a GTFS Feed in CI?",
+  "description": "Fail a CI job on a broken GTFS feed: the gtfs-guru CLI with --fail-on error, SARIF and JSON output, a GitHub Action, status badges and release diffs.",
+  "author": {
+    "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
+    "name": "GTFS Guru",
+    "url": "https://gtfs.guru/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
+    "name": "GTFS Guru",
+    "url": "https://gtfs.guru/"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/gtfs-validation-ci.html"
+  },
+  "datePublished": "2026-11-12",
+  "dateModified": "2026-11-12"
+}
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "GTFS Guru",
+          "item": "https://gtfs.guru/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guides",
+          "item": "https://gtfs.guru/faq.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "How Do I Validate a GTFS Feed in CI?",
+          "item": "https://gtfs.guru/gtfs-validation-ci.html"
+        }
+      ]
+    }
+    </script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+
+</head>
+
+<body>
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links" id="nav-links">
+                <a href="/#validator">Validator</a>
+                <a href="faq.html" class="active">Guides</a>
+                <details class="nav-dropdown">
+                    <summary>Documentation</summary>
+                    <div class="nav-dropdown-panel">
+                        <a href="notices/">Notice codes</a>
+                        <a href="compatibility/">Compatibility</a>
+                        <a href="/#faq">FAQ</a>
+                    </div>
+                </details>
+                <a href="/#developers">Developers</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+                <a href="/#validator" class="nav-mobile-cta">Validate a feed</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/#validator" class="btn btn-primary">Validate a feed</a>
+                <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu"
+                    aria-expanded="false" aria-controls="nav-links">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">How Do I Validate a GTFS Feed in CI?</span></nav>
+
+        <h1>How Do I Validate a GTFS Feed in CI?</h1>
+
+        <p class="short-answer"><strong>Run <code>gtfs-guru -i feed.zip -o report --fail-on error</code> as a step in
+                your pipeline. It exits with code 2 when the feed has an error, which fails the job. On GitHub you can
+                use the <code>abasis-ltd/gtfs.guru/action@v1</code> action instead, which also uploads SARIF annotations
+                to code scanning.</strong></p>
+
+        <p>The CLI is a single binary with no Java runtime to install, so a validation step adds little to a
+            pipeline. It reports the same notice codes as the <a href="/#validator">browser validator</a>.</p>
+
+        <h2>Install the CLI</h2>
+
+        <p>On Linux and macOS runners, the installer script downloads a release binary to
+            <code>~/.local/bin</code>:</p>
+
+        <pre class="code-block"><code>curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash</code></pre>
+
+        <p>Set <code>GTFS_GURU_VERSION</code> (for example <code>v1.0.0</code>) to pin a release, or
+            <code>INSTALL_DIR</code> to install elsewhere. If the runner has a Rust toolchain,
+            <code>cargo install gtfs-guru</code> works too. Prebuilt archives for Linux, macOS and Windows are attached
+            to each <a href="https://github.com/abasis-ltd/gtfs.guru/releases/latest" target="_blank"
+                rel="noopener">GitHub release</a>.</p>
+
+        <h2>Fail the build with --fail-on</h2>
+
+        <pre class="code-block"><code>gtfs-guru -i feed.zip -o report --fail-on error</code></pre>
+
+        <p>Without <code>--fail-on</code>, a completed validation exits 0 even when the feed has errors, so set it in
+            CI. The levels are <code>none</code> (the default), <code>error</code> and <code>warning</code>. Exit
+            codes:</p>
+
+        <ul>
+            <li><code>0</code>: validation completed and the feed met the threshold</li>
+            <li><code>1</code>: the run itself failed (bad arguments, unreadable input, I/O error)</li>
+            <li><code>2</code>: the feed did not meet <code>--fail-on</code></li>
+        </ul>
+
+        <p>Add <code>--date YYYY-MM-DD</code> to validate against a fixed day, which keeps date-dependent notices
+            such as <a href="notices/expired_calendar/">expired_calendar</a> stable between runs, and
+            <code>--country_code</code> for region-specific rules.</p>
+
+        <h2>SARIF, JSON and HTML output</h2>
+
+        <p>Every run writes <code>report.json</code>, <code>report.html</code> and
+            <code>system_errors.json</code> into the <code>-o</code> directory. Two options matter for CI:</p>
+
+        <pre class="code-block"><code># SARIF for code-scanning tools, written into the -o directory
+gtfs-guru -i feed.zip -o report --sarif report.sarif.json --fail-on error
+
+# JSON report on stdout, no files written
+gtfs-guru -i feed.zip --stdout | jq '.summary'</code></pre>
+
+        <p>Each notice in the JSON report carries its code, severity, and the file, row and field it refers to. The
+            codes match the <a href="notices/">notice code reference</a>, so a failing job's log can point straight
+            at a page like <a href="notices/foreign_key_violation/">foreign_key_violation</a>.</p>
+
+        <h2>GitHub Action</h2>
+
+        <p>The repository ships a composite action. It installs a checksum-verified binary, runs it, uploads SARIF to
+            code scanning, writes a summary table to the job, and fails the job on a bad feed:</p>
+
+        <pre class="code-block"><code>jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # so SARIF reaches the Security tab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: abasis-ltd/gtfs.guru/action@v1
+        with:
+          feed: feed.zip
+          fail-on: error</code></pre>
+
+        <p>Use <code>url:</code> instead of <code>feed:</code> to validate a published feed, and pair it with an
+            <code>on: schedule</code> trigger to catch a live feed going stale. The action sets <code>errors</code>,
+            <code>warnings</code>, <code>valid</code> and <code>passed</code> outputs for later steps. The
+            <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/action/README.md" target="_blank"
+                rel="noopener">action README</a> lists every input and output. Uploading SARIF from a private
+            repository needs GitHub Advanced Security; without it the upload is skipped and the pass or fail result
+            is unaffected.</p>
+
+        <h2>GitLab CI and other runners</h2>
+
+        <p>Any runner that can execute a shell script can use the CLI directly. For GitLab:</p>
+
+        <pre class="code-block"><code>validate:
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update && apt-get install -y ca-certificates curl
+    - curl -fsSL https://raw.githubusercontent.com/abasis-ltd/gtfs.guru/main/scripts/install.sh | bash
+    - export PATH="$HOME/.local/bin:$PATH"
+  script:
+    - gtfs-guru -i feed.zip -o out --fail-on error</code></pre>
+
+        <h2>Status badge</h2>
+
+        <p><code>--badge</code> writes a shields.io endpoint file describing the run. Publish that file anywhere
+            reachable and reference it from your README:</p>
+
+        <pre class="code-block"><code>gtfs-guru -i feed.zip -o report --fail-on none --badge badge/gtfs.json</code></pre>
+
+        <pre class="code-block"><code>![GTFS](https://img.shields.io/endpoint?url=https://example.org/badge/gtfs.json)</code></pre>
+
+        <p>The badge reads <code>valid</code>, <code>0 errors, N warnings</code> or <code>N errors</code>.
+            <code>--badge-svg</code> writes a self-contained SVG instead, and <code>--badge-label</code> changes the
+            left-hand text. Use <code>--fail-on none</code> in the badge step, because a job that stops on the first
+            error never gets to write the badge.</p>
+
+        <h2>Diff two releases of a feed</h2>
+
+        <p>Before publishing a new feed version, compare it with the one currently live:</p>
+
+        <pre class="code-block"><code>gtfs-guru diff old.zip new.zip --markdown diff.md --fail-on-new-errors</code></pre>
+
+        <p>The diff covers agencies, routes, added, removed and moved stops, trip counts per route, frequency windows,
+            and changes in notice counts. With <code>--fail-on-new-errors</code> it exits 2 when the new feed adds
+            error occurrences, so a release can be blocked on regressions while known errors are still being fixed.
+            <code>--json diff.json</code> writes a machine-readable version, and <code>--no-validation</code> skips
+            the rules for a faster structural comparison.</p>
+
+        <h2>FAQ</h2>
+
+        <h3>Why does my CI job pass even though the report shows errors?</h3>
+        <p>The CLI defaults to <code>--fail-on none</code>. Add <code>--fail-on error</code> (or
+            <code>warning</code>) so it exits with code 2. The GitHub Action defaults to <code>fail-on: error</code>
+            already.</p>
+
+        <h3>Does the CI result match what I see on gtfs.guru?</h3>
+        <p>Yes, for the same feed, date and options. The CLI and the browser app run the same Rust validator.
+            Validating on different days can change date-dependent notices, which is why pinning
+            <code>--date</code> helps in tests.</p>
+
+        <h3>Can I validate in Python instead of a shell step?</h3>
+        <p>Yes. <code>pip install gtfs-guru</code> gives you the same validator as a Python module. See
+            <a href="gtfs-validator-python.html">how to validate GTFS in Python</a>.</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="how-to-validate-gtfs.html">How do I validate my GTFS feed?</a></p>
+        <p>• <a href="why-is-my-gtfs-rejected.html">Why was my GTFS feed rejected?</a></p>
+        <p>• <a href="compatibility/">Which GTFS revision and validator release does GTFS Guru follow?</a></p>
+        <p>• <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/usage.md" target="_blank"
+                rel="noopener">Every CLI flag (docs/usage.md)</a></p>
+
+        <div class="cta-box">
+            <p>Want to see a report before wiring it into CI? <a href="/#validator">Validate a feed in your
+                    browser</a>.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img class="footer-logo" src="logo.png" alt="" aria-hidden="true" width="512" height="512">
+                <span class="logo-text">GTFS Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="/#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+    <script src="nav.js" defer></script>
+</body>
+
+</html>

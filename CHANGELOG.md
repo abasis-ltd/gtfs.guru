@@ -16,6 +16,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Notice, notices-index and compatibility pages reference the homepage's
   Organization and WebSite by `@id`, and describe each code as a
   `DefinedTerm` in one `DefinedTermSet`.
+- The website has an About page, four new guides (Python, CI, the MCP server,
+  and a comparison with MobilityData's validator), self-hosted Inter and Fira
+  Code fonts instead of Google Fonts, a pinned lucide version instead of
+  `@latest`, a JPEG Open Graph image at a third of the PNG's size, a `<main>`
+  landmark and underlined in-text links.
+- Guides drop unsourced figures and outdated sources, and the
+  create-a-feed sample now validates with no errors or warnings.
+- Text, JavaScript, JSON and XML files are served with `charset=utf-8`.
 
 ### Fixed
 
