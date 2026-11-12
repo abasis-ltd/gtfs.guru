@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fix invalid_email in GTFS | GTFS Guru</title>
-  <meta name="description" content="An email address has an invalid format What the invalid_email notice means, the files and fields it points at, and how to repair the feed.">
+  <meta name="description" content="An email address has an invalid format. How to fix invalid_email: what it means, which files to check and how to repair the feed.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://gtfs.guru/notices/invalid_email/">
   <link rel="sitemap" type="application/xml" href="https://gtfs.guru/sitemap.xml">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="GTFS Guru">
   <meta property="og:title" content="Fix invalid_email in GTFS | GTFS Guru">
-  <meta property="og:description" content="An email address has an invalid format What the invalid_email notice means, the files and fields it points at, and how to repair the feed.">
+  <meta property="og:description" content="An email address has an invalid format. How to fix invalid_email: what it means, which files to check and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/invalid_email/">
   <meta property="og:image" content="https://gtfs.guru/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/invalid_email/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice invalid_email"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"An email address has an invalid format What the invalid_email notice means, the files and fields it points at, and how to repair the feed.","headline":"An email address has an invalid format","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/invalid_email/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/invalid_email/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/invalid_email/","name":"invalid_email","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/invalid_email/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice invalid_email"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"An email address has an invalid format. How to fix invalid_email: what it means, which files to check and how to repair the feed.","headline":"An email address has an invalid format","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/invalid_email/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/invalid_email/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/invalid_email/","name":"invalid_email","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -46,7 +46,7 @@
       <dl class="fact-strip">
         <div><dt>Severity</dt><dd>ERROR</dd></div>
         <div><dt>Files to check</dt><dd>See report</dd></div>
-        <div><dt>Report fields</dt><dd>0</dd></div>
+        <div><dt>Report fields</dt><dd>4</dd></div>
         <div><dt>Documentation</dt><dd>Curated</dd></div>
       </dl>
     </section>
@@ -77,7 +77,10 @@
           <h2>Files to check and report fields</h2>
           <p>Use the file or input resource identified in the report. Check the message and available context fields; runtime failures may not identify a GTFS row.</p>
           <div class="table-wrap"><table><thead><tr><th>Report field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
-            <tr><td colspan="3">This notice has no structured context fields.</td></tr>
+            <tr><td><code>csvRowNumber</code></td><td>integer</td><td>The row of the faulty record.</td></tr>
+            <tr><td><code>fieldName</code></td><td>string</td><td>Faulty record&#39;s field name.</td></tr>
+            <tr><td><code>fieldValue</code></td><td>string</td><td>Faulty value.</td></tr>
+            <tr><td><code>filename</code></td><td>string</td><td>The name of the faulty file.</td></tr>
           </tbody></table></div>
         </section>
         <section id="fix">

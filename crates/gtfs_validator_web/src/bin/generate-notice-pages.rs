@@ -312,10 +312,7 @@ fn render_notice_page(
     // is the repair — so both lead. The summary used to run first and pushed
     // the code past the end of a title in a result list.
     let title = format!("Fix {} in GTFS | GTFS Guru", schema.code);
-    let meta_description = truncate_meta(&format!(
-        "{display_summary} What the {} notice means, the files and fields it points at, and how to repair the feed.",
-        schema.code
-    ));
+    let meta_description = notice_meta_description(&display_summary, &schema.code);
     let severity = severity_label(schema.severity_level);
     let severity_class = severity.to_ascii_lowercase();
     let files = &guide.files_to_check;
@@ -1143,6 +1140,28 @@ fn render_bold(escaped: &str) -> String {
     out
 }
 
+/// The summary is a sentence of its own, so it gets its own full stop rather
+/// than running into the template. The tail is picked to fit whole: a long
+/// code would otherwise push the template past the limit and get it cut off
+/// mid-phrase.
+fn notice_meta_description(summary: &str, code: &str) -> String {
+    const LIMIT: usize = 158;
+    let summary = summary.trim();
+    let lead = if summary.ends_with(['.', '!', '?']) {
+        summary.to_string()
+    } else {
+        format!("{summary}.")
+    };
+    [
+        format!("{lead} How to fix {code}: what it means, which files to check and how to repair the feed."),
+        format!("{lead} How to fix {code}: what it means and how to repair the feed."),
+        format!("{lead} How to fix {code} in a GTFS feed."),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.chars().count() <= LIMIT)
+    .unwrap_or_else(|| truncate_meta(&lead))
+}
+
 fn truncate_meta(value: &str) -> String {
     const LIMIT: usize = 158;
     if value.chars().count() <= LIMIT {
@@ -1764,6 +1783,28 @@ fn render_coverage(surface: &SpecSurface) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notice_meta_descriptions_are_whole_sentences_within_the_limit() {
+        let schemas = build_notice_schema_map();
+        let guides = load_guides(&schemas).expect("guides");
+        for (code, guide) in &guides {
+            let description = notice_meta_description(&guide.title.replace('`', ""), code);
+            assert!(
+                description.chars().count() <= 158,
+                "{code}: description is {} chars",
+                description.chars().count()
+            );
+            assert!(
+                description.ends_with('.'),
+                "{code}: description is cut off: {description}"
+            );
+            assert!(
+                !description.contains(" How to") || description.contains(". How to"),
+                "{code}: summary runs into the template: {description}"
+            );
+        }
+    }
 
     #[test]
     fn generated_notice_pages_are_current() {

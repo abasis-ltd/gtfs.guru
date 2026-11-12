@@ -2,7 +2,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context};
@@ -114,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/sitemap.xml", get(sitemap_xml))
         .route("/", get(index_html))
         .route("/*path", get(static_file))
+        .layer(axum::middleware::map_response(with_security_headers))
         .with_state(state);
     let addr = "0.0.0.0:3000";
     let listener = TcpListener::bind(addr).await?;
@@ -406,25 +407,118 @@ struct ExecutionResult {
     error: String,
 }
 
-async fn index_html() -> Response {
-    serve_static_path("index.html")
+async fn index_html(headers: HeaderMap) -> Response {
+    serve_static_conditional("index.html", &headers)
 }
 
-async fn sitemap_xml() -> Response {
-    serve_static_path("sitemap.xml")
+async fn sitemap_xml(headers: HeaderMap) -> Response {
+    serve_static_conditional("sitemap.xml", &headers)
 }
 
-async fn static_file(AxumPath(path): AxumPath<String>) -> Response {
+async fn static_file(AxumPath(path): AxumPath<String>, headers: HeaderMap) -> Response {
     let Some(clean_path) = sanitize_path(&path) else {
         return not_found();
     };
     if clean_path.is_empty() {
-        return serve_static_path("index.html");
+        return serve_static_conditional("index.html", &headers);
     }
     if is_sensitive_static_path(&clean_path) {
         return not_found();
     }
-    serve_static_path(&clean_path)
+    serve_static_conditional(&clean_path, &headers)
+}
+
+/// Headers every response carries, so they ship with the binary instead of
+/// depending on whatever the reverse proxy in front happens to be configured
+/// with. COOP/COEP make the page cross-origin isolated, which the
+/// multi-threaded WASM build needs for SharedArrayBuffer.
+async fn with_security_headers(mut response: Response) -> Response {
+    let headers = response.headers_mut();
+    for (name, value) in [
+        ("cross-origin-opener-policy", "same-origin"),
+        ("cross-origin-embedder-policy", "require-corp"),
+        (
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains",
+        ),
+        ("x-content-type-options", "nosniff"),
+        ("x-frame-options", "SAMEORIGIN"),
+        ("referrer-policy", "strict-origin-when-cross-origin"),
+    ] {
+        headers
+            .entry(name)
+            .or_insert(header::HeaderValue::from_static(value));
+    }
+    response
+}
+
+/// How long a browser may reuse an embedded file without asking again.
+///
+/// Nothing in website/ carries a content hash in its name, and script.js,
+/// pkg/ and style.css have to change together, so those are revalidated on
+/// every use. The ETag turns that into a bodyless 304 when nothing changed,
+/// which is most of the saving. Images and fonts change rarely and break
+/// nothing when a day stale.
+fn cache_control_for(path: &str) -> &'static str {
+    let extension = path.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("");
+    match extension.to_ascii_lowercase().as_str() {
+        "png" | "jpg" | "jpeg" | "webp" | "avif" | "gif" | "svg" | "ico" | "woff" | "woff2" => {
+            "public, max-age=86400"
+        }
+        _ => "no-cache",
+    }
+}
+
+/// A strong validator for an embedded file: the bytes never change while the
+/// process runs, so the hash is computed once per path.
+fn etag_for(path: &str, contents: &[u8]) -> header::HeaderValue {
+    use std::hash::{Hash, Hasher};
+    static ETAGS: OnceLock<RwLock<HashMap<String, header::HeaderValue>>> = OnceLock::new();
+    let cache = ETAGS.get_or_init(Default::default);
+    if let Some(value) = cache.read().ok().and_then(|map| map.get(path).cloned()) {
+        return value;
+    }
+    // DefaultHasher::new() uses fixed keys, so the tag is stable across
+    // restarts of the same build.
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    contents.hash(&mut hasher);
+    let value = header::HeaderValue::from_str(&format!("\"{:016x}\"", hasher.finish()))
+        .expect("hex ETag is a valid header value");
+    if let Ok(mut map) = cache.write() {
+        map.insert(path.to_string(), value.clone());
+    }
+    value
+}
+
+fn serve_static_conditional(path: &str, request_headers: &HeaderMap) -> Response {
+    let response = serve_static_path(path);
+    let matches = match (
+        response.headers().get(header::ETAG),
+        request_headers.get(header::IF_NONE_MATCH),
+    ) {
+        (Some(etag), Some(if_none_match)) => if_none_match
+            .to_str()
+            .map(|value| {
+                value.split(',').any(|candidate| {
+                    let candidate = candidate.trim();
+                    candidate == "*"
+                        || candidate.trim_start_matches("W/").as_bytes() == etag.as_bytes()
+                })
+            })
+            .unwrap_or(false),
+        _ => false,
+    };
+    if !matches {
+        return response;
+    }
+    let mut not_modified = Response::new(Body::empty());
+    *not_modified.status_mut() = StatusCode::NOT_MODIFIED;
+    for name in [header::ETAG, header::CACHE_CONTROL] {
+        if let Some(value) = response.headers().get(&name) {
+            not_modified.headers_mut().insert(name, value.clone());
+        }
+    }
+    not_modified
 }
 
 fn is_sensitive_static_path(path: &str) -> bool {
@@ -477,6 +571,13 @@ fn serve_static_path(path: &str) -> Response {
         header::HeaderValue::from_str(mime.as_ref())
             .unwrap_or_else(|_| header::HeaderValue::from_static("application/octet-stream")),
     );
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static(cache_control_for(served_path)),
+    );
+    response
+        .headers_mut()
+        .insert(header::ETAG, etag_for(served_path, file.contents()));
     response
 }
 
@@ -1999,6 +2100,60 @@ mod tests {
             response.headers().get(header::CONTENT_TYPE),
             Some(&header::HeaderValue::from_static("text/html"))
         );
+    }
+
+    #[test]
+    fn static_files_carry_cache_validators() {
+        let page = serve_static_path("index.html");
+        assert_eq!(
+            page.headers().get(header::CACHE_CONTROL),
+            Some(&header::HeaderValue::from_static("no-cache"))
+        );
+        let etag = page.headers().get(header::ETAG).expect("etag").clone();
+        assert!(etag.to_str().unwrap().starts_with('"'));
+
+        let logo = serve_static_path("logo.png");
+        assert_eq!(
+            logo.headers().get(header::CACHE_CONTROL),
+            Some(&header::HeaderValue::from_static("public, max-age=86400"))
+        );
+        assert_ne!(logo.headers().get(header::ETAG), Some(&etag));
+    }
+
+    #[test]
+    fn a_matching_etag_gets_a_bodyless_304() {
+        let etag = serve_static_path("index.html")
+            .headers()
+            .get(header::ETAG)
+            .expect("etag")
+            .clone();
+
+        let mut request = HeaderMap::new();
+        request.insert(header::IF_NONE_MATCH, etag.clone());
+        let response = serve_static_conditional("index.html", &request);
+        assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+        assert_eq!(response.headers().get(header::ETAG), Some(&etag));
+
+        request.insert(
+            header::IF_NONE_MATCH,
+            header::HeaderValue::from_static("\"stale\", W/\"other\""),
+        );
+        let response = serve_static_conditional("index.html", &request);
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn every_response_carries_the_security_headers() {
+        let response = with_security_headers(not_found()).await;
+        for name in [
+            "strict-transport-security",
+            "x-content-type-options",
+            "x-frame-options",
+            "cross-origin-opener-policy",
+            "cross-origin-embedder-policy",
+        ] {
+            assert!(response.headers().contains_key(name), "missing {name}");
+        }
     }
 
     #[test]
