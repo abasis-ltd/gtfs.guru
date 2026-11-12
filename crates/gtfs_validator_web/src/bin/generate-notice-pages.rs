@@ -359,7 +359,7 @@ fn render_notice_page(
                 // The homepage defines the organization under this @id; the
                 // name and url are repeated because a parser reading one page
                 // does not follow the reference to another.
-                "author": organization_ref(),
+                "author": author_ref(),
                 "publisher": organization_ref(),
                 "isPartOf": {
                     "@type": "WebSite",
@@ -416,6 +416,8 @@ fn render_notice_page(
   <meta property="og:description" content="{}">
   <meta property="og:url" content="{}">
   <meta property="og:image" content="{}/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
@@ -760,6 +762,8 @@ fn render_index(
   <meta property="og:description" content="{description}">
   <meta property="og:url" content="{BASE_URL}/notices/">
   <meta property="og:image" content="{BASE_URL}/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
@@ -1205,6 +1209,17 @@ fn render_bold(escaped: &str) -> String {
     out
 }
 
+/// The maintainer, by the @id the About page defines him under.
+fn author_ref() -> serde_json::Value {
+    serde_json::json!({
+        "@type": "Person",
+        "@id": format!("{BASE_URL}/about.html#igor-akimov"),
+        "name": "Igor Akimov",
+        "url": format!("{BASE_URL}/about.html"),
+        "sameAs": ["https://github.com/akimovpro"]
+    })
+}
+
 /// The site's organization, by the @id the homepage defines it under.
 fn organization_ref() -> serde_json::Value {
     serde_json::json!({
@@ -1350,7 +1365,7 @@ fn render_compatibility_page(
         "headline": "GTFS specification and validator compatibility",
         "description": description,
         "url": format!("{BASE_URL}/compatibility/"),
-        "author": organization_ref(),
+        "author": author_ref(),
         "publisher": organization_ref(),
         "image": format!("{BASE_URL}/og-image.jpg"),
         "isPartOf": {
@@ -1383,6 +1398,8 @@ fn render_compatibility_page(
   <meta property="og:description" content="{meta_description}">
   <meta property="og:url" content="{BASE_URL}/compatibility/">
   <meta property="og:image" content="{BASE_URL}/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">

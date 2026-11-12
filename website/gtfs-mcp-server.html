@@ -18,6 +18,8 @@
     <meta property="og:description"
         content="Let Claude, Cursor, VS Code or Codex validate GTFS feeds with gtfs-guru-mcp, a read-only MCP server that runs locally and reads only folders you allow.">
     <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/gtfs-mcp-server.html">
 
     <!-- Twitter Card -->
@@ -34,10 +36,13 @@
   "headline": "How Do I Let an AI Assistant Validate GTFS Feeds?",
   "description": "Let Claude, Cursor, VS Code or Codex validate GTFS feeds with gtfs-guru-mcp, a read-only MCP server that runs locally and reads only folders you allow.",
   "author": {
-    "@type": "Organization",
-    "@id": "https://gtfs.guru/#organization",
-    "name": "GTFS Guru",
-    "url": "https://gtfs.guru/"
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
   },
   "publisher": {
     "@type": "Organization",
@@ -126,6 +131,7 @@
         <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">How Do I Let an AI Assistant Validate GTFS Feeds?</span></nav>
 
         <h1>How Do I Let an AI Assistant Validate GTFS Feeds?</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
 
         <p class="short-answer"><strong>Install <code>gtfs-guru-mcp</code>, the GTFS Guru MCP server, and register it
                 in your assistant with <code>--allow-dir</code> pointing at the folder that holds your feeds. The

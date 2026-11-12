@@ -18,6 +18,8 @@
     <meta property="og:description"
         content="Validate a GTFS feed from Python with pip install gtfs-guru: run validate(), read errors by file, row and field, and save JSON or HTML reports.">
     <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/gtfs-validator-python.html">
 
     <!-- Twitter Card -->
@@ -34,10 +36,13 @@
   "headline": "How Do I Validate a GTFS Feed in Python?",
   "description": "Validate a GTFS feed from Python with pip install gtfs-guru: run validate(), read errors by file, row and field, and save JSON or HTML reports.",
   "author": {
-    "@type": "Organization",
-    "@id": "https://gtfs.guru/#organization",
-    "name": "GTFS Guru",
-    "url": "https://gtfs.guru/"
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
   },
   "publisher": {
     "@type": "Organization",
@@ -127,6 +132,7 @@
         <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">How Do I Validate a GTFS Feed in Python?</span></nav>
 
         <h1>How Do I Validate a GTFS Feed in Python?</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
 
         <p class="short-answer"><strong>Install the package with <code>pip install gtfs-guru</code>, then call
                 <code>gtfs_guru.validate("feed.zip")</code>. You get back a result object with error, warning and info

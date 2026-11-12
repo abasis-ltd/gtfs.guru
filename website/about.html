@@ -15,6 +15,8 @@
     <meta property="og:title" content="About GTFS Guru: Who Builds It and How It Is Tested">
     <meta property="og:description" content="GTFS Guru is an open-source Rust GTFS validator maintained by Abasis.AI. How it tracks the GTFS spec and MobilityData's canonical validator, and how it is tested.">
     <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/about.html">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="About GTFS Guru: Who Builds It and How It Is Tested">
@@ -41,8 +43,18 @@
               "https://pypi.org/project/gtfs-guru/",
               "https://crates.io/crates/gtfs-guru"
             ],
-            "parentOrganization": { "@type": "Organization", "@id": "https://abasis.ai/#organization", "name": "Abasis.AI", "url": "https://abasis.ai" }
+            "parentOrganization": { "@type": "Organization", "@id": "https://abasis.ai/#organization", "name": "Abasis.AI", "url": "https://abasis.ai" },
+            "founder": { "@id": "https://gtfs.guru/about.html#igor-akimov" }
           }
+        },
+        {
+          "@type": "Person",
+          "@id": "https://gtfs.guru/about.html#igor-akimov",
+          "name": "Igor Akimov",
+          "jobTitle": "Maintainer of GTFS Guru",
+          "url": "https://gtfs.guru/about.html",
+          "sameAs": ["https://github.com/akimovpro"],
+          "worksFor": { "@id": "https://abasis.ai/#organization" }
         },
         {
           "@type": "BreadcrumbList",
@@ -108,6 +120,12 @@
                 release this build answers for, along with every known difference.</p>
             <p style="color: var(--text-secondary); margin-bottom: 1rem;">MobilityData's validator remains the
                 reference implementation. GTFS Guru is an independent project that tracks it.</p>
+
+            <h2 style="margin: 2rem 0 1rem;">Who builds it</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">GTFS Guru is built and maintained by
+                <a href="https://github.com/akimovpro">Igor Akimov</a> at Abasis.AI, who wrote the Rust validator,
+                the parity harnesses and the notice guides on this site. Changes go through public pull requests on
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>.</p>
 
             <h2 style="margin: 2rem 0 1rem;">How it is kept correct</h2>
             <p style="color: var(--text-secondary); margin-bottom: 1rem;"><strong>Golden suite.</strong> Small

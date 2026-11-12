@@ -18,6 +18,8 @@
     <meta property="og:description"
         content="How GTFS Guru compares with MobilityData's canonical GTFS validator: shared notice codes, listed differences, measured speed, and when to use each one.">
     <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/gtfs-guru-vs-mobilitydata-validator.html">
 
     <!-- Twitter Card -->
@@ -34,10 +36,13 @@
   "headline": "GTFS Guru vs the MobilityData GTFS Validator",
   "description": "How GTFS Guru compares with MobilityData's canonical GTFS validator: shared notice codes, listed differences, measured speed, and when to use each one.",
   "author": {
-    "@type": "Organization",
-    "@id": "https://gtfs.guru/#organization",
-    "name": "GTFS Guru",
-    "url": "https://gtfs.guru/"
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
   },
   "publisher": {
     "@type": "Organization",
@@ -126,6 +131,7 @@
         <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">GTFS Guru vs the MobilityData GTFS Validator</span></nav>
 
         <h1>GTFS Guru vs the MobilityData GTFS Validator</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
 
         <p class="short-answer"><strong>GTFS Guru is a Rust reimplementation of MobilityData's canonical
                 Java <code>gtfs-validator</code>. It uses the same notice codes and report format, lists every place
