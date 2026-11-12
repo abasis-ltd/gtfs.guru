@@ -26,6 +26,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
   configuration. COOP/COEP stay with the proxy: a second copy from the app
   makes browsers drop cross-origin isolation, which disables the
   multi-threaded WASM build.
+- The web server answers unknown paths with an HTML 404 page linking to the
+  validator, notice codes and guides, instead of plain "Not Found". A
+  directory page requested without its trailing slash, and a file page
+  requested with one, get a 301 to their single address instead of a second
+  copy of the page.
 
 ## [1.0.0] - 2026-09-15
 

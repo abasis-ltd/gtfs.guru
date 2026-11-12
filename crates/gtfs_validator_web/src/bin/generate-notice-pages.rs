@@ -822,7 +822,8 @@ fn render_sitemap(root: &Path, schemas: &BTreeMap<String, NoticeSchema>) -> anyh
             .and_then(|value| value.to_str())
             .unwrap_or("")
             .to_string();
-        if name != "index.html" {
+        // 404.html is the error page the server answers unknown paths with.
+        if name != "index.html" && name != "404.html" {
             urls.insert(format!("{BASE_URL}/{name}"), path);
         }
     }
