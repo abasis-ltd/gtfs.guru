@@ -17,7 +17,9 @@
     <meta property="og:title" content="Free GTFS Validator — Check Feeds Locally | GTFS Guru">
     <meta property="og:description"
         content="Free, open-source GTFS validator. Check schedules, stops and routes for errors and get a report naming the file, row and field to fix — a median 88x faster than the canonical Java validator on a small feed.">
-    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/">
 
     <!-- Twitter Card -->
@@ -25,7 +27,7 @@
     <meta name="twitter:title" content="Free GTFS Validator — Check Feeds Locally | GTFS Guru">
     <meta name="twitter:description"
         content="Free, open-source GTFS validator. Check schedules, stops and routes for errors and get a report naming the file, row and field to fix — a median 88x faster than the canonical Java validator on a small feed.">
-    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
     <meta name="theme-color" content="#0f172a">
 
     <!-- Every claim below is also visible on the page. Structured data that
@@ -40,9 +42,20 @@
         "@id": "https://gtfs.guru/#organization",
         "name": "GTFS Guru",
         "url": "https://gtfs.guru/",
-        "logo": "https://gtfs.guru/logo.png",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://gtfs.guru/logo.png",
+          "width": 512,
+          "height": 512
+        },
+        "sameAs": [
+          "https://github.com/abasis-ltd/gtfs.guru",
+          "https://pypi.org/project/gtfs-guru/",
+          "https://crates.io/crates/gtfs-guru"
+        ],
         "parentOrganization": {
           "@type": "Organization",
+          "@id": "https://abasis.ai/#organization",
           "name": "Abasis.AI",
           "url": "https://abasis.ai"
         }
@@ -155,18 +168,13 @@
   }
   </script>
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap"
-        rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="style.css">
     <!-- crossorigin is required: the page is COEP: require-corp for wasm threads,
          which blocks cross-origin scripts requested without CORS. -->
-    <script src="https://unpkg.com/lucide@latest" crossorigin="anonymous" defer></script>
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous" defer></script>
     <script>
         // Check for file protocol and show warning
         window.addEventListener('DOMContentLoaded', () => {
@@ -184,7 +192,7 @@
     <nav class="glass-nav">
         <div class="container nav-container">
             <a href="#" class="logo">
-                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
                 <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
             </a>
 
@@ -218,6 +226,7 @@
         </div>
     </nav>
 
+    <main>
     <header class="hero-section">
         <div class="container hero-container">
             <div class="hero-content">
@@ -272,13 +281,13 @@
                                  out of the primary path through the product. -->
                             <div class="upload-state" id="upload-state">
                                 <i data-lucide="upload-cloud" class="upload-icon" aria-hidden="true"></i>
-                                <h3>Drop a GTFS.zip here</h3>
+                                <h2>Drop a GTFS.zip here</h2>
                                 <button type="button" class="btn btn-primary" id="choose-file-btn">
                                     <i data-lucide="folder-open"></i> Choose GTFS ZIP
                                 </button>
                                 <p class="sub-text upload-limit-note">Up to 150&nbsp;MB zipped / 700&nbsp;MB unpacked.
                                     Larger feeds: use the <a href="#download">desktop app</a> or the CLI.</p>
-                                <input type="file" id="file-input" accept=".zip" hidden>
+                                <input type="file" id="file-input" accept=".zip" aria-label="GTFS zip file to validate" hidden>
                             </div>
 
                             <div class="demo-row" id="demo-row">
@@ -320,8 +329,8 @@
                                     <span>Release to review</span>
                                 </button>
                             </div>
-                            <input type="file" id="old-file-input" accept=".zip" hidden>
-                            <input type="file" id="new-file-input" accept=".zip" hidden>
+                            <input type="file" id="old-file-input" accept=".zip" aria-label="Previous GTFS zip to compare" hidden>
+                            <input type="file" id="new-file-input" accept=".zip" aria-label="New GTFS zip to compare" hidden>
                             <button type="button" class="btn btn-primary diff-run-btn" id="diff-analyze-btn" disabled>
                                 <i data-lucide="git-compare-arrows"></i> Compare feeds
                             </button>
@@ -732,6 +741,7 @@ if not report.is_valid:
     print(f"Found {report.error_count} errors")
     report.save_html("report.html")</code></pre>
                     </div>
+                    <p class="sub-text"><a href="gtfs-validator-python.html">Python guide</a></p>
                 </div>
                 <div class="tech-col">
                     <div class="tech-header">
@@ -748,6 +758,8 @@ if not report.is_valid:
 # Output JSON for CI/CD
 gtfs-guru --stdout -i feed.zip | jq .</code></pre>
                     </div>
+                    <p class="sub-text"><a href="gtfs-validation-ci.html">Validating in CI</a> &middot;
+                        <a href="gtfs-guru-vs-mobilitydata-validator.html">Compared with MobilityData's validator</a></p>
                 </div>
             </div>
             <div class="mcp-developer-strip">
@@ -769,8 +781,11 @@ gtfs-guru --stdout -i feed.zip | jq .</code></pre>
                     <p>GTFS Guru returns exact totals and concrete examples with available file, row, field, and
                         context, so the answer stays grounded in the validator report.</p>
                 </div>
-                <button type="button" class="btn btn-secondary" data-open-connect>Connect your AI assistant <i
-                        data-lucide="plug"></i></button>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-secondary" data-open-connect>Connect your AI assistant <i
+                            data-lucide="plug"></i></button>
+                    <a class="btn btn-secondary" href="gtfs-mcp-server.html">MCP server guide</a>
+                </div>
             </div>
         </div>
     </section>
@@ -873,6 +888,7 @@ gtfs-guru --stdout -i feed.zip | jq .</code></pre>
             </div>
         </div>
     </section>
+    </main>
 
     <footer>
         <div class="container footer-container">
@@ -885,6 +901,7 @@ gtfs-guru --stdout -i feed.zip | jq .</code></pre>
                 <a href="/#faq">FAQ</a>
                 <a href="faq.html">Guides</a>
                 <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
                 <a href="contact.html">Contact</a>
                 <a href="privacy.html">Privacy</a>
                 <a href="terms.html">Terms</a>

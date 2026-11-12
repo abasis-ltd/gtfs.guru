@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validate GTFS in Python with gtfs-guru | GTFS Guru</title>
+    <meta name="description"
+        content="Validate a GTFS feed from Python with pip install gtfs-guru: run validate(), read errors by file, row and field, and save JSON or HTML reports.">
+    <link rel="canonical" href="https://gtfs.guru/gtfs-validator-python.html">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="Validate GTFS in Python with gtfs-guru | GTFS Guru">
+    <meta property="og:description"
+        content="Validate a GTFS feed from Python with pip install gtfs-guru: run validate(), read errors by file, row and field, and save JSON or HTML reports.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://gtfs.guru/gtfs-validator-python.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Validate GTFS in Python with gtfs-guru | GTFS Guru">
+    <meta name="twitter:description"
+        content="Validate a GTFS feed from Python with pip install gtfs-guru: run validate(), read errors by file, row and field, and save JSON or HTML reports.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "How Do I Validate a GTFS Feed in Python?",
+  "description": "Validate a GTFS feed from Python with pip install gtfs-guru: run validate(), read errors by file, row and field, and save JSON or HTML reports.",
+  "author": {
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
+  },
+  "publisher": {
+    "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
+    "name": "GTFS Guru",
+    "url": "https://gtfs.guru/"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/gtfs-validator-python.html"
+  },
+  "datePublished": "2026-11-12",
+  "dateModified": "2026-11-12"
+}
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "GTFS Guru",
+          "item": "https://gtfs.guru/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guides",
+          "item": "https://gtfs.guru/faq.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "How Do I Validate a GTFS Feed in Python?",
+          "item": "https://gtfs.guru/gtfs-validator-python.html"
+        }
+      ]
+    }
+    </script>
+
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+
+</head>
+
+<body>
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links" id="nav-links">
+                <a href="/#validator">Validator</a>
+                <a href="faq.html" class="active">Guides</a>
+                <details class="nav-dropdown">
+                    <summary>Documentation</summary>
+                    <div class="nav-dropdown-panel">
+                        <a href="notices/">Notice codes</a>
+                        <a href="compatibility/">Compatibility</a>
+                        <a href="/#faq">FAQ</a>
+                    </div>
+                </details>
+                <a href="/#developers">Developers</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+                <a href="/#validator" class="nav-mobile-cta">Validate a feed</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/#validator" class="btn btn-primary">Validate a feed</a>
+                <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu"
+                    aria-expanded="false" aria-controls="nav-links">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">How Do I Validate a GTFS Feed in Python?</span></nav>
+
+        <h1>How Do I Validate a GTFS Feed in Python?</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
+
+        <p class="short-answer"><strong>Install the package with <code>pip install gtfs-guru</code>, then call
+                <code>gtfs_guru.validate("feed.zip")</code>. You get back a result object with error, warning and info
+                counts and a list of notices, each pointing at the file, row and field that caused it.</strong></p>
+
+        <p>The package wraps the same Rust validator that runs on gtfs.guru and in the command-line tool, so a feed
+            gets the same notice codes whichever one you use. It is a compiled extension, not a wrapper that shells out
+            to Java, and it needs Python 3.8 or newer.</p>
+
+        <h2>Install</h2>
+
+        <pre class="code-block"><code>pip install gtfs-guru</code></pre>
+
+        <p>The package on PyPI is <code>gtfs-guru</code>; the module you import is <code>gtfs_guru</code>. Prebuilt
+            wheels are listed for macOS (Apple Silicon and Intel), Windows x86_64 and Linux x86_64. On other platforms
+            you can build the wheel from a checkout with <code>maturin</code>, as described in the
+            <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/crates/gtfs_validator_python/README.md"
+                target="_blank" rel="noopener">package README</a>.</p>
+
+        <h2>Minimal example</h2>
+
+        <pre class="code-block"><code>import gtfs_guru
+
+result = gtfs_guru.validate("/path/to/gtfs.zip")
+
+print(f"Valid: {result.is_valid}")
+print(f"Errors: {result.error_count}")
+print(f"Warnings: {result.warning_count}")</code></pre>
+
+        <p><code>validate()</code> takes a path to a GTFS zip file or an unzipped feed directory. Two optional
+            arguments match the CLI options: <code>country_code</code> (an ISO code such as <code>"US"</code> or
+            <code>"DE"</code>, which turns on region-specific rules) and <code>date</code> (a
+            <code>YYYY-MM-DD</code> string to validate as of that day instead of today).</p>
+
+        <pre class="code-block"><code>result = gtfs_guru.validate(
+    "/path/to/gtfs.zip",
+    country_code="US",
+    date="2025-01-15",
+)</code></pre>
+
+        <p>Pinning <code>date</code> is useful in tests: notices such as
+            <a href="notices/expired_calendar/">expired_calendar</a> and
+            <a href="notices/feed_expiration_date30_days/">feed_expiration_date30_days</a> depend on the validation
+            date, so a fixed date keeps the result stable. If the path is invalid or the feed cannot be loaded,
+            <code>validate()</code> raises <code>ValueError</code>.</p>
+
+        <h2>Reading the results</h2>
+
+        <p><code>result.errors()</code>, <code>result.warnings()</code> and <code>result.infos()</code> return
+            notices by severity, and <code>result.by_code()</code> filters by notice code. Every notice has
+            <code>code</code>, <code>severity</code>, <code>message</code>, and, when they apply, <code>file</code>,
+            <code>row</code> and <code>field</code>.</p>
+
+        <pre class="code-block"><code>for error in result.errors():
+    print(f"{error.code}: {error.message}")
+    if error.file:
+        print(f"  at {error.file}:{error.row}")
+
+for notice in result.by_code("missing_required_field"):
+    print(notice.file, notice.row, notice.get("fieldName"))</code></pre>
+
+        <p><code>notice.get(key)</code> reads one context value and <code>notice.context()</code> returns all of them
+            as a dict. The context keys for each code are listed on its page in the
+            <a href="notices/">notice code reference</a>; see for example
+            <a href="notices/missing_required_field/">missing_required_field</a> or
+            <a href="notices/foreign_key_violation/">foreign_key_violation</a>.</p>
+
+        <h2>Saving reports</h2>
+
+        <pre class="code-block"><code>result.save_json("report.json")
+result.save_html("report.html")
+
+report = result.to_dict()          # or result.to_json() for a string
+summary = report["summary"]</code></pre>
+
+        <p><code>save_json()</code> writes a report in the same JSON format as the canonical Java validator's
+            <code>report.json</code>, so scripts that already parse that file can read this one.
+            <code>save_html()</code> writes a basic page with the counts and the raw report. For the full HTML report,
+            run the <a href="gtfs-validation-ci.html">CLI</a> or <a href="/#validator">validate in the browser</a>.</p>
+
+        <h2>Notebooks and ETL jobs</h2>
+
+        <p>In a notebook, validate the feed and summarise the notice codes before looking at individual rows:</p>
+
+        <pre class="code-block"><code>from collections import Counter
+import gtfs_guru
+
+result = gtfs_guru.validate("/path/to/gtfs.zip")
+error_counts = Counter(e.code for e in result.errors())
+for code, count in error_counts.most_common(10):
+    print(f"{code}: {count}")</code></pre>
+
+        <p>In a pipeline, use the result as a gate before you load or publish the feed:</p>
+
+        <pre class="code-block"><code>result = gtfs_guru.validate(feed_path)
+result.save_json("report.json")
+if not result.is_valid:
+    raise RuntimeError(f"{result.error_count} GTFS errors, see report.json")</code></pre>
+
+        <p>For async code, <code>await gtfs_guru.validate_async(path, on_progress=callback)</code> runs the same
+            validation without blocking the event loop and reports progress through the callback. Other helpers:
+            <code>gtfs_guru.version()</code>, <code>gtfs_guru.notice_codes()</code> and
+            <code>gtfs_guru.notice_schema()</code>.</p>
+
+        <h2>Full reference</h2>
+
+        <p>The <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/python_api.md" target="_blank"
+                rel="noopener">Python API reference</a> and the
+            <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/crates/gtfs_validator_python/README.md"
+                target="_blank" rel="noopener">package README</a> document every function, attribute and method. If
+            you validate from a shell script or a CI job instead, see
+            <a href="gtfs-validation-ci.html">how to validate GTFS in CI</a>.</p>
+
+        <h2>FAQ</h2>
+
+        <h3>Does the Python package give the same results as the website?</h3>
+        <p>Yes. The browser app, the CLI and the Python package all run the same Rust validator, so the notice codes
+            and counts match for the same feed, date and country code.</p>
+
+        <h3>Do I need Java installed?</h3>
+        <p>No. The package is a compiled Rust extension. Only the canonical MobilityData validator needs a Java
+            runtime; <a href="gtfs-guru-vs-mobilitydata-validator.html">see how the two compare</a>.</p>
+
+        <h3>Does it check Google-specific rules?</h3>
+        <p>The Python <code>validate()</code> function takes only <code>path</code>, <code>country_code</code> and
+            <code>date</code>. The Google-specific rules and the extra <code>--thorough</code> checks are switched on
+            through CLI flags.</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="how-to-validate-gtfs.html">How do I validate my GTFS feed?</a></p>
+        <p>• <a href="gtfs-validation-ci.html">How do I validate GTFS in CI?</a></p>
+        <p>• <a href="notices/">GTFS notice guide</a></p>
+
+        <div class="cta-box">
+            <p>Want to see a report first? <a href="/#validator">Validate a feed in your browser</a>. The file stays on
+                your device.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img class="footer-logo" src="logo.png" alt="" aria-hidden="true" width="512" height="512">
+                <span class="logo-text">GTFS Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="/#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+    <script src="nav.js" defer></script>
+</body>
+
+</html>

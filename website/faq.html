@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guides & Tutorials | GTFS Guru</title>
+    <title>GTFS Guides: Create, Validate and Publish Feeds | GTFS Guru</title>
     <meta name="description" content="Guides to creating, validating and publishing GTFS feeds: what the acronym means, how to build a feed, why Google rejects one, and where to find feeds to test with.">
     <link rel="canonical" href="https://gtfs.guru/faq.html">
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
@@ -13,16 +13,18 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="GTFS Guru">
-    <meta property="og:title" content="Guides & Tutorials | GTFS Guru">
+    <meta property="og:title" content="GTFS Guides: Create, Validate and Publish Feeds | GTFS Guru">
     <meta property="og:description" content="Guides to creating, validating and publishing GTFS feeds: what the acronym means, how to build a feed, why Google rejects one, and where to find feeds to test with.">
-    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/faq.html">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Guides & Tutorials | GTFS Guru">
+    <meta name="twitter:title" content="GTFS Guides: Create, Validate and Publish Feeds | GTFS Guru">
     <meta name="twitter:description" content="Guides to creating, validating and publishing GTFS feeds: what the acronym means, how to build a feed, why Google rejects one, and where to find feeds to test with.">
-    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
 
         <script type="application/ld+json">
 {
@@ -99,12 +101,6 @@
 }
     </script>
 
-<!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
 
     <!-- Custom CSS -->
     <script type="application/ld+json">
@@ -130,14 +126,14 @@
     <link rel="stylesheet" href="style.css">
 
     <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
 </head>
 
 <body>
     <nav class="glass-nav">
         <div class="container nav-container">
             <a href="/" class="logo">
-                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
                 <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
             </a>
             <div class="nav-links" id="nav-links">
@@ -167,13 +163,22 @@
     </nav>
 
     <div class="container" style="padding-top: 160px; padding-bottom: 80px; min-height: 80vh;">
-        <h1 style="margin-bottom: 1rem;">Guides & Tutorials</h1>
+        <h1 style="margin-bottom: 1rem;">GTFS guides</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 1.1rem; max-width: 800px;">
+            GTFS (General Transit Feed Specification) is the zip of CSV files that transit agencies publish so trip
+            planners like Google Maps and Apple Maps can show their routes, stops and timetables. These guides cover
+            the whole path: what the format is, how to build a feed, how to check it, and how to get it accepted and
+            keep it current.
+        </p>
         <p style="color: var(--text-secondary); margin-bottom: 3rem; font-size: 1.1rem; max-width: 800px;">
-            Deep dives into the world of GTFS. Learn how to create, validate, and publish transit data for the global
-            stage.
+            New to GTFS? Start with <a href="what-is-gtfs-used-for.html">what GTFS is used for</a>, then
+            <a href="how-to-create-gtfs-file.html">build a minimal feed</a> and
+            <a href="how-to-validate-gtfs.html">validate it</a>. Already publishing and got rejected? Go to
+            <a href="why-is-my-gtfs-rejected.html">why GTFS feeds get rejected</a>.
         </p>
 
         <div class="glass-card" style="padding: 3rem;">
+            <h2 style="margin-bottom: 1.5rem;">Guides</h2>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
                 <a href="what-does-gtfs-stand-for.html" class="glass-doc-card">
                     <i data-lucide="help-circle"></i>
@@ -233,6 +238,32 @@
             </div>
         </div>
 
+        <div class="glass-card" style="padding: 3rem; margin-top: 2rem;">
+            <h2 style="margin-bottom: 1.5rem;">Using the validator</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                <a href="gtfs-validator-python.html" class="glass-doc-card">
+                    <i data-lucide="code-2"></i>
+                    <h3>Validate GTFS in Python</h3>
+                    <p>pip install, validate() and reading the results.</p>
+                </a>
+                <a href="gtfs-validation-ci.html" class="glass-doc-card">
+                    <i data-lucide="git-branch"></i>
+                    <h3>Validate GTFS in CI</h3>
+                    <p>Fail a pipeline on errors, SARIF, the GitHub Action.</p>
+                </a>
+                <a href="gtfs-mcp-server.html" class="glass-doc-card">
+                    <i data-lucide="plug"></i>
+                    <h3>MCP server for AI assistants</h3>
+                    <p>Let Claude, Cursor or VS Code validate feeds locally.</p>
+                </a>
+                <a href="gtfs-guru-vs-mobilitydata-validator.html" class="glass-doc-card">
+                    <i data-lucide="git-compare"></i>
+                    <h3>GTFS Guru vs MobilityData</h3>
+                    <p>Same notice codes, listed differences, measured speed.</p>
+                </a>
+            </div>
+        </div>
+
         <!-- The notice reference is the largest part of the site by page count
              and had one inbound link in the whole thing. It belongs here, next
              to the guides, not buried in one paragraph of one article. -->
@@ -269,6 +300,7 @@
                 <a href="/#faq">FAQ</a>
                 <a href="faq.html">Guides</a>
                 <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
                 <a href="contact.html">Contact</a>
                 <a href="privacy.html">Privacy</a>
                 <a href="terms.html">Terms</a>

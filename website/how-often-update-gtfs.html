@@ -17,7 +17,9 @@
     <meta property="og:title" content="How Often Should I Update My GTFS Feed? | GTFS Guru">
     <meta property="og:description"
         content="Update your GTFS feed whenever schedules change, and at least monthly to extend calendar dates. Google re-fetches feeds automatically.">
-    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/how-often-update-gtfs.html">
 
     <!-- Twitter Card -->
@@ -25,7 +27,7 @@
     <meta name="twitter:title" content="How Often Should I Update My GTFS Feed? | GTFS Guru">
     <meta name="twitter:description"
         content="Update your GTFS feed whenever schedules change, and at least monthly to extend calendar dates. Google re-fetches feeds automatically.">
-    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
 
     <script type="application/ld+json">
   {
@@ -51,12 +53,19 @@
   "headline": "How Often Should I Update My GTFS Feed?",
   "description": "Update your GTFS feed whenever schedules change, and at least monthly to extend calendar dates. Google re-fetches feeds automatically.",
   "author": {
-    "@type": "Organization",
-    "name": "GTFS Guru"
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
   },
   "publisher": {
     "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
     "name": "GTFS Guru",
+    "url": "https://gtfs.guru/",
     "logo": {
       "@type": "ImageObject",
       "url": "https://gtfs.guru/logo.png"
@@ -98,18 +107,12 @@
     }
     </script>
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 
     <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
 
 </head>
 
@@ -117,7 +120,7 @@
     <nav class="glass-nav">
         <div class="container nav-container">
             <a href="/" class="logo">
-                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
                 <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
             </a>
             <div class="nav-links" id="nav-links">
@@ -150,6 +153,7 @@
         <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">How Often Should I Update My GTFS Feed?</span></nav>
 
         <h1>How Often Should I Update My GTFS Feed?</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
 
         <p class="short-answer"><strong>Update your feed whenever your schedules change, and at least once a month to
                 keep the dates fresh and avoid expiring.</strong></p>
@@ -233,6 +237,7 @@
                 <a href="/#faq">FAQ</a>
                 <a href="faq.html">Guides</a>
                 <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
                 <a href="contact.html">Contact</a>
                 <a href="privacy.html">Privacy</a>
                 <a href="terms.html">Terms</a>

@@ -17,7 +17,9 @@
     <meta property="og:title" content="Why Was My GTFS Feed Rejected by Google? | GTFS Guru">
     <meta property="og:description"
         content="Common reasons Google rejects GTFS feeds: validation errors, inaccurate stops, missing shapes, expired calendars. Learn how to fix these issues.">
-    <meta property="og:image" content="https://gtfs.guru/og-image.png">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://gtfs.guru/why-is-my-gtfs-rejected.html">
 
     <!-- Twitter Card -->
@@ -25,7 +27,7 @@
     <meta name="twitter:title" content="Why Was My GTFS Feed Rejected by Google? | GTFS Guru">
     <meta name="twitter:description"
         content="Common reasons Google rejects GTFS feeds: validation errors, inaccurate stops, missing shapes, expired calendars. Learn how to fix these issues.">
-    <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
 
     <script type="application/ld+json">
   {
@@ -51,12 +53,19 @@
   "headline": "Why Was My GTFS Feed Rejected by Google?",
   "description": "Common reasons Google rejects GTFS feeds: validation errors, inaccurate stops, missing shapes, expired calendars. Learn how to fix these issues.",
   "author": {
-    "@type": "Organization",
-    "name": "GTFS Guru"
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
   },
   "publisher": {
     "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
     "name": "GTFS Guru",
+    "url": "https://gtfs.guru/",
     "logo": {
       "@type": "ImageObject",
       "url": "https://gtfs.guru/logo.png"
@@ -98,18 +107,12 @@
     }
     </script>
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 
     <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
 
 </head>
 
@@ -117,7 +120,7 @@
     <nav class="glass-nav">
         <div class="container nav-container">
             <a href="/" class="logo">
-                <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
                 <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
             </a>
             <div class="nav-links" id="nav-links">
@@ -150,6 +153,7 @@
         <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">Why Was My GTFS Feed Rejected by Google?</span></nav>
 
         <h1>Why Was My GTFS Feed Rejected by Google?</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
 
         <p class="short-answer"><strong>Google usually rejects feeds because of validation errors, inaccurate stop
                 locations, or missing required info. Always validate before you submit.</strong></p>
@@ -160,15 +164,18 @@
         <p>This is the #1 reason for rejection. Google runs a strict check on every file you send. If columns are
             missing or dates are in the wrong format, they'll send it back.</p>
 
-        <p><strong>The Fix:</strong> Run your file through <a href="https://gtfs.guru">GTFS Guru</a> first. If it finds
-            even one error, Google will too. Fix them all before hitting submit.</p>
+        <p><strong>The Fix:</strong> Run your file through <a href="https://gtfs.guru">GTFS Guru</a> first. Errors such as
+            <a href="/notices/missing_required_field/">missing_required_field</a> or
+            <a href="/notices/invalid_date/">invalid_date</a> break the file for any consumer, so fix every one
+            before you submit, then work through the warnings.</p>
 
         <h3>2. Inaccurate Stop Locations</h3>
         <p>Google's reviewers are eagle-eyed. If they see a bus stop in the middle of a lake or inside someone's living
             room, they'll reject the feed. Swapping your latitude and longitude is a very common mistake!</p>
 
         <p><strong>The Fix:</strong> Double-check your coordinates. Try plotting a few of them on a map to make sure
-            they're actually on the street where they belong.</p>
+            they're actually on the street where they belong. A stop far from its route line shows up as
+            <a href="/notices/stop_too_far_from_shape/">stop_too_far_from_shape</a>.</p>
 
         <h3>3. Missing shapes.txt</h3>
         <p>While technically optional, Google strongly prefers feeds with shapes. Without them, routes appear as
@@ -180,21 +187,25 @@
         <p>If your calendar dates have already passed, your buses will simply vanish from the map. It's the most common
             reason for a suddenly "broken" feed.</p>
 
-        <p><strong>The Fix:</strong> Keep your calendars extending at least 3-6 months into the future. Update them
-            before they expire!</p>
+        <p><strong>The Fix:</strong> Keep your calendars extending at least 3-6 months into the future and update them
+            before they expire. Validators flag this as <a href="/notices/expired_calendar/">expired_calendar</a>
+            and, ahead of time, <a href="/notices/feed_expiration_date30_days/">feed_expiration_date30_days</a>.</p>
 
         <h3>5. Invalid Timezones</h3>
         <p>Google needs timezones in a very specific format (like "America/New_York"). If you use something like "EST,"
             the whole schedule will break.</p>
 
-        <p><strong>The Fix:</strong> Use the official IANA timezone name for your region. When in doubt, look it up!</p>
+        <p><strong>The Fix:</strong> Use the official IANA timezone name for your region. A wrong value is reported as
+            <a href="/notices/invalid_timezone/">invalid_timezone</a>.</p>
 
         <h3>6. Impossible Schedules</h3>
         <p>If your schedule says a bus travels 10 miles in 1 minute, the reviewer will flag it as "impossible." Same
             goes for arrival times that happen before the bus even departs.</p>
 
         <p><strong>The Fix:</strong> Review your stop times. Make sure the travel durations are realistic for your
-            vehicles and traffic conditions.</p>
+            vehicles and traffic conditions. Validators report these as
+            <a href="/notices/fast_travel_between_consecutive_stops/">fast_travel_between_consecutive_stops</a> and
+            <a href="/notices/stop_time_with_arrival_before_previous_departure_time/">stop_time_with_arrival_before_previous_departure_time</a>.</p>
 
         <h3>7. Duplicate or Conflicting Submissions</h3>
         <p>If someone else has already submitted data for your routes (perhaps an outdated feed from a previous
@@ -251,6 +262,7 @@
                 <a href="/#faq">FAQ</a>
                 <a href="faq.html">Guides</a>
                 <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
                 <a href="contact.html">Contact</a>
                 <a href="privacy.html">Privacy</a>
                 <a href="terms.html">Terms</a>

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTFS Guru vs MobilityData GTFS Validator | GTFS Guru</title>
+    <meta name="description"
+        content="How GTFS Guru compares with MobilityData's canonical GTFS validator: shared notice codes, listed differences, measured speed, and when to use each one.">
+    <link rel="canonical" href="https://gtfs.guru/gtfs-guru-vs-mobilitydata-validator.html">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GTFS Guru">
+    <meta property="og:title" content="GTFS Guru vs MobilityData GTFS Validator | GTFS Guru">
+    <meta property="og:description"
+        content="How GTFS Guru compares with MobilityData's canonical GTFS validator: shared notice codes, listed differences, measured speed, and when to use each one.">
+    <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://gtfs.guru/gtfs-guru-vs-mobilitydata-validator.html">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="GTFS Guru vs MobilityData GTFS Validator | GTFS Guru">
+    <meta name="twitter:description"
+        content="How GTFS Guru compares with MobilityData's canonical GTFS validator: shared notice codes, listed differences, measured speed, and when to use each one.">
+    <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
+
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "GTFS Guru vs the MobilityData GTFS Validator",
+  "description": "How GTFS Guru compares with MobilityData's canonical GTFS validator: shared notice codes, listed differences, measured speed, and when to use each one.",
+  "author": {
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
+  },
+  "publisher": {
+    "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
+    "name": "GTFS Guru",
+    "url": "https://gtfs.guru/"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://gtfs.guru/gtfs-guru-vs-mobilitydata-validator.html"
+  },
+  "datePublished": "2026-11-12",
+  "dateModified": "2026-11-12"
+}
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "GTFS Guru",
+          "item": "https://gtfs.guru/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guides",
+          "item": "https://gtfs.guru/faq.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "GTFS Guru vs the MobilityData GTFS Validator",
+          "item": "https://gtfs.guru/gtfs-guru-vs-mobilitydata-validator.html"
+        }
+      ]
+    }
+    </script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+
+</head>
+
+<body>
+    <nav class="glass-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
+                <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
+            </a>
+            <div class="nav-links" id="nav-links">
+                <a href="/#validator">Validator</a>
+                <a href="faq.html" class="active">Guides</a>
+                <details class="nav-dropdown">
+                    <summary>Documentation</summary>
+                    <div class="nav-dropdown-panel">
+                        <a href="notices/">Notice codes</a>
+                        <a href="compatibility/">Compatibility</a>
+                        <a href="/#faq">FAQ</a>
+                    </div>
+                </details>
+                <a href="/#developers">Developers</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank">GitHub</a>
+                <a href="/#validator" class="nav-mobile-cta">Validate a feed</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/#validator" class="btn btn-primary">Validate a feed</a>
+                <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu"
+                    aria-expanded="false" aria-controls="nav-links">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <article class="faq-article">
+        <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">GTFS Guru vs the MobilityData GTFS Validator</span></nav>
+
+        <h1>GTFS Guru vs the MobilityData GTFS Validator</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
+
+        <p class="short-answer"><strong>GTFS Guru is a Rust reimplementation of MobilityData's canonical
+                Java <code>gtfs-validator</code>. It uses the same notice codes and report format, lists every place
+                where its rules differ, and runs faster, mostly because there is no JVM to start. The canonical
+                validator remains the reference, and it is the one to use when you need the official result.</strong></p>
+
+        <p>GTFS Guru is a separate open-source project (Apache 2.0) built to match the canonical validator's output,
+            and it checks that match on real feeds before each release.</p>
+
+        <h2>Same rules and notice codes</h2>
+
+        <p>Each GTFS Guru release is checked against one specific release of the canonical validator and one
+            specific revision of the GTFS reference. Both are named on the <a href="compatibility/">compatibility
+                page</a> (for GTFS Guru 1.0.0 the baseline is <code>MobilityData/gtfs-validator</code> v8.0.1), and
+            every JSON report records them in <code>summary.canonicalBaseline</code> and
+            <code>summary.specRevision</code>.</p>
+
+        <p>Notices use the canonical codes and severities, such as
+            <a href="notices/foreign_key_violation/">foreign_key_violation</a> or
+            <a href="notices/missing_required_field/">missing_required_field</a>, and <code>report.json</code> follows
+            the canonical report format. Scripts that parse the Java validator's report can usually read GTFS Guru's
+            without changes; the two extra summary fields above are the additions.</p>
+
+        <p>Parity is tested, not assumed. Twelve pinned real-world datasets from the Mobility Database, chosen to cover
+            flexible services, Fares v2 and pathways, are validated on every commit and compared with the canonical
+            Java validator before every release; an unexplained difference blocks the release. A wider check over
+            fifty more Mobility Database feeds runs before releases as well. The method is described in
+            <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/real-world-parity.md" target="_blank"
+                rel="noopener">docs/real-world-parity.md</a>.</p>
+
+        <h2>Where the results differ</h2>
+
+        <p>The rule sets are close but not identical. The differences are listed on the
+            <a href="compatibility/#differences">compatibility page</a> and fall into a few groups:</p>
+
+        <ul>
+            <li><strong>Google consumer checks, off by default.</strong> Codes such as
+                <a href="notices/duplicate_trip/">duplicate_trip</a> and
+                <a href="notices/agency_phone_invalid/">agency_phone_invalid</a> only run with
+                <code>--google-rules</code>. The canonical validator has no equivalent.</li>
+            <li><strong>Extra checks in <code>--thorough</code> mode.</strong>
+                <a href="notices/unused_stop/">unused_stop</a>, <a href="notices/unused_route/">unused_route</a> and
+                <a href="notices/unused_agency/">unused_agency</a> are reported only when you ask for them.</li>
+            <li><strong>One extra rule on by default.</strong>
+                <a href="notices/service_never_active/">service_never_active</a> flags a service with every weekday
+                set to 0 and no added dates.</li>
+            <li><strong>Deprecated codes still emitted.</strong>
+                <a href="notices/unused_parent_station/">unused_parent_station</a> and
+                <a href="notices/missing_prior_day_booking_field_value/">missing_prior_day_booking_field_value</a>
+                were deprecated in canonical 7.0.0. GTFS Guru reports them alongside their replacements.</li>
+            <li><strong>Three columns not required.</strong> <code>fare_attributes.txt/transfers</code>,
+                <code>timeframes.txt/timeframe_group_id</code> and <code>transfers.txt/transfer_type</code> are marked
+                Required in the reference, but GTFS Guru does not fail a feed that leaves them empty, for the reasons
+                given on the compatibility page.</li>
+        </ul>
+
+        <h2>Speed</h2>
+
+        <p>Measured wall-clock time for a full run, both tools writing their normal report files:</p>
+
+        <div style="overflow-x: auto;">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Feed</th>
+                        <th scope="col">Canonical 8.0.1</th>
+                        <th scope="col">GTFS Guru</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">MBTA Boston (38 MB zip, 5.4M stop_times rows)</th>
+                        <td>10.60 s</td>
+                        <td>2.32 s (4.6x faster)</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">OVapi Netherlands (198 MB zip, 16.0M stop_times rows)</th>
+                        <td>65.18 s</td>
+                        <td>9.75 s (6.7x faster)</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Small feeds (295 test feeds, median 1.6 KB)</th>
+                        <td>1.274 s median</td>
+                        <td>0.0158 s median (88x faster)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>Method: the two large feeds were run on an Apple M3 Pro with a warm page cache and 8 threads, GTFS Guru 5
+            times and the canonical validator 3 times under OpenJDK 21. The small-feed row covers every feed in the
+            project's test corpus, 3 runs each with the median kept, on a Linux x86-64 container; the speed-up there
+            ranges from 28x to 196x, because on a tiny feed JVM startup is most of the run. The rule sets differ, so
+            these are whole-run comparisons, not per-rule ones, and your numbers will depend on your feed and machine.
+            Commands to reproduce are in
+            <a href="https://github.com/abasis-ltd/gtfs.guru/blob/main/docs/benchmarks.md" target="_blank"
+                rel="noopener">docs/benchmarks.md</a>.</p>
+
+        <h2>How each one is distributed</h2>
+
+        <p>The canonical validator runs on the JVM and is offered as a command-line tool, a desktop app and a hosted
+            web service. GTFS Guru is compiled Rust and ships as:</p>
+
+        <ul>
+            <li>a <a href="/#validator">browser validator</a> built with WebAssembly, where a file you pick never
+                leaves your device;</li>
+            <li>a single-binary CLI (<code>gtfs-guru</code>) with SARIF output, <code>--fail-on</code> exit codes and a
+                GitHub Action, described in <a href="gtfs-validation-ci.html">Validate GTFS in CI</a>;</li>
+            <li>a Python package (<code>pip install gtfs-guru</code>), see
+                <a href="gtfs-validator-python.html">Validate GTFS in Python</a>;</li>
+            <li>an MCP server for AI assistants, see <a href="gtfs-mcp-server.html">the MCP guide</a>;</li>
+            <li>desktop apps for macOS, Windows and Linux.</li>
+        </ul>
+
+        <p>The CLI also includes <code>gtfs-guru diff</code> to compare two feed versions, <code>--fix</code> to
+            write a repaired copy with safe fixes applied, and README status badges.</p>
+
+        <h2>When to use the canonical validator</h2>
+
+        <ul>
+            <li><strong>When you need the reference result.</strong> MobilityData's validator defines the rules GTFS
+                Guru follows. If a partner asks for its report, or the two tools disagree on a notice listed above, the
+                canonical one is the reference.</li>
+            <li><strong>When you need rules newer than GTFS Guru's baseline.</strong> Check the
+                <a href="compatibility/">compatibility page</a> for the canonical release this build was checked
+                against.</li>
+            <li><strong>For GTFS-Realtime.</strong> GTFS Guru validates static GTFS Schedule feeds only. For
+                Realtime feeds, use MobilityData's separate
+                <a href="https://github.com/MobilityData/gtfs-realtime-validator" target="_blank"
+                    rel="noopener">gtfs-realtime-validator</a>.</li>
+        </ul>
+
+        <p>Running both is reasonable: GTFS Guru for fast checks while you edit and in CI, and the canonical validator
+            as a final check. The canonical project is at
+            <a href="https://github.com/MobilityData/gtfs-validator" target="_blank"
+                rel="noopener">github.com/MobilityData/gtfs-validator</a>; GTFS Guru's source is at
+            <a href="https://github.com/abasis-ltd/gtfs.guru" target="_blank"
+                rel="noopener">github.com/abasis-ltd/gtfs.guru</a>.</p>
+
+        <h2>FAQ</h2>
+
+        <h3>Will a feed that passes GTFS Guru pass the canonical validator?</h3>
+        <p>In most cases, since the rules and codes are shared, but not always. Check the
+            <a href="compatibility/#differences">accepted differences</a> for the cases where the two disagree. Neither
+            tool's result is a decision by Google or another consumer, which run their own checks.</p>
+
+        <h3>Do I need Java to run GTFS Guru?</h3>
+        <p>No. GTFS Guru is compiled Rust, so the CLI is a single binary and the browser version runs as WebAssembly.
+            Only the canonical validator needs a Java runtime.</p>
+
+        <h3>Does GTFS Guru validate GTFS-Realtime?</h3>
+        <p>No. It validates static GTFS Schedule feeds only. See
+            <a href="gtfs-vs-gtfs-realtime.html">GTFS vs GTFS-Realtime</a> for how the two formats differ.</p>
+
+        <h2>Related Questions</h2>
+        <p>• <a href="how-to-validate-gtfs.html">How do I validate my GTFS feed?</a></p>
+        <p>• <a href="why-is-my-gtfs-rejected.html">Why was my GTFS feed rejected?</a></p>
+        <p>• <a href="notices/">GTFS notice guide</a></p>
+
+        <div class="cta-box">
+            <p>Try it on your own feed: <a href="/#validator">validate a GTFS feed in your browser</a>. It's free and the
+                file stays on your device.</p>
+        </div>
+
+    </article>
+
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img class="footer-logo" src="logo.png" alt="" aria-hidden="true" width="512" height="512">
+                <span class="logo-text">GTFS Guru</span>
+                <p>by Abasis.AI</p>
+            </div>
+            <div class="footer-links">
+                <a href="/#faq">FAQ</a>
+                <a href="faq.html">Guides</a>
+                <a href="notices/">Notice codes</a>
+                <a href="about.html">About</a>
+                <a href="contact.html">Contact</a>
+                <a href="privacy.html">Privacy</a>
+                <a href="terms.html">Terms</a>
+                <a href="https://github.com/abasis-ltd/gtfs.guru">GitHub</a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Abasis.AI. Open Source (Apache 2.0).
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        } else {
+            window.addEventListener('load', function () {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            });
+        }
+    </script>
+
+    <script src="nav.js" defer></script>
+</body>
+
+</html>

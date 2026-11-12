@@ -13,12 +13,14 @@
   <meta property="og:title" content="Fix future_calendar in GTFS | GTFS Guru">
   <meta property="og:description" content="All services start after today. How to fix future_calendar: what it means, which files to check and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/future_calendar/">
-  <meta property="og:image" content="https://gtfs.guru/og-image.png">
+  <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/future_calendar/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice future_calendar"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"All services start after today. How to fix future_calendar: what it means, which files to check and how to repair the feed.","headline":"All services start after today","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/future_calendar/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/future_calendar/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/future_calendar/","name":"future_calendar","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/future_calendar/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"All services start after today","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"future_calendar","termCode":"future_calendar"},"author":{"@id":"https://gtfs.guru/about.html#igor-akimov","@type":"Person","name":"Igor Akimov","sameAs":["https://github.com/akimovpro"],"url":"https://gtfs.guru/about.html"},"description":"All services start after today. How to fix future_calendar: what it means, which files to check and how to repair the feed.","headline":"All services start after today","image":"https://gtfs.guru/og-image.jpg","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/future_calendar/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/future_calendar/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/future_calendar/","name":"future_calendar","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +66,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>future_calendar</code> is an info in a GTFS Schedule validation report: all services start after today. Check <code>calendar.txt</code> and <code>calendar_dates.txt</code>.</p>
           <p>None of the feed&#39;s services covers the current date; the earliest service starts later.</p>
 
         </section>
@@ -112,13 +115,14 @@
             <a href="/notices/missing_calendar_and_calendar_date_files/"><code>missing_calendar_and_calendar_date_files</code><span>The feed has no service calendar</span></a>
             <a href="/notices/big_gap_in_service/"><code>big_gap_in_service</code><span>A service has a gap of at least 14 days</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a> · <a href="/how-often-update-gtfs.html">How often should a GTFS feed be updated?</a></p>
         </section>
       </article>
     </div>
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>

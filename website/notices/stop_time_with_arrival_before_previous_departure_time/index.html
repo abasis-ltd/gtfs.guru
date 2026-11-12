@@ -13,12 +13,14 @@
   <meta property="og:title" content="Fix stop_time_with_arrival_before_previous_departure_time in GTFS | GTFS Guru">
   <meta property="og:description" content="The next stop is reached before the previous departure. How to fix stop_time_with_arrival_before_previous_departure_time in a GTFS feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/">
-  <meta property="og:image" content="https://gtfs.guru/og-image.png">
+  <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice stop_time_with_arrival_before_previous_departure_time"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The next stop is reached before the previous departure. How to fix stop_time_with_arrival_before_previous_departure_time in a GTFS feed.","headline":"The next stop is reached before the previous departure","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","name":"stop_time_with_arrival_before_previous_departure_time","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"The next stop is reached before the previous departure","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"stop_time_with_arrival_before_previous_departure_time","termCode":"stop_time_with_arrival_before_previous_departure_time"},"author":{"@id":"https://gtfs.guru/about.html#igor-akimov","@type":"Person","name":"Igor Akimov","sameAs":["https://github.com/akimovpro"],"url":"https://gtfs.guru/about.html"},"description":"The next stop is reached before the previous departure. How to fix stop_time_with_arrival_before_previous_departure_time in a GTFS feed.","headline":"The next stop is reached before the previous departure","image":"https://gtfs.guru/og-image.jpg","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/stop_time_with_arrival_before_previous_departure_time/","name":"stop_time_with_arrival_before_previous_departure_time","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -65,6 +67,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>stop_time_with_arrival_before_previous_departure_time</code> is an error in a GTFS Schedule validation report: the next stop is reached before the previous departure. Start with <code>stop_times.txt</code>.</p>
           <p>For one trip, a stop&#39;s <code>arrival_time</code> is earlier than the previous stop&#39;s <code>departure_time</code>.</p>
 
         </section>
@@ -126,13 +129,14 @@ next arrival_time: 24:20:00</code></pre></div>
             <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Distance does not increase between stops</span></a>
             <a href="/notices/location_with_unexpected_stop_time/"><code>location_with_unexpected_stop_time</code><span>A scheduled stop refers to the wrong location type</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>

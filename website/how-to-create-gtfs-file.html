@@ -17,7 +17,9 @@
   <meta property="og:title" content="How Do I Create a GTFS File? | GTFS Guru">
   <meta property="og:description"
     content="Create a GTFS file by making CSV files for your stops, routes, and schedules, then packaging them in a ZIP. Here's a quick guide to get started.">
-  <meta property="og:image" content="https://gtfs.guru/og-image.png">
+  <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:url" content="https://gtfs.guru/how-to-create-gtfs-file.html">
 
   <!-- Twitter Card -->
@@ -25,7 +27,7 @@
   <meta name="twitter:title" content="How Do I Create a GTFS File? | GTFS Guru">
   <meta name="twitter:description"
     content="Create a GTFS file by making CSV files for your stops, routes, and schedules, then packaging them in a ZIP. Here's a quick guide to get started.">
-  <meta name="twitter:image" content="https://gtfs.guru/og-image.png">
+  <meta name="twitter:image" content="https://gtfs.guru/og-image.jpg">
 
   <script type="application/ld+json">
   {
@@ -51,12 +53,19 @@
   "headline": "How Do I Create a GTFS File?",
   "description": "Create a GTFS file by making CSV files for your stops, routes, and schedules, then packaging them in a ZIP. Here's a quick guide to get started.",
   "author": {
-    "@type": "Organization",
-    "name": "GTFS Guru"
+    "@type": "Person",
+    "@id": "https://gtfs.guru/about.html#igor-akimov",
+    "name": "Igor Akimov",
+    "url": "https://gtfs.guru/about.html",
+    "sameAs": [
+      "https://github.com/akimovpro"
+    ]
   },
   "publisher": {
     "@type": "Organization",
+    "@id": "https://gtfs.guru/#organization",
     "name": "GTFS Guru",
+    "url": "https://gtfs.guru/",
     "logo": {
       "@type": "ImageObject",
       "url": "https://gtfs.guru/logo.png"
@@ -144,18 +153,12 @@
   }
   </script>
 
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet">
 
   <!-- Custom CSS -->
   <link rel="stylesheet" href="style.css">
 
   <!-- Icons -->
-  <script src="https://unpkg.com/lucide@latest" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/lucide@1.72.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
 
 </head>
 
@@ -163,7 +166,7 @@
   <nav class="glass-nav">
     <div class="container nav-container">
       <a href="/" class="logo">
-        <img src="logo.png" alt="GTFS Guru" style="height: 32px; margin-right: 8px;">
+        <img src="logo.png" alt="GTFS Guru" width="32" height="32" style="height: 32px; width: 32px; margin-right: 8px;">
         <span class="logo-text">GTFS <span class="highlight">Guru</span></span>
       </a>
             <div class="nav-links" id="nav-links">
@@ -196,6 +199,7 @@
     <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="faq.html">Guides</a><span aria-hidden="true">/</span><span aria-current="page">How Do I Create a GTFS File?</span></nav>
 
     <h1>How Do I Create a GTFS File?</h1>
+        <p class="byline">By <a href="about.html">Igor Akimov</a>, maintainer of GTFS Guru</p>
 
     <p class="short-answer"><strong>A GTFS "file" is just a ZIP archive filled with simple CSV text files. You can
         create them using spreadsheets, text editors, or specialized tools.</strong></p>
@@ -227,7 +231,8 @@
 
     <p>A minimal GTFS feed needs these six files. Every field below is defined in the
         <a href="https://gtfs.org/documentation/schedule/reference/" target="_blank" rel="noopener">GTFS Schedule
-        reference</a>, which is the authority if this page and the specification ever disagree:</p>
+        reference</a>, which is the authority if this page and the specification ever disagree. Together, the files
+        below make a feed that GTFS Guru validates with no errors or warnings:</p>
 
     <h3>1. agency.txt</h3>
     <pre><code>agency_id,agency_name,agency_url,agency_timezone
@@ -239,8 +244,8 @@ stop1,Main Street Station,40.7128,-74.0060
 stop2,Central Park,40.7829,-73.9654</code></pre>
 
     <h3>3. routes.txt</h3>
-    <pre><code>route_id,route_short_name,route_long_name,route_type
-route1,42,Downtown Express,3</code></pre>
+    <pre><code>route_id,agency_id,route_short_name,route_long_name,route_type
+route1,mybus,42,Downtown Express,3</code></pre>
     <p>(route_type 3 = bus)</p>
 
     <h3>4. trips.txt</h3>
@@ -251,11 +256,22 @@ route1,weekday,trip2</code></pre>
     <h3>5. stop_times.txt</h3>
     <pre><code>trip_id,arrival_time,departure_time,stop_id,stop_sequence
 trip1,08:00:00,08:00:00,stop1,1
-trip1,08:30:00,08:30:00,stop2,2</code></pre>
+trip1,08:30:00,08:30:00,stop2,2
+trip2,09:00:00,09:00:00,stop1,1
+trip2,09:30:00,09:30:00,stop2,2</code></pre>
 
     <h3>6. calendar.txt</h3>
     <pre><code>service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
-weekday,1,1,1,1,1,0,0,20240101,20241231</code></pre>
+weekday,1,1,1,1,1,0,0,20260101,20271231</code></pre>
+    <p>The end date is the day your feed stops describing service. Keep it months ahead of today and extend it
+        before it passes, or validators report <a href="/notices/expired_calendar/">expired_calendar</a> and apps
+        drop your trips.</p>
+
+    <h3>7. feed_info.txt (recommended)</h3>
+    <pre><code>feed_publisher_name,feed_publisher_url,feed_lang,feed_start_date,feed_end_date,feed_version,feed_contact_email
+My Bus Company,https://mybus.com,en,20260101,20271231,2026-01,gtfs@mybus.com</code></pre>
+    <p>Not required, but consumers use it to tell who publishes the feed, which version they have and when it runs
+        out. Without the dates you get <a href="/notices/missing_feed_info_date/">missing_feed_info_date</a>.</p>
 
     <h2>Tools to Create GTFS</h2>
 

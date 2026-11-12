@@ -120,7 +120,7 @@ fn main() -> anyhow::Result<()> {
 fn generate(check: bool) -> anyhow::Result<()> {
     let schemas = build_notice_schema_map();
     let guides = load_guides(&schemas)?;
-    let related = build_related_notices(&schemas);
+    let related = build_related_notices(&schemas, &guides);
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = manifest_dir.join("../../website");
@@ -345,23 +345,30 @@ fn render_notice_page(
                 "url": canonical,
                 "mainEntityOfPage": canonical,
                 "about": {
-                    "@type": "Thing",
-                    "name": format!("GTFS validation notice {}", schema.code)
+                    "@type": "DefinedTerm",
+                    "name": schema.code,
+                    "termCode": schema.code,
+                    "description": display_summary,
+                    "inDefinedTermSet": {
+                        "@type": "DefinedTermSet",
+                        "@id": format!("{BASE_URL}/notices/#codes"),
+                        "name": "GTFS validation notice codes",
+                        "url": format!("{BASE_URL}/notices/")
+                    }
                 },
-                "author": {
-                    "@type": "Organization",
+                // The homepage defines the organization under this @id; the
+                // name and url are repeated because a parser reading one page
+                // does not follow the reference to another.
+                "author": author_ref(),
+                "publisher": organization_ref(),
+                "isPartOf": {
+                    "@type": "WebSite",
+                    "@id": format!("{BASE_URL}/#website"),
                     "name": "GTFS Guru",
                     "url": format!("{BASE_URL}/")
                 },
-                "publisher": {
-                    "@type": "Organization",
-                    "name": "GTFS Guru",
-                    "url": format!("{BASE_URL}/"),
-                    "logo": {
-                        "@type": "ImageObject",
-                        "url": format!("{BASE_URL}/logo.png")
-                    }
-                },
+                "image": format!("{BASE_URL}/og-image.jpg"),
+                "inLanguage": "en",
                 "isAccessibleForFree": true
             },
             {
@@ -408,7 +415,9 @@ fn render_notice_page(
   <meta property="og:title" content="{}">
   <meta property="og:description" content="{}">
   <meta property="og:url" content="{}">
-  <meta property="og:image" content="{}/og-image.png">
+  <meta property="og:image" content="{}/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
@@ -460,6 +469,7 @@ fn render_notice_page(
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
           {}
+          {}
         </section>
         <section id="impact">
           <p class="section-kicker">Operational effect</p>
@@ -497,6 +507,7 @@ fn render_notice_page(
             }
             links
         },
+        notice_lead(&schema.code, severity, &display_summary, files),
         render_rich_text(description),
         render_inline(&guide.impact),
     )
@@ -639,6 +650,11 @@ fn render_notice_page(
           <div class="related-list">
 "#,
     );
+    if related.is_empty() {
+        out.push_str(
+            "            <a href=\"/notices/\"><code>All notice codes</code><span>Browse every notice by severity and file</span></a>\n",
+        );
+    }
     for code in related {
         if let Some(other) = guides.get(code) {
             let related_summary = other.title.replace('`', "");
@@ -652,15 +668,16 @@ fn render_notice_page(
             .expect("write to string");
         }
     }
+    out.push_str("          </div>\n");
+    out.push_str(&related_guides(&schema.code, files));
     out.push_str(
-        r#"          </div>
-        </section>
+        r#"        </section>
       </article>
     </div>
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>
@@ -685,6 +702,7 @@ fn render_index(
         "url": format!("{BASE_URL}/notices/"),
         "isPartOf": {
             "@type": "WebSite",
+            "@id": format!("{BASE_URL}/#website"),
             "name": "GTFS Guru",
             "url": format!("{BASE_URL}/")
         },
@@ -743,7 +761,9 @@ fn render_index(
   <meta property="og:title" content="GTFS validation notice codes">
   <meta property="og:description" content="{description}">
   <meta property="og:url" content="{BASE_URL}/notices/">
-  <meta property="og:image" content="{BASE_URL}/og-image.png">
+  <meta property="og:image" content="{BASE_URL}/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
@@ -785,7 +805,7 @@ fn render_index(
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>
@@ -822,7 +842,8 @@ fn render_sitemap(root: &Path, schemas: &BTreeMap<String, NoticeSchema>) -> anyh
             .and_then(|value| value.to_str())
             .unwrap_or("")
             .to_string();
-        if name != "index.html" {
+        // 404.html is the error page the server answers unknown paths with.
+        if name != "index.html" && name != "404.html" {
             urls.insert(format!("{BASE_URL}/{name}"), path);
         }
     }
@@ -926,24 +947,73 @@ fn civil_date(unix_secs: u64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+/// Links from a notice to the guides that cover the same ground: every
+/// notice can lead to the rejection and validation guides, and the calendar
+/// and expiry ones to the update-cadence guide.
+fn related_guides(code: &str, files: &[String]) -> String {
+    let mut links = vec![
+        (
+            "/why-is-my-gtfs-rejected.html",
+            "Why is my GTFS feed rejected?",
+        ),
+        ("/how-to-validate-gtfs.html", "How to validate a GTFS feed"),
+    ];
+    let about_service_period = code.contains("calendar")
+        || code.contains("expir")
+        || code.contains("service")
+        || files
+            .iter()
+            .any(|file| file.starts_with("calendar") || file == "feed_info.txt");
+    if about_service_period {
+        links.push((
+            "/how-often-update-gtfs.html",
+            "How often should a GTFS feed be updated?",
+        ));
+    }
+    let mut out = String::from("          <p class=\"related-guides\">Guides: ");
+    out.push_str(
+        &links
+            .iter()
+            .map(|(href, label)| format!("<a href=\"{href}\">{label}</a>"))
+            .collect::<Vec<_>>()
+            .join(" · "),
+    );
+    out.push_str("</p>\n");
+    out
+}
+
+/// Up to four notices that share a file or a meaningful word in the code.
+/// Severity alone is not a relation: scoring it let any same-severity code
+/// fill the empty slots, alphabetically first, so `bidirectional_exit_gate`
+/// was "related" to notices about calendars and fares.
 fn build_related_notices(
     schemas: &BTreeMap<String, NoticeSchema>,
+    guides: &BTreeMap<String, NoticeGuide>,
 ) -> BTreeMap<String, Vec<String>> {
+    let files_of = |code: &str, schema: &NoticeSchema| {
+        let mut files = notice_files(schema.references.as_ref());
+        if let Some(guide) = guides.get(code) {
+            files.extend(guide.files_to_check.iter().cloned());
+        }
+        files
+    };
     let mut result = BTreeMap::new();
     for (code, schema) in schemas {
-        let files = notice_files(schema.references.as_ref());
+        let files = files_of(code, schema);
         let tokens = code_tokens(code);
         let mut candidates = schemas
             .iter()
             .filter(|(other_code, _)| *other_code != code)
-            .map(|(other_code, other)| {
-                let other_files = notice_files(other.references.as_ref());
-                let file_overlap = files.intersection(&other_files).count();
+            .filter_map(|(other_code, other)| {
+                let file_overlap = files.intersection(&files_of(other_code, other)).count();
                 let token_overlap = tokens.intersection(&code_tokens(other_code)).count();
+                if file_overlap == 0 && token_overlap == 0 {
+                    return None;
+                }
                 let severity_match =
                     severity_label(schema.severity_level) == severity_label(other.severity_level);
                 let score = file_overlap * 6 + token_overlap * 3 + usize::from(severity_match);
-                (Reverse(score), other_code.clone())
+                Some((Reverse(score), other_code.clone()))
             })
             .collect::<Vec<_>>();
         candidates.sort();
@@ -951,7 +1021,6 @@ fn build_related_notices(
             code.clone(),
             candidates
                 .into_iter()
-                .filter(|(Reverse(score), _)| *score > 0)
                 .take(4)
                 .map(|(_, code)| code)
                 .collect(),
@@ -1140,6 +1209,77 @@ fn render_bold(escaped: &str) -> String {
     out
 }
 
+/// The maintainer, by the @id the About page defines him under.
+fn author_ref() -> serde_json::Value {
+    serde_json::json!({
+        "@type": "Person",
+        "@id": format!("{BASE_URL}/about.html#igor-akimov"),
+        "name": "Igor Akimov",
+        "url": format!("{BASE_URL}/about.html"),
+        "sameAs": ["https://github.com/akimovpro"]
+    })
+}
+
+/// The site's organization, by the @id the homepage defines it under.
+fn organization_ref() -> serde_json::Value {
+    serde_json::json!({
+        "@type": "Organization",
+        "@id": format!("{BASE_URL}/#organization"),
+        "name": "GTFS Guru",
+        "url": format!("{BASE_URL}/"),
+        "logo": {
+            "@type": "ImageObject",
+            "url": format!("{BASE_URL}/logo.png")
+        }
+    })
+}
+
+/// The opening sentence a reader, or an answer engine quoting one passage,
+/// gets first: the code, its severity and where to look, before the detail.
+fn notice_lead(code: &str, severity: &str, summary: &str, files: &[String]) -> String {
+    let summary = summary.trim().trim_end_matches('.');
+    // Mid-sentence after the colon, so "A stop is…" reads "a stop is…"; a
+    // leading acronym ("GTFS", "URL") keeps its case.
+    let mut chars = summary.chars();
+    let summary = match (chars.next(), chars.next()) {
+        (Some(first), Some(second)) if first.is_uppercase() && !second.is_uppercase() => {
+            format!("{}{}", first.to_lowercase(), &summary[first.len_utf8()..])
+        }
+        _ => summary.to_string(),
+    };
+    let article = if severity.starts_with(['A', 'E', 'I', 'O', 'U']) {
+        "an"
+    } else {
+        "a"
+    };
+    let mut lead = format!(
+        "<p class=\"lead\"><code>{}</code> is {article} {} in a GTFS Schedule validation report: {}.",
+        escape_html(code),
+        severity.to_ascii_lowercase(),
+        escape_html(&summary),
+    );
+    match files {
+        [] => lead.push_str(" The report row names the file to check."),
+        [file] => write!(lead, " Start with <code>{}</code>.", escape_html(file))
+            .expect("write to string"),
+        [rest @ .., last] => {
+            let rest = rest
+                .iter()
+                .map(|file| format!("<code>{}</code>", escape_html(file)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            write!(
+                lead,
+                " Check {rest} and <code>{}</code>.",
+                escape_html(last)
+            )
+            .expect("write to string")
+        }
+    }
+    lead.push_str("</p>");
+    lead
+}
+
 /// The summary is a sentence of its own, so it gets its own full stop rather
 /// than running into the template. The tail is picked to fit whole: a long
 /// code would otherwise push the template past the limit and get it cut off
@@ -1222,10 +1362,15 @@ fn render_compatibility_page(
         "@context": "https://schema.org",
         "@type": "TechArticle",
         "name": "GTFS specification and validator compatibility",
+        "headline": "GTFS specification and validator compatibility",
         "description": description,
         "url": format!("{BASE_URL}/compatibility/"),
+        "author": author_ref(),
+        "publisher": organization_ref(),
+        "image": format!("{BASE_URL}/og-image.jpg"),
         "isPartOf": {
             "@type": "WebSite",
+            "@id": format!("{BASE_URL}/#website"),
             "name": "GTFS Guru",
             "url": format!("{BASE_URL}/")
         },
@@ -1252,7 +1397,9 @@ fn render_compatibility_page(
   <meta property="og:title" content="GTFS specification and validator compatibility">
   <meta property="og:description" content="{meta_description}">
   <meta property="og:url" content="{BASE_URL}/compatibility/">
-  <meta property="og:image" content="{BASE_URL}/og-image.png">
+  <meta property="og:image" content="{BASE_URL}/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
@@ -1386,7 +1533,7 @@ fn render_compatibility_page(
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/#validator">Validate a feed</a><a href="/notices/">Notice codes</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/#validator">Validate a feed</a><a href="/notices/">Notice codes</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>

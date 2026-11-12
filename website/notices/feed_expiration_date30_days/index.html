@@ -13,12 +13,14 @@
   <meta property="og:title" content="Fix feed_expiration_date30_days in GTFS | GTFS Guru">
   <meta property="og:description" content="The feed has less than a month of validity left. How to fix feed_expiration_date30_days: what it means, which files to check and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/feed_expiration_date30_days/">
-  <meta property="og:image" content="https://gtfs.guru/og-image.png">
+  <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/feed_expiration_date30_days/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice feed_expiration_date30_days"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The feed has less than a month of validity left. How to fix feed_expiration_date30_days: what it means, which files to check and how to repair the feed.","headline":"The feed has less than a month of validity left","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/feed_expiration_date30_days/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/feed_expiration_date30_days/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/feed_expiration_date30_days/","name":"feed_expiration_date30_days","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/feed_expiration_date30_days/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"The feed has less than a month of validity left","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"feed_expiration_date30_days","termCode":"feed_expiration_date30_days"},"author":{"@id":"https://gtfs.guru/about.html#igor-akimov","@type":"Person","name":"Igor Akimov","sameAs":["https://github.com/akimovpro"],"url":"https://gtfs.guru/about.html"},"description":"The feed has less than a month of validity left. How to fix feed_expiration_date30_days: what it means, which files to check and how to repair the feed.","headline":"The feed has less than a month of validity left","image":"https://gtfs.guru/og-image.jpg","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/feed_expiration_date30_days/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/feed_expiration_date30_days/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/feed_expiration_date30_days/","name":"feed_expiration_date30_days","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +66,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>feed_expiration_date30_days</code> is a warning in a GTFS Schedule validation report: the feed has less than a month of validity left. Start with <code>feed_info.txt</code>.</p>
           <p>The feed&#39;s declared end date does not provide the recommended 30-day planning horizon.</p>
 
         </section>
@@ -110,16 +113,17 @@
           <div class="related-list">
             <a href="/notices/feed_expiration_date7_days/"><code>feed_expiration_date7_days</code><span>The feed expires within seven days</span></a>
             <a href="/notices/feed_info_lang_and_agency_lang_mismatch/"><code>feed_info_lang_and_agency_lang_mismatch</code><span>The feed and agency languages do not agree</span></a>
+            <a href="/notices/missing_feed_contact_email_and_url/"><code>missing_feed_contact_email_and_url</code><span>The feed has no data-support contact</span></a>
             <a href="/notices/missing_feed_info_date/"><code>missing_feed_info_date</code><span>Only one feed-validity date is provided</span></a>
-            <a href="/notices/feed_valid_beyond_total_service_window/"><code>feed_valid_beyond_total_service_window</code><span>Feed validity extends well beyond the service dates</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a> · <a href="/how-often-update-gtfs.html">How often should a GTFS feed be updated?</a></p>
         </section>
       </article>
     </div>
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>

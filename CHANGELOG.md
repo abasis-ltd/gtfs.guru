@@ -7,6 +7,24 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Notice pages open with one sentence naming the code, its severity and the
+  files to check. Related notices must share a file or a word of the code
+  (severity alone used to fill the list, so `bidirectional_exit_gate` showed
+  up on 21 unrelated pages), and each page links the guides that cover it.
+- Notice, notices-index and compatibility pages reference the homepage's
+  Organization and WebSite by `@id`, and describe each code as a
+  `DefinedTerm` in one `DefinedTermSet`.
+- The website has an About page, four new guides (Python, CI, the MCP server,
+  and a comparison with MobilityData's validator), self-hosted Inter and Fira
+  Code fonts instead of Google Fonts, a pinned lucide version instead of
+  `@latest`, a JPEG Open Graph image at a third of the PNG's size, a `<main>`
+  landmark and underlined in-text links.
+- Guides drop unsourced figures and outdated sources, and the
+  create-a-feed sample now validates with no errors or warnings.
+- Text, JavaScript, JSON and XML files are served with `charset=utf-8`.
+
 ### Fixed
 
 - The notice schema lists context fields for the 30 notices whose rules fill
@@ -26,6 +44,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
   configuration. COOP/COEP stay with the proxy: a second copy from the app
   makes browsers drop cross-origin isolation, which disables the
   multi-threaded WASM build.
+- The web server answers unknown paths with an HTML 404 page linking to the
+  validator, notice codes and guides, instead of plain "Not Found". A
+  directory page requested without its trailing slash, and a file page
+  requested with one, get a 301 to their single address instead of a second
+  copy of the page.
 
 ## [1.0.0] - 2026-09-15
 

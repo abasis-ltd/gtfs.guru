@@ -13,12 +13,14 @@
   <meta property="og:title" content="Fix timeframe_only_start_or_end_time_specified in GTFS | GTFS Guru">
   <meta property="og:description" content="A fare timeframe is missing one time boundary. How to fix timeframe_only_start_or_end_time_specified: what it means and how to repair the feed.">
   <meta property="og:url" content="https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/">
-  <meta property="og:image" content="https://gtfs.guru/og-image.png">
+  <meta property="og:image" content="https://gtfs.guru/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice timeframe_only_start_or_end_time_specified"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A fare timeframe is missing one time boundary. How to fix timeframe_only_start_or_end_time_specified: what it means and how to repair the feed.","headline":"A fare timeframe is missing one time boundary","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/","name":"timeframe_only_start_or_end_time_specified","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"A fare timeframe is missing one time boundary","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"timeframe_only_start_or_end_time_specified","termCode":"timeframe_only_start_or_end_time_specified"},"author":{"@id":"https://gtfs.guru/about.html#igor-akimov","@type":"Person","name":"Igor Akimov","sameAs":["https://github.com/akimovpro"],"url":"https://gtfs.guru/about.html"},"description":"A fare timeframe is missing one time boundary. How to fix timeframe_only_start_or_end_time_specified: what it means and how to repair the feed.","headline":"A fare timeframe is missing one time boundary","image":"https://gtfs.guru/og-image.jpg","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/timeframe_only_start_or_end_time_specified/","name":"timeframe_only_start_or_end_time_specified","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +66,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>timeframe_only_start_or_end_time_specified</code> is an error in a GTFS Schedule validation report: a fare timeframe is missing one time boundary. Start with <code>timeframes.txt</code>.</p>
           <p>A row in <code>timeframes.txt</code> supplies only <code>start_time</code> or only <code>end_time</code>.</p>
 
         </section>
@@ -105,17 +108,18 @@
           <h2>Related notices</h2>
           <div class="related-list">
             <a href="/notices/timeframe_start_or_end_time_greater_than_twenty_four_hours/"><code>timeframe_start_or_end_time_greater_than_twenty_four_hours</code><span>A fare timeframe uses a time after 24:00:00</span></a>
+            <a href="/notices/timeframe_overlap/"><code>timeframe_overlap</code><span>Fare timeframes overlap within the same group and service</span></a>
             <a href="/notices/forbidden_prior_notice_start_time/"><code>forbidden_prior_notice_start_time</code><span>A booking start time has no start day</span></a>
             <a href="/notices/missing_prior_notice_start_time/"><code>missing_prior_notice_start_time</code><span>A booking opening day is missing its time</span></a>
-            <a href="/notices/start_and_end_range_equal/"><code>start_and_end_range_equal</code><span>An interval starts and ends at the same time</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>
   </main>
   <footer>
     <div><a class="brand" href="/">GTFS<span>.guru</span></a><p>Fast, private GTFS validation.</p></div>
-    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a></div>
+    <div><a href="/notices/">All notice codes</a><a href="/#validator">Validate a feed</a><a href="https://github.com/abasis-ltd/gtfs.guru">Source code</a><a href="/about.html">About</a></div>
   </footer>
 </body>
 </html>

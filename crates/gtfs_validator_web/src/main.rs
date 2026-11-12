@@ -415,7 +415,11 @@ async fn sitemap_xml(headers: HeaderMap) -> Response {
     serve_static_conditional("sitemap.xml", &headers)
 }
 
-async fn static_file(AxumPath(path): AxumPath<String>, headers: HeaderMap) -> Response {
+async fn static_file(
+    AxumPath(path): AxumPath<String>,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+) -> Response {
     let Some(clean_path) = sanitize_path(&path) else {
         return not_found();
     };
@@ -425,7 +429,49 @@ async fn static_file(AxumPath(path): AxumPath<String>, headers: HeaderMap) -> Re
     if is_sensitive_static_path(&clean_path) {
         return not_found();
     }
+    if let Some(location) = canonical_static_location(&path, &clean_path, uri.query()) {
+        return permanent_redirect(&location);
+    }
     serve_static_conditional(&clean_path, &headers)
+}
+
+/// Where a static path that resolves under another spelling belongs.
+///
+/// A directory page answers only at its trailing-slash URL and a file only
+/// without one. Serving both made every directory page reachable at two
+/// addresses, and a file page with a trailing slash resolved its relative
+/// links against the wrong directory (`/faq.html/style.css`). The canonical
+/// tags name the right one; the redirect stops the duplicate being served.
+fn canonical_static_location(
+    requested: &str,
+    clean_path: &str,
+    query: Option<&str>,
+) -> Option<String> {
+    let has_slash = requested.ends_with('/');
+    let is_file = WEBSITE_DIR.get_file(clean_path).is_some();
+    let is_directory = !is_file
+        && WEBSITE_DIR
+            .get_file(format!("{clean_path}/index.html"))
+            .is_some();
+    let location = match (is_file, is_directory, has_slash) {
+        (true, _, true) => format!("/{clean_path}"),
+        (_, true, false) => format!("/{clean_path}/"),
+        _ => return None,
+    };
+    Some(match query {
+        Some(query) if !query.is_empty() => format!("{location}?{query}"),
+        _ => location,
+    })
+}
+
+fn permanent_redirect(location: &str) -> Response {
+    let Ok(value) = header::HeaderValue::from_str(location) else {
+        return not_found();
+    };
+    let mut response = Response::new(Body::empty());
+    *response.status_mut() = StatusCode::MOVED_PERMANENTLY;
+    response.headers_mut().insert(header::LOCATION, value);
+    response
 }
 
 /// Headers every response carries, so they ship with the binary instead of
@@ -568,10 +614,20 @@ fn serve_static_path(path: &str) -> Response {
         return not_found();
     };
     let mime = MimeGuess::from_path(served_path).first_or_octet_stream();
+    // Everything in website/ is UTF-8. Without a charset a browser or crawler
+    // reading llms.txt or robots.txt may fall back to Latin-1 and garble
+    // "—" and "’"; HTML also declares it in a meta tag, but only after
+    // the parser has started.
+    let content_type = match (mime.type_(), mime.subtype().as_str()) {
+        (mime_guess::mime::TEXT, _) | (_, "javascript" | "json" | "xml") => {
+            format!("{mime}; charset=utf-8")
+        }
+        _ => mime.to_string(),
+    };
     let mut response = Response::new(Body::from(file.contents().to_owned()));
     response.headers_mut().insert(
         header::CONTENT_TYPE,
-        header::HeaderValue::from_str(mime.as_ref())
+        header::HeaderValue::from_str(&content_type)
             .unwrap_or_else(|_| header::HeaderValue::from_static("application/octet-stream")),
     );
     response.headers_mut().insert(
@@ -584,11 +640,17 @@ fn serve_static_path(path: &str) -> Response {
     response
 }
 
+/// A page with a way back for people, still a 404 for crawlers. Falls back to
+/// plain text if the page is ever missing from the embedded site.
 fn not_found() -> Response {
+    let (content_type, body) = match WEBSITE_DIR.get_file("404.html") {
+        Some(page) => ("text/html; charset=utf-8", Body::from(page.contents())),
+        None => ("text/plain; charset=utf-8", Body::from("Not Found")),
+    };
     Response::builder()
         .status(StatusCode::NOT_FOUND)
-        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
-        .body(Body::from("Not Found"))
+        .header(header::CONTENT_TYPE, content_type)
+        .body(body)
         .unwrap_or_else(|_| Response::new(Body::from("Not Found")))
 }
 
@@ -2101,8 +2163,57 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers().get(header::CONTENT_TYPE),
-            Some(&header::HeaderValue::from_static("text/html"))
+            Some(&header::HeaderValue::from_static(
+                "text/html; charset=utf-8"
+            ))
         );
+    }
+
+    #[test]
+    fn static_paths_redirect_to_their_one_spelling() {
+        assert_eq!(
+            canonical_static_location("notices/expired_calendar", "notices/expired_calendar", None),
+            Some("/notices/expired_calendar/".to_string())
+        );
+        assert_eq!(
+            canonical_static_location("compatibility", "compatibility", Some("ref=x")),
+            Some("/compatibility/?ref=x".to_string())
+        );
+        assert_eq!(
+            canonical_static_location("faq.html/", "faq.html", None),
+            Some("/faq.html".to_string())
+        );
+        assert_eq!(
+            canonical_static_location(
+                "notices/expired_calendar/",
+                "notices/expired_calendar",
+                None
+            ),
+            None
+        );
+        assert_eq!(
+            canonical_static_location("faq.html", "faq.html", None),
+            None
+        );
+        assert_eq!(canonical_static_location("nope/", "nope", None), None);
+    }
+
+    #[tokio::test]
+    async fn unknown_paths_get_the_html_404_page() {
+        let response = not_found();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE),
+            Some(&header::HeaderValue::from_static(
+                "text/html; charset=utf-8"
+            ))
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let page = String::from_utf8_lossy(&body);
+        assert!(page.contains("noindex"));
+        assert!(page.contains("href=\"/notices/\""));
     }
 
     #[test]

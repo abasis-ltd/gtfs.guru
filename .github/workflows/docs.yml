@@ -4,6 +4,9 @@ on:
   push:
     branches: [ "main" ]
     paths:
+      - 'website/**/*.html'
+      - 'scripts/pages_redirects.py'
+      - 'scripts/pages_redirects_test.py'
       - 'docs/**'
       - 'mkdocs.yml'
       - 'docs-requirements.txt'
@@ -11,6 +14,9 @@ on:
   pull_request:
     branches: [ "main" ]
     paths:
+      - 'website/**/*.html'
+      - 'scripts/pages_redirects.py'
+      - 'scripts/pages_redirects_test.py'
       - 'docs/**'
       - 'mkdocs.yml'
       - 'docs-requirements.txt'
@@ -46,6 +52,14 @@ jobs:
       # laptop cannot reach the site.
       - name: Build the site
         run: mkdocs build --strict
+
+      # The website used to be served from this Pages slot, and search engines
+      # still rank its old addresses. Stub every page website/ publishes with a
+      # canonical + meta refresh to the same path on gtfs.guru.
+      - name: Redirect pages that moved to gtfs.guru
+        run: |
+          python3 scripts/pages_redirects_test.py
+          python3 scripts/pages_redirects.py website site
 
       - uses: actions/upload-pages-artifact@v5
         with:
