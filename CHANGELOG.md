@@ -21,9 +21,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - The web server sends `Cache-Control` and an `ETag` on every embedded file and
   answers `If-None-Match` with `304 Not Modified`. HTML, scripts and WASM are
   revalidated on each use, and images and icons are cached for a day.
-- The web server sets HSTS, `X-Content-Type-Options`, `X-Frame-Options`,
-  `Referrer-Policy` and the COOP/COEP pair itself, so they no longer depend on
-  the reverse proxy configuration.
+- The web server sets HSTS, `X-Content-Type-Options`, `X-Frame-Options` and
+  `Referrer-Policy` itself, so they no longer depend on the reverse proxy
+  configuration. COOP/COEP stay with the proxy: a second copy from the app
+  makes browsers drop cross-origin isolation, which disables the
+  multi-threaded WASM build.
 
 ## [1.0.0] - 2026-09-15
 
