@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/duplicated_column/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice duplicated_column"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A column name appears twice. How to fix duplicated_column: what it means, which files to check and how to repair the feed.","headline":"A column name appears twice","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/duplicated_column/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/duplicated_column/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/duplicated_column/","name":"duplicated_column","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/duplicated_column/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"A column name appears twice","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"duplicated_column","termCode":"duplicated_column"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A column name appears twice. How to fix duplicated_column: what it means, which files to check and how to repair the feed.","headline":"A column name appears twice","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/duplicated_column/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/duplicated_column/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/duplicated_column/","name":"duplicated_column","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>duplicated_column</code> is an error in a GTFS Schedule validation report: a column name appears twice. The report row names the file to check.</p>
           <p>The header row contains the same field name more than once.</p>
 
         </section>
@@ -110,6 +111,7 @@
             <a href="/notices/missing_required_column/"><code>missing_required_column</code><span>A required column is missing from the header</span></a>
             <a href="/notices/missing_recommended_column/"><code>missing_recommended_column</code><span>A recommended column is missing</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

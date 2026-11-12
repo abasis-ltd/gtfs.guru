@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/more_than_one_entity/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice more_than_one_entity"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A single-record file contains multiple records. How to fix more_than_one_entity: what it means, which files to check and how to repair the feed.","headline":"A single-record file contains multiple records","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/more_than_one_entity/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/more_than_one_entity/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/more_than_one_entity/","name":"more_than_one_entity","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/more_than_one_entity/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"A single-record file contains multiple records","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"more_than_one_entity","termCode":"more_than_one_entity"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A single-record file contains multiple records. How to fix more_than_one_entity: what it means, which files to check and how to repair the feed.","headline":"A single-record file contains multiple records","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/more_than_one_entity/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/more_than_one_entity/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/more_than_one_entity/","name":"more_than_one_entity","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>more_than_one_entity</code> is a warning in a GTFS Schedule validation report: a single-record file contains multiple records. The report row names the file to check.</p>
           <p>A file expected to describe one entity, such as <code>feed_info.txt</code>, has more than one data row.</p>
 
         </section>
@@ -105,9 +106,8 @@
           <div class="related-list">
             <a href="/notices/route_networks_specified_in_more_than_one_file/"><code>route_networks_specified_in_more_than_one_file</code><span>Route-network membership uses conflicting sources</span></a>
             <a href="/notices/timeframe_start_or_end_time_greater_than_twenty_four_hours/"><code>timeframe_start_or_end_time_greater_than_twenty_four_hours</code><span>A fare timeframe uses a time after 24:00:00</span></a>
-            <a href="/notices/agency_phone_invalid/"><code>agency_phone_invalid</code><span>Check the agency&#39;s public phone number</span></a>
-            <a href="/notices/attribution_without_role/"><code>attribution_without_role</code><span>An attribution does not say what the organization does</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

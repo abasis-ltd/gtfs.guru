@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/unused_route/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice unused_route"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A route has no trips. How to fix unused_route: what it means, which files to check and how to repair the feed.","headline":"A route has no trips","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/unused_route/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/unused_route/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/unused_route/","name":"unused_route","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/unused_route/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"A route has no trips","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"unused_route","termCode":"unused_route"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A route has no trips. How to fix unused_route: what it means, which files to check and how to repair the feed.","headline":"A route has no trips","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/unused_route/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/unused_route/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/unused_route/","name":"unused_route","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>unused_route</code> is a warning in a GTFS Schedule validation report: a route has no trips. Check <code>routes.txt</code> and <code>trips.txt</code>.</p>
           <p>The route exists in <code>routes.txt</code> but no trip references its ID.</p>
 
         </section>
@@ -114,6 +115,7 @@
             <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>Travel between distant stops appears too fast</span></a>
             <a href="/notices/missing_bike_allowance/"><code>missing_bike_allowance</code><span>A ferry trip does not state whether bikes are allowed</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

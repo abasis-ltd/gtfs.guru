@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_level_id/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_level_id"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"An elevator endpoint has no station level. How to fix missing_level_id: what it means, which files to check and how to repair the feed.","headline":"An elevator endpoint has no station level","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_level_id/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_level_id/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_level_id/","name":"missing_level_id","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_level_id/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"An elevator endpoint has no station level","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"missing_level_id","termCode":"missing_level_id"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"An elevator endpoint has no station level. How to fix missing_level_id: what it means, which files to check and how to repair the feed.","headline":"An elevator endpoint has no station level","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/missing_level_id/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_level_id/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_level_id/","name":"missing_level_id","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>missing_level_id</code> is an error in a GTFS Schedule validation report: an elevator endpoint has no station level. Check <code>stops.txt</code>, <code>pathways.txt</code> and <code>levels.txt</code>.</p>
           <p>A location connected to an elevator pathway lacks <code>level_id</code>.</p>
 
         </section>
@@ -110,11 +111,12 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
+            <a href="/notices/pathway_to_stop_with_access_outside_of_station_pathways/"><code>pathway_to_stop_with_access_outside_of_station_pathways</code><span>A street-access stop is linked into station pathways</span></a>
+            <a href="/notices/pathway_unreachable_location/"><code>pathway_unreachable_location</code><span>Part of the station cannot be reached or exited</span></a>
+            <a href="/notices/pathway_dangling_generic_node/"><code>pathway_dangling_generic_node</code><span>An internal station node connects to only one location</span></a>
             <a href="/notices/bidirectional_exit_gate/"><code>bidirectional_exit_gate</code><span>An exit-only gate allows travel in both directions</span></a>
-            <a href="/notices/block_trips_with_overlapping_stop_times/"><code>block_trips_with_overlapping_stop_times</code><span>One vehicle is assigned to overlapping trips</span></a>
-            <a href="/notices/csv_parsing_failed/"><code>csv_parsing_failed</code><span>A file could not be read as CSV</span></a>
-            <a href="/notices/decreasing_or_equal_stop_time_distance/"><code>decreasing_or_equal_stop_time_distance</code><span>Distance does not increase between stops</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

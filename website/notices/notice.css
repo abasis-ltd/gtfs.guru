@@ -192,6 +192,9 @@ article h2 {
 }
 article h3 { margin: 0 0 .8rem; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; }
 article p { max-width: 68ch; color: #c7d3e2; }
+article p.lead { color: var(--text); font-size: 1.02rem; }
+.related-guides { margin-top: 1rem; color: var(--muted); font-size: .88rem; }
+.related-guides a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 article code { color: #bfeaff; }
 
 .file-list,

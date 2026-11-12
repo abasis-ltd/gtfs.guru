@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Notice pages open with one sentence naming the code, its severity and the
+  files to check. Related notices must share a file or a word of the code
+  (severity alone used to fill the list, so `bidirectional_exit_gate` showed
+  up on 21 unrelated pages), and each page links the guides that cover it.
+- Notice, notices-index and compatibility pages reference the homepage's
+  Organization and WebSite by `@id`, and describe each code as a
+  `DefinedTerm` in one `DefinedTermSet`.
+
 ### Fixed
 
 - The notice schema lists context fields for the 30 notices whose rules fill

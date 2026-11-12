@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_drop_off_type/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice forbidden_drop_off_type"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Scheduled drop-off conflicts with a service window. How to fix forbidden_drop_off_type: what it means, which files to check and how to repair the feed.","headline":"Scheduled drop-off conflicts with a service window","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_drop_off_type/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_drop_off_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_drop_off_type/","name":"forbidden_drop_off_type","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_drop_off_type/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"Scheduled drop-off conflicts with a service window","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"forbidden_drop_off_type","termCode":"forbidden_drop_off_type"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Scheduled drop-off conflicts with a service window. How to fix forbidden_drop_off_type: what it means, which files to check and how to repair the feed.","headline":"Scheduled drop-off conflicts with a service window","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_drop_off_type/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_drop_off_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_drop_off_type/","name":"forbidden_drop_off_type","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>forbidden_drop_off_type</code> is an error in a GTFS Schedule validation report: scheduled drop-off conflicts with a service window. Start with <code>stop_times.txt</code>.</p>
           <p>A pickup/drop-off window is present alongside <code>drop_off_type=0</code>, including an applicable default.</p>
 
         </section>
@@ -111,6 +112,7 @@
             <a href="/notices/invalid_pickup_drop_off_window/"><code>invalid_pickup_drop_off_window</code><span>A pickup/drop-off window does not end after it starts</span></a>
             <a href="/notices/missing_pickup_or_drop_off_window/"><code>missing_pickup_or_drop_off_window</code><span>A service window is missing one boundary</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

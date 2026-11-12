@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/wrong_parent_location_type/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice wrong_parent_location_type"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A location points to the wrong kind of parent. How to fix wrong_parent_location_type: what it means, which files to check and how to repair the feed.","headline":"A location points to the wrong kind of parent","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/wrong_parent_location_type/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/wrong_parent_location_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/wrong_parent_location_type/","name":"wrong_parent_location_type","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/wrong_parent_location_type/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"A location points to the wrong kind of parent","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"wrong_parent_location_type","termCode":"wrong_parent_location_type"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A location points to the wrong kind of parent. How to fix wrong_parent_location_type: what it means, which files to check and how to repair the feed.","headline":"A location points to the wrong kind of parent","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/wrong_parent_location_type/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/wrong_parent_location_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/wrong_parent_location_type/","name":"wrong_parent_location_type","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -65,6 +65,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>wrong_parent_location_type</code> is an error in a GTFS Schedule validation report: a location points to the wrong kind of parent. Start with <code>stops.txt</code>.</p>
           <p>The <code>parent_station</code> ID exists, but the parent&#39;s location type is not allowed for the child.</p>
 
         </section>
@@ -130,10 +131,11 @@ P2,0,ST1</code></pre></div>
           <h2>Related notices</h2>
           <div class="related-list">
             <a href="/notices/location_with_unexpected_stop_time/"><code>location_with_unexpected_stop_time</code><span>A scheduled stop refers to the wrong location type</span></a>
+            <a href="/notices/duplicate_geography_id/"><code>duplicate_geography_id</code><span>An ID is shared by different location types</span></a>
             <a href="/notices/location_without_parent_station/"><code>location_without_parent_station</code><span>A location is missing its required parent</span></a>
             <a href="/notices/fast_travel_between_consecutive_stops/"><code>fast_travel_between_consecutive_stops</code><span>Travel between two stops appears too fast</span></a>
-            <a href="/notices/fast_travel_between_far_stops/"><code>fast_travel_between_far_stops</code><span>Travel between distant stops appears too fast</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

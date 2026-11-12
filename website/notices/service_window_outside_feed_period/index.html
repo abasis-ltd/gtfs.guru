@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/service_window_outside_feed_period/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice service_window_outside_feed_period"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Service dates fall outside the declared feed period. How to fix service_window_outside_feed_period: what it means and how to repair the feed.","headline":"Service dates fall outside the declared feed period","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/service_window_outside_feed_period/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/service_window_outside_feed_period/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/service_window_outside_feed_period/","name":"service_window_outside_feed_period","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/service_window_outside_feed_period/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"Service dates fall outside the declared feed period","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"service_window_outside_feed_period","termCode":"service_window_outside_feed_period"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Service dates fall outside the declared feed period. How to fix service_window_outside_feed_period: what it means and how to repair the feed.","headline":"Service dates fall outside the declared feed period","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/service_window_outside_feed_period/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/service_window_outside_feed_period/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/service_window_outside_feed_period/","name":"service_window_outside_feed_period","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>service_window_outside_feed_period</code> is an info in a GTFS Schedule validation report: service dates fall outside the declared feed period. Check <code>feed_info.txt</code>, <code>calendar.txt</code> and <code>calendar_dates.txt</code>.</p>
           <p>A service begins before <code>feed_start_date</code> or ends after <code>feed_end_date</code>.</p>
 
         </section>
@@ -118,6 +119,7 @@
             <a href="/notices/service_extends_far_in_the_future/"><code>service_extends_far_in_the_future</code><span>A service calendar extends more than two years ahead</span></a>
             <a href="/notices/service_never_active/"><code>service_never_active</code><span>A service is never scheduled to run</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a> · <a href="/how-often-update-gtfs.html">How often should a GTFS feed be updated?</a></p>
         </section>
       </article>
     </div>

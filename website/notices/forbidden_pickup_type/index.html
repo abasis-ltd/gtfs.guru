@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_pickup_type/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice forbidden_pickup_type"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The pickup type conflicts with a service window. How to fix forbidden_pickup_type: what it means, which files to check and how to repair the feed.","headline":"The pickup type conflicts with a service window","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_pickup_type/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_pickup_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_pickup_type/","name":"forbidden_pickup_type","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_pickup_type/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"The pickup type conflicts with a service window","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"forbidden_pickup_type","termCode":"forbidden_pickup_type"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"The pickup type conflicts with a service window. How to fix forbidden_pickup_type: what it means, which files to check and how to repair the feed.","headline":"The pickup type conflicts with a service window","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_pickup_type/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_pickup_type/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_pickup_type/","name":"forbidden_pickup_type","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>forbidden_pickup_type</code> is an error in a GTFS Schedule validation report: the pickup type conflicts with a service window. Start with <code>stop_times.txt</code>.</p>
           <p>A pickup/drop-off window is used with a pickup type that this rule forbids: regularly scheduled pickup or coordination directly with the driver.</p>
 
         </section>
@@ -111,6 +112,7 @@
             <a href="/notices/forbidden_arrival_or_departure_time/"><code>forbidden_arrival_or_departure_time</code><span>A stop-time row mixes fixed times and a service window</span></a>
             <a href="/notices/forbidden_geography_id/"><code>forbidden_geography_id</code><span>A stop-time row identifies more than one location</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

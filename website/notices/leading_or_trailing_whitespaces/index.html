@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice leading_or_trailing_whitespaces"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A value has extra spaces at its edges. How to fix leading_or_trailing_whitespaces: what it means, which files to check and how to repair the feed.","headline":"A value has extra spaces at its edges","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/","name":"leading_or_trailing_whitespaces","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"A value has extra spaces at its edges","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"leading_or_trailing_whitespaces","termCode":"leading_or_trailing_whitespaces"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A value has extra spaces at its edges. How to fix leading_or_trailing_whitespaces: what it means, which files to check and how to repair the feed.","headline":"A value has extra spaces at its edges","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/leading_or_trailing_whitespaces/","name":"leading_or_trailing_whitespaces","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>leading_or_trailing_whitespaces</code> is a warning in a GTFS Schedule validation report: a value has extra spaces at its edges. The report row names the file to check.</p>
           <p>A field contains whitespace before or after its intended value.</p>
 
         </section>
@@ -105,11 +106,9 @@
           <p class="section-kicker">Continue diagnosing</p>
           <h2>Related notices</h2>
           <div class="related-list">
-            <a href="/notices/agency_phone_invalid/"><code>agency_phone_invalid</code><span>Check the agency&#39;s public phone number</span></a>
-            <a href="/notices/attribution_without_role/"><code>attribution_without_role</code><span>An attribution does not say what the organization does</span></a>
-            <a href="/notices/duplicate_fare_media/"><code>duplicate_fare_media</code><span>Two fare media have the same name and type</span></a>
-            <a href="/notices/duplicate_route_name/"><code>duplicate_route_name</code><span>Two routes have indistinguishable names</span></a>
+            <a href="/notices/"><code>All notice codes</code><span>Browse every notice by severity and file</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

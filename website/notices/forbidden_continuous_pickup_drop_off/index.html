@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice forbidden_continuous_pickup_drop_off"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Route-wide continuous service conflicts with a pickup window. How to fix forbidden_continuous_pickup_drop_off: what it means and how to repair the feed.","headline":"Route-wide continuous service conflicts with a pickup window","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/","name":"forbidden_continuous_pickup_drop_off","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"Route-wide continuous service conflicts with a pickup window","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"forbidden_continuous_pickup_drop_off","termCode":"forbidden_continuous_pickup_drop_off"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"Route-wide continuous service conflicts with a pickup window. How to fix forbidden_continuous_pickup_drop_off: what it means and how to repair the feed.","headline":"Route-wide continuous service conflicts with a pickup window","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/forbidden_continuous_pickup_drop_off/","name":"forbidden_continuous_pickup_drop_off","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -64,6 +64,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>forbidden_continuous_pickup_drop_off</code> is an error in a GTFS Schedule validation report: route-wide continuous service conflicts with a pickup window. Check <code>routes.txt</code>, <code>stop_times.txt</code> and <code>trips.txt</code>.</p>
           <p>A route allows continuous pickup or drop-off while one of its trips uses pickup/drop-off windows.</p>
 
         </section>
@@ -117,6 +118,7 @@
             <a href="/notices/stop_without_zone_id/"><code>stop_without_zone_id</code><span>A stop is missing a zone required by its fare rules</span></a>
             <a href="/notices/forbidden_drop_off_type/"><code>forbidden_drop_off_type</code><span>Scheduled drop-off conflicts with a service window</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>

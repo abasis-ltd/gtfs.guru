@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#07111f">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
   <link rel="stylesheet" href="/notices/notice.css?v=2">
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_required_column/#article","@type":"TechArticle","about":{"@type":"Thing","name":"GTFS validation notice missing_required_column"},"author":{"@type":"Organization","name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A required column is missing from the header. How to fix missing_required_column: what it means, which files to check and how to repair the feed.","headline":"A required column is missing from the header","isAccessibleForFree":true,"mainEntityOfPage":"https://gtfs.guru/notices/missing_required_column/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_required_column/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_required_column/","name":"missing_required_column","position":3}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@id":"https://gtfs.guru/notices/missing_required_column/#article","@type":"TechArticle","about":{"@type":"DefinedTerm","description":"A required column is missing from the header","inDefinedTermSet":{"@id":"https://gtfs.guru/notices/#codes","@type":"DefinedTermSet","name":"GTFS validation notice codes","url":"https://gtfs.guru/notices/"},"name":"missing_required_column","termCode":"missing_required_column"},"author":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"description":"A required column is missing from the header. How to fix missing_required_column: what it means, which files to check and how to repair the feed.","headline":"A required column is missing from the header","image":"https://gtfs.guru/og-image.png","inLanguage":"en","isAccessibleForFree":true,"isPartOf":{"@id":"https://gtfs.guru/#website","@type":"WebSite","name":"GTFS Guru","url":"https://gtfs.guru/"},"mainEntityOfPage":"https://gtfs.guru/notices/missing_required_column/","publisher":{"@id":"https://gtfs.guru/#organization","@type":"Organization","logo":{"@type":"ImageObject","url":"https://gtfs.guru/logo.png"},"name":"GTFS Guru","url":"https://gtfs.guru/"},"url":"https://gtfs.guru/notices/missing_required_column/"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://gtfs.guru/","name":"GTFS Guru","position":1},{"@type":"ListItem","item":"https://gtfs.guru/notices/","name":"Notice codes","position":2},{"@type":"ListItem","item":"https://gtfs.guru/notices/missing_required_column/","name":"missing_required_column","position":3}]}]}</script>
   <script src="/notices/notice.js" defer></script>
 </head>
 <body>
@@ -65,6 +65,7 @@
         <section id="meaning">
           <p class="section-kicker">Diagnosis</p>
           <h2>What this notice means</h2>
+          <p class="lead"><code>missing_required_column</code> is an error in a GTFS Schedule validation report: a required column is missing from the header. The report row names the file to check.</p>
           <p>The reported file has no column named by <code>fieldName</code>.</p>
 
         </section>
@@ -122,6 +123,7 @@ S1,Central,35.17,33.36</code></pre></div>
             <a href="/notices/missing_required_agency_id/"><code>missing_required_agency_id</code><span>A multi-agency feed is missing an agency ID</span></a>
             <a href="/notices/missing_required_element/"><code>missing_required_element</code><span>A GeoJSON object is missing a required element</span></a>
           </div>
+          <p class="related-guides">Guides: <a href="/why-is-my-gtfs-rejected.html">Why is my GTFS feed rejected?</a> · <a href="/how-to-validate-gtfs.html">How to validate a GTFS feed</a></p>
         </section>
       </article>
     </div>
