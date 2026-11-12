@@ -550,7 +550,7 @@ fn render_notice_page(
                 "            <tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>",
                 escape_html(&field.field_name),
                 escape_html(&format_field_type(&field.field_type)),
-                escape_html(
+                render_inline(
                     field
                         .description
                         .as_deref()
@@ -1733,11 +1733,14 @@ fn render_correspondence_rows(
 
         write!(
             rows,
-            r#"        <a class="notice-row compat-row" href="/notices/{code}/" data-code="{code}" data-severity="{severity_slug}" data-correspondence="{correspondence}" data-search="{code} {summary} {keywords}">
+            // A row cannot be one link like the index rows are: the canonical
+            // cell carries a link of its own, and an <a> inside an <a> is
+            // ejected by the parser. The notice link sits on the code cell.
+            r#"        <div class="notice-row compat-row" data-code="{code}" data-severity="{severity_slug}" data-correspondence="{correspondence}" data-search="{code} {summary} {keywords}">
           <span class="severity {severity_slug}">{severity}</span>
-          <span><code>{code}</code><strong>{summary}</strong></span>
+          <a href="/notices/{code}/"><code>{code}</code><strong>{summary}</strong></a>
           <span>{cell}</span>
-        </a>
+        </div>
 "#,
             code = escape_html(code),
             severity_slug = severity.to_ascii_lowercase(),
