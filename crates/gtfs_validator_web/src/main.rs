@@ -430,13 +430,16 @@ async fn static_file(AxumPath(path): AxumPath<String>, headers: HeaderMap) -> Re
 
 /// Headers every response carries, so they ship with the binary instead of
 /// depending on whatever the reverse proxy in front happens to be configured
-/// with. COOP/COEP make the page cross-origin isolated, which the
-/// multi-threaded WASM build needs for SharedArrayBuffer.
+/// with.
+///
+/// COOP/COEP are deliberately not here. The host's Caddy already adds them,
+/// and a second copy from the app turns each into a two-item list
+/// ("same-origin, same-origin") that browsers reject as malformed. The page
+/// then loses cross-origin isolation, and with it the SharedArrayBuffer the
+/// multi-threaded WASM build needs. They belong to whichever layer is last.
 async fn with_security_headers(mut response: Response) -> Response {
     let headers = response.headers_mut();
     for (name, value) in [
-        ("cross-origin-opener-policy", "same-origin"),
-        ("cross-origin-embedder-policy", "require-corp"),
         (
             "strict-transport-security",
             "max-age=31536000; includeSubDomains",
@@ -2149,10 +2152,15 @@ mod tests {
             "strict-transport-security",
             "x-content-type-options",
             "x-frame-options",
-            "cross-origin-opener-policy",
-            "cross-origin-embedder-policy",
         ] {
             assert!(response.headers().contains_key(name), "missing {name}");
+        }
+        // The proxy owns these; a duplicate breaks cross-origin isolation.
+        for name in ["cross-origin-opener-policy", "cross-origin-embedder-policy"] {
+            assert!(
+                !response.headers().contains_key(name),
+                "app must not set {name}"
+            );
         }
     }
 
