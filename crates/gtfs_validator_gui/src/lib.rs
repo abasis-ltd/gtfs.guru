@@ -171,6 +171,7 @@ pub struct AppState {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateNotice {
     pub available: bool,
+    pub install_in_app: bool,
     pub version: Option<String>,
     pub body: Option<String>,
     pub pub_date: Option<String>,
@@ -194,6 +195,7 @@ pub fn run() {
             validate_gtfs,
             diff_gtfs,
             check_for_updates,
+            install_update,
             get_update_download_url,
             get_version,
             open_path
@@ -259,26 +261,52 @@ async fn diff_gtfs(
 }
 
 #[tauri::command]
-fn get_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+fn get_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[cfg(windows)]
+fn windows_update_target() -> Option<String> {
+    use tauri::utils::{config::BundleType, platform::bundle_type};
+
+    let installer = match bundle_type()? {
+        BundleType::Msi => "msi",
+        BundleType::Nsis => "nsis",
+        _ => return None,
+    };
+    let platform = tauri_plugin_updater::target()?;
+    Some(format!("{platform}-{installer}"))
 }
 
 #[cfg(desktop)]
 #[tauri::command]
 async fn check_for_updates(app: AppHandle) -> Result<UpdateNotice, String> {
-    let updater = app.updater_builder().build().map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    let install_target = windows_update_target();
+    #[cfg(not(windows))]
+    let install_target: Option<String> = None;
+
+    let builder = app.updater_builder();
+    let install_in_app = install_target.is_some();
+    let builder = match install_target {
+        Some(target) => builder.target(target),
+        None => builder,
+    };
+    let updater = builder.build().map_err(|e| e.to_string())?;
 
     let update = updater.check().await.map_err(|e| e.to_string())?;
 
     Ok(match update {
         Some(update) => UpdateNotice {
             available: true,
+            install_in_app,
             version: Some(update.version),
             body: update.body,
             pub_date: update.date.map(|date| date.to_string()),
         },
         None => UpdateNotice {
             available: false,
+            install_in_app: false,
             version: None,
             body: None,
             pub_date: None,
@@ -291,10 +319,41 @@ async fn check_for_updates(app: AppHandle) -> Result<UpdateNotice, String> {
 async fn check_for_updates(_app: AppHandle) -> Result<UpdateNotice, String> {
     Ok(UpdateNotice {
         available: false,
+        install_in_app: false,
         version: None,
         body: None,
         pub_date: None,
     })
+}
+
+#[cfg(windows)]
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let target = windows_update_target().ok_or("Installer type is unavailable.")?;
+    let is_nsis = target.ends_with("-nsis");
+    let builder = app.updater_builder().target(target);
+    // Passive NSIS installers can still show the installer language dialog.
+    let builder = if is_nsis {
+        builder.installer_arg("/S")
+    } else {
+        builder
+    };
+    let updater = builder.build().map_err(|e| e.to_string())?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("No update is available.")?;
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+async fn install_update() -> Result<(), String> {
+    Err("In-app installation is unavailable on this platform.".into())
 }
 
 #[cfg(desktop)]

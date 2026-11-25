@@ -1237,6 +1237,7 @@
         let unlistenProgress = null;
         let unlistenDragDrop = null;
         let updateDownloadUrl = null;
+        let installUpdateInApp = false;
 
         // Initialize
         async function init() {
@@ -1294,6 +1295,8 @@
                 if (result && result.available && result.version && result.version !== currentVersion) {
                     const latest = `v${result.version}`;
                     updateText.textContent = `Update available: ${latest}`;
+                    installUpdateInApp = result.installInApp;
+                    updateBtn.textContent = installUpdateInApp ? 'Install update' : 'Download update';
                     updateBanner.classList.remove('hidden');
                     updateBanner.hidden = false;
                 }
@@ -1303,6 +1306,20 @@
         }
 
         updateBtn.addEventListener('click', async () => {
+            if (installUpdateInApp) {
+                updateBtn.disabled = true;
+                updateBtn.textContent = 'Installing…';
+                try {
+                    await invoke('install_update');
+                } catch (error) {
+                    showError(`Could not install the update: ${error}`);
+                } finally {
+                    updateBtn.disabled = false;
+                    updateBtn.textContent = 'Install update';
+                }
+                return;
+            }
+
             const url = updateDownloadUrl || 'https://github.com/abasis-ltd/gtfs.guru/releases/latest';
             if (shellOpen) {
                 await shellOpen(url);

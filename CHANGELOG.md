@@ -50,6 +50,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
   requested with one, get a 301 to their single address instead of a second
   copy of the page.
 
+## [1.0.1] - 2026-11-25
+
+### Fixed
+
+- Windows MSI and NSIS installations can install signed updates from inside
+  the app. Each installation uses its own installer format.
+- Windows installers are signed with Authenticode and include a trusted
+  timestamp. The macOS release checks the disk image signature and notarization
+  ticket before publication.
+
 ## [1.0.0] - 2026-09-15
 
 First stable release. The CLI, core, model, report, profile, MCP, web, WASM,
@@ -330,6 +340,7 @@ now covered by semantic versioning.
 
 - Release metadata and documentation update for 0.9.4.
 
-[Unreleased]: https://github.com/abasis-ltd/gtfs.guru/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/abasis-ltd/gtfs.guru/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/abasis-ltd/gtfs.guru/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/abasis-ltd/gtfs.guru/compare/v0.9.4...v1.0.0
 [0.9.4]: https://github.com/abasis-ltd/gtfs.guru/releases/tag/v0.9.4
