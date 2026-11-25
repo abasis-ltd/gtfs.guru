@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-profile"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 license = "Apache-2.0"
 description = "Deterministic feed profiles and explanations for GTFS Guru"
@@ -17,12 +17,12 @@ serde = { workspace = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "1.0.1"
+version = "1.0.2"
 default-features = false
 
 [dependencies.gtfs-guru-model]
 path = "../gtfs_model"
-version = "1.0.1"
+version = "1.0.2"
 
 [features]
 default = ["parallel"]

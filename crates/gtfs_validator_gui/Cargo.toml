@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-gui"
-version = "1.0.1"
+version = "1.0.2"
 # Not published: this is the Tauri desktop app, distributed via GitHub
 # releases, not something anyone `cargo add`s.
 publish = false
@@ -23,8 +23,8 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-gtfs-guru-core = { path = "../gtfs_validator_core", version = "1.0.1" }
-gtfs-guru-report = { path = "../gtfs_validator_report", version = "1.0.1" }
+gtfs-guru-core = { path = "../gtfs_validator_core", version = "1.0.2" }
+gtfs-guru-report = { path = "../gtfs_validator_report", version = "1.0.2" }
 
 # Tauri
 tauri = { version = "2", features = [] }
