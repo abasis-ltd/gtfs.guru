@@ -479,13 +479,8 @@ fn segments_intersect(p1: (f64, f64), p2: (f64, f64), p3: (f64, f64), p4: (f64, 
     let d4 = direction(p1, p2, p4);
 
     // Check if segments properly cross
-    if ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+    ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
         && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
-    {
-        return true;
-    }
-
-    false
 }
 
 /// Compute the cross product of vectors (p3-p1) and (p2-p1)

@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-mcp"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Validation-focused MCP server for GTFS Guru"
@@ -30,8 +30,8 @@ url = { workspace = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "1.0.0"
+version = "1.0.1"
 
 [dependencies.gtfs-guru-profile]
 path = "../gtfs_validator_profile"
-version = "1.0.0"
+version = "1.0.1"

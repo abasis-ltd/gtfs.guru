@@ -649,8 +649,8 @@ fn extract_shape_path_segment(shape_points: &ShapePoints, match_index: usize) ->
 
     // Find end index (go forward up to MAX_POINTS_EACH_SIDE or MAX_DISTANCE_METERS)
     let mut end_index = match_index;
-    for i in (match_index + 1)..shape_points.points.len() {
-        let dist_diff = shape_points.points[i].geo_distance - match_geo_distance;
+    for (i, point) in shape_points.points.iter().enumerate().skip(match_index + 1) {
+        let dist_diff = point.geo_distance - match_geo_distance;
         if dist_diff > MAX_DISTANCE_METERS || i - match_index > MAX_POINTS_EACH_SIDE {
             break;
         }

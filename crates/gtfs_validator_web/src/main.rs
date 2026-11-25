@@ -1601,10 +1601,7 @@ fn is_global_ip(ip: IpAddr) -> bool {
             }
             let seg0 = v6.segments()[0];
             // fc00::/7 unique-local, fe80::/10 link-local
-            if (seg0 & 0xfe00) == 0xfc00 || (seg0 & 0xffc0) == 0xfe80 {
-                return false;
-            }
-            true
+            !((seg0 & 0xfe00) == 0xfc00 || (seg0 & 0xffc0) == 0xfe80)
         }
     }
 }

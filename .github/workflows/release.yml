@@ -174,7 +174,8 @@ jobs:
           if-no-files-found: error
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
+        if: matrix.platform != 'windows-latest' || !startsWith(github.ref, 'refs/tags/')
+        run: cargo install tauri-cli --locked --version '=2.12.6'
 
       - name: Install Apple certificate (macOS only)
         if: matrix.platform == 'macos-latest'
@@ -187,22 +188,23 @@ jobs:
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
           
           # Decode certificate using OpenSSL (more robust)
-          echo "$APPLE_CERTIFICATE" | openssl base64 -d -A -out $RUNNER_TEMP/certificate.p12
+          echo "$APPLE_CERTIFICATE" | openssl base64 -d -A -out "$RUNNER_TEMP/certificate.p12"
           
           # Create and configure keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           
           # Import certificate using legacy format for compatibility
-          security import $RUNNER_TEMP/certificate.p12 -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH login.keychain-db
+          security import "$RUNNER_TEMP/certificate.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
           
           # Cleanup
-          rm $RUNNER_TEMP/certificate.p12
+          rm "$RUNNER_TEMP/certificate.p12"
 
       - name: Build Tauri App
+        if: matrix.platform != 'windows-latest' || !startsWith(github.ref, 'refs/tags/')
         env:
           # macOS signing
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
@@ -223,23 +225,21 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # Find the DMG file
-          DMG_PATH=$(find target/universal-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
-          
-          if [ -n "$DMG_PATH" ]; then
-            echo "Notarizing $DMG_PATH..."
-            xcrun notarytool submit "$DMG_PATH" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" \
-              --wait
-            
-            # Staple the notarization ticket
-            xcrun stapler staple "$DMG_PATH"
-            echo "Notarization complete!"
-          else
-            echo "No DMG found for notarization"
+          shopt -s nullglob
+          dmgs=(target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          if [ "${#dmgs[@]}" -ne 1 ]; then
+            echo "Expected one macOS disk image"
+            exit 1
           fi
+          DMG_PATH="${dmgs[0]}"
+          codesign --verify --strict "$DMG_PATH"
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
 
       - name: Upload macOS artifacts
         if: matrix.platform == 'macos-latest'
@@ -266,7 +266,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload Windows artifacts
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' && !startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v7
         with:
           name: windows-installers
@@ -277,8 +277,64 @@ jobs:
             target/release/bundle/nsis/*.exe.sig
           if-no-files-found: warn
 
+  signed-windows-installers:
+    needs: validate-release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify Windows installers from the release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag.Substring(1)
+          $isDraft = gh release view $tag --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $isDraft -ne 'true') { throw "Expected the $tag release draft." }
+          gh release download $tag --pattern gtfs-guru-windows-signed-build.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Could not retrieve the signed Windows build.' }
+          Expand-Archive gtfs-guru-windows-signed-build.zip -DestinationPath windows-stage
+          $manifest = Get-Content -Raw windows-stage/windows-build.json | ConvertFrom-Json
+          $tree = git rev-parse 'HEAD^{tree}'
+          if ($LASTEXITCODE -ne 0 -or $manifest.sourceTree -cne $tree -or $manifest.version -cne $version) {
+            throw 'The Windows build does not match the release source and version.'
+          }
+          $config = Get-Content -Raw crates/gtfs_validator_gui/tauri.windows-signing.conf.json | ConvertFrom-Json
+          foreach ($name in "GTFS.Guru_${version}_x64_en-US.msi", "GTFS.Guru_${version}_x64-setup.exe") {
+            $file = Join-Path windows-stage $name
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+            if ($hash -ne $manifest.sha256.PSObject.Properties[$name].Value) { throw "Checksum mismatch for $name." }
+            $signature = Get-AuthenticodeSignature -LiteralPath $file
+            if ($signature.Status -ne 'Valid' -or !$signature.TimeStamperCertificate -or $signature.SignerCertificate.Thumbprint -ne $config.bundle.windows.certificateThumbprint) {
+              throw "Invalid publisher signature or timestamp for $name."
+            }
+          }
+      - name: Sign the final Windows installer bytes for the Tauri updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          foreach ($name in "GTFS.Guru_${version}_x64_en-US.msi", "GTFS.Guru_${version}_x64-setup.exe") {
+            $file = Join-Path windows-stage $name
+            npm exec --yes --package '@tauri-apps/cli@2.12.6' -- tauri signer sign --app-version $version $file
+            if ($LASTEXITCODE -ne 0 -or !(Test-Path "$file.sig")) { throw "Could not sign $name for the updater." }
+          }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-installers
+          path: |
+            windows-stage/GTFS.Guru_*.msi
+            windows-stage/GTFS.Guru_*.exe
+            windows-stage/GTFS.Guru_*.sig
+          if-no-files-found: error
+
   create-release:
-    needs: build-and-release
+    needs: [build-and-release, signed-windows-installers]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -386,6 +442,8 @@ jobs:
           add_platform(platforms, "darwin-aarch64", "gtfs-guru-macos-universal.app.tar.gz", "gtfs-guru-macos-universal.app.tar.gz.sig", required=True)
           add_platform(platforms, "darwin-x86_64", "gtfs-guru-macos-universal.app.tar.gz", "gtfs-guru-macos-universal.app.tar.gz.sig", required=True)
           add_platform(platforms, "windows-x86_64", "gtfs-guru-windows-x64.msi", "gtfs-guru-windows-x64.msi.sig", required=True)
+          add_platform(platforms, "windows-x86_64-msi", "gtfs-guru-windows-x64.msi", "gtfs-guru-windows-x64.msi.sig", required=True)
+          add_platform(platforms, "windows-x86_64-nsis", "gtfs-guru-windows-x64-setup.exe", "gtfs-guru-windows-x64-setup.exe.sig", required=True)
           add_platform(platforms, "linux-x86_64", "gtfs-guru-linux-amd64.AppImage", "gtfs-guru-linux-amd64.AppImage.sig", required=False)
           
           data = {
@@ -399,7 +457,7 @@ jobs:
           PY
 
           # Checksums (include latest.json)
-          (cd release && sha256sum * > gtfs-guru-SHA256SUMS.txt)
+          (cd release && sha256sum -- * > gtfs-guru-SHA256SUMS.txt)
 
           echo "=== Release files ==="
           ls -la release/
@@ -441,7 +499,7 @@ jobs:
           print(pathlib.Path("release-notes-header.md").read_text())
           PY
 
-      - name: Create GitHub Release
+      - name: Upload assets to the GitHub release draft
         uses: softprops/action-gh-release@v2
         with:
           files: release/*
@@ -449,10 +507,17 @@ jobs:
           # GitHub generates, appended below it.
           body_path: release-notes-header.md
           generate_release_notes: true
-          draft: false
+          draft: true
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete-asset "$GITHUB_REF_NAME" gtfs-guru-windows-signed-build.zip --yes
+          gh release edit "$GITHUB_REF_NAME" --verify-tag --draft=false
 
   publish-crates:
     needs: create-release

@@ -1,6 +1,6 @@
 [package]
 name = "gtfs-guru-wasm"
-version = "1.0.0"
+version = "1.0.1"
 # Not published: consumed via npm/wasm-bindgen, not crates.io.
 publish = false
 edition = "2021"
@@ -52,12 +52,12 @@ parking_lot_core = { version = "0.9", features = ["nightly"], optional = true }
 
 [dependencies.gtfs-guru-core]
 path = "../gtfs_validator_core"
-version = "1.0.0"
+version = "1.0.1"
 default-features = false  # Disable rayon for WASM
 
 [dependencies.gtfs-guru-report]
 path = "../gtfs_validator_report"
-version = "1.0.0"
+version = "1.0.1"
 default-features = false
 
 [dev-dependencies]
