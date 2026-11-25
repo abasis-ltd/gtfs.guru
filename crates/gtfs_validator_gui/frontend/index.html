@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GTFS Guru | The world's fastest opensource GTFS validator</title>
+    <title>GTFS Guru</title>
     <link rel="stylesheet" href="./vendor/leaflet.css">
     <script src="./vendor/leaflet.js"></script>
     <style>
@@ -14,152 +14,206 @@
             box-sizing: border-box;
         }
 
+        html {
+            scrollbar-color: #768da4 #edf2f7;
+            scrollbar-width: thin;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            min-height: 100vh;
-            background: #f8fafc;
-            color: #1e293b;
-            line-height: 1.6;
+            background: #f4f7fa;
+            color: #172539;
+            line-height: 1.5;
         }
 
         .container {
-            max-width: 720px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            max-width: 740px;
             margin: 0 auto;
-            padding: 0.5rem 1rem;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 0.75rem;
-            padding-top: 0.25rem;
+            padding: clamp(1rem, 4vh, 1.75rem) clamp(1rem, 4vw, 2rem) 0.75rem;
         }
 
         .app-header {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-            padding-bottom: 0.5rem;
+            gap: 0.6rem;
+            margin-bottom: 1rem;
         }
 
         .app-header img {
-            width: 44px;
-            height: 44px;
+            width: 40px;
+            height: 40px;
             flex: 0 0 auto;
         }
 
         .app-header h1 {
-            min-width: 0;
             font-size: 1.25rem;
             font-weight: 700;
-            color: #1e293b;
             line-height: 1.25;
+        }
+
+        .version {
+            margin-left: auto;
+            font-size: 0.8rem;
+            color: #52647b;
         }
 
         .card {
             background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid #dce5ee;
+            border-radius: 14px;
+            padding: clamp(0.9rem, 3vw, 1.4rem);
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 5px rgba(24, 45, 70, 0.04);
         }
 
         .form-group {
-            margin-bottom: 0.75rem;
+            margin-top: 0.85rem;
         }
 
         .form-label {
             display: block;
             font-size: 0.875rem;
-            font-weight: 500;
+            font-weight: 600;
             color: #374151;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.35rem;
         }
 
-        .drop-zone {
+        .drop-zone,
+        .diff-source {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
             width: 100%;
-            border: 2px dashed #e2e8f0;
-            border-radius: 12px;
-            padding: 1rem;
-            text-align: center;
+            min-width: 0;
+            border: 1px dashed #aabfd1;
+            border-radius: 10px;
+            padding: 0.8rem;
+            text-align: left;
             cursor: pointer;
-            transition: all 0.2s;
-            background: #f8fafc;
+            font: inherit;
+            color: inherit;
+            background: #f6f9fc;
         }
 
         .drop-zone:hover,
         .drop-zone.dragover,
-        .drop-zone:focus-visible {
-            border-color: #4f46e5;
-            background: #eef2ff;
+        .diff-source:hover {
+            border-color: #176ab2;
+            background: #edf6ff;
         }
 
-        .drop-zone:focus-visible {
-            outline: 3px solid rgba(79, 70, 229, 0.2);
-            outline-offset: 2px;
+        .drop-zone.has-file,
+        .diff-source.has-file {
+            border-color: #69a58a;
+            background: #f1faf5;
         }
 
-        .drop-zone.has-file {
-            border-color: #86efac;
-            background: #f0fdf4;
+        .icon {
+            width: 1rem;
+            height: 1rem;
+            flex: 0 0 auto;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.75;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
-        .drop-zone-icon {
-            font-size: 2rem;
-            margin-bottom: 0.25rem;
+        .source-icon {
+            display: grid;
+            place-items: center;
+            flex: 0 0 2.25rem;
+            height: 2.25rem;
+            border-radius: 8px;
+            background: #e5eff9;
+            color: #1763a3;
         }
 
-        .drop-zone-text {
-            color: #64748b;
-            font-size: 0.9rem;
+        .source-icon .icon {
+            width: 1.2rem;
+            height: 1.2rem;
         }
 
-        .drop-zone-file {
-            display: block;
-            max-width: 100%;
-            color: #1e293b;
-            font-weight: 500;
-            font-size: 0.95rem;
-            overflow-wrap: anywhere;
+        .has-file .source-icon {
+            background: #dcefe4;
+            color: #246749;
+        }
+
+        .source-copy {
+            display: grid;
+            min-width: 0;
+        }
+
+        .source-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .source-hint {
+            color: #52647b;
+            font-size: 0.8rem;
         }
 
         .select-input {
             width: 100%;
-            padding: 0.75rem 1rem;
+            min-height: 2.5rem;
+            padding: 0.55rem 0.75rem;
             background: #fff;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #cbd6e2;
             border-radius: 8px;
+            font: inherit;
             font-size: 0.9rem;
-            color: #1e293b;
+            color: inherit;
+        }
+
+        select.select-input {
             cursor: pointer;
-            transition: all 0.15s;
             appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            padding-right: 2rem;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2352647b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 0.75rem center;
         }
 
-        .select-input:focus {
-            outline: none;
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        .form-actions {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 0.35rem 0.75rem;
+            margin-top: 0.85rem;
+        }
+
+        .form-actions .form-label {
+            grid-column: 1 / -1;
+            margin: 0;
+        }
+
+        .form-actions .btn {
+            min-width: 8.5rem;
         }
 
         .btn-group {
             display: flex;
-            gap: 0.75rem;
             justify-content: flex-end;
-            margin-top: 1.5rem;
+            gap: 0.75rem;
+            margin-top: 1rem;
         }
 
         .btn {
-            padding: 0.75rem 1.5rem;
-            font-size: 0.9rem;
-            font-weight: 500;
+            min-height: 2.5rem;
+            padding: 0.55rem 0.95rem;
+            font: inherit;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border: 1px solid transparent;
             border-radius: 8px;
             cursor: pointer;
-            transition: all 0.15s;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
@@ -167,25 +221,24 @@
             gap: 0.5rem;
         }
 
-        .btn:focus-visible,
-        .report-link:focus-visible,
-        .footer-text a:focus-visible {
-            outline: 3px solid rgba(79, 70, 229, 0.25);
+        :where(button, input, select, summary, a, [tabindex]):focus-visible {
+            outline: 2px solid #176ab2;
             outline-offset: 2px;
         }
 
         .btn-primary {
-            background: #4f46e5;
-            border: none;
+            background: #1763a3;
             color: #fff;
         }
 
         .btn-primary:hover:not(:disabled) {
-            background: #4338ca;
+            background: #124f85;
         }
 
         .btn-primary:disabled {
-            opacity: 0.6;
+            background: #edf2f7;
+            border-color: #e0e8f0;
+            color: #52647b;
             cursor: not-allowed;
         }
 
@@ -228,7 +281,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             font-size: 0.875rem;
-            color: #4f46e5;
+            color: #1763a3;
             text-align: right;
         }
 
@@ -241,7 +294,7 @@
 
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            background: #1763a3;
             border-radius: 4px;
             transition: width 0.3s ease;
             animation: pulse 1.5s ease-in-out infinite;
@@ -273,17 +326,29 @@
             align-items: center;
             flex-wrap: wrap;
             gap: 0.5rem 1rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
         }
 
         .results-title {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
             font-size: 1.1rem;
             font-weight: 600;
-            color: #059669;
+            color: #246749;
         }
 
         .results-title.has-errors {
-            color: #dc2626;
+            color: #9a4210;
+        }
+
+        .results-title .status-warning,
+        .results-title.has-errors .status-ok {
+            display: none;
+        }
+
+        .results-title.has-errors .status-warning {
+            display: block;
         }
 
         .results-time {
@@ -294,22 +359,22 @@
         .results-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
         }
 
         .result-card {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
-            padding: 1.25rem;
+            padding: 0.75rem;
             text-align: center;
         }
 
         .result-count {
-            font-size: 2rem;
+            font-size: 1.65rem;
             font-weight: 700;
-            margin-bottom: 0.25rem;
+            font-variant-numeric: tabular-nums;
         }
 
         .result-count.errors {
@@ -338,17 +403,22 @@
         }
 
         .report-link {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.45rem;
             flex: 1;
-            padding: 0.75rem 1rem;
+            min-height: 2.5rem;
+            padding: 0.55rem 0.75rem;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             color: #374151;
             text-decoration: none;
             text-align: center;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.15s;
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
             cursor: pointer;
         }
 
@@ -366,6 +436,7 @@
             color: #dc2626;
             font-size: 0.9rem;
             margin-top: 1rem;
+            overflow-wrap: anywhere;
         }
 
         .error-message.active {
@@ -373,29 +444,15 @@
         }
 
         footer {
-            text-align: center;
-            padding: 1rem 0;
-            border-top: 1px solid #e2e8f0;
-            margin-top: 0.75rem;
+            margin-top: auto;
+            padding: 0.25rem 0;
+            color: #52647b;
+            font-size: 0.8rem;
         }
 
-        .footer-text {
-            color: #94a3b8;
-            font-size: 0.85rem;
-            display: flex;
-            gap: 0.75rem;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .footer-text a {
-            color: #4f46e5;
-            text-decoration: none;
-        }
-
-        .footer-text a:hover {
-            text-decoration: underline;
+        footer a {
+            color: #1763a3;
+            text-underline-offset: 0.14em;
         }
 
         @media (max-width: 480px) {
@@ -403,103 +460,16 @@
                 grid-template-columns: 1fr;
             }
 
-            .btn-group {
-                flex-direction: column;
+            .form-actions {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .form-actions .btn {
+                margin-top: 0.4rem;
             }
 
             .report-links {
                 flex-direction: column;
-            }
-        }
-
-        @media (max-width: 640px) {
-            .container {
-                padding-inline: 0.75rem;
-            }
-
-            .app-header {
-                gap: 0.5rem;
-            }
-
-            .app-header img {
-                width: 40px;
-                height: 40px;
-            }
-
-            .app-header h1 {
-                font-size: 1.05rem;
-            }
-
-            .results-grid {
-                gap: 0.5rem;
-            }
-
-            .result-card {
-                padding: 0.75rem 0.5rem;
-            }
-
-            .result-count {
-                font-size: 1.65rem;
-            }
-        }
-
-        @media (max-height: 550px) {
-            .container {
-                padding-top: 0.25rem;
-            }
-
-            header {
-                margin-bottom: 0.35rem;
-                padding-top: 0;
-            }
-
-            .app-header {
-                padding-bottom: 0.25rem;
-            }
-
-            .card {
-                padding: 0.75rem;
-                margin-bottom: 0.5rem;
-            }
-
-            .form-group {
-                margin-bottom: 0.5rem;
-            }
-
-            .form-label {
-                margin-bottom: 0.25rem;
-            }
-
-            .drop-zone {
-                padding: 0.55rem;
-            }
-
-            .drop-zone-icon {
-                font-size: 1.5rem;
-                line-height: 1.2;
-                margin-bottom: 0.1rem;
-            }
-
-            .select-input {
-                padding-block: 0.55rem;
-            }
-
-            .btn-group {
-                margin-top: 0.75rem;
-            }
-
-            .btn {
-                padding-block: 0.6rem;
-            }
-
-            .results-header,
-            .results-grid {
-                margin-bottom: 0.75rem;
-            }
-
-            footer {
-                margin-top: 0.5rem;
-                padding: 0.5rem 0;
             }
         }
 
@@ -513,7 +483,7 @@
             display: block;
         }
 
-        .map-section h4 {
+        .map-section h3 {
             font-size: 0.95rem;
             font-weight: 600;
             color: #374151;
@@ -558,6 +528,7 @@
         }
 
         .btn-small {
+            min-height: 2rem;
             padding: 0.4rem 0.75rem;
             font-size: 0.8rem;
         }
@@ -565,14 +536,15 @@
         .update-banner {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
             gap: 0.75rem;
             background: #fff7ed;
             border: 1px solid #fdba74;
             color: #9a3412;
             border-radius: 10px;
             padding: 0.5rem 0.75rem;
-            margin: 0 auto 0.75rem;
+            margin-bottom: 0.75rem;
             font-size: 0.85rem;
         }
 
@@ -589,10 +561,10 @@
             grid-template-columns: 1fr 1fr;
             gap: 4px;
             padding: 4px;
-            margin-bottom: 1rem;
-            border: 1px solid #e2e8f0;
+            margin-bottom: 0.9rem;
+            border: 1px solid #e0e8f0;
             border-radius: 10px;
-            background: #f8fafc;
+            background: #f1f5f9;
         }
 
         .mode-btn {
@@ -600,7 +572,7 @@
             border-radius: 7px;
             padding: 0.55rem;
             background: transparent;
-            color: #64748b;
+            color: #52647b;
             font: inherit;
             font-size: 0.85rem;
             font-weight: 600;
@@ -609,49 +581,14 @@
 
         .mode-btn.active {
             background: #fff;
-            color: #1e293b;
+            color: #13578f;
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
         }
 
         .diff-source-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 0.75rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .diff-source {
-            min-width: 0;
-            padding: 0.85rem;
-            border: 1px dashed #cbd5e1;
-            border-radius: 10px;
-            background: #f8fafc;
-            text-align: left;
-            cursor: pointer;
-        }
-
-        .diff-source:hover,
-        .diff-source.has-file {
-            border-color: #4f46e5;
-            background: #eef2ff;
-        }
-
-        .diff-source span,
-        .diff-source strong {
-            display: block;
-        }
-
-        .diff-source span {
-            color: #64748b;
-            font-size: 0.75rem;
-        }
-
-        .diff-source strong {
-            margin: 0.3rem 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 0.9rem;
         }
 
         .diff-results {
@@ -709,9 +646,19 @@
             border-top: 1px solid #e2e8f0;
         }
 
+        .diff-actions {
+            margin-bottom: 0.75rem;
+        }
+
+        .diff-actions .report-link {
+            flex: 0 1 auto;
+        }
+
         .diff-details summary {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto 1rem;
+            align-items: center;
+            gap: 0.65rem;
             padding: 0.7rem 0;
             cursor: pointer;
             font-size: 0.85rem;
@@ -724,9 +671,15 @@
             font-weight: 400;
         }
 
+        .diff-details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .diff-details[open] summary .icon {
+            transform: rotate(180deg);
+        }
+
         .diff-list {
-            max-height: 180px;
-            overflow: auto;
             list-style: none;
             margin-bottom: 0.75rem;
         }
@@ -745,7 +698,14 @@
 
         .diff-list code {
             color: #1e293b;
+            min-width: 0;
             overflow-wrap: anywhere;
+        }
+
+        .diff-list li > span:last-child {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            text-align: right;
         }
 
         @media (max-width: 560px) {
@@ -763,10 +723,38 @@
 </head>
 
 <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+        <symbol id="icon-folder" viewBox="0 0 24 24">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>
+        </symbol>
+        <symbol id="icon-report" viewBox="0 0 24 24">
+            <path d="M8 3h6l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h1Z"/>
+            <path d="M14 3v5h5M9 12h6m-6 4h6"/>
+        </symbol>
+        <symbol id="icon-code" viewBox="0 0 24 24">
+            <path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16"/>
+        </symbol>
+        <symbol id="icon-pin" viewBox="0 0 24 24">
+            <path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/>
+            <circle cx="12" cy="10" r="2.25"/>
+        </symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="m8 12 3 3 5-6"/>
+        </symbol>
+        <symbol id="icon-warning" viewBox="0 0 24 24">
+            <path d="M10.3 4.4a2 2 0 0 1 3.4 0l8 13.6a2 2 0 0 1-1.7 3H4a2 2 0 0 1-1.7-3Z"/>
+            <path d="M12 9v4m0 4h.01"/>
+        </symbol>
+        <symbol id="icon-chevron" viewBox="0 0 24 24">
+            <path d="m6 9 6 6 6-6"/>
+        </symbol>
+    </svg>
     <div class="container">
         <header class="app-header">
             <img src="./icons/icon.png" alt="">
-            <h1>GTFS Guru — The world's fastest GTFS validator</h1>
+            <h1>GTFS Guru</h1>
+            <span class="version" id="versionText"></span>
         </header>
 
         <div class="update-banner hidden" id="updateBanner">
@@ -782,42 +770,43 @@
             </div>
 
             <div id="validateSourceInputs">
-                <div class="form-group">
-                    <div class="form-label" id="filePickerLabel">Select a GTFS ZIP file</div>
-                    <div class="drop-zone" id="dropZone" role="button" tabindex="0"
-                        aria-labelledby="filePickerLabel dropZoneText">
-                        <div class="drop-zone-icon">📁</div>
-                        <div class="drop-zone-text" id="dropZoneText">
-                            Drop a file here or click to browse
-                        </div>
-                    </div>
-                    <input type="file" id="fileInput" accept=".zip" style="display: none;">
-                </div>
+                <div class="form-label" id="filePickerLabel">GTFS feed</div>
+                <button class="drop-zone" id="dropZone" type="button"
+                    aria-labelledby="filePickerLabel dropZoneText" aria-describedby="dropZoneHint">
+                    <span class="source-icon"><svg class="icon" aria-hidden="true"><use href="#icon-folder"/></svg></span>
+                    <span class="source-copy">
+                        <span class="source-name" id="dropZoneText">Choose a ZIP file</span>
+                        <span class="source-hint" id="dropZoneHint">Drop it here or click to browse</span>
+                    </span>
+                </button>
 
                 <div class="form-group">
                     <label class="form-label" for="urlInput">Or load from a URL</label>
-                    <input type="url" class="select-input" id="urlInput" placeholder="https://example.com/feed.zip"
-                        style="background-image: none; cursor: text;">
+                    <input type="url" class="select-input" id="urlInput" placeholder="https://example.com/feed.zip">
                 </div>
             </div>
 
             <div class="hidden" id="diffSourceInputs">
-                <div class="form-label">Choose the previous and new GTFS releases</div>
+                <div class="form-label">GTFS feeds</div>
                 <div class="diff-source-grid">
                     <button type="button" class="diff-source" id="oldSourceBtn">
-                        <span>Previous</span>
-                        <strong id="oldSourceName">Choose GTFS.zip</strong>
-                        <span>Baseline release</span>
+                        <span class="source-icon"><svg class="icon" aria-hidden="true"><use href="#icon-folder"/></svg></span>
+                        <span class="source-copy">
+                            <span class="source-hint">Previous feed</span>
+                            <span class="source-name" id="oldSourceName">Choose a ZIP file</span>
+                        </span>
                     </button>
                     <button type="button" class="diff-source" id="newSourceBtn">
-                        <span>New</span>
-                        <strong id="newSourceName">Choose GTFS.zip</strong>
-                        <span>Release to review</span>
+                        <span class="source-icon"><svg class="icon" aria-hidden="true"><use href="#icon-folder"/></svg></span>
+                        <span class="source-copy">
+                            <span class="source-hint">New feed</span>
+                            <span class="source-name" id="newSourceName">Choose a ZIP file</span>
+                        </span>
                     </button>
                 </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-actions">
                 <label class="form-label" for="regionSelect">Region (optional)</label>
                 <select class="select-input" id="regionSelect">
                     <option value="">Choose a region</option>
@@ -1071,12 +1060,7 @@
                     <option value="ZM">Zambia</option>
                     <option value="ZW">Zimbabwe</option>
                 </select>
-            </div>
-
-            <div class="btn-group">
-                <button class="btn btn-primary" id="validateBtn" disabled>
-                    Validate
-                </button>
+                <button class="btn btn-primary" id="validateBtn" disabled>Validate</button>
             </div>
 
             <div class="error-message" id="errorMessage" role="alert" aria-live="assertive"></div>
@@ -1094,7 +1078,11 @@
 
         <div class="card results-section" id="resultsSection" aria-live="polite">
             <div class="results-header">
-                <div class="results-title" id="resultsTitle">✓ Validation Complete</div>
+                <h2 class="results-title" id="resultsTitle">
+                    <svg class="icon status-ok" aria-hidden="true"><use href="#icon-check"/></svg>
+                    <svg class="icon status-warning" aria-hidden="true"><use href="#icon-warning"/></svg>
+                    Validation Complete
+                </h2>
                 <div class="results-time" id="resultsTime"></div>
             </div>
 
@@ -1114,13 +1102,17 @@
             </div>
 
             <div class="report-links">
-                <button class="report-link" id="htmlReportBtn">📊 Open HTML Report</button>
-                <button class="report-link" id="jsonReportBtn">📋 Open JSON Report</button>
+                <button class="report-link" id="htmlReportBtn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-report"/></svg> Open HTML Report
+                </button>
+                <button class="report-link" id="jsonReportBtn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-code"/></svg> Open JSON Report
+                </button>
             </div>
 
             <!-- Map Section for Geographic Errors -->
             <div class="map-section" id="mapSection">
-                <h4>📍 Geographic Errors Map</h4>
+                <h3><svg class="icon" aria-hidden="true"><use href="#icon-pin"/></svg> Geographic Errors Map</h3>
                 <div id="error-map"></div>
                 <div class="map-legend">
                     <div class="legend-item">
@@ -1134,34 +1126,30 @@
                 </div>
             </div>
 
-            <div class="btn-group" style="margin-top: 1.5rem;">
+            <div class="btn-group">
                 <button class="btn btn-secondary" id="resetBtn">New Validation</button>
             </div>
         </div>
 
         <div class="card diff-results" id="diffResultsSection" aria-live="polite">
             <div class="results-header">
-                <div class="results-title">Comparison Complete</div>
+                <h2 class="results-title">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg> Comparison Complete
+                </h2>
                 <div class="results-time" id="diffResultsTime"></div>
             </div>
-            <div id="diffReport"></div>
-            <div class="report-links">
-                <button class="report-link" id="openDiffJsonBtn">📋 Open JSON Diff</button>
-            </div>
-            <div class="btn-group" style="margin-top: 1rem;">
+            <div class="report-links diff-actions">
+                <button class="report-link" id="openDiffJsonBtn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-code"/></svg> Open JSON Diff
+                </button>
                 <button class="btn btn-secondary" id="resetDiffBtn">New Comparison</button>
             </div>
+            <div id="diffReport"></div>
         </div>
 
         <footer>
-            <div class="footer-text">
-                <span id="versionText"></span>
-                <span style="margin: 0 0.5rem">•</span>
-                <span>
-                    Made with love by <a href="https://abasis.ai" target="_blank">Abasis.AI</a> & Inspired by <a
-                        href="https://github.com/MobilityData/gtfs-validator" target="_blank">MobilityData</a>
-                </span>
-            </div>
+            <a href="https://abasis.ai" target="_blank">Abasis.AI</a> · Inspired by
+            <a href="https://github.com/MobilityData/gtfs-validator" target="_blank">MobilityData</a>
         </footer>
     </div>
 
@@ -1195,7 +1183,7 @@
 
         const dropZone = document.getElementById('dropZone');
         const dropZoneText = document.getElementById('dropZoneText');
-        const fileInput = document.getElementById('fileInput');
+        const dropZoneHint = document.getElementById('dropZoneHint');
 
         // New elements
         const urlInput = document.getElementById('urlInput');
@@ -1366,13 +1354,6 @@
         oldSourceBtn.addEventListener('click', () => chooseDiffSource('old'));
         newSourceBtn.addEventListener('click', () => chooseDiffSource('new'));
 
-        dropZone.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                dropZone.click();
-            }
-        });
-
         // Prevent the webview from navigating if the browser-level drop event fires.
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
@@ -1432,7 +1413,7 @@
             if (urlInput.value.trim()) {
                 // Clear file selection if URL is typed
                 selectedFilePath = null;
-                setDropZoneText('Drop a file here or click to browse');
+                setDropZoneFile();
                 dropZone.classList.remove('has-file');
                 validateBtn.disabled = false;
                 hideError();
@@ -1445,7 +1426,7 @@
             selectedFilePath = path;
             urlInput.value = ''; // Clear URL if file selected
             const fileName = path.split(/[/\\]/).pop();
-            setDropZoneText(`📁 ${fileName}`, true);
+            setDropZoneFile(fileName);
             dropZone.classList.add('has-file');
             validateBtn.disabled = false;
             hideError();
@@ -1456,19 +1437,22 @@
             if (slot === 'old') {
                 selectedOldPath = path;
                 oldSourceName.textContent = fileName;
+                oldSourceBtn.title = fileName;
                 oldSourceBtn.classList.add('has-file');
             } else {
                 selectedNewPath = path;
                 newSourceName.textContent = fileName;
+                newSourceBtn.title = fileName;
                 newSourceBtn.classList.add('has-file');
             }
             validateBtn.disabled = !(selectedOldPath && selectedNewPath);
             hideError();
         }
 
-        function setDropZoneText(text, isFile = false) {
-            dropZoneText.textContent = text;
-            dropZoneText.classList.toggle('drop-zone-file', isFile);
+        function setDropZoneFile(fileName = '') {
+            dropZoneText.textContent = fileName || 'Choose a ZIP file';
+            dropZoneHint.textContent = fileName ? 'Choose a different file' : 'Drop it here or click to browse';
+            dropZone.title = fileName;
         }
 
         validateBtn.addEventListener('click', () => {
@@ -1636,14 +1620,7 @@
             document.getElementById('warningCount').textContent = result.warningCount;
             document.getElementById('infoCount').textContent = result.infoCount;
 
-            const resultsTitle = document.getElementById('resultsTitle');
-            if (result.errorCount > 0) {
-                resultsTitle.textContent = '⚠ Validation Complete';
-                resultsTitle.classList.add('has-errors');
-            } else {
-                resultsTitle.textContent = '✓ Validation Complete';
-                resultsTitle.classList.remove('has-errors');
-            }
+            document.getElementById('resultsTitle').classList.toggle('has-errors', result.errorCount > 0);
 
             document.getElementById('resultsTime').textContent =
                 `Completed in ${result.validationTimeSecs.toFixed(2)}s`;
@@ -1678,7 +1655,10 @@
             const visible = rows.slice(0, 200);
             return `
                 <details class="diff-details">
-                    <summary>${escapeHtml(title)} <span>${rows.length.toLocaleString()} changes</span></summary>
+                    <summary>
+                        ${escapeHtml(title)} <span>${rows.length.toLocaleString()} changes</span>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-chevron"/></svg>
+                    </summary>
                     <ul class="diff-list">
                         ${visible.map(([label, value]) =>
                             `<li><code>${escapeHtml(label)}</code><span>${escapeHtml(value)}</span></li>`
@@ -1760,7 +1740,7 @@
             mapSection.classList.add('active');
 
             if (!errorMap) {
-                errorMap = L.map('error-map');
+                errorMap = L.map('error-map', { scrollWheelZoom: false });
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 }).addTo(errorMap);
@@ -1833,7 +1813,7 @@
             }
 
             urlInput.value = '';
-            setDropZoneText('Drop a file here or click to browse');
+            setDropZoneFile();
             dropZone.classList.remove('has-file');
             validateBtn.disabled = true;
             uploadCard.style.display = 'block';
@@ -1847,8 +1827,10 @@
             selectedOldPath = null;
             selectedNewPath = null;
             lastDiffResult = null;
-            oldSourceName.textContent = 'Choose GTFS.zip';
-            newSourceName.textContent = 'Choose GTFS.zip';
+            oldSourceName.textContent = 'Choose a ZIP file';
+            newSourceName.textContent = 'Choose a ZIP file';
+            oldSourceBtn.removeAttribute('title');
+            newSourceBtn.removeAttribute('title');
             oldSourceBtn.classList.remove('has-file');
             newSourceBtn.classList.remove('has-file');
             validateBtn.disabled = true;
